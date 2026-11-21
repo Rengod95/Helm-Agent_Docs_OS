@@ -9,7 +9,7 @@ import type {
   SecretService,
 } from "@fresnel/contracts/services";
 import type { ProcessPlatformProvider } from "../select.ts";
-import { childEnv, VALID_ENV_NAME } from "./child-env.ts";
+import { openChildEnv, VALID_ENV_NAME } from "./child-env.ts";
 import { DEFAULT_STDIN_CLOSE_MS, stopperOfPiped } from "./child-stop.ts";
 import { spawnPiped, type PipedExit } from "./spawn-piped.ts";
 
@@ -17,8 +17,10 @@ import { spawnPiped, type PipedExit } from "./spawn-piped.ts";
 // L2.mcp는 L0를 import하지 않으므로 같은 모양을 `cap-mcp/src/ports/process.ts`의 `McpProcessPort`로 선언해 두었고,
 // 이 파일은 그 모양에 구조로 맞는 구현이다(조립 루트가 잇는다).
 //
-// 1. 자식 env는 부모 env의 허용 목록 이름(거부 패턴 제외)에 정의의 평문 `env`와 `secretEnv`를 더해 만든다(M3-REQ-97).
-//    평문 env는 정의 파일에 이미 평문으로 있는 값이다. 시크릿 이름 패턴 거부는 정의를 읽는 L2가 했다.
+// 1. 자식 env는 부모 env에서 `FRESNEL_` 이름만 뺀 값에 정의의 평문 `env`와 `secretEnv`를 더해 만든다(M3-REQ-97).
+//    열린 길이라 부모의 토큰 이름도 거르지 않는다 [결정: 2026-11-21, 사용자, AGE-63]. 평문 env는 정의 파일에 이미 평문으로 있는 값이다.
+//    시크릿 이름 패턴 거부는 정의를 읽는 L2가 했다.
+//    샌드박스는 열린 정책(`writeEverywhere`)으로 감싼다: 쓰기 루트 `/`, 보호 경로만 거부, 네트워크는 차단 목록만 [결정: 2026-11-21, 사용자, AGE-63].
 // 2. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. 값은 이 함수의 지역 변수와 spawn 인자에만 있고
 //    spawn이 끝나면 lease를 닫는다. 오류와 로그에는 참조 이름만 쓴다. 사용 목적은 `mcp.start:<서버 id>`이고 대상은
 //    `mcp:<서버 id>` 명령줄이다. 정의 해시마다 한 번 받은 기동 승인 증거(`approval`)를 그대로 넘긴다(L0.secrets.spec §4.3.1, M3-REQ-58).
@@ -35,6 +37,7 @@ export interface McpSpawnSpec {
   readonly env?: Readonly<Record<string, string>>;
   /**
    * 샌드박스에 넣어 띄우라는 요청(L2 `sandboxOf`의 결과, M3-REQ-97). 참이면 `SandboxService.wrapArgv`가 돌려준 명령줄로 띄운다.
+   * 정책은 열린 정책이다(쓰기 루트 `/`, 보호 경로만 거부, 네트워크는 차단 목록만) [결정: 2026-11-21, 사용자, AGE-63].
    * 격리를 쓸 수 없으면(서비스 없음, 의존 프로그램 없음 등) 띄우지 않고 `sandbox_unavailable`을 돌려준다(닫힌 실패, P-15).
    * 사용자가 격리를 끄거나(`l0.sandbox.enabled`) 격리 불가 시 실행을 허락한(`onUnavailable = run_unsandboxed`) 때만
    * 격리 없이 띄우고 경고 `mcp.sandbox_not_enforced`를 남긴다(L0.process.spec §4.9)
@@ -93,10 +96,12 @@ export interface McpProcessDeps {
    * 함수가 없거나 undefined를 돌려주면 샌드박스 요청이 있는 서버는 `sandbox_unavailable`로 막힌다
    */
   readonly sandbox?: (() => McpSandboxSource | undefined) | undefined;
-  /** 샌드박스 정책의 쓰기 루트로 더하는 임시 디렉터리. `sandbox`가 있을 때 쓴다 */
+  /**
+   * 샌드박스 정책 입력으로 넘기는 임시 디렉터리. `sandbox`가 있을 때 필요하다. 열린 정책은 쓰기 루트로 쓰지 않는다(쓰기 루트는 `/`) [결정: 2026-11-21, 사용자, AGE-63]
+   */
   readonly tempDir?: string | undefined;
   readonly scheduler: Scheduler;
-  /** 부모 env. 허용 목록 이름만 자식에게 옮긴다 */
+  /** 부모 env. `FRESNEL_` 이름만 빼고 자식에게 옮긴다 [결정: 2026-11-21, 사용자, AGE-63] */
   readonly parentEnv: Readonly<Record<string, string | undefined>>;
   readonly logger: Logger;
   /** 자식이 끝난 뒤 표준 출력이 닫히기를 기다리는 시간(ms) */
@@ -217,11 +222,12 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
       });
       return err({ kind: "sandbox_unavailable", reason: "service_missing" });
     }
-    // 서버는 작업 디렉터리와 임시 디렉터리에만 쓴다. 읽기는 보호 경로 거부 목록을 따른다(L0.sandbox.spec §4.9)
+    // 열린 정책: 쓰기 루트 `/`, 보호 경로(Fresnel 자신의 시크릿·데이터·설정과 사용자의 extra)만 거부한다 [결정: 2026-11-21, 사용자, AGE-63]
     const cwd = spec.cwd === undefined ? undefined : resolvePath(spec.cwd);
     const policy = sandbox.defaultPolicy({
-      workspaceRoots: cwd === undefined ? [] : [cwd],
+      workspaceRoots: [],
       tempDir: deps.tempDir,
+      writeEverywhere: true,
     });
     const wrapped = await sandbox.wrapArgv(
       policy,
@@ -277,7 +283,10 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
             // 샌드박스가 정한 값(프록시 주소 등)은 정의의 env보다 앞선다.
             // 시크릿 값은 거부 패턴(`*_TOKEN` 등)을 거치지 않는다: 사용자가 이름을 골라 정책을 통과한 값이다(exec와 같다)
             env: {
-              ...Object.assign(childEnv(deps.parentEnv, spec.env ?? {}), secretEnv.value.values),
+              ...Object.assign(
+                openChildEnv(deps.parentEnv, spec.env ?? {}),
+                secretEnv.value.values,
+              ),
               ...wrapped?.env,
             },
             label: spec.server,

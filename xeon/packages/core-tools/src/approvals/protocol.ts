@@ -4,7 +4,6 @@ import { ReviewAnswerSchema } from "@fresnel/contracts/records";
 import {
   SCRIPT_RUN_RULE_PREFIX,
   WEB_ACCESS_RULE_ID,
-  WRITE_ACCESS_RULE_ID,
   type ApprovalDecision,
   type ApprovalRemember,
   type ApprovalRequest,
@@ -65,13 +64,8 @@ function reviewIssue(body: ReviewBody): string | undefined {
 
 function rememberIssue(input: ApprovalRequestInput): string | undefined {
   // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자, 2026-11-04 B5 점검]. 어떤 종류도 once만 제안한다.
-  // 예외: 샌드박스 밖 쓰기 허용 승인은 "이 대화 동안 전부 허용"(thread)을 함께 제안한다 [결정: 2026-11-13 사용자]
   const { remember, body } = input;
   if (remember.length === 1 && remember[0] === "once") return undefined;
-  const writeAccess = body.kind === "tool" && body.tool.ruleId === WRITE_ACCESS_RULE_ID;
-  if (writeAccess && remember.length === 2 && remember[0] === "once" && remember[1] === "thread") {
-    return undefined;
-  }
   // 드래프트 스크립트 실행 승인은 "이 테스트 런 동안 다시 묻지 않음"(thread) 하나를 제안한다 [결정: 2026-11-19, 사용자, AGE-58]
   const scriptRun =
     body.kind === "tool" && body.tool.ruleId?.startsWith(SCRIPT_RUN_RULE_PREFIX) === true;

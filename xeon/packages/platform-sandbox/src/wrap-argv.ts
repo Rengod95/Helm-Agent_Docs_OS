@@ -10,8 +10,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { posix } from "node:path";
 import { tmpdir } from "node:os";
 import { carveOutRules, type CarveOutRules } from "./carve-outs.ts";
-import { canonicalizePath, seatbeltSafe } from "./paths.ts";
-import type { EffectivePolicy } from "./policy.ts";
+import { canonicalizePath, isInside, seatbeltSafe } from "./paths.ts";
+import { WRITE_EVERYWHERE, type EffectivePolicy } from "./policy.ts";
 import {
   decideExecution,
   envAdditions,
@@ -127,6 +127,12 @@ function withProfileTail(
   return ok(wrapped);
 }
 
+/** 열린 정책의 읽기 예외 후보가 읽기 거부 경로 안에 있는가. 정규 경로로 견준다. 없는 경로는 정규 경로 그대로 견준다 */
+function insideReadDeny(path: string, readDeny: readonly string[]): boolean {
+  const target = canonicalizePath(path);
+  return readDeny.some((denied) => isInside(denied, target));
+}
+
 /** 격리 없이 도는 명령줄. 요청 그대로다 */
 function plainArgv(
   request: SandboxArgvRequest,
@@ -156,24 +162,36 @@ export async function wrapArgvWith(
   const commandId = newCommandId(deps.random);
   const baseDir = request.cwd !== undefined && request.cwd.startsWith("/") ? request.cwd : "/";
   const scriptEnv = policy.profile === "script-env";
+  // 열린 정책(프로필 없음, 쓰기 루트 `/`)도 읽기 예외를 받는다: 플러그인 폴더가 보호 경로 안에 있을 때 자기 코드를 읽게 한다 [제안, AGE-63]
+  const open = policy.profile === undefined && policy.writeRoots.includes(WRITE_EVERYWHERE);
   const carveOuts = policy.readCarveOuts ?? [];
-  if (carveOuts.length > 0 && !scriptEnv) {
-    return err({ kind: "failed", message: "read carve-outs need the script-env profile" });
+  if (carveOuts.length > 0 && !scriptEnv && !open) {
+    return err({
+      kind: "failed",
+      message: "read carve-outs need the script-env profile or the open policy",
+    });
   }
   // 읽기 예외는 임시 폴더를 만들기 전에 검사한다. 실패해도 남는 것이 없다
   let resolved: EffectivePolicy | undefined;
   let carve: CarveOutRules = { literal: [], subpath: [] };
-  if (scriptEnv) {
-    if (carveOuts.length > 0 && deps.provider.kind !== "seatbelt") {
+  if (scriptEnv || (open && carveOuts.length > 0)) {
+    const effective = deps.resolvePolicy(policy, baseDir);
+    resolved = effective;
+    // 열린 정책에서는 읽기 거부 경로 안에 있는 예외만 뜻이 있다. 밖의 것은 이미 읽히므로 규칙을 더하지 않고 뺀다
+    const candidates = open
+      ? carveOuts.filter(
+          (path) => !path.startsWith("/") || insideReadDeny(path, effective.readDeny),
+        )
+      : carveOuts;
+    if (candidates.length > 0 && deps.provider.kind !== "seatbelt") {
       return err({
         kind: "failed",
         message: "read carve-outs are not supported on this sandbox provider",
       });
     }
-    resolved = deps.resolvePolicy(policy, baseDir);
     const rules = carveOutRules({
-      carveOuts,
-      readDeny: resolved.readDeny,
+      carveOuts: candidates,
+      readDeny: effective.readDeny,
       protectedEntries: deps.protectedEntries(),
     });
     if (!rules.ok) {

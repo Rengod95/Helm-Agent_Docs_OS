@@ -17,6 +17,14 @@ describe("sandbox settings", () => {
     expect(def?.allowedScopes).toEqual(["managed", "user"]);
   });
 
+  test("narrowDrafts is off by default, takes effect next turn, and only managed and user scopes may set it", () => {
+    const def = SANDBOX_SETTING_DEFS.find((d) => d.key === "l0.sandbox.narrowDrafts");
+    expect(def?.default).toBe(false);
+    expect(def?.allowedScopes).toEqual(["managed", "user"]);
+    expect(def?.runtimeChange).toBe("nextTurn");
+    expect(def?.ui).toMatchObject({ tab: "permissions", widget: "toggle", order: 109 });
+  });
+
   test("declares the l0.sandbox keys under l0.sandbox with valid definitions", () => {
     expect(SANDBOX_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.sandbox.enabled",
@@ -25,6 +33,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.network.blockedDomains",
       "l0.sandbox.nestedNamespaces",
       "l0.sandbox.sandboxImportedHooks",
+      "l0.sandbox.narrowDrafts",
       "l0.sandbox.selfTestIntervalMin",
     ]);
     for (const def of SANDBOX_SETTING_DEFS) {

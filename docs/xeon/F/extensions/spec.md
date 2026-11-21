@@ -397,7 +397,7 @@ export interface PluginCard {
     readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
   };
   readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
-  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
+  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };  // isolated: 코드가 샌드박스 안에서 도는가. true는 Fresnel의 샌드박스 하나(열린 정책, 막는 것은 보호 셋뿐), 엔진 안의 내장만 false, 코드 없음은 null [결정: 2026-11-21, 사용자, AGE-63]
   readonly cost: CostFigures;                                     // basis는 declared 또는 unknown. 숫자는 어림 토큰이다(아래 CostFigures)
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
@@ -416,7 +416,7 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
   readonly replaces: readonly string[];
-  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`의 `system_tools`·`network`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것(`system_tools`, `network`, `SCRIPT_USES`)이고 승인 카드(`ScriptCard.uses`)와 같은 값이다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
+  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것이고 승인 카드(`ScriptCard.uses`)와 같은 값이다. 열린 정책의 스크립트(승인된 플러그인, 설정을 끈 승인 전 드래프트)는 `SCRIPT_USES` = `sandbox_full_access`·`user_environment`·`network`이다. 좁은 길(설정 `narrowDrafts`를 켠 승인 전 드래프트)은 `SCRIPT_NARROW_USES` = `system_tools`·`network`이다 [결정: 2026-11-21, 사용자, AGE-63; 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
 }
 export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
@@ -470,7 +470,7 @@ export interface PluginScriptPort { run(request: ScriptRunRequest): Promise<Resu
 
 - 초안 스크립트 [결정: 2026-11-19, 사용자, AGE-58 (3)과 "웬만하면 자동 승인": 테스트 런에서 드래프트 스크립트를 승인 카드로 열어 주되 자동 승인 런은 카드 없음. 필드·종류 이름은 [제안]]: `ScriptRunRequest.threadId?`(호출한 대화)와 `ScriptDraftGate`(`ScriptDraftCall`을 받아 카드를 열고, 승인한 호출만 `run`을 부른다)를 더했다. 거절한 카드, 정책 거부, 훅의 막기는 `script_denied`(`cause`는 도구 호출 실패 종류)다. 승인 문이 없거나 대화가 없으면 초안은 `script_not_approved`다. `PluginCallTarget`에 `{ kind: "script", name, run }`을 더했다(L1.tools §4.6.1 6c).
 - 실행 순서 [제안, 엔진(X) 구현]: (1) `replay`가 참이면 띄우지 않고 `replay_mode_denied`다. (2) `name`이 매니페스트 `scripts`에 없으면 `script_not_declared`다. (3) `file`을 `isScriptFileValid`로 보고, 심볼릭 링크를 따라간 실제 위치가 플러그인 폴더 밖이면 `script_outside_tree`다. (4) 파일이 없거나 일반 파일이 아니면 `script_missing`이다. (5) 승인되지 않은 버전이면 `script_not_approved`다. 일반 대화는 승인된 검토본만 돌리고, 초안은 테스트 실행에서만 돌며 승인 카드를 거친다(`auto`는 카드 없음, 그 밖에는 스크립트마다 처음 한 번, [결정: 2026-11-19, 사용자, AGE-58], 2026-11-17 U2). (6) 통과하면 `IsolationProcessPort.spawn`으로 `<runner 절대 경로> <플러그인 폴더>/<file> ...args`를 띄운다. 격리를 쓸 수 없으면 `sandbox_unavailable`로 닫힌다(띄우지 않는다).
-- 실행 [제안]: 읽기 허용 목록은 그 플러그인의 폴더(검토본 `tree/`)와 실행기 실행 파일뿐이고, 쓰기는 없다 [근거: 설계 B 2026-11-18, `review/m5/drive-isolation.md` §3.4]. 프로필을 넓히지 않는다(`review/m5/drive-isolation.md` §3.4). 표준 입력을 쓰고 닫는다. 표준 출력과 표준 오류는 각각 `outputBytes`를 넘으면 자르고 `…Truncated`를 참으로 한다. 기한(선언의 `timeoutMs`, 생략하면 `timeoutDefaultMs`, 상한 `timeoutMaxMs`)이 지나면 프로세스 트리를 멈추고 `timedOut`을 참으로 한다. 종료 코드가 없으면 `exitCode`는 null이다.
+- 실행 [제안]: 승인 전 드래프트를 설정 `l0.sandbox.narrowDrafts`로 좁힌 호출(`narrow: true`)은 읽기 허용 목록이 그 플러그인의 폴더(검토본 `tree/`)와 실행기 실행 파일뿐이고 쓰기는 없다 [근거: 설계 B 2026-11-18, `review/m5/drive-isolation.md` §3.4]. 그 밖의 호출(승인된 플러그인의 스크립트)은 열린 정책이다: 읽기·쓰기는 셸 도구와 같고 보호 경로만 막는다 [결정: 2026-11-21, 사용자, AGE-63]. 이전 문장("프로필을 넓히지 않는다")은 2026-11-21 결정으로 대체되었다. 표준 입력을 쓰고 닫는다. 표준 출력과 표준 오류는 각각 `outputBytes`를 넘으면 자르고 `…Truncated`를 참으로 한다. 기한(선언의 `timeoutMs`, 생략하면 `timeoutDefaultMs`, 상한 `timeoutMaxMs`)이 지나면 프로세스 트리를 멈추고 `timedOut`을 참으로 한다. 종료 코드가 없으면 `exitCode`는 null이다.
 - 표준 입력이 `stdinBytes`(256 KiB)를 넘으면 `ScriptRunFailure`의 종류가 아니라 엔진 호출 `runScript`의 `invalid_params`(메시지 `stdin is over <바이트> bytes`)로 거절한다. 실행기에 닿기 전이다 [근거: packages/ext-host/src/isolation/engine-calls.ts `runScript` 처리, `SCRIPT_LIMITS.stdinBytes`]. 엔진 안(격리하지 않는) 플러그인이 부르는 길의 상한 검사는 이 확인 범위 밖이다 [미결].
 - 환경 모드 실행 [결정: 2026-11-20, 사용자, AGE-58 원칙 가; 세부는 [제안]]: 선언에 `env`가 있으면 (3)~(4)의 위치 검사는 동반 파일에만 적용하고, (5) 뒤에 두 검사를 더한다. 자격과 지문 검사는 두 길에서 같고, 그 뒤에 두 길 가운데 하나로 띄운다.
   - (5a) `ScriptEnvGrant.granted`가 거짓이거나 `projectDir`이 없거나 초안이면 `script_env_not_granted`다(초안과 손으로 만든 선언은 좁은 모드로 대체하지 않고 거절한다). 이 자격이 환경 모드의 유일한 문지기다. 매니페스트의 `env` 선언은 자격이 아니다.
@@ -918,11 +918,16 @@ export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort>; // { name: "f
 export interface IsolationSpawnSpec {
   readonly command: string;          // process.execPath
   readonly args: readonly string[];  // 하위 명령 `plugin-host --stdio`
-  /** 플러그인 패키지 폴더. 읽기 전용으로 열리고 작업 폴더다. 읽기는 이 폴더와 실행 파일과 런타임뿐(허용 목록), 쓰기는 프로세스 전용 빈 임시 폴더 하나뿐, 네트워크 전체 허용 */
+  /** 플러그인 패키지 폴더. 작업 폴더다. 열린 정책에서는 읽기·쓰기가 셸 도구와 같다(보호 경로만 거부). `narrow`면 읽기는 이 폴더와 실행 파일과 런타임뿐(허용 목록), 쓰기는 없다 [결정: 2026-11-21, 사용자, AGE-63] */
   readonly readRoot: string;
-  /** 호스트 런타임이 readRoot 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 컴파일 바이너리는 비어 있다 */
+  /** 호스트 런타임이 readRoot 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 컴파일 바이너리는 비어 있다. 좁은 정책(`narrow`)에서만 쓴다 */
   readonly runtimeReadRoots?: readonly string[];
-  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
+  /**
+   * 참이면 이 호출만 좁은 샌드박스(쓰기 없음 프로필, 읽기 허용 목록, 허용 목록 env)로 돈다. 설정 `l0.sandbox.narrowDrafts`가 켜진 승인 전 드래프트용.
+   * 없으면 열린 정책이다(쓰기 루트 `/`, 보호 경로 외 읽기·쓰기 허용, 네트워크는 차단 목록만) [결정: 2026-11-21, 사용자, AGE-63]
+   */
+  readonly narrow?: true;
+  /** 열린 정책에서는 env가 부모 env에서 `FRESNEL_`로 시작하는 이름을 뺀 값에 더해진다(토큰 이름도 거르지 않는다). `narrow`면 허용 목록 env에 더해진다. DB 경로와 시크릿 값은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   readonly label: string;            // "ext:<name>:<versionId>"
 }

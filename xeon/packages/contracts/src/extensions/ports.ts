@@ -210,13 +210,14 @@ export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort> = {
 
 /**
  * 플러그인 호스트 프로세스를 띄우는 요청(review.m5-drive-isolation §3.1). 엔진이 자기 실행 파일을 다른 모드로 다시 실행한다
- * (`command` = `process.execPath`, `args`에 하위 명령). L0는 OS 샌드박스로 감싸 띄운다: 읽기는 `readRoot`와 실행 파일과 런타임이 꼭 필요한 시스템 경로뿐(허용 목록),
- * 쓰기는 이 프로세스 전용 빈 임시 폴더 하나뿐, 네트워크 전체 허용(§3.4 [결정: 2026-11-17 사용자])
+ * (`command` = `process.execPath`, `args`에 하위 명령). L0는 OS 샌드박스로 감싸 띄운다. 기본은 열린 정책이다: 읽기·쓰기는 셸 도구와 같고(보호 경로만 거부),
+ * 네트워크는 차단 목록만이다. `narrow`가 참이면 좁은 정책이다: 읽기는 `readRoot`와 실행 파일과 런타임 시스템 경로뿐(허용 목록), 쓰기는 이 프로세스 전용 빈 임시 폴더 하나뿐
+ * [결정: 2026-11-21, 사용자, AGE-63; 이전 기본은 좁은 정책이었고 §3.4 [결정: 2026-11-17 사용자]는 이 결정으로 대체되었다]
  */
 export interface IsolationSpawnSpec {
   readonly command: string;
   readonly args: readonly string[];
-  /** 플러그인 패키지 폴더(검토본 `tree/`, 초안은 `drafts/<draftId>/tree/`). 읽기 전용으로 열린다. 작업 폴더이기도 하다 */
+  /** 플러그인 패키지 폴더(검토본 `tree/`, 초안은 `drafts/<draftId>/tree/`). 작업 폴더이기도 하다. 열린 정책에서는 읽기·쓰기가 셸 도구와 같다 */
   readonly readRoot: string;
   /**
    * 호스트 런타임이 `readRoot` 밖에서 더 읽어야 하는 절대 경로(소스 실행이면 소스 작업 공간). 컴파일 바이너리는 비어 있다.
@@ -225,7 +226,8 @@ export interface IsolationSpawnSpec {
   readonly runtimeReadRoots?: readonly string[];
   /**
    * 참이면 읽기 허용 목록에 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위해 꼭 필요한 시스템 경로를 더한다(읽기·실행만, 쓰기는 더하지 않는다).
-   * 스크립트 실행기만 켠다. 다른 프로필(훑기 자식, 플러그인 격리 프로세스)은 켜지 않는다 [결정: 2026-11-19, 사용자, AGE-58 "다 열어"]
+   * 스크립트 실행기만 켠다. 다른 프로필(훑기 자식, 플러그인 격리 프로세스)은 켜지 않는다 [결정: 2026-11-19, 사용자, AGE-58 "다 열어"].
+   * 열린 정책(`narrow`가 없음)에서는 이 값을 무시한다 [결정: 2026-11-21, 사용자, AGE-63]
    */
   readonly systemTools?: true;
   /**
@@ -237,7 +239,15 @@ export interface IsolationSpawnSpec {
     readonly projectDir: string;
     readonly readCarveOuts: readonly string[];
   };
-  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다 */
+  /**
+   * 참이면 이 호출만 좁은 샌드박스(쓰기 없음 프로필, 읽기 허용 목록, 허용 목록 env)로 돈다. 설정 `l0.sandbox.narrowDrafts`가 켜진 승인 전 플러그인 드래프트용이다.
+   * 없으면 열린 정책이다. `scriptEnv`가 있으면 옛 길(스크립트 환경 프로필)이 먼저 쓰인다 [결정: 2026-11-21, 사용자, AGE-63]
+   */
+  readonly narrow?: true;
+  /**
+   * 열린 정책에서는 부모 env에서 `FRESNEL_`로 시작하는 이름을 뺀 값에 더해진다(토큰 이름도 거르지 않는다). 좁은 정책에서는 허용 목록 env에 더해진다.
+   * DB 경로와 시크릿 값은 넣지 않는다. 이름 형식이 틀리면 `env_denied`다
+   */
   readonly env: Readonly<Record<string, string>>;
   /** "ext:<name>:<versionId>" */
   readonly label: string;

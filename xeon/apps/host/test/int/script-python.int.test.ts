@@ -5,8 +5,9 @@ import { readOsRuntime } from "@fresnel/platform-os";
 import { scriptRunnersOnPath } from "../../src/assembly/plugin-host.ts";
 import { openScriptBox, sandboxAvailable, type ScriptBox } from "../support/script-box.ts";
 
-// `python3` 스크립트 실행기가 실제 샌드박스 안에서 돈다(AGE-58 마무리, 트랙 enK7, [결정: 2026-11-19, 사용자, "1-다 2-가"]).
-// 설치 폴더(`sys.base_prefix`)만 읽기로 열고 쓰기와 폴더 밖 데이터 읽기는 계속 막혀 있는지 본다. 시험이 만든 가짜 값만 쓰고 얻은 값은 출력하지 않는다.
+// `python3` 스크립트 실행기가 실제 샌드박스 안에서 돈다(AGE-58 마무리, 트랙 enK7). 사용자 결정 2026-11-21(AGE-63): 승인된 플러그인의 스크립트는 열린 정책이다.
+// 설치 폴더와 폴더 밖, 가짜 홈을 셸 도구와 같이 읽고 쓴다. 막는 것은 보호 경로뿐이다(`script-boundary.int.test.ts`). 바이트코드는 쓰지 않는다(환경 변수 `PYTHONDONTWRITEBYTECODE`).
+// 시험이 만든 가짜 값만 쓰고 얻은 값은 출력하지 않는다. 예전의 ctypes(Mach 서비스, 키체인 조회)와 막은 도구 실행 시험은 열린 정책에서 실제 기기를 건드리므로 지웠다.
 // 샌드박스나 `python3`가 없으면 건너뛴다. FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 샌드박스 없음은 종료 코드 2다.
 
 const TEST_TIMEOUT_MS = 90_000;
@@ -69,7 +70,7 @@ if re.search(r"rm\\s+-rf", command):
   );
 
   test(
-    "after opening the install folder: writes and reads outside the plugin folder stay blocked, and no bytecode is written",
+    "the open policy: python3 reads and writes outside the plugin folder and in a fake home like the shell tool, and writes no bytecode",
     async () => {
       const box = await openScriptBox();
       try {
@@ -79,7 +80,7 @@ if re.search(r"rm\\s+-rf", command):
         writeFileSync(join(box.home, ".ssh", "id"), "fake-key");
         const results = await resultsOf(
           box,
-          `import os, sys, glob
+          `import os, sys
 out = []
 def check(name, fn):
     try:
@@ -88,27 +89,21 @@ def check(name, fn):
     except OSError:
         out.append(name + "=blocked")
 check("read_outside", lambda: open(${JSON.stringify(secret)}).read())
-check("read_home", lambda: open(${JSON.stringify(join(box.home, ".ssh", "id"))}).read())
-check("list_home", lambda: os.listdir(${JSON.stringify(box.home)}))
+check("read_fake_home", lambda: open(${JSON.stringify(join(box.home, ".ssh", "id"))}).read())
+check("list_fake_home", lambda: os.listdir(${JSON.stringify(box.home)}))
 check("write_tree", lambda: open(${JSON.stringify(join(box.tree, "w.txt"))}, "w").write("x"))
 check("write_outside", lambda: open(${JSON.stringify(join(box.outside, "w.txt"))}, "w").write("x"))
-check("write_install", lambda: open(os.path.join(sys.base_prefix, "lib", "w.txt"), "w").write("x"))
-check("write_etc", lambda: open("/etc/w.txt", "w").write("x"))
-check("read_etc_passwd", lambda: open("/etc/passwd").read())
 check("read_tmp_write", lambda: open(os.environ["TMPDIR"] + "/ok", "w").write("x"))
 out.append("dont_write_bytecode=" + str(sys.dont_write_bytecode))
 print("\\n".join(out))
 `,
         );
         expect(results).toEqual({
-          read_outside: "blocked",
-          read_home: "blocked",
-          list_home: "blocked",
-          write_tree: "blocked",
-          write_outside: "blocked",
-          write_install: "blocked",
-          write_etc: "blocked",
-          read_etc_passwd: "blocked",
+          read_outside: "open",
+          read_fake_home: "open",
+          list_fake_home: "open",
+          write_tree: "open",
+          write_outside: "open",
           read_tmp_write: "open",
           dont_write_bytecode: "True",
         });
@@ -119,112 +114,6 @@ print("\\n".join(out))
     TEST_TIMEOUT_MS,
   );
 
-  test(
-    "ctypes: blocked Mach services stay blocked, other processes' info is unreadable, the keychain is unreachable",
-    async () => {
-      const box = await openScriptBox();
-      try {
-        const services = [
-          "com.apple.SecurityServer",
-          "com.apple.securityd.xpc",
-          "com.apple.coreservices.launchservicesd",
-          "com.apple.lsd.mapdb",
-          "com.apple.pasteboard.1",
-          "com.apple.windowserver.active",
-          "com.apple.coreservices.appleevents",
-          "com.apple.cfprefsd.daemon",
-          "com.apple.tccd",
-          "com.apple.PowerManagement.control",
-          "com.apple.audio.systemsoundserver",
-          "com.apple.distributed_notifications@Uv3",
-        ];
-        const results = await resultsOf(
-          box,
-          `import ctypes, ctypes.util, os
-libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
-out = []
-bp = ctypes.c_uint32(0)
-libc.mach_task_self.restype = ctypes.c_uint32
-libc.task_get_special_port.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.POINTER(ctypes.c_uint32)]
-libc.bootstrap_look_up.argtypes = [ctypes.c_uint32, ctypes.c_char_p, ctypes.POINTER(ctypes.c_uint32)]
-out.append("bootstrap_port=" + str(libc.task_get_special_port(libc.mach_task_self(), 4, ctypes.byref(bp))))
-for name in ${JSON.stringify(services)}:
-    port = ctypes.c_uint32(0)
-    out.append("mach:" + name + "=" + str(libc.bootstrap_look_up(bp.value, name.encode(), ctypes.byref(port))))
-OUTSIDE = ${String(process.pid)}
-out.append("proc_listallpids=" + str(libc.proc_listallpids(None, 0)))
-buf = ctypes.create_string_buffer(4096)
-out.append("proc_pidpath_outside=" + str(libc.proc_pidpath(OUTSIDE, buf, 4096)))
-out.append("proc_cwd_outside=" + str(libc.proc_pidinfo(OUTSIDE, 9, ctypes.c_uint64(0), buf, 4096)))
-out.append("proc_fdlist_outside=" + str(libc.proc_pidinfo(OUTSIDE, 1, ctypes.c_uint64(0), buf, 4096)))
-out.append("proc_bsdinfo_self=" + str(libc.proc_pidinfo(os.getpid(), 3, ctypes.c_uint64(0), buf, 512)))
-sec = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
-service = b"fresnel-bypass-probe-nonexistent"
-n = ctypes.c_uint32(0)
-out.append("keychain_lookup=" + str(sec.SecKeychainFindGenericPassword(None, len(service), service, 0, None, ctypes.byref(n), None, None)))
-print("\\n".join(out))
-`,
-        );
-        for (const name of services) {
-          expect({ name, result: results[`mach:${name}`] }).toEqual({ name, result: "1100" });
-        }
-        expect(results["proc_listallpids"]).toBe("0");
-        expect(results["proc_pidpath_outside"]).toBe("0");
-        expect(results["proc_cwd_outside"]).toBe("0");
-        expect(results["proc_fdlist_outside"]).toBe("0");
-        expect(Number(results["proc_bsdinfo_self"])).toBeGreaterThan(0);
-        expect(results["keychain_lookup"]).not.toBe("-25300");
-        expect(results["keychain_lookup"]).not.toBe("0");
-      } finally {
-        await box.close();
-      }
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  test(
-    "the blocked tools do not run from python3 either (subprocess by name, absolute path and through env)",
-    async () => {
-      const box = await openScriptBox();
-      try {
-        const results = await resultsOf(
-          box,
-          `import subprocess
-out = []
-def x(label, argv):
-    try:
-        r = subprocess.run(argv, capture_output=True, text=True, timeout=20)
-        text = r.stdout + r.stderr
-        out.append(label + "=" + ("ran" if "usage" in text.lower() else "blocked"))
-    except OSError:
-        out.append(label + "=blocked")
-x("control_grep", ["grep", "--help"])
-x("security", ["/usr/bin/security", "-h"])
-x("launchctl", ["/bin/launchctl", "help"])
-x("osascript", ["/usr/bin/osascript", "-h"])
-x("pbpaste", ["/usr/bin/pbpaste", "-h"])
-x("via_env", ["env", "security", "-h"])
-x("via_sh", ["sh", "-c", "/usr/bin/security -h"])
-print("\\n".join(out))
-`,
-        );
-        expect(results).toEqual({
-          control_grep: "ran",
-          security: "blocked",
-          launchctl: "blocked",
-          osascript: "blocked",
-          pbpaste: "blocked",
-          via_env: "blocked",
-          via_sh: "blocked",
-        });
-      } finally {
-        await box.close();
-      }
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  // PATH의 `python3`가 Homebrew 링크여도 실제 인터프리터로 풀려 돈다
   test(
     "python3 found through a Homebrew link resolves to the real interpreter and starts",
     async () => {
@@ -264,7 +153,7 @@ print("\\n".join(out))
   });
 
   test(
-    "the install folder is readable (stdlib and its site-packages), but its parent folder and other installs are not",
+    "the install folder, its stdlib and site-packages and the folder above it are all readable under the open policy (a listing only, no content)",
     async () => {
       const box = await openScriptBox();
       try {
@@ -290,7 +179,7 @@ print("\\n".join(out))
           prefix: "open",
           stdlib: "open",
           site_packages: "open",
-          prefix_parent: "blocked",
+          prefix_parent: "open",
         });
       } finally {
         await box.close();

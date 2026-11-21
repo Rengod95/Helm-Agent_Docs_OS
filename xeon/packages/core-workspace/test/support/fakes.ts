@@ -10,7 +10,6 @@ import {
 import type { WorkspaceDeps, WorkspaceShellSettings } from "../../src/deps.ts";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { ThreadWorkspaces } from "../../src/ports/threads.ts";
-import type { WriteAccessPort } from "../../src/ports/write-access.ts";
 import { defaultRoots } from "../../src/roots.ts";
 import type { MemoryEnv } from "./memory-env.ts";
 
@@ -98,9 +97,7 @@ export interface DepsOptions {
   readonly blobs?: BlobSink;
   readonly threads?: ThreadWorkspaces;
   readonly unattendedTimeoutMs?: () => number;
-  readonly writeAccess?: WriteAccessPort;
-  readonly homeDir?: string;
-  /** 참이면 쓰기 root에서 `/`(제한 없음)를 뺀 좁은 대화(플러그인 만들기 시험)다. 작업 폴더 밖 쓰기를 묻는 길을 시험할 때 쓴다 */
+  /** 참이면 쓰기 root에서 `/`(제한 없음)를 뺀 좁은 대화(플러그인 만들기 시험)다. 작업 폴더 밖 쓰기가 막히는 길을 시험할 때 쓴다 */
   readonly narrowRoots?: boolean;
   /** 잘린 도구 출력의 파일 사본(읽기 루트와 복원) */
   readonly outputs?: ToolOutputFiles;
@@ -129,8 +126,6 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
     settings: options.settings ?? (() => ({ shell: SHELL_DEFAULTS })),
     ...(options.blobs === undefined ? {} : { blobs: options.blobs }),
     ...(options.threads === undefined ? {} : { threads: options.threads }),
-    ...(options.writeAccess === undefined ? {} : { writeAccess: options.writeAccess }),
-    ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
     ...(options.unattendedTimeoutMs === undefined
       ? {}
       : { unattendedTimeoutMs: options.unattendedTimeoutMs }),

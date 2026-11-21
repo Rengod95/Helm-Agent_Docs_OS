@@ -32,12 +32,6 @@
   --fx-attend-b: light-dark(oklch(0.82 0.16 108), oklch(0.88 0.16 108));
   --fx-attend-c: light-dark(oklch(0.74 0.14 58), oklch(0.8 0.13 60));
 }
-/* 쓰기 허용(가드): 호박 → 주황 · 꿀빛 금. 도구 승인보다 주황 쪽으로 기운다 */
-.fx-attend-glow[data-kind="guard"] {
-  --fx-attend-a: light-dark(oklch(0.74 0.17 66), oklch(0.8 0.17 68));
-  --fx-attend-b: light-dark(oklch(0.7 0.17 55), oklch(0.76 0.16 55));
-  --fx-attend-c: light-dark(oklch(0.8 0.15 92), oklch(0.86 0.15 92));
-}
 
 /* ---------- 점 구슬 칸(dot-orb.tsx) ---------- */
 

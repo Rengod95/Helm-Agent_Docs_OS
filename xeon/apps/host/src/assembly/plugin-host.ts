@@ -113,6 +113,8 @@ export interface PluginHostAssemblyDeps {
   readonly scriptGate?: ScriptDraftGate;
   /** 이 기기에서 격리를 쓸 수 있는가(지연 조회). 초안 스크립트가 카드를 열기 전에 묻는다 */
   readonly sandboxAvailable?: () => boolean;
+  /** 승인 전 드래프트의 스크립트를 좁은 길로 돌리는가(설정 `l0.sandbox.narrowDrafts`, 기본 끔, 호출마다 읽는다) [결정: 2026-11-21, 사용자, AGE-63]. 없으면 열린 정책이다 */
+  readonly narrowDrafts?: () => boolean;
   /** 환경 모드 스크립트(가져온 훅)의 사용자 환경과 참조 파일, 읽기 예외, 프로젝트 폴더(AGE-58 [제안]). 없으면 환경 모드는 돌지 않는다(`script_env_not_granted` 이전에 `user_env_unavailable`) */
   readonly scriptEnv?: {
     readonly userEnv: () => Promise<Readonly<Record<string, string>>>;
@@ -252,6 +254,7 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
       allowedEnv: allowedEnvOf(parentEnv),
       ...(deps.scriptGate === undefined ? {} : { scriptGate: deps.scriptGate }),
       ...(deps.sandboxAvailable === undefined ? {} : { sandboxAvailable: deps.sandboxAvailable }),
+      ...(deps.narrowDrafts === undefined ? {} : { narrowDrafts: deps.narrowDrafts }),
       ...(deps.scriptEnv === undefined
         ? {}
         : {

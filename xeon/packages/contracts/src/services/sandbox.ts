@@ -108,8 +108,8 @@ export interface SandboxNetworkPolicy {
 }
 
 /**
- * 샌드박스 프로필. 생략은 보통 프로필이다. `"read-only"`는 쓰기 허용 루트 없음 + 네트워크 차단 + 쓰기 허용 승인 없음이다.
- * `"no-write"`는 쓰기 허용 루트 없음(호출 전용 빈 임시 폴더 하나만) + 네트워크는 정책 그대로다(플러그인 호스트용).
+ * 샌드박스 프로필. 생략은 보통 프로필이다(쓰기 루트가 `/`면 열린 정책, 셸 도구와 플러그인 격리·훑기·스크립트·MCP 서버의 기본). `"read-only"`는 쓰기 허용 루트 없음 + 네트워크 차단이다(서브에이전트 `explore`의 셸).
+ * `"no-write"`는 쓰기 허용 루트 없음(호출 전용 빈 임시 폴더 하나만) + 읽기 허용 목록 + 네트워크는 정책 그대로다. 승인 전 플러그인 드래프트의 좁은 길(`narrow`, 설정 `l0.sandbox.narrowDrafts`)만 쓴다 [결정: 2026-11-21, 사용자, AGE-63].
  * `"script-env"`는 가져온 훅의 "스크립트 환경 프로필"이다(AGE-58 원칙 가, [제안] 이름): 읽기는 보호 경로만 거부하는 거부 목록 방식(`readAllow` 없음, 허용 폴더 `readCarveOuts` 예외만),
  * 쓰기는 프로젝트 폴더와 이 호출 전용 임시 폴더뿐, 네트워크는 정책 그대로, 그리고 스크립트 실행기의 막기(`toolDeny`, `machDeny`, `systemInfoDeny`, 덧붙이기 실패 시 띄우지 않기)를 그대로 얹는다
  */
@@ -154,7 +154,8 @@ export interface SandboxPolicy {
    */
   systemInfoDeny?: boolean;
   /**
-   * 보호 경로 안에서 다시 읽게 하는 경로(`"script-env"` 프로필만). 파일이면 그 이름 하나, 폴더면 그 아래 전부다. 프로필 맨 끝에 `(allow file-read* ...)`로 더해져 보호 경로 거부를 이긴다.
+   * 보호 경로 안에서 다시 읽게 하는 경로(`"script-env"` 프로필과 열린 정책에서만). 파일이면 그 이름 하나, 폴더면 그 아래 전부다. 프로필 맨 끝에 `(allow file-read* ...)`로 더해져 보호 경로 거부를 이긴다.
+   * 열린 정책에서는 읽기 거부 경로 안에 있는 것만 규칙이 된다(밖의 것은 이미 읽히므로 뺀다) [제안, AGE-63].
    * 보호 경로 자체나 그것을 품은 폴더는 받지 않는다(조용히 빼지 않고 실패한다). macOS(Seatbelt)에서만 쓰인다 [제안, AGE-58]
    */
   readCarveOuts?: string[];
@@ -433,29 +434,30 @@ export interface SandboxService {
     tempDir: string;
     /**
      * `"read-only"`면 쓰기 루트 없이 읽기 전용 프로필 정책을 만든다(`workspaceRoots`·`tempDir`는 무시).
-     * `"no-write"`면 쓰기 루트 없음 + 읽기 허용 목록(`readRoots`와 런타임이 꼭 필요한 시스템 경로) 정책을 만든다(네트워크는 차단 목록 방식 그대로)
+     * `"no-write"`면 쓰기 루트 없음 + 읽기 허용 목록(`readRoots`와 런타임이 꼭 필요한 시스템 경로) 정책을 만든다(네트워크는 차단 목록 방식 그대로). 승인 전 드래프트의 좁은 길만 쓴다
      */
     profile?: SandboxProfile;
     /** `"no-write"`가 읽게 하는 경로(플러그인 폴더, 실행 파일). 절대 경로 */
     readRoots?: readonly string[];
-    /** `"no-write"`에서만. 참이면 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위한 시스템 경로를 읽기·실행 허용에 더한다(쓰기는 더하지 않는다) */
+    /** `"no-write"`에서만. 참이면 시스템 도구 폴더(`/bin`, `/usr/bin`)와 그 도구가 돌기 위한 시스템 경로를 읽기·실행 허용에 더한다(쓰기는 더하지 않는다). 열린 정책(`writeEverywhere`)에서는 무시한다 */
     systemTools?: boolean;
     /**
-     * 보통 프로필에서만. 참이면 쓰기 범위 제한이 없다(쓰기 루트는 `/`, `workspaceRoots`·`tempDir`는 무시). 거부는 Fresnel 자신의 시크릿·데이터·설정과
-     * 사용자가 더한 `l0.sandbox.protectedPaths.extra`뿐이다. 셸 도구가 쓴다. 생략하면 작업 공간과 임시 폴더만 쓰고 제안 목록 전체를 쓰기 거부한다(MCP 서버)
+     * 보통 프로필에서만. 참이면 쓰기 범위 제한이 없다(쓰기 루트는 `/`, `workspaceRoots`·`tempDir`는 무시). 거부는 Fresnel 자신의 시크릿·데이터·설정(`secret_key`, `fresnel_data`,
+     * `fresnel_config`)과 사용자가 더한 `l0.sandbox.protectedPaths.extra`(`user_extra`)뿐이다. 셸 도구, 플러그인 격리·훑기·스크립트, MCP stdio 서버가 쓴다 [결정: 2026-11-21, 사용자, AGE-63].
+     * 생략하면 작업 공간과 임시 폴더만 쓰고 제안 목록 전체와 `.git` 항목을 쓰기 거부한다(쓰기 범위가 좁은 대화의 셸)
      */
     writeEverywhere?: boolean;
     /** `"script-env"`에서만. 쓰기 루트가 되는 프로젝트 폴더(절대 경로). 임시 폴더는 호출마다 샌드박스가 만든다 */
     projectDir?: string;
-    /** `"script-env"`에서만. 보호 경로 안에서 읽게 하는 경로(가져올 때 지문을 적은 파일과 그 폴더) */
+    /** `"script-env"`와 열린 정책(`writeEverywhere`)에서. 보호 경로 안에서 읽게 하는 경로(script-env는 가져올 때 지문을 적은 파일과 그 폴더, 열린 정책은 플러그인 폴더) */
     readCarveOuts?: readonly string[];
   }): SandboxPolicy;
   /**
    * 보호 경로 전체. L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
    * `roots`에 `/`가 있으면(쓰기 범위 제한 없음, 보통 대화) Fresnel 자신의 시크릿·데이터·설정과 사용자가 더한 `protectedPaths.extra`만 돌려준다.
    * 자격 폴더, 셸 시작 파일, `.git/hooks` 등은 기본으로 들어 있지 않다(사용자가 대화로 더한다).
-   * `/`가 없으면(쓰기 범위가 좁은 대화) 제안 목록 전체와 root별 git 항목(`.git/hooks`, `.git/config` 등)을 쓰기 전용으로 더 돌려준다.
-   * 생략하면 쓰기 범위가 좁은 쪽이고, root별 git 항목은 넣지 않는다.
+   * `/`가 없으면(쓰기 범위가 좁은 대화, 승인 전 드래프트의 좁은 길) 제안 목록 전체와 root별 git 항목(`.git/hooks`, `.git/config` 등)을 쓰기 전용으로 더 돌려준다.
+   * 생략하면 쓰기 범위가 좁은 쪽이고, root별 git 항목은 넣지 않는다. 열린 정책(`/`)의 목록은 쓰기 전용 줄을 넣지 않는다 [결정: 2026-11-21, 사용자, AGE-63].
    */
   protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
   /**

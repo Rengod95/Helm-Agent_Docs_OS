@@ -307,6 +307,7 @@ const CardScriptShape = Type.Object(
     uses: Type.Optional(
       Type.Array(
         Type.Union([
+          Type.Literal("sandbox_full_access"),
           Type.Literal("system_tools"),
           Type.Literal("network"),
           Type.Literal("user_environment"),
@@ -423,6 +424,10 @@ export interface PluginCard {
     readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
   };
   readonly enforcement: PluginEnforcement;
+  /**
+   * `code`는 `entry`(격리 플러그인 프로세스)가 있는가다. `isolated`는 코드가 샌드박스 안에서 도는가다: `true`면 Fresnel의 샌드박스 하나(열린 정책, 막는 것은
+   * 사용자가 막은 경로, Fresnel 자신의 비밀·데이터·설정, 차단 도메인)다. 엔진 안에서 도는 내장 패키지만 `false`다. 코드가 없으면 `null`이다 [결정: 2026-11-21, AGE-63]
+   */
   readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
   readonly cost: CostFigures;
   readonly health: {

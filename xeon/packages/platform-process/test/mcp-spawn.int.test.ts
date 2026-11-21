@@ -207,7 +207,7 @@ describe("McpProcessPort.spawn", () => {
     expect(await line).toBe("last");
   });
 
-  test("the child env is the allow list plus injected secrets, not the parent env", async () => {
+  test("the child env is the parent env without FRESNEL_ names, plus injected secrets [결정: 2026-11-21, 사용자, AGE-63]", async () => {
     const secrets = fakeSecrets({ "secret://gh-token": SECRET_VALUE });
     const { port } = open(secrets.source, {
       PATH: process.env["PATH"],
@@ -225,9 +225,10 @@ describe("McpProcessPort.spawn", () => {
     const env = stringRecord(parsed.ok ? parsed.value : undefined);
     expect(env["GITHUB_TOKEN"]).toBe(SECRET_VALUE);
     expect(env["HOME"]).toBe("/home/test");
-    expect(env["ANTHROPIC_API_KEY"]).toBeUndefined();
+    // 열린 길은 이름 패턴으로 거르지 않는다. Fresnel 내부 값만 뺀다
+    expect(env["ANTHROPIC_API_KEY"]).toBe("parent-provider-key");
     expect(env["FRESNEL_INTERNAL"]).toBeUndefined();
-    expect(env["UNLISTED"]).toBeUndefined();
+    expect(env["UNLISTED"]).toBe("x");
     // lease는 spawn이 끝나면 닫힌다. 정책 맥락은 서버 id와 명령줄을 싣는다
     expect(secrets.disposed()).toBe(1);
     expect(secrets.calls[0]?.handle).toBe("secret://gh-token");

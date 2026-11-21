@@ -61,6 +61,7 @@ function open(
     readonly secrets?: McpSecretSource;
     readonly sandbox?: () => McpSandboxSource | undefined;
     readonly tempDir?: string;
+    readonly parentEnv?: Readonly<Record<string, string | undefined>>;
   } = {},
 ): Opened {
   const background = createBackgroundRegistry({
@@ -78,7 +79,7 @@ function open(
     sandbox: options.sandbox,
     tempDir: options.tempDir,
     scheduler: realScheduler(),
-    parentEnv: { PATH: process.env["PATH"] },
+    parentEnv: options.parentEnv ?? { PATH: process.env["PATH"] },
     logger: log,
     drainMs: 300,
   });
@@ -116,6 +117,15 @@ async function firstLine(child: McpChild): Promise<string> {
   });
   if (!(await waitFor(() => lines.length > 0, 5000))) throw new Error("no output line");
   return lines[0] ?? "";
+}
+
+/** 자식이 첫 줄로 쓴 환경 변수 JSON을 값으로 옮긴다(`mcp-child.ts`의 `env` 방식) */
+async function envOfChild(child: McpChild): Promise<Record<string, unknown>> {
+  const parsed = parseJson(await firstLine(child));
+  if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null) {
+    throw new Error("the child did not print its environment");
+  }
+  return { ...parsed.value };
 }
 
 /** 래퍼 대역이 쓴 `{argv, env}` 줄을 값으로 옮긴다 */
@@ -246,7 +256,7 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     await started(bare.port, specOf({ sandbox: false }));
   });
 
-  test("the process run is the wrapped command line, with its env over the definition env, and the policy is rooted at cwd and tempDir", async () => {
+  test("the process run is the wrapped command line, with its env over the definition env, and the policy is the open one (writes everywhere, the temp dir is not a write root)", async () => {
     const dir = tempDirOf();
     const workDir = join(dir, "work");
     mkdirSync(workDir);
@@ -277,14 +287,15 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     expect(report.env["PLAIN"]).toBe("kept");
     expect(background.list({ kind: "mcp" })).toHaveLength(1);
 
-    expect(sandbox.policyInputs).toEqual([{ workspaceRoots: [workDir], tempDir }]);
+    // 열린 정책: 쓰기 루트 `/`(임시 폴더와 작업 폴더는 쓰기 루트가 아니다) [결정: 2026-11-21, 사용자, AGE-63]
+    expect(sandbox.policyInputs).toEqual([{ workspaceRoots: [], tempDir, writeEverywhere: true }]);
     expect(sandbox.wrapCalls).toHaveLength(1);
     expect(sandbox.wrapCalls[0]?.request).toEqual({
       command: ORIGINAL,
       args: ["--stdio"],
       cwd: workDir,
     });
-    expect(sandbox.wrapCalls[0]?.policy.writeRoots).toEqual([workDir, tempDir]);
+    expect(sandbox.wrapCalls[0]?.policy.writeRoots).toEqual(["/"]);
 
     // 프로세스가 끝나면 cleanup을 정확히 한 번 부른다
     child.stdin.end();
@@ -361,5 +372,58 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     // 감싼 명령줄이 없으므로 정리할 것도 없고 표식도 남지 않는다
     expect(failed.cleanups() + aborted.cleanups() + unknownReason.cleanups()).toBe(0);
     expect(existsSync(marker)).toBe(false);
+  });
+
+  test("a sandboxed server gets the open policy and a child env that keeps token names except FRESNEL_ names, then the definition env", async () => {
+    const dir = tempDirOf();
+    const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "env"] }));
+    const { port } = open({
+      sandbox: () => sandbox.source,
+      tempDir: dir,
+      parentEnv: {
+        PATH: process.env["PATH"],
+        HOME: "/home/user",
+        GITHUB_TOKEN: "fixture-token-not-real",
+        MY_API_KEY: "fixture-key-not-real",
+        UNLISTED_NAME: "not-passed",
+        FRESNEL_FOO: "fresnel-internal",
+      },
+    });
+    const child = await started(port, specOf({ args: [MCP_CHILD, "env"], env: { PLAIN: "kept" } }));
+    expect(sandbox.policyInputs).toEqual([
+      { workspaceRoots: [], tempDir: dir, writeEverywhere: true },
+    ]);
+    const env = await envOfChild(child);
+    expect(env["GITHUB_TOKEN"]).toBe("fixture-token-not-real");
+    expect(env["MY_API_KEY"]).toBe("fixture-key-not-real");
+    expect(env["UNLISTED_NAME"]).toBe("not-passed");
+    expect(env["HOME"]).toBe("/home/user");
+    expect(env["PLAIN"]).toBe("kept");
+    expect(env).not.toHaveProperty("FRESNEL_FOO");
+    child.stdin.end();
+    expect(await child.exited).toEqual({ code: 0, signal: null });
+  });
+
+  test("an unsandboxed server (sandbox:false) gets the same env rule: every parent name except FRESNEL_ names", async () => {
+    const sandbox = fakeSandbox(err({ kind: "aborted" }));
+    const { port } = open({
+      sandbox: () => sandbox.source,
+      tempDir: tempDirOf(),
+      parentEnv: {
+        PATH: process.env["PATH"],
+        GITHUB_TOKEN: "fixture-token-not-real",
+        UNLISTED_NAME: "not-passed",
+        FRESNEL_FOO: "fresnel-internal",
+      },
+    });
+    const child = await started(port, specOf({ args: [MCP_CHILD, "env"], sandbox: false }));
+    const env = await envOfChild(child);
+    expect(env["GITHUB_TOKEN"]).toBe("fixture-token-not-real");
+    expect(env["UNLISTED_NAME"]).toBe("not-passed");
+    expect(env).not.toHaveProperty("FRESNEL_FOO");
+    // sandbox:false는 샌드박스 서비스를 부르지 않는다
+    expect(sandbox.wrapCalls).toHaveLength(0);
+    child.stdin.end();
+    expect(await child.exited).toEqual({ code: 0, signal: null });
   });
 });

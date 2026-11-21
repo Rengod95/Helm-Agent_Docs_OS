@@ -42,7 +42,8 @@ export interface ScriptRunRequest {
 
 /**
  * 승인 카드에 싣는 실행 내용(설계 B, AGE-58 [제안]). 카드는 이것으로 "무엇이 돌게 되는지"를 보여 준다.
- * `command`는 실행기의 절대 경로, `args`는 스크립트 파일(절대 경로)과 선언된 인자다. `envNames`는 자식에게 실제로 넘어가는 이름뿐이고 값은 싣지 않는다.
+ * `command`는 실행기의 절대 경로, `args`는 스크립트 파일(절대 경로)과 선언된 인자다. `envNames`는 스크립트가 선언한 환경 변수 가운데 자식에게 넘기는 이름이고 값은 싣지 않는다.
+ * 열린 정책은 사용자 환경 전부(`FRESNEL_` 이름 제외)를 더 넘기며, 그것은 `uses`의 `user_environment`가 알린다.
  * `stdinPreview`는 표준 입력의 앞부분(가림 규칙을 지난 값)이다
  */
 export interface ScriptCard {
@@ -52,17 +53,23 @@ export interface ScriptCard {
   readonly stdinBytes: number;
   readonly stdinPreview: string;
   /**
-   * 승인하면 이 스크립트가 쓸 수 있는 것(AGE-58 [제안], [결정: 2026-11-19, 사용자, AGE-58 "다 열어"]). `system_tools`는 `/bin`, `/usr/bin`의 도구(`grep`, `sed`, `git` 등)를 읽고 실행하는 것,
-   * `network`는 격리 플러그인과 같은 네트워크(전체 허용)다. 쓰기와 폴더 밖 데이터 읽기는 목록에 없고 여전히 막혀 있다
+   * 승인하면 이 스크립트가 쓸 수 있는 것(AGE-58 [제안]). 열린 정책의 스크립트는 `sandbox_full_access`(읽기·쓰기·시스템 도구, 막는 것은 보호 셋뿐),
+   * `user_environment`(자식 env는 사용자 환경에서 `FRESNEL_` 이름만 뺀 것), `network`(차단 목록 밖 전체)를 싣는다. 승인 전 드래프트의 좁은 길은 `SCRIPT_NARROW_USES`다
    */
   readonly uses: readonly ScriptUse[];
 }
 
 /** 스크립트 카드가 알리는 권한 */
 export type ScriptUse =
+  /**
+   * 열린 정책(승인된 플러그인의 스크립트의 기본) [결정: 2026-11-21, 사용자, AGE-63]: 샌드박스 안에서 셸 도구와 같이 읽고 쓰고 시스템 도구를 쓴다.
+   * 막는 것은 사용자가 막은 경로, Fresnel 자신의 비밀·데이터·설정, 차단 도메인뿐이다
+   */
+  | "sandbox_full_access"
+  /** 좁은 길(승인 전 드래프트, 설정 `narrowDrafts`): `/bin`, `/usr/bin`의 도구(`grep`, `sed`, `git` 등)를 읽고 실행하는 것. 쓰기와 폴더 밖 읽기는 막힌다 */
   | "system_tools"
   | "network"
-  /** 환경 모드: 사용자의 PATH와 환경 변수로 돈다. Fresnel 자신의 내부 값(`FRESNEL_*`)만 뺀다 [결정: 2026-11-20, 사용자, AGE-58] */
+  /** 사용자의 PATH와 환경 변수로 돈다. Fresnel 자신의 내부 값(`FRESNEL_*`)만 뺀다. 환경 모드와 열린 정책이 같다 [결정: 2026-11-20, 사용자, AGE-58; 2026-11-21, AGE-63] */
   | "user_environment"
   /** 환경 모드(기본): 사용자 권한 그대로 돈다. Fresnel이 읽기·쓰기·도구를 막지 않는다(샌드박스 없음) [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해"] */
   | "user_full_access"
@@ -72,10 +79,21 @@ export type ScriptUse =
   | "write_project";
 
 /**
- * 스크립트 실행기가 띄운 자식이 쓸 수 있는 것 전부(`systemTools`와 격리 네트워크 결정, [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가"]).
- * 승인 카드(초안 호출)와 검토 카드(`CardScript.uses`)가 같은 값을 싣는다: 스크립트는 코드이고, 승인하면 시스템 도구와 네트워크를 쓴다
+ * 열린 정책의 스크립트가 쓸 수 있는 것 전부 [결정: 2026-11-21, 사용자, AGE-63]. 셸 도구와 같이 읽고 쓰고 시스템 도구를 쓴다. 막는 것은 사용자가 막은 경로,
+ * Fresnel 자신의 비밀·데이터·설정, 차단 도메인뿐이다. 자식 env는 사용자 환경 전부에서 `FRESNEL_` 이름만 뺀 값이다.
+ * 승인 카드(초안 호출)와 검토 카드(`CardScript.uses`)가 같은 값을 싣는다. 승인된 플러그인의 스크립트와, 좁은 길을 끈 승인 전 드래프트의 스크립트가 이 값이다
  */
-export const SCRIPT_USES: readonly ScriptUse[] = ["system_tools", "network"];
+export const SCRIPT_USES: readonly ScriptUse[] = [
+  "sandbox_full_access",
+  "user_environment",
+  "network",
+];
+
+/**
+ * 승인 전 드래프트의 스크립트가 좁은 길(설정 `l0.sandbox.narrowDrafts`를 켰을 때)에서 쓸 수 있는 것 [결정: 2026-11-21, 사용자, AGE-63].
+ * 자기 폴더를 읽고 시스템 도구를 쓰지만 쓰지 못하고 폴더 밖을 읽지 못한다. 자식 env는 허용 목록뿐이다. 네트워크는 차단 목록 밖 전체다
+ */
+export const SCRIPT_NARROW_USES: readonly ScriptUse[] = ["system_tools", "network"];
 
 /**
  * 환경 모드 스크립트(가져온 훅)가 기본으로 쓸 수 있는 것 [결정: 2026-11-20, 사용자, AGE-58]. 다른 하네스(Claude Code, Codex CLI, Cursor, Gemini CLI)처럼 사용자 권한 그대로 돈다:

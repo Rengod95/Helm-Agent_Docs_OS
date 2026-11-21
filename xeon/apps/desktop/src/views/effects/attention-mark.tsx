@@ -12,10 +12,10 @@ import { useFxScheme } from "./fx-scheme.ts";
 /**
  * 카드 종류(오로라 빛깔 조합을 고른다, attention.css `[data-kind]`). 종류 칸의 중심색에서 출발해 이웃 색으로 번진다
  * [결정: 2026-11-19 사용자 "변경검토나 단순 질문이나, 가드 각각 다른 색이 중심인데, 각 중심색에 맞게 오로라의 색조합들도 각각 다르게"]:
- * review 변경 검토(보라 중심), question 질문(파랑 중심), tool 도구 승인(호박 중심), guard 쓰기 허용(호박 중심, 주황 쪽),
+ * review 변경 검토(보라 중심), question 질문(파랑 중심), tool 도구 승인(호박 중심),
  * proposal 받은 요청의 제안(크리스탈과 같은 오로라)
  */
-export type AttendKind = "review" | "question" | "tool" | "guard" | "proposal";
+export type AttendKind = "review" | "question" | "tool" | "proposal";
 
 type SparkStyle = CSSProperties & {
   readonly "--x": string;

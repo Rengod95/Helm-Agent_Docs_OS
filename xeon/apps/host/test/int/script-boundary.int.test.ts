@@ -1,14 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { openScriptBox, sandboxAvailable, type ScriptBox } from "../support/script-box.ts";
 
-// 스크립트 실행기(`g.runScript`)가 도는 샌드박스의 경계를 실제 샌드박스(macOS: sandbox-exec, srt)로 고정한다(AGE-58, 사용자 결정 2026-11-19).
-// 읽기·실행 허용을 `/bin`, `/usr/bin`(과 도구가 돌기 위한 시스템 경로 몇 개)으로 넓힌 뒤의 경계다. 쓰기와 폴더 밖 데이터 읽기는 그대로 막혀 있어야 하고,
-// 위험한 도구(클립보드, 화면 캡처, 키체인, 다른 앱 조작, 다른 프로세스 정보)는 프로필에서 막힌다. 네트워크는 2026-11-17 결정대로 열려 있다.
-// 시험이 쓰는 것은 시험이 만든 임시 폴더의 가짜 비밀 파일과 시험이 띄운 로컬 수신기뿐이다. 실제 `~/.ssh`와 키체인 폴더는 "열리지 않는다"만 본다(내용은 읽지 않는다).
+// 스크립트 실행기(`g.runScript`)가 도는 샌드박스의 경계를 실제 샌드박스(macOS: sandbox-exec, srt)로 고정한다.
+// 사용자 결정 2026-11-21(AGE-63): 승인된 플러그인의 스크립트는 열린 정책이다. 셸 도구와 같이 읽고 쓰고 시스템 도구를 쓴다.
+// 막는 것은 사용자가 막은 경로(`protectedPaths.extra`, 읽기·쓰기), Fresnel 자신의 시크릿·데이터(읽기·쓰기)와 설정(쓰기), 차단 도메인뿐이다.
+// 설정 `narrowDrafts`를 켠 승인 전 초안만 좁은 길(쓰기 없음, 자기 폴더 읽기)로 돈다. 네트워크는 2026-11-17 결정대로 차단 목록 밖 전체다.
+// 시험이 쓰는 것은 시험이 만든 임시 폴더의 가짜 파일과 가짜 홈뿐이다. 실제 홈, `~/.ssh`, 키체인, 클립보드, 화면, AppleScript, launchd는 이 시험에서 실행하거나 열지 않는다.
 // 샌드박스를 쓸 수 없으면 건너뛴다. FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2(환경 문제)로 끝난다.
 
 const ENVIRONMENT_EXIT_CODE = 2;
@@ -190,60 +199,86 @@ console.log(reply.split("\\r\\n")[0]);
   );
 
   test(
-    "files: reads outside the plugin folder are blocked, its own file is readable, writes outside the folder are blocked, and only the call's own temp folder is writable",
+    "files (open policy): a script reads and writes outside its folder like the shell tool; Fresnel's own data, secret and config are denied and the fake home is open",
     async () => {
       const box = await openScriptBox();
       const otherTree = join(box.root, "other-plugin", "tree");
       mkdirSync(otherTree, { recursive: true });
       writeFileSync(join(otherTree, "x.js"), "other plugin file");
-      writeFileSync(
-        join(box.outside, "secret.txt"),
-        "fake secret in a temp folder made by this test",
-      );
-      const home = homedir();
+      const secret = join(box.outside, "secret.txt");
+      writeFileSync(secret, "fake secret in a temp folder made by this test");
+      // 가짜 홈의 자격 자리. 실제 홈은 쓰지 않는다
+      const fakeSsh = join(box.home, ".ssh", "id_fake");
+      mkdirSync(join(box.home, ".ssh"), { recursive: true });
+      writeFileSync(fakeSsh, "fake key");
+      const fakeKeychain = join(box.home, "Library", "Keychains", "fake.keychain-db");
+      mkdirSync(join(box.home, "Library", "Keychains"), { recursive: true });
+      writeFileSync(fakeKeychain, "fake keychain");
+      // Fresnel 자신의 것: 데이터(읽기·쓰기 거부), 시크릿(읽기·쓰기 거부), 설정(쓰기 거부)
+      const freshnelData = join(box.root, "data", "fresnel.db");
+      writeFileSync(freshnelData, "fake data");
+      const freshnelSecret = join(box.root, "config", "secrets", "secret_key");
+      mkdirSync(join(box.root, "config", "secrets"), { recursive: true });
+      writeFileSync(freshnelSecret, "fake secret key");
+      const freshnelConfig = join(box.root, "config", "settings.json");
+      writeFileSync(freshnelConfig, "{}");
+      const writtenOutside = join(box.outside, "written.txt");
       try {
         const results = await resultsOf(box, {
           runner: "bash",
           args: [
-            join(box.outside, "secret.txt"),
+            secret,
             join(otherTree, "x.js"),
-            join(box.outside, "written.txt"),
-            box.home,
-            box.service.status().available ? join(box.root, "data") : "",
+            writtenOutside,
+            fakeSsh,
+            fakeKeychain,
+            freshnelData,
+            freshnelSecret,
+            freshnelConfig,
           ],
-          body: `${PROBE_FN}t read_secret bash -c "exec 3< $1"
+          body: `${PROBE_FN}t read_outside_secret bash -c "exec 3< $1"
 t read_other_plugin bash -c "exec 3< $2"
-t read_engine_home bash -c "exec 3< $4"
-t read_engine_data bash -c "exec 3< $5"
-t read_user_home bash -c "exec 3< ${home}"
-t read_ssh bash -c "exec 3< ${home}/.ssh"
-t read_keychains bash -c "exec 3< ${home}/Library/Keychains"
-t read_own bash -c "exec 3< $0"
-t write_folder bash -c "echo x > ./written-in-folder.txt"
 t write_outside bash -c "echo x > $3"
+t read_fake_ssh bash -c "exec 3< $4"
+t read_fake_keychain bash -c "exec 3< $5"
+t read_fresnel_data bash -c "exec 3< $6"
+t write_fresnel_data bash -c "echo x >> $6"
+t read_fresnel_secret bash -c "exec 3< $7"
+t write_fresnel_secret bash -c "echo x >> $7"
+t read_fresnel_config bash -c "exec 3< $8"
+t write_fresnel_config bash -c "echo x >> $8"
+t write_folder bash -c "echo x > ./written-in-folder.txt"
 t write_own_tmp bash -c 'echo x > "$TMPDIR/probe.txt"'
+t read_own bash -c "exec 3< $0"
 `,
         });
         expect(results).toEqual({
-          read_secret: "blocked",
-          read_other_plugin: "blocked",
-          read_engine_home: "blocked",
-          read_engine_data: "blocked",
-          read_user_home: "blocked",
-          read_ssh: "blocked",
-          read_keychains: "blocked",
-          read_own: "open",
-          write_folder: "blocked",
-          write_outside: "blocked",
+          read_outside_secret: "open",
+          read_other_plugin: "open",
+          write_outside: "open",
+          read_fake_ssh: "open",
+          read_fake_keychain: "open",
+          read_fresnel_data: "blocked",
+          write_fresnel_data: "blocked",
+          read_fresnel_secret: "blocked",
+          write_fresnel_secret: "blocked",
+          read_fresnel_config: "open",
+          write_fresnel_config: "blocked",
+          write_folder: "open",
           write_own_tmp: "open",
+          read_own: "open",
         });
+        // 막힌 쓰기는 파일을 바꾸지 않았고, 열린 쓰기는 파일을 만들었다(값으로 본다)
+        expect(readFileSync(freshnelData, "utf8")).toBe("fake data");
+        expect(readFileSync(freshnelSecret, "utf8")).toBe("fake secret key");
+        expect(readFileSync(freshnelConfig, "utf8")).toBe("{}");
+        expect(readFileSync(writtenOutside, "utf8")).toBe("x\n");
       } finally {
         await box.close();
       }
     },
     TEST_TIMEOUT_MS,
   );
-
   test(
     "tools after the widening: the system tools run by name and by path, the real git reads, and curl starts",
     async () => {
@@ -301,96 +336,84 @@ x jq_runs jq --version
   );
 
   test(
-    "the same lookup by name is blocked when the runner does not ask for system tools (the contrast with the widening)",
+    "protectedPaths.extra (the user's own list) is denied for reads and writes under the open policy, and a sibling file next to it stays open",
+    async () => {
+      const extraRoot = realpathSync(mkdtempSync(join("/tmp", "fresnel-script-extra-")));
+      const guarded = join(extraRoot, "guarded");
+      mkdirSync(guarded, { recursive: true });
+      writeFileSync(join(guarded, "fake.txt"), "fake guarded file");
+      writeFileSync(join(extraRoot, "sibling.txt"), "fake sibling file");
+      const box = await openScriptBox({ protectedPathsExtra: [guarded] });
+      try {
+        const results = await resultsOf(box, {
+          runner: "bash",
+          args: [
+            join(guarded, "fake.txt"),
+            join(extraRoot, "sibling.txt"),
+            join(guarded, "new.txt"),
+          ],
+          body: `${PROBE_FN}t read_guarded bash -c "exec 3< $1"
+t write_guarded bash -c "echo x > $3"
+t read_sibling bash -c "exec 3< $2"
+t write_sibling bash -c "echo x > $2"
+`,
+        });
+        expect(results).toEqual({
+          read_guarded: "blocked",
+          write_guarded: "blocked",
+          read_sibling: "open",
+          write_sibling: "open",
+        });
+        expect(existsSync(join(guarded, "new.txt"))).toBe(false);
+      } finally {
+        await box.close();
+        rmSync(extraRoot, { recursive: true, force: true });
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  test(
+    "the narrow path (an unapproved draft with narrowDrafts on): the system tools are found by name only when the runner asks for them, and the draft reads and writes nothing outside its folder",
     async () => {
       const box = await openScriptBox();
+      writeFileSync(
+        join(box.outside, "secret.txt"),
+        "fake secret in a temp folder made by this test",
+      );
+      const body = `${PROBE_FN}t path_lookup_cat command -v cat\nt path_lookup_grep command -v grep\nt path_lookup_git command -v git\nt read_outside bash -c "exec 3< $1"\nt write_outside bash -c "echo x > $2"\n`;
+      const args = [join(box.outside, "secret.txt"), join(box.outside, "narrow-written.txt")];
       try {
+        const asked = await resultsOf(box, {
+          runner: "bash",
+          body,
+          args,
+          narrowDrafts: true,
+          draft: { gate: (call) => call.run(new AbortController().signal) },
+        });
+        expect(asked).toEqual({
+          path_lookup_cat: "open",
+          path_lookup_grep: "open",
+          path_lookup_git: "open",
+          read_outside: "blocked",
+          write_outside: "blocked",
+        });
         const without = await resultsOf(box, {
           runner: "bash",
           systemTools: false,
-          body: `${PROBE_FN}t path_lookup_cat command -v cat\nt path_lookup_grep command -v grep\nt path_lookup_git command -v git\n`,
+          body,
+          args,
+          narrowDrafts: true,
+          draft: { gate: (call) => call.run(new AbortController().signal) },
         });
         expect(without).toEqual({
           path_lookup_cat: "blocked",
           path_lookup_grep: "blocked",
           path_lookup_git: "blocked",
-        });
-      } finally {
-        await box.close();
-      }
-    },
-    TEST_TIMEOUT_MS,
-  );
-
-  test(
-    "reads and writes stay closed after the widening: home, ssh, keychain folder, other plugin, engine home, /etc, the tool folders themselves",
-    async () => {
-      const box = await openScriptBox();
-      const otherTree = join(box.root, "other-plugin", "tree");
-      mkdirSync(otherTree, { recursive: true });
-      writeFileSync(join(otherTree, "x.js"), "other plugin file");
-      writeFileSync(
-        join(box.outside, "secret.txt"),
-        "fake secret in a temp folder made by this test",
-      );
-      const home = homedir();
-      try {
-        const results = await resultsOf(box, {
-          runner: "bash",
-          args: [
-            join(box.outside, "secret.txt"),
-            join(otherTree, "x.js"),
-            box.home,
-            join(box.root, "data"),
-          ],
-          body: `${PROBE_FN}t read_secret bash -c "exec 3< $1"
-t read_other_plugin bash -c "exec 3< $2"
-t read_engine_home bash -c "exec 3< $3"
-t read_engine_data bash -c "exec 3< $4"
-t read_user_home bash -c "exec 3< ${home}"
-t read_ssh bash -c "exec 3< ${home}/.ssh"
-t read_keychains bash -c "exec 3< ${home}/Library/Keychains"
-t read_etc_hosts bash -c "exec 3< /etc/hosts"
-t read_etc_passwd bash -c "exec 3< /etc/passwd"
-t read_var_folders bash -c "exec 3< /var/folders"
-t read_var_db bash -c "exec 3< /private/var/db"
-t read_library bash -c "exec 3< /Library/Preferences"
-t read_usr_lib_dir bash -c "exec 3< /usr/lib"
-t write_usr_bin bash -c "echo x > /usr/bin/fresnel-probe"
-t write_bin bash -c "echo x > /bin/fresnel-probe"
-t write_select bash -c "echo x > /private/var/select/fresnel-probe"
-t write_etc_ssl bash -c "echo x > /private/etc/ssl/fresnel-probe"
-t write_folder bash -c "echo x > ./written-in-folder.txt"
-t write_outside bash -c "echo x > $1.new"
-t write_own_tmp bash -c 'echo x > "$TMPDIR/probe.txt"'
-t read_own bash -c "exec 3< $0"
-t read_usr_bin bash -c "exec 3< /usr/bin/grep"
-`,
-        });
-        expect(results).toEqual({
-          read_secret: "blocked",
-          read_other_plugin: "blocked",
-          read_engine_home: "blocked",
-          read_engine_data: "blocked",
-          read_user_home: "blocked",
-          read_ssh: "blocked",
-          read_keychains: "blocked",
-          read_etc_hosts: "blocked",
-          read_etc_passwd: "blocked",
-          read_var_folders: "blocked",
-          read_var_db: "blocked",
-          read_library: "blocked",
-          read_usr_lib_dir: "blocked",
-          write_usr_bin: "blocked",
-          write_bin: "blocked",
-          write_select: "blocked",
-          write_etc_ssl: "blocked",
-          write_folder: "blocked",
+          read_outside: "blocked",
           write_outside: "blocked",
-          write_own_tmp: "open",
-          read_own: "open",
-          read_usr_bin: "open",
         });
+        expect(existsSync(join(box.outside, "narrow-written.txt"))).toBe(false);
       } finally {
         await box.close();
       }
@@ -399,70 +422,23 @@ t read_usr_bin bash -c "exec 3< /usr/bin/grep"
   );
 
   test(
-    "dangerous tools: each one is stopped before it runs (exit 126), so no clipboard, screen, keychain, AppleScript, launchd, Spotlight or process-list access comes from the tool folders",
+    "system files under the open policy: the shell-tool folders and /etc/hosts are readable like the shell tool, and the sandbox adds no denial to them",
     async () => {
       const box = await openScriptBox();
-      const sleeper = Bun.spawn(["sleep", "60"]);
       try {
         const results = await resultsOf(box, {
           runner: "bash",
-          args: [String(sleeper.pid), homedir()],
-          // 인자는 모두 무해한 것이다(없는 이름 조회, 잘못된 옵션, 도움말). 도구가 막히지 않았을 때도 클립보드를 쓰거나 화면을 찍거나 다른 앱을 조작하지 않는다.
-          // 결과는 126(실행 자체가 막힘)이면 stopped, 그 밖에는 ran이다
-          body: `x() { local label=$1; shift; "$@" >/dev/null 2>&1 </dev/null; if [ $? = 126 ]; then echo "$label=stopped"; else echo "$label=ran"; fi; }
-x launchctl_print /bin/launchctl print system
-x launchctl_remove /bin/launchctl remove com.fresnel.probe.nonexistent
-x open_scheme /usr/bin/open fresnel-probe-nonexistent-scheme://x
-x osascript /usr/bin/osascript -e 'return 1'
-x osacompile /usr/bin/osacompile --fresnel-probe
-x security_find /usr/bin/security find-generic-password -s fresnel-probe-nonexistent-xyz "$2/Library/Keychains/login.keychain-db"
-x defaults_read /usr/bin/defaults read fresnel.probe.nonexistent
-x pbpaste /usr/bin/pbpaste --fresnel-probe
-x pbcopy /usr/bin/pbcopy --fresnel-probe
-x screencapture /usr/sbin/screencapture --fresnel-probe
-x mdfind /usr/bin/mdfind -name fresnel-probe-nonexistent-xyz
-x mdls /usr/bin/mdls --fresnel-probe
-x log /usr/bin/log help
-x ps /bin/ps -p $1
-x top /usr/bin/top -l 1 -n 0
-x lsof_other /usr/sbin/lsof -p $1
-x sudo /usr/bin/sudo -n true
-x su /usr/bin/su -m nobody -c true
-x nc_loopback /usr/bin/nc -z -w 1 127.0.0.1 9
-x sh_runs /bin/sh -c true
-x grep_runs /usr/bin/grep -c x /dev/null
+          body: `${PROBE_FN}t read_etc_hosts bash -c "exec 3< /etc/hosts"
+t read_usr_bin bash -c "exec 3< /usr/bin/grep"
+t read_bin_sh bash -c "exec 3< /bin/sh"
 `,
         });
-        const stopped = {
-          launchctl_print: "stopped",
-          launchctl_remove: "stopped",
-          open_scheme: "stopped",
-          osascript: "stopped",
-          osacompile: "stopped",
-          security_find: "stopped",
-          defaults_read: "stopped",
-          pbpaste: "stopped",
-          pbcopy: "stopped",
-          screencapture: "stopped",
-          mdfind: "stopped",
-          mdls: "stopped",
-          log: "stopped",
-          ps: "stopped",
-          top: "stopped",
-          lsof_other: "stopped",
-          sudo: "stopped",
-          su: "stopped",
-        };
         expect(results).toEqual({
-          ...stopped,
-          // 막지 않은 것: 네트워크 도구는 네트워크가 결정대로 열려 있어 막지 않는다(시작은 하고 접속은 프록시 규칙을 따른다). 셸과 텍스트 도구는 돈다
-          nc_loopback: "ran",
-          sh_runs: "ran",
-          grep_runs: "ran",
+          read_etc_hosts: "open",
+          read_usr_bin: "open",
+          read_bin_sh: "open",
         });
-        expect(sleeper.exitCode).toBeNull();
       } finally {
-        sleeper.kill();
         await box.close();
       }
     },

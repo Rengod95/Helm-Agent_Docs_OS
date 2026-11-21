@@ -1363,6 +1363,29 @@
         }
       }
     },
+    "l0.sandbox.narrowDrafts": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "On runs the scripts of plugin drafts you have not approved yet in a narrow sandbox: they can only read the plugin's own folder and cannot write. Off works like approved plugins.",
+          "helpKey": "settings.l0.sandbox.narrowDrafts.help",
+          "label": "Run unapproved plugin drafts in a narrow sandbox",
+          "labelKey": "settings.l0.sandbox.narrowDrafts.label",
+          "order": 109,
+          "tab": "permissions",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.sandbox.nestedNamespaces": {
       "default": false,
       "type": "boolean",

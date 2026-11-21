@@ -24,7 +24,6 @@ import {
   useRetrying,
   useThreadApprovals,
   useThreadRunning,
-  useWriteAccessAllowed,
   type ProviderRetry,
 } from "../state/engine/index.ts";
 import {
@@ -284,7 +283,6 @@ function ComposerFor(props: {
   // 이 대화의 승인 모드 칩(설정 l1.tools.permissionMode, 대화 범위). 칩 자리는 늘 있고, 모르면 기본 모드로 보이며 이유를 말한다(DP-213)
   const permission = useThreadPermissionMode(props.threadId);
   const permissionChip = permissionChipViewOf(permission.read);
-  const writeAccessAllowed = useWriteAccessAllowed(props.threadId);
   const thinking = useThreadThinking(props.threadId);
   const modelChoices = useModelChoices();
   const deniedModels = useDeniedModels();
@@ -995,7 +993,6 @@ function ComposerFor(props: {
                 note={permissionChip.note}
                 bypassAllowed={permission.bypassAllowed}
                 disabled={props.disabledReason !== null}
-                writeAccess={writeAccessAllowed}
                 onRetry={permission.retry}
                 onChange={(next) => {
                   detach(

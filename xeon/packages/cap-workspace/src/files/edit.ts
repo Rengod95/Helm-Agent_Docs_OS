@@ -47,9 +47,7 @@ export function createEdit(deps: WorkspaceDeps): EditMethod {
     return core.queueInCallOrder(
       deps.env.id,
       async () => {
-        const target = await core.resolveWorkspacePath(deps.roots, input.path, "write", context, {
-          askOutsideWrite: core.askOutsideWrite(deps, "edit", options?.context, options?.signal),
-        });
+        const target = await core.resolveWorkspacePath(deps.roots, input.path, "write", context);
         if (!target.exists) {
           throw new WorkspaceFailure("not_found", `File not found: ${input.path}`);
         }

@@ -19,9 +19,7 @@ export function createWrite(deps: WorkspaceDeps): WriteMethod {
     return core.queueInCallOrder(
       deps.env.id,
       async () => ({
-        resolved: await core.resolveWorkspacePath(deps.roots, input.path, "write", context, {
-          askOutsideWrite: core.askOutsideWrite(deps, "write", options?.context, options?.signal),
-        }),
+        resolved: await core.resolveWorkspacePath(deps.roots, input.path, "write", context),
         roots: await deps.roots.roots(context),
       }),
       ({ resolved }) => core.mutationKey(deps.env.id, resolved.canonical),

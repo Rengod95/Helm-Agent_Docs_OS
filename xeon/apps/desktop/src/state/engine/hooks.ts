@@ -210,9 +210,6 @@ export const useDriveInputs = (threadId: ThreadId): readonly DriveInputRecord[] 
 /** 도구 호출에 묶이지 않은 개입(시크릿 가림, 시크릿 승인) */
 export const useLooseInterventions = (threadId: ThreadId): readonly Intervention[] =>
   useEngine((s) => csel.selectLooseInterventions(s, threadId));
-/** 이 대화에서 샌드박스 밖 쓰기를 계속 허용했는가(DP-205) */
-export const useWriteAccessAllowed = (threadId: ThreadId): boolean =>
-  useEngine((s) => csel.selectWriteAccessAllowed(s, threadId));
 /** 도구 호출 id 없는 승인(계획·질문·검토)의 기록 */
 export const useLooseApprovals = (threadId: ThreadId): readonly ApprovalTrail[] =>
   useEngine((s) => csel.selectLooseApprovals(s, threadId));

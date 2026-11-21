@@ -67,7 +67,7 @@ interface ScanChildReply {
 export interface ScanRunInput {
   /** 띄우기 라벨(`migration-scan:<scanId>`)과 진행 알림에 쓴다 */
   readonly scanId: string;
-  /** 정규 경로로 바뀐 루트. 첫 루트가 자식의 작업 폴더이고 나머지는 읽기 허용 목록에 더한다 */
+  /** 정규 경로로 바뀐 루트. 첫 루트가 자식의 작업 폴더다. 나머지 루트는 좁은 정책의 읽기 허용 목록에만 쓰인다(이 자식은 열린 정책이라 읽기가 열려 있다) */
   readonly roots: readonly ScanRoot[];
   readonly homeDir: string;
   /** 루트 하나가 끝날 때마다 부른다(자식의 진행 줄) */
@@ -125,7 +125,7 @@ export function createMigrationScanner(
       command: source.self.execPath,
       args: [...prefix, "migration-scan", "--stdio"],
       readRoot: first.path,
-      // 나머지 루트는 읽기 허용 목록에 더한다. 소스 실행이면 소스 작업 공간도 읽는다(`pluginHostLaunch`와 같다)
+      // 열린 정책이라 `runtimeReadRoots`는 무시된다(좁은 정책에서만 쓰인다). 같은 모양으로 싣는다 [결정: 2026-11-21, AGE-63]
       runtimeReadRoots: [
         ...input.roots.slice(1).map((root) => root.path),
         ...(prefix.length === 0 ? [] : [sourceWorkspaceOf(source.self.entry)]),
