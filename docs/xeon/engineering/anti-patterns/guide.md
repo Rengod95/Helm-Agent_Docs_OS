@@ -73,7 +73,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 왜 문제인가:
   - [결정] 같은 층의 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3` "층 순위와 의존 방향", `architecture.layers.spec §3` 규칙 2).
   - 같은 층 간선이 생기면 패키지 교체와 그룹 단위 켜고 끄기가 어려워진다. 사용자가 층마다 플러그인을 교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)과 맞지 않는다.
-  - 같은 층 예외는 두 개뿐이다. `group-*` → `group-sdk`(`DR-02/group-sdk`)과 `apps/cli` → `apps/host`(`DR-10/cli-host`)다([결정: review.decisions-2 U-15], `eng.dependency-rules.guide` 4절 허용 목록). `plugins/*`는 L1 순위이고 같은 층 예외가 없다([결정: review.decisions-2 U-16]).
+  - 같은 층 예외는 두 개뿐이다. `group-*` → `orchestration-sdk`(`DR-02/orchestration-sdk`)과 `apps/cli` → `apps/host`(`DR-10/cli-host`)다([결정: review.decisions-2 U-15], `eng.dependency-rules.guide` 4절 허용 목록). `plugins/*`는 L1 순위이고 같은 층 예외가 없다([결정: review.decisions-2 U-16]).
 - 나쁜 예:
 
   ```ts
@@ -128,7 +128,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 <a id="ap-a-03"></a>
 #### AP-A-03 그룹 간 직접 호출
 
-- 증상: `group-helm`이 `group-learning`을 import해 학습 결과를 읽거나, 학습 그룹의 내부 상태를 Cordis 서비스로 꺼내 Helm이 직접 바꾼다.
+- 증상: `plugin-helm`이 `plugin-learning`을 import해 학습 결과를 읽거나, 학습 그룹의 내부 상태를 Cordis 서비스로 꺼내 Helm이 직접 바꾼다.
 - 왜 문제인가:
   - [결정] 그룹끼리는 직접 참조하지 않는다(`architecture.layers.spec §3.1` 3행, `_research/layer-plan-v2-notes.md` "층 사이 규칙"). 그룹 사이 정보는 L2 기능의 레코드와 서비스(예: L2 knowledge 검색)로만 주고받는다(`eng.context-map.design` 3절 협력 규칙 7, CM-06).
   - [결정: review.decisions-2 D-10] 그룹 사이 레코드의 스키마는 F에 두지 않는다. 그룹은 다른 그룹의 비공개 레코드(`grp.<다른 그룹>.*`)를 읽지 않는다.
@@ -136,8 +136,8 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 나쁜 예:
 
   ```ts
-  // xeon/packages/group-helm/src/lens.ts
-  import { pendingSkills } from "@fresnel/group-learning"; // L3 → L3
+  // xeon/packages/plugin-helm/src/lens.ts
+  import { pendingSkills } from "@fresnel/plugin-learning"; // L3 → L3
 
   export const lensFor = () => pendingSkills().map((s) => s.title);
   ```
@@ -145,7 +145,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 좋은 예:
 
   ```ts
-  // xeon/packages/group-helm/src/lens.ts
+  // xeon/packages/plugin-helm/src/lens.ts
   // 학습 결과는 L2 knowledge가 저장한다. Helm은 그 검색 서비스로만 읽는다. 학습 그룹이 꺼져 있으면 결과가 비어 있을 뿐이다.
   const hits = await knowledge.search({ query: topic, kinds: ["skill", "memory"], limit: 5 });
   ```
@@ -255,7 +255,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 나쁜 예:
 
   ```ts
-  // xeon/packages/group-helm/src/inject.ts
+  // xeon/packages/plugin-helm/src/inject.ts
   import { openStore } from "@fresnel/platform-store";
 
   export async function injectHint(threadId: ThreadId, text: string) {
@@ -759,7 +759,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 나쁜 예:
 
   ```ts
-  // xeon/packages/group-helm/src/store.ts
+  // xeon/packages/plugin-helm/src/store.ts
   import { Database } from "bun:sqlite";
   const helmDb = new Database(join(dataDir, "helm.sqlite"));     // 세션 DB와 따로 커밋된다
   ```
@@ -1064,5 +1064,5 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 ## 5. 미결 사항
 
 - [미결] 3.1절과 3.2절의 [제안] 린트 패턴과 검사 스크립트 항목을 `eng.toolchain.guide`와 `check-layers.ts`에 넣을지. 코드는 다른 작업자가 만드는 중이므로 이 문서는 목록만 둔다.
-- [결정: review.decisions-2 U-15] 같은 층 예외(`DR-02/group-sdk`, `DR-10/cli-host`)를 AP-A-01에 반영했다.
+- [결정: review.decisions-2 U-15] 같은 층 예외(`DR-02/orchestration-sdk`, `DR-10/cli-host`)를 AP-A-01에 반영했다.
 - [미결] 4.4절 항목 추가 절차를 채택할지, 채택하면 누가 추가를 승인하는지.

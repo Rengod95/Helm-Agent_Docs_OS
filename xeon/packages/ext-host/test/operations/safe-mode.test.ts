@@ -11,7 +11,7 @@ const candidates: readonly LoadCandidate[] = [
   { name: "core-tools", tier: "guard", layer: "L1" },
   { name: "core-loop", tier: "core", layer: "L1" },
   { name: "cap-web", tier: "builtin", layer: "L2" },
-  { name: "group-learning", tier: "builtin", layer: "L3" },
+  { name: "plugin-learning", tier: "builtin", layer: "L3" },
   { name: "helm", tier: "user", layer: "plugin" },
   { name: "proj-ext", tier: "project", layer: "plugin" },
 ];
@@ -27,7 +27,7 @@ test("safe mode keeps guard, core and L1/L2 built-ins and drops L3 groups and us
     "cap-web",
   ]);
   expect(result.skipped).toEqual([
-    { name: "group-learning", reason: "safe_mode" },
+    { name: "plugin-learning", reason: "safe_mode" },
     { name: "helm", reason: "safe_mode" },
     { name: "proj-ext", reason: "safe_mode" },
   ]);

@@ -10,7 +10,7 @@
     "packages/*": {
       "entry": ["test/**/*.test.ts"]
     },
-    "packages/group-sdk": {
+    "packages/orchestration-sdk": {
       "entry": ["test/**/*.test.ts"],
       "ignore": ["templates/**"]
     },

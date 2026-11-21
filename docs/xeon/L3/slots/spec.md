@@ -20,7 +20,7 @@ binds: []
 
 - [결정] 사용자의 요구는 제2의 Helm 같은 사상도 루프에 붙였다 뗄 수 있는 것이다(`_research/decisions-log.md` 2026-10-21 사용자 의중).
 - [결정] 배포 단위는 층(F~L3) 전체를 제공하는 런타임이고, 사용자가 층별 플러그인과 그룹을 추가·수정·교체할 수 있어야 한다. 설계 노력은 제2의 Helm을 쉽게 추가하는 펀더멘탈과 스키마에 집중한다(`_research/decisions-log.md` 2026-10-21 배포 단위 정정).
-- 세 구성요소는 모두 `group-sdk` 위에서 코어 diff 0으로 추가되어야 한다(`product.vision.spec` §9.1 S1).
+- 세 구성요소는 모두 `orchestration-sdk` 위에서 코어 diff 0으로 추가되어야 한다(`product.vision.spec` §9.1 S1).
 
 정하는 것:
 
@@ -38,7 +38,7 @@ binds: []
 
 정식 예의 위치:
 
-- [제안] 정책 예 3종은 제품 기능이 아니다. 템플릿과 `group-sdk`의 정책 경로를 검증하는 테스트 fixture다. 기본 배포에 넣지 않고 `group-sdk`의 `testing` 서브패스 아래에 둔다(`L3.slots.plan` §2).
+- [제안] 정책 예 3종은 제품 기능이 아니다. 템플릿과 `orchestration-sdk`의 정책 경로를 검증하는 테스트 fixture다. 기본 배포에 넣지 않고 `orchestration-sdk`의 `testing` 서브패스 아래에 둔다(`L3.slots.plan` §2).
 - [결정: review.m3-design-inputs D-M3-30] 코어에 내장 콘텐츠 검사는 두지 않는다. 대신 F·X가 fail-closed 가드레일 훅 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 둔다(ADR-0017). 검사는 이 훅에 붙는 플러그인이 한다. 이 문서의 `guardrail`은 그 훅을 쓰는 예다.
 
 ## 2. 용어
@@ -80,7 +80,7 @@ binds: []
 | # | 항목 | 확인 방법 |
 |---|---|---|
 | C1 | 매니페스트에 `orchestration` 선언을 두고, 구성원 플러그인의 `layer: "L3"`, `drives`를 명시한다. 이름은 3.3.4절 규칙을 따른다 | `validateManifest`(`plugin_root_ambiguous`, `orchestration_member_unknown`, `name_invalid`, `name_reserved`). `drive_requires_orchestration`은 X 설치 때 본다 |
-| C2 | 상태 스키마(`StateDecl<S>`: TypeBox 스키마, 초기값, `version`)를 둔다. 상태가 없으면 생략한다 | `group-sdk` 로드 테스트 |
+| C2 | 상태 스키마(`StateDecl<S>`: TypeBox 스키마, 초기값, `version`)를 둔다. 상태가 없으면 생략한다 | `orchestration-sdk` 로드 테스트 |
 | C3 | drive 사용 여부를 정한다. 쓰면 상한을 `DriveOptions.limits`로 요청하고, 재생 테스트(C7)를 갖춘다 | `validateUsage`(`drive_undeclared`) |
 | C4 | 쓰는 레코드 kind를 `recordKinds`에 `RecordKindDecl`로 선언한다. 형식은 `grp.<id>.<영역>.<이름>`이다. 읽는 kind는 `readsRecordKinds`에 둔다 | `validateManifest`(`record_kind_prefix`), `validateUsage`(`record_kind_undeclared`, `read_kind_undeclared`) |
 | C5 | 설정 키는 `ext.<id>.<이름>`만 쓴다. `enabled`, `isolation`은 선언하지 않는다(X 로더 예약) | `buildCatalog`(`foreignNamespace`, `duplicateKey`) |
@@ -136,10 +136,10 @@ binds: []
 | 수용 기준 | 쓰기 도구를 쓴 테이프 턴에서 검토 입력이 정확히 한 번 들어가고 모델 요청이 한 번 더 일어난다. 같은 턴의 두 번째 정착에서는 post가 `duplicate: true`이고 `continue`를 요청하지 않는다. 쓰기가 없는 턴은 그대로 정착한다 |
 
 ```ts
-// group-sdk/src/testing/policies/reviewgate.ts  (fixture, 4.2.2)
+// orchestration-sdk/src/testing/policies/reviewgate.ts  (fixture, 4.2.2)
 import { Type, type Static } from "typebox";
 import { defineSettings } from "@fresnel/contracts/settings";
-import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/orchestration-sdk";
 
 const reviewgateManifest = orchestrationManifest({                          // 저장소 안 fixture라 매니페스트 객체를 직접 정의한다
   schemaVersion: 2, name: "reviewgate", version: "0.1.0", displayName: "검토 강제",
@@ -204,7 +204,7 @@ export const reviewgate: OrchestrationModule = defineOrchestration<ReviewState>(
 | 수용 기준 | 검증 전 커밋 호출은 거부되고 사유가 모델에 돌아간다. 검증 성공 뒤 커밋은 실행된다. 검증 성공 뒤 `write`가 있으면 다시 거부된다. 판정 함수 예외 시 거부된다 |
 
 ```ts
-// group-sdk/src/testing/policies/commitguard.ts  (fixture, 4.2.3)
+// orchestration-sdk/src/testing/policies/commitguard.ts  (fixture, 4.2.3)
 const GuardState = Type.Object({ verified: Type.Boolean() });
 type GuardState = Static<typeof GuardState>;
 
@@ -277,7 +277,7 @@ export const commitguard: OrchestrationModule = defineOrchestration<GuardState>(
 | 수용 기준 | 패턴에 걸린 모델 요청은 보내지 않는다. 패턴에 걸린 도구 호출은 실행되지 않는다. 패턴에 걸린 출력은 표시·실행되지 않는다. 검사 함수 예외 시 `onUnknown: "deny"`이면 차단, `"allow"`이면 통과한다 |
 
 ```ts
-// group-sdk/src/testing/policies/guardrail.ts  (fixture 골격, 4.2.4)
+// orchestration-sdk/src/testing/policies/guardrail.ts  (fixture 골격, 4.2.4)
 import { GUARD_HOOKS, type ExtensionEntry, type GuardDecision } from "@fresnel/contracts/extensions";   // GUARD_HOOKS, GuardDecision은 [제안] 이름(ADR-0017)
 
 export type GuardVerdict =
@@ -323,9 +323,9 @@ export const guardrail: ExtensionEntry = ({ register }) => {
 
 #### 3.3.1 템플릿 위치
 
-- [제안] 템플릿 파일은 `xeon/packages/group-sdk/templates/` 아래에 둔다. `eng.context-map.design` C-2([미결] slots의 위치)에 대한 이 문서의 답이다. 이유: (1) 템플릿 골격이 `defineOrchestration`, `replayDrive`와 같은 변경에서 함께 바뀐다. (2) `group-sdk` 테스트가 템플릿을 생성·로드해 깨짐을 바로 잡는다. (3) context-map이 slots를 이미 `group-sdk` 컨텍스트에 두었다.
-- 템플릿 디렉터리는 `group-sdk`의 `src/` 밖이므로 패키지 진입점(`exports`)에 들어가지 않는다. `templates/**/*.ts`는 그대로 컴파일하지 않고, 테스트가 임시 디렉터리에 생성한 뒤 컴파일한다(4.3절).
-- 그래도 routes.yaml의 slots `binds`는 비워 둔다. 템플릿 파일은 `L3.group-sdk.spec`의 `binds`(`xeon/packages/group-sdk/**`) 아래에 있기 때문이다. 이 문서는 템플릿의 내용 규칙만 구속한다.
+- [제안] 템플릿 파일은 `xeon/packages/orchestration-sdk/templates/` 아래에 둔다. `eng.context-map.design` C-2([미결] slots의 위치)에 대한 이 문서의 답이다. 이유: (1) 템플릿 골격이 `defineOrchestration`, `replayDrive`와 같은 변경에서 함께 바뀐다. (2) `orchestration-sdk` 테스트가 템플릿을 생성·로드해 깨짐을 바로 잡는다. (3) context-map이 slots를 이미 `orchestration-sdk` 컨텍스트에 두었다.
+- 템플릿 디렉터리는 `orchestration-sdk`의 `src/` 밖이므로 패키지 진입점(`exports`)에 들어가지 않는다. `templates/**/*.ts`는 그대로 컴파일하지 않고, 테스트가 임시 디렉터리에 생성한 뒤 컴파일한다(4.3절).
+- 그래도 routes.yaml의 slots `binds`는 비워 둔다. 템플릿 파일은 `L3.group-sdk.spec`의 `binds`(`xeon/packages/orchestration-sdk/**`) 아래에 있기 때문이다. 이 문서는 템플릿의 내용 규칙만 구속한다.
 
 #### 3.3.2 파일 목록
 
@@ -348,7 +348,7 @@ export const guardrail: ExtensionEntry = ({ register }) => {
 #### 3.3.3 템플릿 색인과 치환 자리
 
 ```ts
-// group-sdk/templates/index.json 의 스키마 (group-sdk/test에서 검사)
+// orchestration-sdk/templates/index.json 의 스키마 (orchestration-sdk/test에서 검사)
 import { Type, type TLiteral, type TObject, type TUnion } from "typebox";
 
 export type TemplateKind = "drive" | "policy" | "observe";
@@ -396,12 +396,12 @@ export const TemplateIndexSchema: TObject = Type.Object({
 
 매니페스트 전달 [제안]: 템플릿은 외부 그룹이 기본 대상이라 매니페스트가 `.fresnel-plugin/plugin.json`에만 있다. `src/index.ts`는 이 파일을 JSON import로 읽어 `orchestrationManifest`(`L3.group-sdk.spec` §3.2)로 검증·좁힌 값을 `defineOrchestration`의 `manifest`에 넘긴다. 저장소 안 그룹으로 바꿀 때는 `src/manifest.ts`의 `defineManifest` 상수를 넘긴다(3.3.2).
 
-[편차 정리: M4 T-RT2] 아래 코드는 `xeon/packages/group-sdk/templates/`의 실제 파일과 같다. 설계 때 목록과 다른 점(식별자에 이름을 넣지 않음, drive의 `ROUNDS`와 `requestId`, 종류별 `package.json`)과 이유는 `L3.slots.plan` S-01 구현 기록에 있다.
+[편차 정리: M4 T-RT2] 아래 코드는 `xeon/packages/orchestration-sdk/templates/`의 실제 파일과 같다. 설계 때 목록과 다른 점(식별자에 이름을 넣지 않음, drive의 `ROUNDS`와 `requestId`, 종류별 `package.json`)과 이유는 `L3.slots.plan` S-01 구현 기록에 있다.
 
 drive 템플릿 `src/index.ts`:
 
 ```ts
-import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/orchestration-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 import { initialState, stateSchema, type State } from "./state.ts";
@@ -468,7 +468,7 @@ export const initialState: State = { phase: "run", round: 0 };
 policy 템플릿 `src/index.ts`(상태 없는 그룹. `state`를 생략한다, `L3.group-sdk.spec` §3.2):
 
 ```ts
-import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/orchestration-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 
@@ -492,7 +492,7 @@ export default group;
 observe 템플릿 `src/index.ts`:
 
 ```ts
-import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest, type OrchestrationModule } from "@fresnel/orchestration-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 import { initialState, stateSchema, type State } from "./state.ts";
@@ -561,7 +561,7 @@ export const settings: SettingGroup<
 
 ```ts
 import { test, expect } from "bun:test";
-import { replayDrive } from "@fresnel/group-sdk/testing";
+import { replayDrive } from "@fresnel/orchestration-sdk/testing";
 import { t, tape } from "@fresnel/core-models/testing";
 import group from "../src/index.ts";
 
@@ -581,7 +581,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ```json
 {
-  "name": "@fresnel/group-__ID__",
+  "name": "@fresnel/plugin-__ID__",
   "version": "__VERSION__",
   "private": true,
   "type": "module",
@@ -602,12 +602,12 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 |---|---|
 | R1 | 옵션이 없으면 observe, `--drive`는 drive, `--policy`는 policy 템플릿을 쓴다. 두 옵션을 함께 주면 오류다 |
 | R2 | 이름을 3.3.4절 규칙으로 검사한다. 설치된 확장 이름과 겹치면 거부한다 |
-| R3 | `group-sdk/templates/index.json`을 읽어 해당 종류의 파일을 복사하고 치환 자리를 바꾼다. 대상 디렉터리가 비어 있지 않으면 거부한다 |
+| R3 | `orchestration-sdk/templates/index.json`을 읽어 해당 종류의 파일을 복사하고 치환 자리를 바꾼다. 대상 디렉터리가 비어 있지 않으면 거부한다 |
 | R4 | 생성한 매니페스트를 F `validateManifest`로 검사하고 오류가 있으면 생성 결과를 지운다 |
 | R5 | 생성은 코드 실행 없이 파일 복사와 치환만 한다. 의존 설치는 하지 않고 다음 명령을 안내한다 |
 | R6 | 종료코드는 `eng.toolchain.guide` 규칙(1 입력 오류, 2 환경 문제)을 따른다 [가정] |
 
-- [제안] L4는 `group-sdk`을 import하지 않는다. 템플릿은 파일로 읽고, 검사는 F 함수만 쓴다. `apps/cli`의 컨텍스트(`clients`)가 다른 컨텍스트의 구현을 import하지 않는 규칙(`eng.dependency-rules.guide` DR-14)을 지키기 위해서다.
+- [제안] L4는 `orchestration-sdk`을 import하지 않는다. 템플릿은 파일로 읽고, 검사는 F 함수만 쓴다. `apps/cli`의 컨텍스트(`clients`)가 다른 컨텍스트의 구현을 import하지 않는 규칙(`eng.dependency-rules.guide` DR-14)을 지키기 위해서다.
 - `create-cordis` 0.3.1(MIT)의 스캐폴딩 방식(템플릿 디렉터리 복사와 이름 치환)을 참고한다. 코드는 채택하지 않는다(`_research/packages.md` §4.6 L3-c 행. 그 행의 판정은 추측이다).
 
 ## 4. 동작 규칙
@@ -664,7 +664,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 1. 템플릿은 최소 골격만 담는다. 실제 정책 로직, 렌즈, 프롬프트 문구를 넣지 않는다 [제안].
 2. 생성된 그룹은 수정 없이 `bun test`가 통과해야 한다. 각 템플릿의 단위 테스트, 매니페스트 테스트, (drive면) 재생 테스트가 포함된다.
 3. 생성은 파일 복사와 치환만 한다(R5). 템플릿 안의 코드를 생성 중에 실행하지 않는다.
-4. `group-sdk` 테스트는 세 종류를 임시 디렉터리에 생성하고 로드·토글·재생을 확인한다(`L3.slots.plan` §5). 그래서 `defineOrchestration`이나 `OrchestrationApi`가 바뀌면 같은 변경에서 템플릿이 함께 고쳐진다.
+4. `orchestration-sdk` 테스트는 세 종류를 임시 디렉터리에 생성하고 로드·토글·재생을 확인한다(`L3.slots.plan` §5). 그래서 `defineOrchestration`이나 `OrchestrationApi`가 바뀌면 같은 변경에서 템플릿이 함께 고쳐진다.
 
 ### 4.4 재생
 
@@ -676,7 +676,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | # | 상황 | 결과 |
 |---|---|---|
-| 1 | 템플릿으로 만든 그룹이 다른 그룹 패키지(`@fresnel/group-helm` 등)를 import함 | 저장소 안이면 check-layers가 `DR-02`로 실패한다. 허용 목록에는 `group-sdk`만 있다. 외부 그룹이면 X 로더가 거부할지는 `X.loading-trust.spec`이 정한다 [가정] |
+| 1 | 템플릿으로 만든 그룹이 다른 그룹 패키지(`@fresnel/plugin-helm` 등)를 import함 | 저장소 안이면 check-layers가 `DR-02`로 실패한다. 허용 목록에는 `orchestration-sdk`만 있다. 외부 그룹이면 X 로더가 거부할지는 `X.loading-trust.spec`이 정한다 [가정] |
 | 2 | 그룹 이름이 설치된 확장과 같음 | `validateManifestSet`이 `name_conflict` 오류를 낸다. 생성 명령은 R2에서 미리 거부한다 |
 | 3 | 그룹 이름에 밑줄이나 대문자가 있거나, 예약 이름임 | 생성 명령이 거부한다. 직접 쓴 매니페스트는 X 로더가 확장 id 규칙(review.decisions-2 U-18)과 `RESERVED_EXT_IDS`로 거부한다(CM-07) |
 | 4 | `orchestration` 선언이 없는 정책 플러그인이 `drives: true`를 선언함 | 정책 `x.primitives.driveRequiresOrchestration`이 참(기본)이면 X 설치가 `drive_requires_orchestration` 오류로 거부한다(F.extensions.spec §4.6). 정책을 거짓으로 풀면 허용된다 |
@@ -729,7 +729,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | 이름 | 출처 |
 |---|---|
-| `defineOrchestration`, `OrchestrationDef<S>`(상태 생략 허용), `orchestrationManifest`, `RESERVED_ORCHESTRATION_NAMES`, `OrchestrationApi<S>`(`settings()` 포함), `OrchestrationModule`, `OrchestrationService`, `DriveArbiter`, `replayDrive`(`ReplayDriveOptions`, `ReplayDriveReport`), `scanDriveSource`, `@fresnel/group-sdk/testing` | `L3.group-sdk.spec` §3.2, §3.10, §3.11 |
+| `defineOrchestration`, `OrchestrationDef<S>`(상태 생략 허용), `orchestrationManifest`, `RESERVED_ORCHESTRATION_NAMES`, `OrchestrationApi<S>`(`settings()` 포함), `OrchestrationModule`, `OrchestrationService`, `DriveArbiter`, `replayDrive`(`ReplayDriveOptions`, `ReplayDriveReport`), `scanDriveSource`, `@fresnel/orchestration-sdk/testing` | `L3.group-sdk.spec` §3.2, §3.10, §3.11 |
 | `ExtensionManifest`, `ExtensionEntry`, `RegistrationApi`, `PostItem`, `ToolCallDecision`, `BoundaryPatch`, `InputPatch`, `ToolResultPatch`, `validateManifest`, `validateUsage`, `validateManifestSet`, `FIRST_DENY` | `F.extensions.spec` |
 | `defineSettings`, `SettingDef`, `SettingsTab`, 키 문법, 예약 키 규칙 | `F.wire-settings.spec` |
 | 테스트 계층, 테이프 도우미 `t`·`tape`, `testing` 서브패스 규칙 | `eng.testing.guide` |
@@ -748,12 +748,12 @@ test("__ID__.drive-replays-at-every-commit", async () => {
    - commitguard: 검증 성공 전 `git commit` bash 호출은 거부되고, 검증 성공 뒤에는 실행된다.
    - guardrail: 패턴에 걸린 도구 호출은 도구 호출 가드에서 차단되고, 검사 함수 예외는 `onUnknown: "deny"`에서 차단된다. 핸들러가 던지면 차단된다.
 5. policy 그룹의 first 핸들러가 예외를 던지면 도구 호출이 거부된다.
-6. 템플릿으로 만든 그룹 소스에 `@fresnel/group-helm` import를 넣으면 check-layers가 `DR-02`로 실패한다.
+6. 템플릿으로 만든 그룹 소스에 `@fresnel/plugin-helm` import를 넣으면 check-layers가 `DR-02`로 실패한다.
 7. 템플릿으로 만든 가짜 그룹을 추가하는 변경에서 `contracts`와 `ext-host`의 diff가 0이다(`product.vision.spec` S1).
 
 ## 10. 미결 사항
 
-- [결정: 오케스트레이터 기본값] 템플릿 파일 위치는 `xeon/packages/group-sdk/templates/`다(3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다.
+- [결정: 오케스트레이터 기본값] 템플릿 파일 위치는 `xeon/packages/orchestration-sdk/templates/`다(3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다.
 - [미결] 정책 플러그인의 `orchestration` 선언 유무 기준의 최종 확정(4.2.1).
 - (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 훅 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).

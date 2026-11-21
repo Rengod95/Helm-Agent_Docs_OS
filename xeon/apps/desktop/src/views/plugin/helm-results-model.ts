@@ -4,10 +4,10 @@ import { Type, type TUnsafe } from "typebox";
 
 // Helm 탐구 결과 패널의 값 모델. `ext.helm.inquiries`와 `ext.helm.findings`의 결과(`unknown`)를 스키마로 검사하고,
 // 탐구 하나를 Markdown 글로 바꾼다. 모양이 맞지 않으면 파서는 `null`을 준다(화면이 "결과를 읽지 못했어요"를 보인다).
-// 이 파일은 DOM을 쓰지 않는다. 화면은 `helm-results.tsx`가 그린다. 모양은 group-helm의 `methods.ts`(결과 스키마)를 따른다.
+// 이 파일은 DOM을 쓰지 않는다. 화면은 `helm-results.tsx`가 그린다. 모양은 plugin-helm의 `methods.ts`(결과 스키마)를 따른다.
 // 스키마는 `Type.Unsafe<T>`에 `SchemaProof`로 붙여, 정적 타입과 스키마가 어긋나면 컴파일이 막는다(TY-26).
 
-/** 대화에 쌓이면 탐구 목록이 달라졌다는 뜻인 확장 기록의 종류: Helm의 단계·끝 안내와 끝 기록(`group-helm`의 `prompts.ts`, `composition.ts`) */
+/** 대화에 쌓이면 탐구 목록이 달라졌다는 뜻인 확장 기록의 종류: Helm의 단계·끝 안내와 끝 기록(`plugin-helm`의 `prompts.ts`, `composition.ts`) */
 export const HELM_CHANGE_KINDS: readonly string[] = [
   "grp.helm.notice.status",
   "grp.helm.inquiry.finished",

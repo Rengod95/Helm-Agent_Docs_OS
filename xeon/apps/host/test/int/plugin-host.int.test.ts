@@ -8,7 +8,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import type { PluginHostSupervisor } from "@fresnel/ext-host";
-import { buildHelmPlugin } from "@fresnel/group-helm/build";
+import { buildHelmPlugin } from "@fresnel/plugin-helm/build";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
@@ -23,7 +23,7 @@ import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire
 // 자식은 실제로 `bun apps/host/src/main.ts plugin-host --stdio`로 뜨고, 샌드박스만 대역이다(명령줄을 그대로 돌려준다).
 // 플러그인의 훅은 상태를 커밋하고 기록을 쓰며, 자기 프로세스 번호와 커밋된 값을 시험 폴더의 파일에 쓴다.
 // 평범한 `register` 플러그인의 `g`에는 `registerTool`·`registerCommand`가 없어 도구와 명령은 이 묶음에서 시험하지 않는다.
-// 도구와 명령은 `defineOrchestration` 플러그인으로 마지막 시험이 본다(group-sdk의 wrap이 자식의 `hostOf`를 쓴다).
+// 도구와 명령은 `defineOrchestration` 플러그인으로 마지막 시험이 본다(orchestration-sdk의 wrap이 자식의 `hostOf`를 쓴다).
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -334,7 +334,7 @@ const GROUP_MANIFEST = JSON.stringify({
 function groupEntryText(reportName: string): string {
   return `import { writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { defineOrchestration, orchestrationManifest } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
 const manifest = orchestrationManifest(${GROUP_MANIFEST});
 const group = defineOrchestration({
   manifest,

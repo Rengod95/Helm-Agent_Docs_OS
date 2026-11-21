@@ -5733,7 +5733,7 @@
   "desktop.compose.profile.driver.info": "대화를 열 때 drive를 쥘 그룹이에요. 바꿔도 이미 쥔 drive는 회수하지 않아요.",
   "desktop.compose.profile.locked": "잠김",
   "desktop.compose.profile.locked.info": "내장 코어 확장은 프로필로 켜거나 끌 수 없어요.",
-  "desktop.compose.issue.au012": "이 빌드에서는 재생 규율 검사가 돌지 않았어요. group-sdk의 scanDriveSource로 구동 코드를 따로 검사해 주세요.",
+  "desktop.compose.issue.au012": "이 빌드에서는 재생 규율 검사가 돌지 않았어요. orchestration-sdk의 scanDriveSource로 구동 코드를 따로 검사해 주세요.",
   "desktop.compose.profile.testRun": "새 Test run으로",
   "desktop.compose.profile.testRun.info": "저장된 프로필을 적용한 새 테스트 대화를 만들어요. 지금 대화에는 적용하지 않아요.",
   "desktop.compose.profile.testRun.unsaved": "바꾼 내용을 저장한 뒤에 새 Test run으로 만들 수 있어요.",

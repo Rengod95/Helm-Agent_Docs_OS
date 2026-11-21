@@ -65,13 +65,13 @@ test("a user extension loads from <userDir>/extensions and its on handler fires"
   );
   expect(harness.policy.tiers.get("hello")).toBe("user");
   await fire(harness);
-  // 플러그인이 받은 `@fresnel/contracts`와 `typebox`는 호스트와 같은 값이고, `@fresnel/group-sdk`은 호스트 객체다
+  // 플러그인이 받은 `@fresnel/contracts`와 `typebox`는 호스트와 같은 값이고, `@fresnel/orchestration-sdk`은 호스트 객체다
   expect(fakeOrchestrationSdk.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
 });
 
 test("a plugin importing a contracts subpath gets the host's module without the host registering it", async () => {
-  // 조립 루트는 group-sdk만 넘긴다. `@fresnel/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
-  const kitSpecifier = ["@fresnel", "group-sdk"].join("/");
+  // 조립 루트는 orchestration-sdk만 넘긴다. `@fresnel/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
+  const kitSpecifier = ["@fresnel", "orchestration-sdk"].join("/");
   await writePlugin(userExtensions, "sub", {
     name: "sub",
     hooks: [],
@@ -87,7 +87,7 @@ export const extension = ({ register }) => {
 `,
   });
   const harness = await harnessOf({
-    loader: { sdkModules: { "@fresnel/group-sdk": fakeOrchestrationSdk } },
+    loader: { sdkModules: { "@fresnel/orchestration-sdk": fakeOrchestrationSdk } },
   });
   const report = await harness.loader.loadAll(loadOptions(harness));
   expect(report.diagnostics).toEqual([]);
@@ -399,7 +399,7 @@ async function rewriteEntry(root: string, entry: string): Promise<void> {
 
 /** 호출될 때 `<tag>`를 기록하는 엔트리 */
 function taggedEntry(name: string, tag: string): string {
-  const kit = ["@fresnel", "group-sdk"].join("/");
+  const kit = ["@fresnel", "orchestration-sdk"].join("/");
   return `import * as kit from "${kit}";
 export const extension = ({ register }) => {
   register(${JSON.stringify(name)}, {}, (g) => {
@@ -518,7 +518,7 @@ test("a reload with an invalid or renamed manifest is rejected before any import
 
 test("a setup that throws in the new version is reported through applied and the old one runs", async () => {
   const { harness, root, thread } = await loadedHello();
-  const kit = ["@fresnel", "group-sdk"].join("/");
+  const kit = ["@fresnel", "orchestration-sdk"].join("/");
   await rewriteEntry(
     root,
     `import * as kit from "${kit}";

@@ -5,12 +5,12 @@ domain: guide
 kind: plan
 status: draft
 depends_on: [L3.guide.spec, L3.authoring.spec]
-binds: [xeon/packages/group-guide/**]
+binds: [xeon/packages/plugin-guide/**]
 ---
 
 # L3 Fresnel Guide 구현 계획
 
-대상 스펙: L3.guide.spec. 패키지: `@fresnel/group-guide`(`xeon/packages/group-guide`).
+대상 스펙: L3.guide.spec. 패키지: `@fresnel/plugin-guide`(`xeon/packages/plugin-guide`).
 
 ## 1. 순서
 

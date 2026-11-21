@@ -99,7 +99,7 @@ import {
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
-import type { OrchestrationCatalogEntry } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/orchestration-sdk";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,

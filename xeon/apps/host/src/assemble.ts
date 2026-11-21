@@ -99,7 +99,7 @@ import {
   type ProcessShutdown,
 } from "@fresnel/platform-process";
 import { createSecretsRuntime } from "@fresnel/platform-secrets";
-import type { OrchestrationCatalogEntry } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/orchestration-sdk";
 import {
   openStore,
   storePlugin,
@@ -221,7 +221,7 @@ import {
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { guideForcedOn, guideWiringOf } from "./assembly/guide.ts";
-import { GUIDE_ORCHESTRATION_NAME } from "@fresnel/group-guide";
+import { GUIDE_ORCHESTRATION_NAME } from "@fresnel/plugin-guide";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";

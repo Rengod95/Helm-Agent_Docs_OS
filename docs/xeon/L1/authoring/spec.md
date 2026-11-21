@@ -16,13 +16,13 @@ binds: [xeon/packages/core-authoring/**]
 
 - 코어가 가진 것: 종류 카탈로그(`KIND_CATALOG`, `kindEntryOf`), 뼈대 만들기(`scaffoldExtension`, 템플릿 세 방식 `templates/`와 `locateTemplateDirs`), 플러그인 폴더 검사(`validateExtensionDir`, AU 규칙 `au-rules.ts`), 구성 검사(`validateCompositionReport`), 묶기(`packExtension`), 종류 카탈로그 적합 시험(`catalogConformance`).
 - 코어가 하지 않는 것: 대화, 도구, 단계 머신, 쓰기 범위 가드, 묶기 확인 카드(모두 대화하는 빌더). 호스트 상태(설치된 확장 이름, 검토 제출, 시험 기록, 테스트 런 대화 열기)는 호스트 포트(`apps/host/src/assembly/m4/devkit-port.ts`)가 이 함수들과 이어 준다.
-- 지난 턴에 돌려 보기(`runInstalledReplay`)는 group-sdk의 모듈과 하니스가 필요하다. L1은 P를 import할 수 없어(DR-01) 이 함수는 `plugin-builder`에 남고, 호스트가 실행기(`ReplayRunner`, `assembly/m4/replay-run.ts`)로 주입한다. 호스트는 빌더 플러그인의 켜짐과 무관하게 이 실행기를 부른다 [제안: group-sdk가 코어로 내려오면 코어로 옮긴다].
+- 지난 턴에 돌려 보기(`runInstalledReplay`)는 orchestration-sdk의 모듈과 하니스가 필요하다. L1은 P를 import할 수 없어(DR-01) 이 함수는 `plugin-builder`에 남고, 호스트가 실행기(`ReplayRunner`, `assembly/m4/replay-run.ts`)로 주입한다. 호스트는 빌더 플러그인의 켜짐과 무관하게 이 실행기를 부른다 [제안: orchestration-sdk가 코어로 내려오면 코어로 옮긴다].
 
 ## 2. 시스템 모듈이라는 것
 
 - 코어는 플러그인이 아니다. 프로필·켜짐 상태가 없고 끌 수 없다. 드래프트 검사, 리뷰 제출, 테스트 런, 지난 턴에 돌려 보기는 빌더 플러그인이 꺼져 있어도 같은 호스트 포트로 돈다(화면의 wire `ext.*`도 같은 포트다).
 - 공개 API는 `fresnel.devkit` 서비스 계약(`DevkitService`, `contracts/services/devkit.ts`)이다. 대화하는 빌더는 이 계약만 쓴다. 패키지 `@fresnel/core-authoring`의 export는 호스트(조립 루트)용이다.
-- 이름 규칙의 정본(`ORCHESTRATION_NAME_PATTERN`, `RESERVED_ORCHESTRATION_NAMES`, `checkOrchestrationName`)과 카탈로그 버전(`KIND_CATALOG_VERSION`)은 contracts에 있다(`F.capabilities.spec`). group-sdk는 이름 규칙을 다시 내보낸다.
+- 이름 규칙의 정본(`ORCHESTRATION_NAME_PATTERN`, `RESERVED_ORCHESTRATION_NAMES`, `checkOrchestrationName`)과 카탈로그 버전(`KIND_CATALOG_VERSION`)은 contracts에 있다(`F.capabilities.spec`). orchestration-sdk는 이름 규칙을 다시 내보낸다.
 
 ## 3. 의존
 

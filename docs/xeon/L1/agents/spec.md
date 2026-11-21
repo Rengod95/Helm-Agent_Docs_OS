@@ -367,7 +367,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 모델 도구 `agent`(포그라운드) | 도구 어댑터 → `spawn` | 도구 결과 `content` = `report.text`, `structuredContent` = `{ childThreadId, status, truncated, flags }` |
 | 모델 도구 `agent`(`background: true`) | 도구 어댑터 → `delegate` | 도구 결과 = 접수 문장과 `childThreadId`. 완료 보고는 나중에 inbox로 |
 | drive `loop.spawn` | X → `spawn` | `SpawnOutcome`(answer = `report.text`) |
-| 그룹 `OrchestrationApi.delegate` | group-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
+| 그룹 `OrchestrationApi.delegate` | orchestration-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
 
 훅이 `replace`를 낸 호출(§7.1)은 자식을 만들지 않으므로 위 표와 다르다. 포그라운드(`spawn`)는 `SpawnResult{ status: "completed", answer: 훅이 준 보고, report: null, usage: null, reused: false }`를, 백그라운드(`delegate`)는 `DelegateReceipt{ status: "replaced", report }`를 돌려준다. 어느 쪽도 완료 보고 입력을 쓰지 않는다.
 
@@ -637,7 +637,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - [미결] 지시문 모방 검사의 표지 목록과 한국어 문구 목록(§4.6). Claude Code 원문 표지를 확인한 뒤 고친다.
 - [미결] 백그라운드 자식 정착 때 부모 대화가 삭제된 경우 보고 처리(§5 사례 7).
 - [미결] 같은 requestId의 동시 호출이 앞 훅을 각각 받는다(§7.1). 정확히 한 번을 동시 호출까지 보장하려면 (부모, requestId)의 생성 중 호출을 기다리게 하는 장치가 필요하다. 지금은 자식 생성 직전의 연결 다시 보기로 자식 중복만 막는다 [근거: core-agents/src/service.ts `provision`의 연결 다시 보기].
-- [미결] `DelegateReceipt.status: "replaced"`를 그룹 쪽이 읽는다. `group-learning/src/review/fork.ts`의 `status === "accepted"` 분기는 `replaced`를 "이미 있음"(`already`)으로 바꾼다. 검토 위임을 훅이 대체한 경우 학습 그룹이 어떻게 볼지 정해야 한다(L3.learning.spec) [근거: group-learning/src/review/fork.ts:79].
+- [미결] `DelegateReceipt.status: "replaced"`를 그룹 쪽이 읽는다. `plugin-learning/src/review/fork.ts`의 `status === "accepted"` 분기는 `replaced`를 "이미 있음"(`already`)으로 바꾼다. 검토 위임을 훅이 대체한 경우 학습 그룹이 어떻게 볼지 정해야 한다(L3.learning.spec) [근거: plugin-learning/src/review/fork.ts:79].
 - [미결] 자식 사용량의 부모 귀속 표시 방식(§3.5). 부모 합계에 더하는 화면 규칙은 L4와 함께 정한다.
 - [결정: M3-REQ-67, 오케스트레이터 기본값] `maxConcurrent`(기본 8)는 루트별 상한이고 전체 풀 `l1.tasks.limits.subagents`(기본 16) 안에서 FIFO로 함께 적용한다. 루트 둘이 각각 8을 쓰면 전체 풀이 찬다.
 - [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, 자체 루프 `runTurn`, adr.0009)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.

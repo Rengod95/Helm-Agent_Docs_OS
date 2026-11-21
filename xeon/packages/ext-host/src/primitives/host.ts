@@ -167,7 +167,7 @@ export interface ExtensionUnit {
   readonly entry: ExtensionEntry;
   /** 로드 순번. 0부터. 핸들러 정렬의 둘째 키 */
   readonly loadIndex: number;
-  /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
+  /** 내장 패키지(core-*, cap-*, plugin-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
   readonly builtin: boolean;
   /**
    * 로더가 정한 유효 신뢰 등급(X.loading-trust §4.6: 설치 위치 상한과 요청의 낮은 쪽). 매니페스트의 요청을 그대로 넘기지 않는다.

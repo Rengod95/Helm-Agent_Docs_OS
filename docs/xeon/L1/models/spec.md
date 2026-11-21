@@ -5,7 +5,7 @@ domain: models
 kind: spec
 status: draft
 depends_on: [F.conversation.spec, F.capabilities.spec, F.records.spec, F.extensions.spec, F.wire-settings.spec, eng.context-map.design, adr.0001, adr.0002]
-binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/group-account-rotation/**, xeon/packages/group-provider-anthropic-oauth/**]
+binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/plugin-account-rotation/**, xeon/packages/plugin-provider-anthropic-oauth/**]
 ---
 
 # L1 모델 게이트웨이 (models)
@@ -695,7 +695,7 @@ export function resolveRole(input: {
   - 시험 X7(`packages/client/test/accounts/x7.test.ts`, `scripts/exit-tests.txt`): 메모리 호스트가 설정 파일 하나를 들고 두 번 저장합니다. 키 세 개가 같은 이름으로 쓰이고 다른 키와 키 순서가 남는지, 두 번째 편집이 계정을 지우지 않는지 확인합니다. 키와 값은 core-models의 `MODELS_SETTING_DEFS`와 `validateSettingValue`를 통과해야 합니다. 읽기와 쓰기 사이에 파일이 바뀌면 `conflict`로 실패하고 아무것도 쓰지 않습니다. 같은 종료 조건의 `packages/core-models test/rotation.test.ts`는 429 계정 회전 시험입니다.
   - [미결] 저장 뒤 `settings.invalidated` 알림으로 다시 읽는 일은 M4 화면 작업에서 정합니다. `routes.yaml`의 `settings-ui` 경로(`packages/client/src/settings/**`)에는 `accounts/`가 없어 라우팅으로는 이 절이 찾아지지 않습니다. 경로를 넣을지는 문서 라우팅 담당이 정합니다.
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
-- 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/group-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 그룹은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.fresnel-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
+- 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/plugin-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 그룹은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.fresnel-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
 
 ### 4.9 폴백 체인 (2차)
 
@@ -763,7 +763,7 @@ export function resolveRole(input: {
 
 - [가정] Anthropic 서버가 래퍼 경로 요청을 받아들이고 구독 OAuth 토큰을 이 방식으로 쓸 수 있다고 보고 설계한다. 둘 다 확인하지 않았다(`_research/notes/L1-2.md` §6). 공개 배포 여부를 정하기 전에 확인한다.
 - [미결] 별도 플러그인 배포 여부(`product.scope.spec` N6).
-- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/group-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(시크릿 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
+- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/plugin-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(시크릿 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
 - [미결] M-8 와이어 동등 래퍼를 쓸지 정하지 않았습니다. 고지 동의가 없을 때 진단 메시지를 내라는 위 사용자 확인 `[제안]`은 구현하지 않았습니다. 그룹 API에는 진단 경로가 없어 setup은 조용히 등록을 건너뜁니다.
 - [미결] `xeon/plugins/provider-anthropic-oauth` 스텁을 남길지 정하지 않았습니다. 이 위치는 §3.11이 가리키는 옛 경로입니다.
 

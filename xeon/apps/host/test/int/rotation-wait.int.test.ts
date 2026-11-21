@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { SecretMeta } from "@fresnel/contracts/capabilities";
 import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
-import { accountRotationOrchestration } from "@fresnel/group-account-rotation";
+import { accountRotationOrchestration } from "@fresnel/plugin-account-rotation";
 import { memorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";

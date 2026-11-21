@@ -58,12 +58,12 @@ layout:
   L3:
     domains: [group-sdk, helm, learning, slots, authoring, guide]
     paths:
-      group-sdk: "xeon/packages/group-sdk/**"
-      helm: "xeon/packages/group-helm/**"
-      learning: "xeon/packages/group-learning/**"
+      group-sdk: "xeon/packages/orchestration-sdk/**"
+      helm: "xeon/packages/plugin-helm/**"
+      learning: "xeon/packages/plugin-learning/**"
       # 플러그인 제작 확장(M4). 코드는 M4 트랙 T-AUTH가 만든다
       authoring: "xeon/packages/plugin-builder/**"
-      guide: "xeon/packages/group-guide/**"
+      guide: "xeon/packages/plugin-guide/**"
       # slots는 코드 없음 (템플릿 문서만)
   L4:
     domains: [cli, desktop, host-service, settings-ui, release, desktop-ux, remote]
@@ -86,10 +86,10 @@ layout:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]
     # 계정 회전 플러그인(L3 그룹 패키지)은 L1 모델 스펙 §4.8이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
-    - path: "xeon/packages/group-account-rotation/**"
+    - path: "xeon/packages/plugin-account-rotation/**"
       docs: [L1.models.spec]
     # 위장 provider 플러그인(L3 그룹 패키지)은 L1 모델 스펙 §4.11.3이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
-    - path: "xeon/packages/group-provider-anthropic-oauth/**"
+    - path: "xeon/packages/plugin-provider-anthropic-oauth/**"
       docs: [L1.models.spec]
   # 층 밖 코드 경로. layout에 자기 층 항목이 없는 문서(architecture, adr, eng)의 binds 허용 목록이다.
   # 검사기는 이런 문서에 layout 전체의 경로를 허용하므로 여기 적은 경로가 그 집합에 더해진다.

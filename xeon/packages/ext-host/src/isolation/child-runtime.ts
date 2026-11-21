@@ -120,7 +120,7 @@ export interface PluginHostDeps {
   readonly output: FrameSink;
   /** 진단 줄을 쓰는 표준오류. 없으면 진단을 버린다 */
   readonly stderr?: FrameSink;
-  /** 플러그인 번들이 import할 SDK 가상 모듈. X의 고정 모듈에 더해 등록한다(예: `@fresnel/group-sdk`) */
+  /** 플러그인 번들이 import할 SDK 가상 모듈. X의 고정 모듈에 더해 등록한다(예: `@fresnel/orchestration-sdk`) */
   readonly sdkModules: SdkModules;
   /** 엔트리를 싣는 함수. 생략하면 확장 루트 안의 파일을 import한다 */
   readonly importEntry?: ImportEntry;

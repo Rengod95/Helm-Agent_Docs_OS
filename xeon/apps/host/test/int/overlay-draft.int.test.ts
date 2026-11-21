@@ -54,7 +54,7 @@ function writeDraftFolder(root: string, marker: string): void {
     join(root, "src", "index.ts"),
     `import { writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { defineOrchestration, orchestrationManifest } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
 export const extension = (ctx) => {
   const group = defineOrchestration({
     manifest: orchestrationManifest({

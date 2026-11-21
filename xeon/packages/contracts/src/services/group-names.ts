@@ -1,6 +1,6 @@
 import type { Result } from "../base/index.ts";
 
-// 그룹 이름 규칙의 정본(F). group-sdk(`checkOrchestrationName`을 다시 내보낸다)와 제작 코어(core-authoring)가 같은 규칙을 쓴다.
+// 그룹 이름 규칙의 정본(F). orchestration-sdk(`checkOrchestrationName`을 다시 내보낸다)와 제작 코어(core-authoring)가 같은 규칙을 쓴다.
 
 /** 확장 id 규칙(review.decisions-2 U-18). 소문자, 숫자, 하이픈. 밑줄은 쓰지 않는다 */
 export const ORCHESTRATION_NAME_PATTERN: string = "^[a-z][a-z0-9-]{1,31}$";

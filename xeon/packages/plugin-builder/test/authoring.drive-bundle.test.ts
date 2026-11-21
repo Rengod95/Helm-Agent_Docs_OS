@@ -12,8 +12,8 @@ import {
   type SdkModules,
 } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
-import * as kit from "@fresnel/group-sdk";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import * as kit from "@fresnel/orchestration-sdk";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { packExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { driveOrchestrationFixture, readManifest, tempRoot, templateDirs } from "./support.ts";
 
@@ -71,7 +71,7 @@ const realLoaderFs: LoaderFs = {
   realpath: (path) => realpath(path),
 };
 
-const SDK_MODULES: SdkModules = { "@fresnel/group-sdk": kit };
+const SDK_MODULES: SdkModules = { "@fresnel/orchestration-sdk": kit };
 
 test("authoring.drive-bundle: a drive group packed as one file loads from the user location and its drive runs", async () => {
   // 1. 뼈대 → 검사 → 한 파일 묶음

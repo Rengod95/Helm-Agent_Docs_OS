@@ -6,8 +6,8 @@ import { attempt, parse, repeatAsync } from "@fresnel/contracts";
 import { LeaseAcquiredPayloadSchema, LeaseReleasedPayloadSchema } from "@fresnel/contracts/records";
 import type { EventWire } from "@fresnel/contracts/wire";
 import type { PluginHostSupervisor } from "@fresnel/ext-host";
-import { HelmStateSchema } from "@fresnel/group-helm";
-import { buildHelmPlugin } from "@fresnel/group-helm/build";
+import { HelmStateSchema } from "@fresnel/plugin-helm";
+import { buildHelmPlugin } from "@fresnel/plugin-helm/build";
 import { tapeBuildModels, tapeProvider } from "@fresnel/core-models/testing";
 import { Type } from "typebox";
 import { createHostConnection } from "../../src/client.ts";
@@ -353,7 +353,7 @@ const BENCH_SAMPLES = 200;
 
 function benchEntry(): string {
   return `import { Type } from "typebox";
-import { defineOrchestration, orchestrationManifest } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
 const manifest = orchestrationManifest(${BENCH_MANIFEST});
 const group = defineOrchestration({
   manifest,

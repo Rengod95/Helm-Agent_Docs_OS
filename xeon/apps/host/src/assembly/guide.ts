@@ -5,7 +5,7 @@ import {
   GUIDE_ORCHESTRATION_NAME,
   locateGuideSkills,
   type GuideReader,
-} from "@fresnel/group-guide";
+} from "@fresnel/plugin-guide";
 
 // 가이드 그룹 `guide`(L3.guide.spec)를 내장 그룹으로 싣는다. 기본은 꺼짐이다. 대화가 쓰는 프로필이 넣었거나(M5c §4.1, E(T)),
 // 개발 모드(`l3.authoring.devMode`)이면 모든 대화에서 켜진 채 잠긴다([결정: 2026-11-13 사용자]).

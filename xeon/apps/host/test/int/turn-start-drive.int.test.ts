@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
-import { smokeOrchestration } from "@fresnel/group-sdk/testing";
+import { smokeOrchestration } from "@fresnel/orchestration-sdk/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

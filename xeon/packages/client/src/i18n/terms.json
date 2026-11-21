@@ -479,7 +479,7 @@
       "en": "Orchestration SDK"
     },
     "surfaces": ["workbench"],
-    "ids": ["group-sdk", "defineOrchestration"],
+    "ids": ["orchestration-sdk", "defineOrchestration"],
     "forbid": { "ui": ["그룹 SDK", "Group SDK"], "docs": ["그룹 SDK"] },
     "sources": ["adr.0022", "L3.group-sdk.spec"],
     "status": "proposed"

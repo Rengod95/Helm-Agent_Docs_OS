@@ -143,7 +143,7 @@ const extraResource = [
   addonStage,
   // 기본 플러그인(Helm 등): `just desktop-build-electron`이 scripts/default-plugins.ts로 먼저 만든다. 엔진 사이드카가 Resources/default-plugins/를 설치 원본으로 읽는다
   path.join(shell, "dist", "default-plugins"),
-  // 가이드 스킬: 상위 폴더 dist/guide를 Resources/guide로 싣는다. 엔진의 locateGuideSkills(group-guide)가 Resources/guide/skills를 읽는다
+  // 가이드 스킬: 상위 폴더 dist/guide를 Resources/guide로 싣는다. 엔진의 locateGuideSkills(plugin-guide)가 Resources/guide/skills를 읽는다
   path.join(shell, "dist", "guide"),
   ...(existsSync(feed) ? [feed] : []),
   ...(appUpdateYml === null ? [] : [appUpdateYmlFile]),

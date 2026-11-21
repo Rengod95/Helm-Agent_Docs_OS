@@ -154,7 +154,7 @@ test("a copy approved while the plugin was off is the one ensureLoaded runs", as
   const newRoot = await writePlugin(join(reviewedRoot, "lazy-kit", "b"), "tree", {
     name: "lazy-kit",
     defaultEnabled: false,
-    entry: `import * as kit from "${["@fresnel", "group-sdk"].join("/")}";
+    entry: `import * as kit from "${["@fresnel", "orchestration-sdk"].join("/")}";
 export const extension = ({ register }) => {
   register("lazy-kit", {}, (g) => {
     g.on("boundary.settle.after", () => { kit.record("lazy-kit:v2"); });

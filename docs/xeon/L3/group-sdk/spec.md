@@ -5,12 +5,12 @@ domain: group-sdk
 kind: spec
 status: draft
 depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, F.conversation.spec, X.primitives.spec, eng.dependency-rules.guide, eng.context-map.design, eng.events.design, adr.0015, review.m3-design-inputs]
-binds: [xeon/packages/group-sdk/**]
+binds: [xeon/packages/orchestration-sdk/**]
 ---
 
-# L3 그룹 기반 (group-sdk)
+# L3 그룹 기반 (orchestration-sdk)
 
-패키지: `@fresnel/group-sdk`(`xeon/packages/group-sdk`). 하위 층: L3-a 그룹 기반(`_research/layer-plan-v2.json` L3-a).
+패키지: `@fresnel/orchestration-sdk`(`xeon/packages/orchestration-sdk`). 하위 층: L3-a 그룹 기반(`_research/layer-plan-v2.json` L3-a).
 
 이 문서는 L3 오케스트레이션 플러그인 세 문서(L3.helm.spec, L3.learning.spec, L3.slots 템플릿)의 기준 문서다. 그룹이 쓰는 공용 이름(`defineOrchestration`, `OrchestrationDef`, `OrchestrationApi`, `OrchestrationModule`, `replayDrive`, `scanDriveSource`, `PromotionReport`, `OrchestrationMetrics`)의 정의 위치는 이 문서다. `OrchestrationService`, `OrchestrationStatus`와 부속 타입은 F `services/groups.ts`(F.capabilities.spec §3.12)에 두고, 필드 정의는 이 문서 §3.8이 적는다.
 
@@ -32,7 +32,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 
 - 오케스트레이션 정의 API와 그 정적 검증
 - `OrchestrationApi`의 멤버 시그니처. F `RegistrationApi`에 더하는 `settings()`, `delegate(spec)`, `metrics`
-- drive 역할 계산(스택에서 `DriveRole`을 읽는 규칙)과 주도 시작 요청 전달. 후보 중재 정책은 없다(E3, §3.5) [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+- drive 역할 계산(스택에서 `DriveRole`을 읽는 규칙)과 주도 시작 요청 전달. 후보 중재 정책은 없다(E3, §3.5) [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 - 그룹 비공개 상태와 공개 레코드의 구분, 상태 커밋 규칙, 분기·재개 때 복원, 상태 스키마 마이그레이션
 - 그룹 사이 통신의 허용·금지 목록과 검사 수단
 - `fresnel.orchestration` 서비스(`OrchestrationService`: 목록과 상태)
@@ -71,25 +71,25 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 ### 3.1 진입점과 import
 
 ```text
-@fresnel/group-sdk           defineOrchestration, validateOrchestrationDef, orchestrationManifest, isOrchestrationModule, OrchestrationDef, OrchestrationApi, OrchestrationModule, RunScriptOptions,
+@fresnel/orchestration-sdk           defineOrchestration, validateOrchestrationDef, orchestrationManifest, isOrchestrationModule, OrchestrationDef, OrchestrationApi, OrchestrationModule, RunScriptOptions,
                           DelegateSpec, DelegateToolPolicy, DelegateLimits, DelegateFork, DelegateReceipt,
                           DelegateResult, OrchestrationService, OrchestrationServiceName,
                           OrchestrationStatus, 명령·상태줄 함수, OrchestrationMetrics, PromotionReport, 설정 정의
-@fresnel/group-sdk/testing   checkOrchestration, replayDrive, scanDriveSource, smokeOrchestration(M1 테스트 그룹),
+@fresnel/orchestration-sdk/testing   checkOrchestration, replayDrive, scanDriveSource, smokeOrchestration(M1 테스트 그룹),
                           정책 플러그인 정식 예 reviewgate, commitguard, guardrail(2차, L3.slots.spec §3.2)
 ```
 
 - [제안] 정식 예 3종은 `src/testing/policies/`에 두고 `testing` 진입점에서만 내보낸다. 템플릿 파일은 패키지 루트의 `templates/`에 두고 진입점에 넣지 않는다(L3.slots.spec §3.3.1, L3.slots.plan §2.1 후보 a). 위치의 최종 확정은 §10 템플릿 위치 [미결]과 함께 한다.
 
 - [결정] 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3, F.extensions.spec §4.8, `eng.context-map.design` CM-06).
-- [제안] `group-sdk`은 `@fresnel/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@fresnel/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `OrchestrationService`와 부속 타입은 F `@fresnel/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@fresnel/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정: review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `fresnel.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `group-sdk` 행).
-- [결정: review.decisions-2 U-15] 그룹 패키지(`group-helm`, `group-learning`)는 `@fresnel/group-sdk`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/group-sdk`(`from`은 `packages/group-*`, 진입점 `.`와 `./testing`)이다. `group-sdk`은 어떤 그룹 패키지도 import하지 않는다.
+- [제안] `orchestration-sdk`은 `@fresnel/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@fresnel/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `OrchestrationService`와 부속 타입은 F `@fresnel/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@fresnel/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정: review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `fresnel.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `orchestration-sdk` 행).
+- [결정: review.decisions-2 U-15] 그룹 패키지(`plugin-helm`, `plugin-learning`)는 `@fresnel/orchestration-sdk`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/orchestration-sdk`(`from`은 `packages/plugin-*`, 진입점 `.`와 `./testing`)이다. `orchestration-sdk`은 어떤 그룹 패키지도 import하지 않는다.
 - [결정: 계획 v2 규칙 2, DR-14] L3 패키지는 `cap-*`를 import하지 않는다. 기능은 `g.capability(ServiceKey)`로 쓴다(`architecture.layers.spec` 3.1절 2행, F.capabilities.spec §3.5).
 
 ### 3.2 defineOrchestration
 
 ```ts
-// xeon/packages/group-sdk/src/define-group.ts
+// xeon/packages/orchestration-sdk/src/define-group.ts
 import type { Static } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
@@ -214,8 +214,8 @@ export function defineOrchestration<S = never, const D extends OrchestrationSett
 - `entry`가 하는 일 [제안]: `pluginsOf(manifest)`에서 id 없는 L3 루트 플러그인(`root`)을 찾아, 그 Registration을 `host.register(manifest.name, { state: def.state, defaultEnabled: pluginDefaultEnabled(manifest, root) }, (api) => def.setup(wrap(api)))`로 한 번 만든다. `def.state`가 없으면 `state` 키를 넘기지 않는다. `wrap`은 F `RegistrationApi`를 `OrchestrationApi`로 감싼다. 감싼 `on`, `post`, `commit`, `record`는 원래 연산을 그대로 부르고 계측 집계(§4.9)만 더한다. `drive`는 단계 함수가 돌려준 명령을 검사·계측한 뒤 엔진에 넘긴다(아래 drive 항목). 루트 플러그인의 Registration id는 매니페스트 `name`이다(F.extensions.spec §3.1 Registration id 규칙). 그룹 이름은 매니페스트에서만 온다. `OrchestrationDef`에 별도 `id` 필드는 없다.
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
 - 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.fresnel-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" }`)로 읽고 `orchestrationManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
-- 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8, §4.12)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않으므로(§3.1, DR-14) group-sdk이 이 네 연산을 `OrchestrationApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
-- 스크립트 실행 [제안]: `runScript(name, options?)`는 격리 자식의 대리 `g`(ext-host `ChildScriptApi`)가 가진 같은 이름 연산을 그대로 부른다. 그 연산은 `engine.call` 메서드 `runScript`이고 결과는 `Result<ScriptRunResult, ScriptRunFailure>`(F.extensions.spec §3.1.4)다. 거절과 기동 실패는 던지지 않고 `error` 값이다. 표준 입력 상한 초과와 이름 문법 위반은 엔진 호출 오류(`invalid_params`)라서 값이 아니고 약속이 거부된다(X.loading-trust.spec §3.8). 엔진 안(내장) 등록에는 실행기가 없으므로 `wrap`이 이름과 크기를 보지 않고 `{ ok: false, error: { kind: "sandbox_unavailable", reason: "in_engine_registration" } }`를 준다 [근거: packages/group-sdk/src/wrap.ts `runScriptOf`, 2026-11-18]. 이 시그니처는 group-sdk이 F의 `Result`와 `ScriptRunResult`·`ScriptRunFailure`를 재사용해 적는다. 새 의존은 없다.
+- 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8, §4.12)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않으므로(§3.1, DR-14) orchestration-sdk이 이 네 연산을 `OrchestrationApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
+- 스크립트 실행 [제안]: `runScript(name, options?)`는 격리 자식의 대리 `g`(ext-host `ChildScriptApi`)가 가진 같은 이름 연산을 그대로 부른다. 그 연산은 `engine.call` 메서드 `runScript`이고 결과는 `Result<ScriptRunResult, ScriptRunFailure>`(F.extensions.spec §3.1.4)다. 거절과 기동 실패는 던지지 않고 `error` 값이다. 표준 입력 상한 초과와 이름 문법 위반은 엔진 호출 오류(`invalid_params`)라서 값이 아니고 약속이 거부된다(X.loading-trust.spec §3.8). 엔진 안(내장) 등록에는 실행기가 없으므로 `wrap`이 이름과 크기를 보지 않고 `{ ok: false, error: { kind: "sandbox_unavailable", reason: "in_engine_registration" } }`를 준다 [근거: packages/orchestration-sdk/src/wrap.ts `runScriptOf`, 2026-11-18]. 이 시그니처는 orchestration-sdk이 F의 `Result`와 `ScriptRunResult`·`ScriptRunFailure`를 재사용해 적는다. 새 의존은 없다.
 - `settings()` [M2]: 값은 X의 `hostOf(g).settingValue(key)`로 호출 때마다 읽는다. 이 메서드는 ExtHost가 내는 `fresnel.settings` 포트(조립 루트가 `createExtHost`의 `settingValue`로 설정 서비스를 연결한다)를 거친다. 내장 그룹은 모든 키를, 신뢰 `user`인 외부 그룹은 자기 `ext.<id>.*` 키만 읽는다(X.primitives.spec §3.8). 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없으면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 시크릿 설정은 `Bug`다.
 - `commit` 래퍼 [M2]: `checkStateCommit`이 스키마·64 KiB·동일 값을 먼저 검사한다. 위반이면 X와 같은 `PrimitiveError`(`state_schema`, `state_too_large`)를 던지고, 같은 값이면 X를 부르지 않고 현재 값을 돌려준다. `record`·`post`는 `checkRecordKind`·`checkPostItem`으로 자기 `grp.<이름>.` 접두를 먼저 검사한다(다른 접두는 `record_invalid`, 선언 없는 자기 접두 kind는 `record_kind_undeclared`).
 - 비공개 기록 [결정: review.decisions-2 T-21]: 비공개 기록 연산은 X `RegistrationApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `OrchestrationApi`는 `RegistrationApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
@@ -255,7 +255,7 @@ export default defineOrchestration<DemoState>({
 ### 3.3 정적 검증
 
 ```ts
-// xeon/packages/group-sdk/src/define-group.ts
+// xeon/packages/orchestration-sdk/src/define-group.ts
 import type { ManifestIssue } from "@fresnel/contracts/extensions";
 
 export type OrchestrationDefIssueCode =
@@ -283,7 +283,7 @@ export interface OrchestrationDefIssue {
  */
 export function validateOrchestrationDef(def: OrchestrationDefShape): readonly (OrchestrationDefIssue | ManifestIssue)[];
 
-// xeon/packages/group-sdk/src/testing/check-group.ts
+// xeon/packages/orchestration-sdk/src/testing/check-group.ts
 /**
  * 기록용 호스트로 entry를 실행해 setup의 실제 등록을 모으고 validateUsage(F)로 대조한다.
  * 호스트는 포트가 하나도 없는 ext-host(`createExtHost`)다. drive lock과 turn은 일어나지 않고 등록만 본다
@@ -310,7 +310,7 @@ export function checkOrchestration(module: OrchestrationModule): Promise<readonl
 ### 3.4 delegate (L1-g 백그라운드 위임 래퍼)
 
 ```ts
-// xeon/packages/group-sdk/src/delegate.ts
+// xeon/packages/orchestration-sdk/src/delegate.ts
 import type { EventId, ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import type { RecordKind } from "@fresnel/contracts/extensions";
 
@@ -350,7 +350,7 @@ export interface DelegateSpec {
   /** 서브에이전트 정의 이름(L1.agents.spec §4.9) */
   readonly agent: string;
   readonly task: string;
-  /** 필수. 대화 범위 멱등 키, 1~48자. group-sdk이 ":report"를 붙여 보고 post의 키로 쓴다(64자 한도) */
+  /** 필수. 대화 범위 멱등 키, 1~48자. orchestration-sdk이 ":report"를 붙여 보고 post의 키로 쓴다(64자 한도) */
   readonly requestId: string;
   /**
    * 완료 보고 post의 모양. 선택 필드다 [결정: review.m3-design-inputs D-M3-03].
@@ -431,18 +431,18 @@ export type DelegateResult =
 - 완료 보고 [가정]: `report`가 있으면 L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3). `report`가 없으면 보고 입력을 만들지 않는다 [결정: review.m3-design-inputs D-M3-03]. 학습 그룹은 `report`를 넣지 않는다. 그룹은 부모 대화의 코어 이벤트 `agent.settled` 구독(L3.learning.spec §8.1 REQ-LN-02)이나 `delegateStatus`로 완료를 안다.
 - 포크 위치: `fork: { at: "event" }`는 L1-g가 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번, 대화에 이벤트 기준 fork가 없다). 그룹은 `{ at: "item" }`을 쓴다. `DelegateFork`의 `event` 갈래는 L1 지원이 생길 때까지 남겨 두되 `delegate` 입력 검사에서 `orchestration.delegateInvalid`(`field: "fork"`)로 막는 안을 [제안]한다.
 - 재실행 문맥 [결정: adr.0015]: `delegate`는 on 핸들러와 drive 함수에서 부를 수 있다. `requestId`는 커밋된 값에서 만든 결정적 키여야 한다(ADR-0015 §3.4). `delegateStatus`는 효과 없는 읽기다. ADR-0015 §3.2 표의 `g.delegateStatus` 행에 따라 drive 함수에서는 부를 수 있고 on 핸들러에서는 부르지 않는다. 결과를 고정하려면 상태에 커밋한다. `cancelDelegates`는 효과가 있는 호출이라 재실행되는 코드에서 부르지 않고 `onDispose`와 명령 처리기에서 부른다. `onDispose`는 scope의 generation이 닫힌 뒤에 실행되어 포트 조회가 거부되므로, `wrap`은 `fresnel.agents` 서비스를 setup에서 한 번 잡아 두고 `delegate`, `delegateStatus`, `cancelDelegates`가 같은 값을 쓴다 [제안]. 서비스가 setup 때 없었으면 부를 때마다 다시 조회한다.
-- 결과 수신 [M3a]: 위임 결과는 L1이 커밋하는 `agent.settled`가 훅 `lifecycle.agent.settled`로 흘러온다. X가 `owner`가 이 scope인 이벤트만 이 그룹의 핸들러에 보내므로 그룹은 `g.on("lifecycle.agent.settled", …)`로 자기 위임의 결과만 받는다. group-sdk은 이 경로에 래퍼를 더하지 않는다.
+- 결과 수신 [M3a]: 위임 결과는 L1이 커밋하는 `agent.settled`가 훅 `lifecycle.agent.settled`로 흘러온다. X가 `owner`가 이 scope인 이벤트만 이 그룹의 핸들러에 보내므로 그룹은 `g.on("lifecycle.agent.settled", …)`로 자기 위임의 결과만 받는다. orchestration-sdk은 이 경로에 래퍼를 더하지 않는다.
 - 멱등: 같은 thread에서 같은 `requestId`의 두 번째 호출은 자식을 만들지 않고 `status: "duplicate"`와 처음 자식의 `childThreadId`를 돌려준다. 중복 생성 방지 방법(소유 간선 검색 또는 `requests` 테이블)은 L1.agents.spec이 정한다.
 - 상한: 위임은 drive lock 상한(`DriveLimits`)에 들어가지 않는다. 위임 상한의 귀속은 [미결](§10).
 - (닫힘) [결정: adr.0015] F.extensions.spec §4.3의 on 핸들러 효과 목록(`post`, `commit`, `record`)에 `requestId` 멱등 `g.delegate`가 더해진다(C안, 2026-10-25). `delegate`의 `requestId`는 커밋된 id(`turnId`, `stepId`)나 상태 값에서 결정적으로 만든다(ADR-0015 §3.4). 옛 우회(`record`로 요청만 남기고 다음 단계 경계 뒤에 `delegate`를 부르는 방식)는 쓰지 않는다. F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 
 ### 3.5 drive 역할과 주도 시작 (중재 없음)
 
-[결정: drive-isolation.md 2.2, 2026-11-17 사용자] 구현 E3(2026-11-18). 후보 중재(`DriveArbiter`, `defaultDriveArbiter`, `driveLockArbiterPort`, 요청 순번, 대기 목록, 대기 상한과 `lease.rejected` 발행)는 없다. X는 후보 가운데 고르지 않는다. 주도권은 세 계기로만 받는다: 사용자의 주도 시작 명령(`/helm start`가 부르는 `g.startDrive()`), 프로필의 시작 설정(`ThreadOpenOptions.startDrive`), 맨 위 프레임의 맡기기(`handoff`). 그룹을 켜는 것만으로는 주도하지 않는다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+[결정: drive-isolation.md 2.2, 2026-11-17 사용자] 구현 E3(2026-11-18). 후보 중재(`DriveArbiter`, `defaultDriveArbiter`, `driveLockArbiterPort`, 요청 순번, 대기 목록, 대기 상한과 `lease.rejected` 발행)는 없다. X는 후보 가운데 고르지 않는다. 주도권은 세 계기로만 받는다: 사용자의 주도 시작 명령(`/helm start`가 부르는 `g.startDrive()`), 프로필의 시작 설정(`ThreadOpenOptions.startDrive`), 맨 위 프레임의 맡기기(`handoff`). 그룹을 켜는 것만으로는 주도하지 않는다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 
 규칙:
 
-1. group-sdk은 주도 정책을 갖지 않는다. `OrchestrationApi.startDrive(input?)`는 `hostOf(g).startDrive`를 그대로 부른다. 약속(`Promise<OrchestrationStartDriveResult>`)이다. 결과 값 `OrchestrationStartDriveResult`는 `Result<void, …>`이고, 격리 자식에서도 같은 값을 준다(엔진 왕복, X.primitives.spec §3.8). thread는 호출하는 도구·명령·메서드 문맥의 것이다. 문맥이 없으면(setup, 화면 등) 결과 값으로 `no_context`를 돌려준다.
+1. orchestration-sdk은 주도 정책을 갖지 않는다. `OrchestrationApi.startDrive(input?)`는 `hostOf(g).startDrive`를 그대로 부른다. 약속(`Promise<OrchestrationStartDriveResult>`)이다. 결과 값 `OrchestrationStartDriveResult`는 `Result<void, …>`이고, 격리 자식에서도 같은 값을 준다(엔진 왕복, X.primitives.spec §3.8). thread는 호출하는 도구·명령·메서드 문맥의 것이다. 문맥이 없으면(setup, 화면 등) 결과 값으로 `no_context`를 돌려준다.
 2. 그룹의 drive 역할(`DriveRole`)은 thread의 주도권 스택(`ExtHost.driveFrames(thread)`, drive-isolation.md 2.6)에서 계산한다. 그룹의 프레임은 `DriveFrameView.plugin`이 그룹의 확장 이름과 같은 프레임이다. 계산 규칙은 다음 표다.
 
 | 스택 상태 | `DriveRole` | 판정 |
@@ -452,9 +452,9 @@ export type DelegateResult =
 | 스택에 없음(켜졌고 drive 등록) | `none` | 후보 대기가 없어졌으므로 `waiting`으로 내지 않는다 |
 | 꺼짐, 또는 drive 미사용 | `none` | §3.8 기존 규칙 |
 | drive 함수 오류(`RegistrationInfo.drive = "error"`) | `error` | 스택 위치보다 먼저 본다 |
-| `rejected` | 없음 | 대기 상한 거부가 없어졌고, 계약의 `rejected` 값도 계약 정리 단계(E3)에서 걷었다 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| `rejected` | 없음 | 대기 상한 거부가 없어졌고, 계약의 `rejected` 값도 계약 정리 단계(E3)에서 걷었다 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 
-3. `OrchestrationService`가 확장하던 X `DriveLockArbiterPort.choose`와 그 포트 키는 계약 정리 단계에서 걷었다(E3). `OrchestrationService`는 포트를 확장하지 않는다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+3. `OrchestrationService`가 확장하던 X `DriveLockArbiterPort.choose`와 그 포트 키는 계약 정리 단계에서 걷었다(E3). `OrchestrationService`는 포트를 확장하지 않는다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 4. `setDriveHolder`와 `/group drive`는 계약 정리 단계에서 키 `x.primitives.activeDriver`와 함께 걷었다. 지정은 주도를 바꾸지 않았으므로 남은 경로가 없다. [근거: E3 구현, drive-isolation.md 2.2]
 
 ### 3.6 그룹 상태 레코드
@@ -475,7 +475,7 @@ export type DelegateResult =
 | 소유 kind 카탈로그 | `state.committed`는 X.primitives.spec §4.6.1, 비공개 기록(`recordPrivate`)은 각 그룹 문서 | 각 그룹 문서, 매니페스트 `recordKinds` |
 
 ```ts
-// xeon/packages/group-sdk/src/state.ts
+// xeon/packages/orchestration-sdk/src/state.ts
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { Upcaster } from "@fresnel/contracts/records";
 
@@ -517,7 +517,7 @@ export type StateCheck =
 export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, next: S): StateCheck;
 ```
 
-- [가정] `RegistrationApi.commit`의 저장은 X.primitives.spec이 구현한다. group-sdk의 상태 어댑터(`state.ts`)는 그 저장에 넣을 규칙만 제공한다: 커밋 전 검사(`checkStateCommit`), 이벤트 payload 모양, 투영 행 모양, 업캐스터. X가 이 함수들을 호출하는 방식(F 타입으로 넘길지, group-sdk이 `wrap`에서 먼저 검사할지)은 X.primitives.spec과 맞춘다. [제안] 기본은 `wrap`의 `commit`이 `checkStateCommit`을 먼저 부르고 통과한 값만 X `commit`에 넘기는 방식이다.
+- [가정] `RegistrationApi.commit`의 저장은 X.primitives.spec이 구현한다. orchestration-sdk의 상태 어댑터(`state.ts`)는 그 저장에 넣을 규칙만 제공한다: 커밋 전 검사(`checkStateCommit`), 이벤트 payload 모양, 투영 행 모양, 업캐스터. X가 이 함수들을 호출하는 방식(F 타입으로 넘길지, orchestration-sdk이 `wrap`에서 먼저 검사할지)은 X.primitives.spec과 맞춘다. [제안] 기본은 `wrap`의 `commit`이 `checkStateCommit`을 먼저 부르고 통과한 값만 X `commit`에 넘기는 방식이다.
 - 비공개 상태는 다른 그룹이 읽지 않는다(F.extensions.spec §3.6). 다른 그룹의 `x_<그룹>_*` 테이블을 쿼리하면 `eng.context-map.design` CM-02 위반이다.
 
 ### 3.7 그룹 간 통신
@@ -534,8 +534,8 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 
 | 금지 | 예 | 검사 |
 |---|---|---|
-| 다른 그룹 패키지 import(값, `import type`, 재수출, 동적 `import()`, `package.json` 의존) | `import { x } from "@fresnel/group-learning"` | `check-layers.ts` DR-02, depcruise `DR-02-no-same-layer-import-L3`, DR-14 |
-| `group-sdk`이 그룹 패키지를 import | `import "@fresnel/group-helm"` | 같음. 허용 목록은 그룹 → `group-sdk` 한 방향만 |
+| 다른 그룹 패키지 import(값, `import type`, 재수출, 동적 `import()`, `package.json` 의존) | `import { x } from "@fresnel/plugin-learning"` | `check-layers.ts` DR-02, depcruise `DR-02-no-same-layer-import-L3`, DR-14 |
+| `orchestration-sdk`이 그룹 패키지를 import | `import "@fresnel/plugin-helm"` | 같음. 허용 목록은 그룹 → `orchestration-sdk` 한 방향만 |
 | 다른 그룹의 서비스 호출 | `ctx.get("learning")` | 그룹은 서비스를 제공하지 않는다(`eng.context-map.design` 5.3절). `inject`에 오케스트레이션 서비스 이름이 나오면 로딩 실패(CM-06) |
 | Cordis 일반 `emit` 직접 사용 | `ctx.emit("helm/phase", …)` | DR-11(`cordis` import는 `ext-host`만). `OrchestrationApi`에 `emit`이 없다 |
 | 다른 그룹의 비공개 테이블·이벤트 읽기 | `SELECT * FROM x_learning_state` | CM-02, 리뷰 |
@@ -549,7 +549,7 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 
 ### 3.8 OrchestrationService (`fresnel.orchestration`)
 
-[결정: review.decisions-2 D-04] `OrchestrationService`와 부속 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다(`F.capabilities.spec` §3.12 표와 파일별 이름 표, 규칙 7). `OrchestrationService`는 X 중재 포트를 확장하지 않는다(E3에서 걷었다). 아래 블록은 그 파일의 필드 정의이고, `F.capabilities.spec` §3.12는 이 절을 필드 출처로 가리킨다. group-sdk은 `service.ts`에서 이 인터페이스를 구현한다.
+[결정: review.decisions-2 D-04] `OrchestrationService`와 부속 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다(`F.capabilities.spec` §3.12 표와 파일별 이름 표, 규칙 7). `OrchestrationService`는 X 중재 포트를 확장하지 않는다(E3에서 걷었다). 아래 블록은 그 파일의 필드 정의이고, `F.capabilities.spec` §3.12는 이 절을 필드 출처로 가리킨다. orchestration-sdk은 `service.ts`에서 이 인터페이스를 구현한다.
 
 ```ts
 // xeon/packages/contracts/src/services/groups.ts  (F.capabilities.spec §3.12)
@@ -559,7 +559,7 @@ import type {
 
 export const OrchestrationServiceName = "fresnel.orchestration";
 
-/** OrchestrationStatus.metrics. group-sdk OrchestrationMetrics(§3.12)의 부분 필드와 같은 모양이다 */
+/** OrchestrationStatus.metrics. orchestration-sdk OrchestrationMetrics(§3.12)의 부분 필드와 같은 모양이다 */
 export interface OrchestrationMetricsSummary {
   readonly denies: number;
   readonly posts: number;
@@ -605,8 +605,8 @@ export interface OrchestrationService {
 
 - 구현 [M2, E3에서 `driveHolderSetting()`과 `setDriveHolder`를 걷음]: `createOrchestrationService(deps)`가 `OrchestrationServiceWithUsage`(`OrchestrationService` + 계측 메서드)를 만든다. 의존은 `host`(`ExtHost`의 `registrations`·`registration`·`driveFrames`·`onChange`·`ports`·`queryEvents`·`toolOwner`·`resetRegistrationState`), `catalog`, `currentThread`, `report`이고 `instrumentation`·`onEnabled`·`metrics`·`promotion`은 선택이다.
 - 서비스 이름 `fresnel.orchestration`와 인터페이스 이름 `OrchestrationService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`다. 서비스는 포트가 아니라 조립 루트가 `onService`로 받는다(E3).
-- [결정: review.decisions-2 D-04] 위 이름(`OrchestrationService`, `OrchestrationServiceName`, `DriveRole`, `OrchestrationError`, `OrchestrationStatus`, `GroupSettingUnwritableReason`, `OrchestrationMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `OrchestrationId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
-- 거부 표시 [M3a, G-30, E3에서 걷음]: `lease.rejected` 구독과 거부 집합(`lease-rejections.ts`)은 없다. 엔진은 이 이벤트를 더 발행하지 않는다. `OrchestrationStatus.drive`의 `rejected`도 더 내지 않는다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+- [결정: review.decisions-2 D-04] 위 이름(`OrchestrationService`, `OrchestrationServiceName`, `DriveRole`, `OrchestrationError`, `OrchestrationStatus`, `GroupSettingUnwritableReason`, `OrchestrationMetricsSummary`)은 F `services/groups.ts`가 내보낸다. orchestration-sdk은 `@fresnel/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `OrchestrationId`, `RegistrationStatus`, `DriveLockId`, `RecordKind`, `Unsubscribe`, `DriveLockArbiterPort`, `RegistrationId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
+- 거부 표시 [M3a, G-30, E3에서 걷음]: `lease.rejected` 구독과 거부 집합(`lease-rejections.ts`)은 없다. 엔진은 이 이벤트를 더 발행하지 않는다. `OrchestrationStatus.drive`의 `rejected`도 더 내지 않는다(§3.5). [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. Registration 토글과 drive lock이 thread마다 따로인지는 X.primitives.spec이 정한다.
 
 ### 3.9 전환 명령과 상태줄 [AGE-33에서 걷음]
@@ -621,7 +621,7 @@ M2 최소형은 Helm 테스트가 쓴다. 2차에 옵션을 넓힌다. M2 최소
 - 다른 패키지 import [제안, M4: 기본 런타임 하니스는 아래 5번 뒤의 6번]: DR-08·DR-14의 testing 정의는 "테스트 파일만 다른 패키지의 테스트 대역을 import한다"로 통일되었다 [결정: review.decisions-2 U-17]. 그래서 `replayDrive`는 테스트 호스트와 모델 테이프를 import하지 않고 `ReplayHarness`로 받는다. 하니스는 그룹 패키지의 테스트 파일이 `@fresnel/ext-host`·`@fresnel/core-models`의 테스트 대역으로 만든다.
 
 ```ts
-// xeon/packages/group-sdk/src/testing/replay/replay-drive.ts  (공개 진입점: @fresnel/group-sdk/testing)
+// xeon/packages/orchestration-sdk/src/testing/replay/replay-drive.ts  (공개 진입점: @fresnel/orchestration-sdk/testing)
 import type { JsonValue } from "@fresnel/contracts/conversation";
 
 /** 그룹 테스트 파일이 만든다. 호스트·테이프·정규화는 하니스 안에 있다 */
@@ -679,10 +679,10 @@ export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveRep
 1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 시점 목록을 얻는다. 커밋 시점은 0번의 규약대로 그룹 상태 커밋 시점이다(`g.commit`과 drive 단계 함수의 `commit` 명령). `turn`·`spawn` 명령의 결과와 `post` 수락, `record` 쓰기는 커밋 시점이 아니다.
 2. 시점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
 3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 시점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 drive lock을 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
-4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 시점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 기능 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@fresnel/group-sdk/testing`)다.
+4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 시점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 기능 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@fresnel/orchestration-sdk/testing`)다.
 
 5. thread id 불일치 [M4, 이월 닫음]: 하니스가 `run`의 결과에 `threadId`를 싣고, 기준 실행과 다른 thread를 쓴 절단이 있으면 이벤트열이 같아도 `ok: false`, `failure: "thread-mismatch"`, `threadMismatchCuts`(그 절단의 `commitIndex`)다. 정규화가 ID를 자리표시자로 바꾸므로 이벤트열 비교로는 다른 thread가 보이지 않아서 따로 센다. 순서는 이벤트열 비교, thread 검사, 효과 계수다. `threadMismatches(threads)`는 같은 검사를 실행 기록 배열에 하는 순수 함수다.
-6. 런타임 하니스 [M4 T-GK, X-10]: `createRuntimeReplayHarness()`(`@fresnel/group-sdk/testing`, `src/testing/replay/runtime-harness.ts`)가 시험 파일에서 쓰던 하니스(§3.10 0번의 규약 전부)를 `testing` 서브패스로 옮긴 것이다. 설치된 `OrchestrationModule` 하나를 실제 `ExtHost`(X)에 올리고 위임 서비스는 `fakeAgents` 테이프, 루프·입력 큐는 메모리 포트로 두며 효과 계수, thread id, ID 정규화, 커밋 위치 계산을 모두 가진다. 다른 패키지의 `testing` 서브패스를 import하므로 `src/testing/` 아래에 있다(DR-08). 개발 모드 Test run의 replay(W-29, `ext.test.run`)가 같은 하니스를 쓴다. `ReplayHarness` 인터페이스는 그대로라 그룹 패키지의 시험 하니스(Helm, learning)도 계속 쓸 수 있다. 하니스가 모델 테이프로 turn을 흉내 내는 확장은 하지 않았다: drive의 `loop.turn`은 메모리 `LoopPort`가 받는다. 사람 확인(`loop.ask`)을 지나가는 그룹은 `createRuntimeReplayHarness({ approvals })`에 승인 서비스 대역을 넣어 재생한다. `autoAnswerApprovals(answer)`(`src/testing/fake-approvals.ts`)가 연 요청을 바로 그 답으로 해결하는 대역이고, `requestKey`로 멱등이라 절단 실행의 같은 요청 id 재호출이 기록된 답을 돌려받는다(Y7).
+6. 런타임 하니스 [M4 T-GK, X-10]: `createRuntimeReplayHarness()`(`@fresnel/orchestration-sdk/testing`, `src/testing/replay/runtime-harness.ts`)가 시험 파일에서 쓰던 하니스(§3.10 0번의 규약 전부)를 `testing` 서브패스로 옮긴 것이다. 설치된 `OrchestrationModule` 하나를 실제 `ExtHost`(X)에 올리고 위임 서비스는 `fakeAgents` 테이프, 루프·입력 큐는 메모리 포트로 두며 효과 계수, thread id, ID 정규화, 커밋 위치 계산을 모두 가진다. 다른 패키지의 `testing` 서브패스를 import하므로 `src/testing/` 아래에 있다(DR-08). 개발 모드 Test run의 replay(W-29, `ext.test.run`)가 같은 하니스를 쓴다. `ReplayHarness` 인터페이스는 그대로라 그룹 패키지의 시험 하니스(Helm, learning)도 계속 쓸 수 있다. 하니스가 모델 테이프로 turn을 흉내 내는 확장은 하지 않았다: drive의 `loop.turn`은 메모리 `LoopPort`가 받는다. 사람 확인(`loop.ask`)을 지나가는 그룹은 `createRuntimeReplayHarness({ approvals })`에 승인 서비스 대역을 넣어 재생한다. `autoAnswerApprovals(answer)`(`src/testing/fake-approvals.ts`)가 연 요청을 바로 그 답으로 해결하는 대역이고, `requestKey`로 멱등이라 절단 실행의 같은 요청 id 재호출이 기록된 답을 돌려받는다(Y7).
 
 ```ts
 /** 가짜 포트가 센 외부 효과 수. 중복 응답과 읽기는 세지 않는다 */
@@ -701,7 +701,7 @@ export interface EffectCounts {
 ### 3.11 scanDriveSource (M3a 구현)
 
 ```ts
-// xeon/packages/group-sdk/src/testing/scan/scan-drive.ts  (공개 진입점: @fresnel/group-sdk/testing)
+// xeon/packages/orchestration-sdk/src/testing/scan/scan-drive.ts  (공개 진입점: @fresnel/orchestration-sdk/testing)
 export type DriveScanCode =
   | "SD-00" | "SD-01" | "SD-02" | "SD-03" | "SD-04" | "SD-05" | "SD-06"
   | "SD-07" | "SD-08" | "SD-09" | "SD-10";
@@ -737,12 +737,12 @@ export function scanDriveSource(source: string, options?: DriveScanOptions): rea
 | SD-10 | drive 함수 밖에서 선언한 `let`·`var` 변수를 drive 본문이 재할당 | warning | `drive state lives only in scope state (eng.events EV-09).` | EV-09 |
 
 - 구현 [M3a]: 위 표를 그대로 구현했다. 보태거나 좁힌 점은 다음과 같다. (1) 구문 오류가 있으면 `SD-00` 오류 하나(줄 1, 열 1, 메시지는 파서 메시지)를 돌려준다 [제안]. (2) 금지 문자열은 호출이 아니어도 참조하면 찾는다(`const now = Date.now`). `Bun.file`·`Bun.write`는 SD-08, 그 밖의 `Bun.<이름>`은 SD-09다. (3) SD-08은 `fs`, `node:fs`, `fs/promises`, `node:fs/promises` import의 지역 이름을 drive 본문에서 쓰면 낸다. (4) SD-10은 같은 파일에서 `let`·`var`로 선언했고 drive 함수 밖에 있는 변수를 본문이 대입·증감할 때 낸다. 구조 분해로 가려진 이름이나 다른 파일 변수는 보지 않는다. (5) 줄·열은 1부터이고 열은 UTF-16 코드 단위다. 결과는 위치 순서다. 한계는 협조적 코드만 잡는다는 점이다. 별칭(`const f = fetch`)과 동적 접근(`globalThis["fetch"]`)은 못 잡는다.
-- 파서 [제안]: `@swc/core` 1.16.18(catalog에 이미 있고 dependency-cruiser가 쓴다, `eng.dependency-rules.guide` 3.1절)의 `parseSync`. TS 7에는 안정 programmatic API가 없다. `@swc/core`를 group-sdk이 import하려면 DR-07 `MODULE_OWNERS` 표에 항목이 필요하다 [미결](§10).
+- 파서 [제안]: `@swc/core` 1.16.18(catalog에 이미 있고 dependency-cruiser가 쓴다, `eng.dependency-rules.guide` 3.1절)의 `parseSync`. TS 7에는 안정 programmatic API가 없다. `@swc/core`를 orchestration-sdk이 import하려면 DR-07 `MODULE_OWNERS` 표에 항목이 필요하다 [미결](§10).
 
 ### 3.12 PromotionReport와 OrchestrationMetrics (2차)
 
 ```ts
-// xeon/packages/group-sdk/src/metrics/types.ts  (공개 진입점: @fresnel/group-sdk)
+// xeon/packages/orchestration-sdk/src/metrics/types.ts  (공개 진입점: @fresnel/orchestration-sdk)
 import type { OrchestrationId } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { OrchestrationMetricsSummary } from "@fresnel/contracts/services";
@@ -805,7 +805,7 @@ export interface MetricsRecordedPayload {
 ```
 
 ```ts
-// xeon/packages/group-sdk/src/promotion/report.ts
+// xeon/packages/orchestration-sdk/src/promotion/report.ts
 import type { ToolName } from "@fresnel/contracts/capabilities";
 import type { OrchestrationId, RegistrationId } from "@fresnel/contracts/extensions";
 
@@ -872,7 +872,7 @@ export function buildPromotionReport(input: PromotionInput): PromotionReport;
 
 ### 3.13 요구하는 X 인터페이스
 
-group-sdk이 쓰는 X.primitives.spec의 이름과, 아직 X에 없어 요청하는 것을 나눈다.
+orchestration-sdk이 쓰는 X.primitives.spec의 이름과, 아직 X에 없어 요청하는 것을 나눈다.
 
 X.primitives.spec에 있는 것:
 
@@ -883,7 +883,7 @@ X.primitives.spec에 있는 것:
 | 토글 | `ExtHost.registration(id): RegistrationHandle \| undefined`의 `enable()`, `disable()` | §3.1, §4.5.2 |
 | 주도 스택 읽기 | `ExtHost.driveFrames(threadId): readonly DriveFrameView[]`(E3, drive-isolation.md 2.6). 맨 아래가 코어 루프 깊이 0이다. 계약 `DriveFrameView`는 F.extensions.spec | §3.5, §4.3 |
 | 주도 시작 요청 | `ExtHost.startDrive(threadId, scopeId, options?)`, `RegistrationHostApi.startDrive(input?)` | §3.2, §3.5 |
-| 중재 포트(제거) | `DriveLockArbiterPort.choose`와 `DriveLockArbiterPortKey`는 E3에서 엔진이 쓰지 않는다. 계약 정리 단계(E3)에서 걷었다 | §3.5 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| 중재 포트(제거) | `DriveLockArbiterPort.choose`와 `DriveLockArbiterPortKey`는 E3에서 엔진이 쓰지 않는다. 계약 정리 단계(E3)에서 걷었다 | §3.5 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 | 구동 그룹 설정 | `x.primitives.activeDriver`는 E3에서 설정과 계약에서 걷었다. 주도 시작은 명령과 프로필이 한다 | §3.5, §6 |
 | 리소스 등록 | `hostOf(g).registerTool`, `hostOf(g).registerCommand`, `hostOf(g).registerProvider`, `ExtHost.resources` | §3.8, §3.9, §4.8 |
 | 상태 커밋과 크기 상한 | `commit`의 `expectStateRev`, `state_too_large` | §4.6.1 |
@@ -897,7 +897,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 4. 테스트 호스트 재시작. [반영] `TestHost.restart()`.
 5. 2차: 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 Registration 조회. [반영, B4-GRP] `ExtHost.queryEvents(threadId, { kindPrefix })`(M3-REQ-39, 계측은 M3b부터 쓴다)와 `ExtHost.toolOwner(name)`(`ResourceRecord`의 `scopeId`·`extension`)이 X에 있다. `OrchestrationHostView`가 두 메서드를 쓴다.
 6. [반영, M3a X-3] 재실행 문맥 조회: `hostOf(g).callContext(): { kind: "on" | "drive"; threadId: ThreadId; signal: AbortSignal; point?: HookName } | undefined`(X.primitives.spec §3.8). setup, 명령 처리기, 도구 `execute`, drive의 `turn`·`spawn` 안에서는 undefined다. `OrchestrationHostAccess.callContext()`가 이 값을 그대로 돌려준다. `delegate`는 on 핸들러와 drive 함수 안에서 문맥의 thread와 신호를 쓰고, `{ threadId, signal }` 옵션은 명령 처리기와 도구 `execute`에서만 필요하다. `delegateStatus`의 on 거부와 `cancelDelegates`의 on·drive 거부(`orchestration.effectNotAllowed`)는 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`).
-7. [반영, M3a X-3] `SessionFeedPortKey`(`{ name: "fresnel.session", member: "feed" }`)를 `@fresnel/ext-host` 공개 진입점에서 내보낸다. group-sdk은 이 키를 쓰고 자체 키(`GroupFeedPortKey`)는 없앴다(§3.8 "거부 표시").
+7. [반영, M3a X-3] `SessionFeedPortKey`(`{ name: "fresnel.session", member: "feed" }`)를 `@fresnel/ext-host` 공개 진입점에서 내보낸다. orchestration-sdk은 이 키를 쓰고 자체 키(`GroupFeedPortKey`)는 없앴다(§3.8 "거부 표시").
 
 - 설정 읽기와 쓰기는 설정 서비스(F.wire-settings.spec `EffectiveSetting`, `WriteCheck`)로 한다. X에는 이 용도의 API가 없다 [가정: 서비스 이름은 F.wire-settings.spec].
 - drive lock 교체 [가정]: X는 반납 경계에서 `lease.released`를 기록하고(X.primitives.spec §4.5.3 끄기 2번), 다음 판단(§4.4.1 3번)에서 새 `lease.acquired`를 기록한다. 같은 경계 훅에서 반납과 부여가 함께 일어나면 같은 경계 커밋에 실린다고 본다. X 문서가 다르게 정하면 §5 6번을 고친다.
@@ -917,8 +917,8 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 
 ### 4.2 로드와 setup 순서
 
-1. 조립 루트(`apps/host`)가 `group-sdk`을 Cordis 플러그인으로 등록한다 [가정: X 플러그인 정의 API]. `group-sdk`은 확장 매니페스트를 갖지 않는 내장 서비스 플러그인이다 [제안]. `orchestration` 선언이 있고 L3 루트 플러그인을 가진 매니페스트만 그룹으로 읽히기 때문이다(매니페스트 검증에서 이 검사를 둘지는 [미결]이고, 지금은 `defineOrchestration`이 `orchestration_missing`으로 검사한다).
-2. `group-sdk` 플러그인은 `fresnel.ext`를 주입받고 `fresnel.orchestration`(`OrchestrationService`)를 제공한다. 중재 포트는 없다(E3). `choose`는 계약에서 걷었다(§3.5). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+1. 조립 루트(`apps/host`)가 `orchestration-sdk`을 Cordis 플러그인으로 등록한다 [가정: X 플러그인 정의 API]. `orchestration-sdk`은 확장 매니페스트를 갖지 않는 내장 서비스 플러그인이다 [제안]. `orchestration` 선언이 있고 L3 루트 플러그인을 가진 매니페스트만 그룹으로 읽히기 때문이다(매니페스트 검증에서 이 검사를 둘지는 [미결]이고, 지금은 `defineOrchestration`이 `orchestration_missing`으로 검사한다).
+2. `orchestration-sdk` 플러그인은 `fresnel.ext`를 주입받고 `fresnel.orchestration`(`OrchestrationService`)를 제공한다. 중재 포트는 없다(E3). `choose`는 계약에서 걷었다(§3.5). [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 3. X 로더가 오케스트레이션 모듈마다 `validateManifest`, `validateManifestSet`을 부르고, 설정 묶음을 카탈로그에 넣고, `entry`를 부른다. setup 직후 X가 `validateUsage`를 부른다.
 4. 그룹 setup 안의 `g.drive(fn)`은 등록만 한다. drive lock은 §4.3이 정한다.
 
@@ -935,7 +935,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 
 - `OrchestrationService.enable/disable`은 `RegistrationHandle.enable/disable`을 부른다. 요청만 기록하고 X가 단계 경계에서 적용한다(F.extensions.spec §4.5). 적용되면 `scope.changed`가 커밋된다.
 - 요청과 적용 사이에 `OrchestrationStatus.pendingToggle`이 채워지고 상태줄에 "다음 단계 경계에 적용"이 붙는다(§3.9).
-- 비활성화 적용 순서는 F.extensions.spec §4.5 [제안](on 핸들러 제외 → drive lock 반납 → `onDispose`)을 따른다. group-sdk `wrap`은 `onDispose` 목록 끝에 계측 마감(2차)을 더한다.
+- 비활성화 적용 순서는 F.extensions.spec §4.5 [제안](on 핸들러 제외 → drive lock 반납 → `onDispose`)을 따른다. orchestration-sdk `wrap`은 `onDispose` 목록 끝에 계측 마감(2차)을 더한다.
 - 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec §4.5.5가 정한다(유휴 thread는 즉시 적용, [결정: 2026-11-04 사용자, 결정 목록 R19]). 그 시점이 "즉시"이므로 `ToggleReceipt.appliesAt`은 `"now"`다.
 
 ### 4.5 상태 커밋 규칙
@@ -975,7 +975,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 ### 4.7 상태 스키마 버전과 마이그레이션 훅
 
-- `StateDecl.version`을 올리면 `OrchestrationDef.migrations`에 빠짐없는 출발 버전 함수를 둔다. 빠지면 `state_migration_missing`(§3.3)으로 정의가 거부된다. F.extensions.spec §3.2 `StateDecl.version` 주석("올리면 X가 마이그레이션 훅을 요구한다")의 group-sdk 쪽 구현이다.
+- `StateDecl.version`을 올리면 `OrchestrationDef.migrations`에 빠짐없는 출발 버전 함수를 둔다. 빠지면 `state_migration_missing`(§3.3)으로 정의가 거부된다. F.extensions.spec §3.2 `StateDecl.version` 주석("올리면 X가 마이그레이션 훅을 요구한다")의 orchestration-sdk 쪽 구현이다.
 - `defineOrchestration`은 `migrations`를 F `Upcaster` 배열로 바꿔 `OrchestrationModule.stateUpcasters`에 둔다. 저장된 이벤트는 고치지 않고 읽을 때 올린다(F.records.spec §3.7 규칙 2, 3).
 - 마이그레이션 함수는 순수 함수다. 결과가 새 `schema`를 통과하지 못하면 `orchestration.migrationFailed`로 그 그룹 로드를 실패로 처리한다. 다른 그룹은 영향을 받지 않는다.
 - 버전을 내리는 것은 허용하지 않는다. 저장된 버전이 현재보다 크면 F `future_version` 오류로 로드 실패다.
@@ -1007,19 +1007,19 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
   - 재시작 뒤에 이미 기록한 경계가 다시 발화하면, 새 프로세스의 증가분과 옛 기록의 payload가 달라 같은 키의 기록이 거부될 수 있다. 이 거부는 수용한다(§10): 그 기록은 건너뛰고 증가분은 다음 기록에 든다. 그룹 핸들러와 상태 커밋에는 영향이 없고 `handler_failed`도 나지 않는다.
   - 마지막 경계 뒤에 그룹 밖에서 올린 값은 다음 경계가 있어야 기록된다.
 - 계측 코드는 시계를 직접 읽지 않는다(TY-21).
-- kind 소유 [결정: review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 group-sdk `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1). 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
+- kind 소유 [결정: review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 orchestration-sdk `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1). 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
 
 ### 4.10 위임 규칙
 
 - `delegate`는 켜진 그룹이면 drive lock과 관계없이 부를 수 있다. 꺼지는 중(`disabling`)이면 `orchestration.disabling`을 돌려준다.
-- 그룹이 꺼지면 진행 중인 위임을 즉시 취소한다 [결정: review.m3-design-inputs D-M3-04]. 끈 뒤에도 토큰을 쓰고 결과가 들어오면 사용자 기대와 어긋나기 때문이다. 그룹은 `onDispose`에서 `cancelDelegates`를 부르고, group-sdk은 L1 `AgentService.cancel({ ownerRegistrationId })`(L3.learning.spec §8.1 REQ-LN-06)로 옮긴다. 옛 [제안](완료까지 두고 보고 post를 넣음)은 쓰지 않는다.
+- 그룹이 꺼지면 진행 중인 위임을 즉시 취소한다 [결정: review.m3-design-inputs D-M3-04]. 끈 뒤에도 토큰을 쓰고 결과가 들어오면 사용자 기대와 어긋나기 때문이다. 그룹은 `onDispose`에서 `cancelDelegates`를 부르고, orchestration-sdk은 L1 `AgentService.cancel({ ownerRegistrationId })`(L3.learning.spec §8.1 REQ-LN-06)로 옮긴다. 옛 [제안](완료까지 두고 보고 post를 넣음)은 쓰지 않는다.
 
 ## 5. 실패와 경계 사례
 
 | # | 사례 | 처리 |
 |---|---|---|
 | 1 | 이름 충돌: 같은 `name`의 그룹이 둘 설치됨 | X `validateManifestSet`이 `name_conflict` 오류를 낸다. 뒤에 로드한 쪽을 거부한다 [가정: X.loading-trust.spec]. 이름이 `RESERVED_ORCHESTRATION_NAMES`(예: `auto`)면 `defineOrchestration`이 `orchestration_name`으로 거부한다 |
-| 2 | 존재하지 않는 그룹 이름 | 구동 그룹 설정은 없다(E3). 이름 해석은 명령 경로의 규칙을 따른다 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| 2 | 존재하지 않는 그룹 이름 | 구동 그룹 설정은 없다(E3). 이름 해석은 명령 경로의 규칙을 따른다 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 | 3 | drive 함수 예외 | X가 그 프레임을 내린다(`lease.released{reason:"error"}`, F.extensions.spec §5 6번). `OrchestrationStatus.drive = "error"`, `lastError = orchestration.driveThrew`. `on` 핸들러와 `post`, `delegate`는 계속 동작한다. 오류 표시는 그룹을 끄고 다시 켜면 지워진다(X.primitives.spec §4.4.3 예외 규칙). 그동안 시작 요청은 `drive_error`로 거부된다 |
 | 4 | 맡기고 기다리는 그룹이 비활성화됨 | 끄기가 적용되는 단계 경계에서 그 프레임과 위 프레임이 `disabled`로 내려간다(X.primitives.spec §4.5.3) [가정]. `scope.changed{disabled}`가 커밋된다 |
 | 5 | 주도 중인 그룹이 비활성화됨 | 끄기가 적용되는 단계 경계에서 `lease.released{reason:"disabled"}`가 기록되고 진행 중 turn 명령은 정착까지 돈다(X.primitives.spec §4.5.3). 아래 프레임은 `aborted`로 이어 받는다. 새 후보를 고르지 않는다. 다음 주도는 사용자의 시작 요청으로 한다 |
@@ -1030,8 +1030,8 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 10 | 상태 마이그레이션 실패 | 그 그룹만 로드 실패(`orchestration.migrationFailed`). 다른 그룹과 대화는 계속 |
 | 11 | 매니페스트에 없는 레코드 kind 쓰기 | F `validateUsage` `record_kind_undeclared`. 이벤트를 쓰지 않는다 |
 | 12 | `delegate`의 `requestId`가 48자 초과이거나 `report.customType`이 자기 접두가 아님 | 호출 전 `{ ok: false, error: { kind: "orchestration.delegateInvalid" } }`. 위임은 만들지 않는다 |
-| 13 | (E3에서 걷음) `x.primitives.activeDriver` 키가 없어 이 경우가 생기지 않는다 | 해당 없음 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
-| 14 | drive 그룹이 하나도 없음 | 스택이 비어 있으면 상태줄에 `[구동]` 항목이 없다 | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| 13 | (E3에서 걷음) `x.primitives.activeDriver` 키가 없어 이 경우가 생기지 않는다 | 해당 없음 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
+| 14 | drive 그룹이 하나도 없음 | 스택이 비어 있으면 상태줄에 `[구동]` 항목이 없다 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 | 15 | 저장 상태가 스키마를 어겨 켜지지 못함(X `state_schema`) | `OrchestrationStatus.lastError = orchestration.stateInvalid`. 상태는 그대로 두고 그룹을 켜지 않는다. `/group reset <이름>`(B4-GRP, §3.9)이 선언 초기값을 새 판으로 쓰고 오류를 지운다. 켜기 상태(`scope`)는 바꾸지 않으며 적용은 다음 단계 경계에 일어난다(시험 `reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next-boundary`) |
 
 ## 6. 설정 노출
@@ -1042,14 +1042,14 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 |---|---|---|---|---|---|---|---|
 | `l3.orchestration.instrumentation` | boolean | `true` | managed, user, project, local, launch | 가능 | `live` | `toggle` | 오케스트레이션 계측 기록(§4.9, 2차) |
 
-- 구동 그룹 선택 [결정: review.decisions-2 S-15, E3에서 걷음]: group-sdk은 구동 그룹 키를 두지 않는다. 키 `x.primitives.activeDriver`는 설정과 계약에서 걷었다(E3, drive-isolation.md 2.2). group-sdk은 이 값을 읽거나 쓰지 않고 `/group status`도 설정 줄을 내지 않는다. `setDriveHolder`와 `/group drive`도 계약 정리 단계에서 함께 걷었다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
-- 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 group-sdk은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
+- 구동 그룹 선택 [결정: review.decisions-2 S-15, E3에서 걷음]: orchestration-sdk은 구동 그룹 키를 두지 않는다. 키 `x.primitives.activeDriver`는 설정과 계약에서 걷었다(E3, drive-isolation.md 2.2). orchestration-sdk은 이 값을 읽거나 쓰지 않고 `/group status`도 설정 줄을 내지 않는다. `setDriveHolder`와 `/group drive`도 계약 정리 단계에서 함께 걷었다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
+- 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 orchestration-sdk은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
 - drive lock 상한의 일반 기본값은 X 키 `x.primitives.driveDefaultLimits`, 천장은 `x.primitives.driveLimits`다(F.extensions.spec §6). 그룹별 요청 상한은 각 그룹 키(예: `l3.helm.driveLimits`)가 기본값을 덮어쓰고, 천장보다 클 수 없다(review.decisions-2 U-12).
 - 명령은 없다(§3.9). 설정 파일과 `fresnel config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
 
 ## 7. 훅
 
-- group-sdk 자체는 훅을 선언하지 않고 `on` 핸들러도 걸지 않는다. 훅 선언은 F.extensions.spec §3.4다.
+- orchestration-sdk 자체는 훅을 선언하지 않고 `on` 핸들러도 걸지 않는다. 훅 선언은 F.extensions.spec §3.4다.
 - `OrchestrationApi.on`은 F `RegistrationApi.on`을 감싼다. 핸들러 시그니처와 fold는 그대로다. 래퍼는 계측 집계만 더한다(§4.9).
 - `post`, `commit`, `record`, `readRecords`, `capability`, `onDispose`는 그대로 전달한다. `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`로 전달한다(§3.2).
 - `drive` 등록은 그대로 전달한다. 주도권은 시작 요청(사용자 명령, 프로필, 맡기기)으로만 받는다(§3.5).
@@ -1065,7 +1065,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | `checkOrchestrationName`, `OrchestrationNameError`(R2 이름 검사, 순수 함수) | L3.slots.spec §3.3.4, `L4.cli.spec`(DR-14로 같은 규칙을 따로 구현) |
 | `TemplateKindSchema`, `TemplateIndexSchema`, `TEMPLATE_PLACEHOLDERS`, `TemplateKind`, `TemplateIndex` | L3.slots.spec §3.3.3(`templates/index.json`), `L4.cli.spec` |
 | `DelegateSpec`, `DelegateReceipt`, `DelegateResult`, `DelegateError`, `DelegateReport`, `DelegateToolPolicy`, `DelegateLimits`, `DelegateFork` | L3.learning.spec, L3.helm.spec, L1.agents.spec(`DelegateRequest` 대응) |
-| `OrchestrationService`와 부속 타입(§3.8)의 필드 정의. 정의 위치는 F `services/groups.ts`(F.capabilities.spec §3.12)이고 group-sdk은 다시 내보내며 `service.ts`에서 구현한다 | F.capabilities.spec §3.12, L4.cli.spec, L4.desktop.spec, L4.host-service.spec, L3.helm.spec, L3.learning.spec |
+| `OrchestrationService`와 부속 타입(§3.8)의 필드 정의. 정의 위치는 F `services/groups.ts`(F.capabilities.spec §3.12)이고 orchestration-sdk은 다시 내보내며 `service.ts`에서 구현한다 | F.capabilities.spec §3.12, L4.cli.spec, L4.desktop.spec, L4.host-service.spec, L3.helm.spec, L3.learning.spec |
 | `parseGroupCommand`, `runGroupCommand`, `groupCommand`, `formatGroupStatusLine` | L4.cli.spec, L4.desktop.spec |
 | `checkOrchestration`, `replayDrive`, `scanDriveSource`(M3 이후), `smokeOrchestration` | L3.helm.plan, L3.learning.plan, X.primitives.plan(M1 스모크) |
 | 정책 정식 예 `reviewgate`, `commitguard`, `guardrail`(`testing` 진입점), 템플릿 `templates/`(2차) | L3.slots.spec, L3.slots.plan |
@@ -1098,7 +1098,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 5. 시작 요청의 대상이 drive를 쓰지 않는 그룹이면 `startDrive`는 `not_drive`를 돌려주고 drive 함수는 하나도 호출되지 않는다.
 6. (E3에서 걷음) `setDriveHolder`와 `/group drive`는 없다. 이 항목은 시험하지 않는다. [근거: drive-isolation.md 2.2]
 7. 실행 중 `/group off helm`은 `pending: true`를 돌려주고, 다음 단계 경계 전까지 상태줄 끝에 `다음 단계 경계에 적용`이 있으며, 경계 뒤 `scope.changed{status:"disabled"}`가 정확히 한 번 커밋된다.
-8. `group-sdk` 소스에서 `@fresnel/group-helm`, `@fresnel/group-learning` import가 0이다(check-layers). `group-helm`에 `@fresnel/group-learning` import 샘플을 넣으면 check-layers가 DR-02로 실패한다.
+8. `orchestration-sdk` 소스에서 `@fresnel/plugin-helm`, `@fresnel/plugin-learning` import가 0이다(check-layers). `plugin-helm`에 `@fresnel/plugin-learning` import 샘플을 넣으면 check-layers가 DR-02로 실패한다.
 9. M1 테스트 그룹(`smokeOrchestration`)이 한 턴에서 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 모두 쓰고, `checkOrchestration(smokeOrchestration)`의 오류가 0이다.
 10. setup에서 매니페스트 `plugins[].hooks`에 없는 훅에 `on`을 건 그룹은 `checkOrchestration`이 `hook_undeclared`를 돌려준다. `name: "auto"`, `name: "web"`(L2 도메인 이름)인 정의는 `defineOrchestration`이 `orchestration_name`으로 `Bug`를 던진다. `state` 없이 `on`만 쓰는 정의는 오류 없이 `OrchestrationModule`(`stateVersion: 0`)을 만든다.
 10a. `registerTool`, `registerCommand`로 등록한 도구와 명령은 그룹을 끄면 해제된다(가짜 `ExtHost.resources` 등록 수로 확인).
@@ -1113,14 +1113,14 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 17. 그룹 A가 등록한 도구를 그룹 B의 drive lock turn이 호출하면 `buildPromotionReport`의 A 도구 항목이 `candidate: true`이고 소비자는 B다. 사용자 입력 turn의 호출은 `userCalls`에만 더해진다.
 18. `l3.orchestration.instrumentation = false`면 `grp.<그룹>.metrics.recorded` 기록이 0개이고 `OrchestrationStatus.metrics`는 null이다.
 19. `formatGroupStatusLine`은 §3.9 예 표의 다섯 입력에 표의 문자열을 그대로 돌려준다.
-20. `group-sdk` 운영 소스에서 `OrchestrationService`, `OrchestrationStatus`, `OrchestrationMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@fresnel/contracts/services`에서 온다. 중재 이름(`DriveLockArbiterPort`, `DriveLockCandidate`, `DriveHolderSetting`, `HolderReceipt`)은 E3에서 계약에서 걷었다.
+20. `orchestration-sdk` 운영 소스에서 `OrchestrationService`, `OrchestrationStatus`, `OrchestrationMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@fresnel/contracts/services`에서 온다. 중재 이름(`DriveLockArbiterPort`, `DriveLockCandidate`, `DriveHolderSetting`, `HolderReceipt`)은 E3에서 계약에서 걷었다.
 21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `boundary.step.after` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
 22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 시점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
 23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
 22a. (M4, T-GK) `replayDrive`는 기준과 다른 thread에서 돈 절단을 `failure: "thread-mismatch"`와 `threadMismatchCuts`로 보고한다(이벤트열이 같아도). `createRuntimeReplayHarness`가 만든 하니스는 모든 실행에서 같은 thread를 쓴다.
 22b. (M4, T-GK) `defineOrchestration({ composition })`은 `module.manifest.group.composition`을 채우고 매니페스트 상수를 바꾸지 않는다. 다른 값이 매니페스트에 이미 있으면 `composition_conflict`다. 알 수 없는 `plugin`을 가진 블록은 `composition_plugin_unknown`이다.
 22c. (M4, T-GK, X-3) `g.registerMethod`로 등록한 메서드는 `ExtHost.methods.call`로 불리고 모양이 틀린 params는 `params_invalid`이며, 그룹을 끄면 `methods.list()`에서 사라진다.
-24. (E3) 대기 상한과 `lease.rejected` 발행이 없다. 맡기고 기다리는 그룹의 `OrchestrationStatus.drive`는 `"waiting"`이고, 스택에 없는 켜진 그룹은 `"none"`이다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+24. (E3) 대기 상한과 `lease.rejected` 발행이 없다. 맡기고 기다리는 그룹의 `OrchestrationStatus.drive`는 `"waiting"`이고, 스택에 없는 켜진 그룹은 `"none"`이다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 25. (M3b, G-17) `on` 래퍼는 first 훅의 정의된 반환을 `denies`, chain 훅의 정의된 반환을 `chainPatches`, 던진 오류를 `handlerErrors`로 올리고 오류를 같은 값으로 다시 던진다. `undefined` 반환은 세지 않는다.
 26. (M3b, LR-17) `metrics.addUsage`는 `tokens`와 `costUsd`를 더한다. 음수나 유한하지 않은 값이면 `Bug`를 던지고 그 호출은 아무 값도 바꾸지 않는다.
 27. (M3b, G-17) `/group status`는 현재 thread의 `lease.*`·`turn.*` 이벤트로 drive lock 시간과 비용을 채운다. 조회가 실패하면 이전 캐시를 두고 명령은 성공한다. 계측 기록은 경계마다 증가분만 쓴다. 두 번째 기록에 첫 기록의 값이 다시 들지 않는다.
@@ -1129,13 +1129,13 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 - [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
 - (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `spawn` 명령, 선언된 기능 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
-- 맞춤(M3-35, 2026-10-29) 공통 모순 3: `xeon/packages/group-sdk/package.json`의 `fresnel.domain`은 `kit`이었고 routes layout 도메인은 `group-sdk`이었다. 이제 `group-sdk`이다. DR-03은 `group-sdk`을 접두 규칙의 예외로 적는다(`eng.dependency-rules.guide` DR-03, `scripts/check-layers.ts`의 `expectedDomain`). 작업 항목은 L3.group-sdk.plan G-02다.
+- 맞춤(M3-35, 2026-10-29) 공통 모순 3: `xeon/packages/orchestration-sdk/package.json`의 `fresnel.domain`은 `kit`이었고 routes layout 도메인은 `orchestration-sdk`이었다. 이제 `orchestration-sdk`이다. DR-03은 `orchestration-sdk`을 접두 규칙의 예외로 적는다(`eng.dependency-rules.guide` DR-03, `scripts/check-layers.ts`의 `expectedDomain`). 작업 항목은 L3.group-sdk.plan G-02다.
 - (닫힘) [결정: review.m3-design-inputs D-M3-05] 대기 vs 거부: 대기가 기본이고 대기 상한을 넘으면 거부한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
 - (닫힘) [결정: review.decisions-2 D-04] `OrchestrationService`와 부속 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
-- [결정: 오케스트레이터 기본값] 템플릿 위치: `xeon/packages/group-sdk/templates/`(L3.slots.spec §3.3.1, B4-GRP 구현). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다. 이 문서와 L3.group-sdk.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-sdk/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
-- [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-sdk`). `eng.context-map.design` C-5와 같은 항목이다.
-- (닫힘) 정책 포트 타입 `DriveLockArbiterPort`·`DriveLockCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-sdk은 `@fresnel/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
+- [결정: 오케스트레이터 기본값] 템플릿 위치: `xeon/packages/orchestration-sdk/templates/`(L3.slots.spec §3.3.1, B4-GRP 구현). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다. 이 문서와 L3.group-sdk.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/orchestration-sdk/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
+- [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/orchestration-sdk`). `eng.context-map.design` C-5와 같은 항목이다.
+- (닫힘) 정책 포트 타입 `DriveLockArbiterPort`·`DriveLockCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. orchestration-sdk은 `@fresnel/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - (닫힘) X에 요청한 4개 항목(§3.13)은 X.1과 테스트 호스트 재시작으로 반영됐다. 2차 계측·승격 집계용 조회(§3.13 5번)만 남았다.
 - [미결] M2 구현이 남긴 연결: `OrchestrationCatalogPort`는 조립 루트(HOST)가 로더 보고에 연결한다(`fresnel.settings` 포트는 ExtHost가 낸다). 그 전까지 시험은 `orchestrationCatalogOf`를 쓴다.
 - (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 중 drive lock 부여로 자율 turn을 시작하는 것을 drive lock 상한 안에서 허용한다. X.primitives.spec §4.5.5의 [제안]과 같다.
@@ -1146,12 +1146,12 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [미결] drive lock 이벤트 이름: F.records.spec `lease.acquired`·`lease.released`와 `eng.context-map.design` 5.1절 `drive.leased`·`drive.released`. 이 문서는 F 이름을 쓴다.
 - [결정: review.decisions-2 T-21] `grp.<그룹>.metrics.recorded`와 `grp.<그룹>.state.committed`의 소유는 §4.9와 §3.6 표에 적었다.
 - [결정: review.decisions-2 U-18] 그룹 이름 규칙은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)이다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
-- [미결] `scanDriveSource`의 파서 `@swc/core`를 group-sdk이 import하려면 DR-07 `MODULE_OWNERS` 항목이 필요하다. M3a는 `group-sdk/package.json`에 `@swc/core`(`catalog:`)를 더했고 `check-layers`는 통과한다. `eng.dependency-rules.guide` 표와 `MODULE_OWNERS`에 행을 더하는 승인은 아직 없다.
+- [미결] `scanDriveSource`의 파서 `@swc/core`를 orchestration-sdk이 import하려면 DR-07 `MODULE_OWNERS` 항목이 필요하다. M3a는 `orchestration-sdk/package.json`에 `@swc/core`(`catalog:`)를 더했고 `check-layers`는 통과한다. `eng.dependency-rules.guide` 표와 `MODULE_OWNERS`에 행을 더하는 승인은 아직 없다.
 - [미결] [M3a] `delegate_capability` 검사(§3.3): 위임 기능 ID가 F에 없고 L1 서비스는 포트(`fresnel.agents`)라 매니페스트로 선언할 수 없다. 포트는 내장 확장만 읽으므로 외부 그룹의 위임 허용 여부는 신뢰 등급 정책이 정한다.
 - [미결] [M3a] 옛 스펙의 `cancelDelegates(reason): Promise<{ cancelled: number }>`와 `delegateStatus(requestId): DelegateStatus | undefined`를 값 반환(`CancelDelegatesResult`, `DelegateStatusResult`)으로 바꿨다. L1 `cancel`은 `{ cancelled: boolean }`을 돌려주어 개수를 알 수 없고, 서비스 없음과 문맥 거부는 값으로 알려야 하기 때문이다(TY-11). 학습 스펙 §3·§4.3의 호출 예(`g.cancelDelegates("orchestration_disabled")`)는 그대로 쓸 수 있고 반환값을 쓰는 곳만 맞춘다.
 - [닫힘, E3] [M3a] G-30의 "실패 값": 대기 상한 거부가 없어져 이 미결은 닫힌다. 기존 기록: `OrchestrationStatus.drive`의 `"rejected"`만 채웠다. 거부 사유(`reason`, `requestSeq`)를 `OrchestrationStatus`나 `OrchestrationError`에 싣는 안은 F `services/groups.ts` 변경이 필요해 하지 않았다.
 - [미결] [M3a] `replayDrive`의 시점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.
-- (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-sdk의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
+- (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 orchestration-sdk의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
 - [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
 - [미결] [B4-GRP] 위임·spawn 자식 thread의 turn 출처(§3.12). `turn.started`의 `origin`이 `delegation`이면 자식을 만든 scope를 이벤트에서 알 수 없다. 자식과 부모를 잇는 이벤트(예: `agent.spawned`, 위임 수명주기)를 함께 읽어야 한다. 그 전까지 이 호출은 집계에서 빠진다.
 - (닫힘) [결정: 사용자 지시, B4-GRP] `/group reset` 성공 문구를 바꿨다. 저장 상태 오류 그룹은 켜기 상태가 `enabled`로 남고 X가 재설정 뒤 적용을 예약하므로, 켜진 그룹에는 `다음 단계 경계에서 다시 실행됩니다`만 말하고 `/group on`을 붙이지 않는다. 꺼진 그룹(`scope`가 `disabled`)에는 ` /group on <id>로 켜세요.`를 덧붙인다. 재설정은 켜기 상태를 바꾸지 않는다(시험 `reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next-boundary`, `reset.disabled-group-also-says-how-to-turn-it-on`).
@@ -1163,5 +1163,5 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: 오케스트레이터 기본값, M3b] 별도 `boundary.settle.after` 핸들러로 쓰는 안은 같은 scope의 호출 키 충돌로 학습 그룹의 기록을 거부시켰다(시험 6건). 그래서 기록은 그룹 핸들러 안에서 쓴다(§4.9).
 - [미결] M3b의 이벤트 집계는 마지막으로 갱신한 thread만 보인다. 여러 thread의 drive lock 시간과 비용을 한 줄로 보일지는 정하지 않았다.
 - (닫힘) [B4-GRP] 학습 그룹의 `addUsage` 연결(LR-17)은 학습 스펙 §10 17에 따라 검토 종료 때 연결했다.
-- [결정: review.decisions-2 U-17] `group-sdk`의 `@fresnel/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않는다(L3.readme §3).
+- [결정: review.decisions-2 U-17] `orchestration-sdk`의 `@fresnel/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않는다(L3.readme §3).
 - [미결] [근거: packages/ext-host/src/primitives/lease.ts] [엔진, X.primitives.spec §4.4.1 소관] 단계 함수의 기본 `requestId`는 `${lineageId}:${상태 판}.${단계 번호}`인데, 단계 번호(`DriveInvocation.i`)가 단계마다 0부터 다시 센다(`packages/ext-host/src/primitives/lease.ts`의 `runSteps`와 `executeCommand`의 `nextId`). 같은 상태 판에서 기본 id를 받은 턴 명령과 뒤 단계의 `commit` 명령이 같은 id를 받으면, 두 번째 결과 사건이 같은 키에 다른 내용으로 쓰여 `invalid`로 거부되고 단계가 `storage_unavailable`로 끝나 drive lock이 `error`로 반납된다. 그룹 쪽은 턴 명령에 `requestId`를 명시해 피한다(§3.2 예, §4.6). 계약의 `DriveCommandBase.requestId` 주석(`단계 번호`의 뜻)과 맞추려면 엔진이 단계 번호를 drive lock 안에서 이어 세야 한다.

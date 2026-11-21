@@ -1,7 +1,7 @@
 import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { catalogConformance, KIND_CATALOG } from "@fresnel/core-authoring";
 import { tempRoot, templateDirs } from "./support.ts";
 

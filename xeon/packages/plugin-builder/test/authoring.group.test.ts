@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { AUTHORING_TOOL_NAMES, authoringManifest } from "../src/index.ts";
 import { createOrchestrationRig, type OrchestrationRig } from "./group-support.ts";
 

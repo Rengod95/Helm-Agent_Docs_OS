@@ -99,7 +99,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 - 좋은 예:
 
   ```ts
-  // 순수: 도구 호출이 쓰기인지 판정 (L3 group-helm)
+  // 순수: 도구 호출이 쓰기인지 판정 (L3 plugin-helm)
   export function isWriteCall(call: ToolCall): boolean {
     return call.name === "write" || call.name === "edit" || (call.name === "bash" && !isReadOnlyCommand(call.args));
   }
@@ -473,13 +473,13 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   ```text
   PR 1 (F):  contracts/src/extensions — PostItem에 `origin` 필드 추가, 스키마 테스트
   PR 2 (X):  ext-host — post 큐가 origin을 기록
-  PR 3 (L3): group-helm — origin "helm"으로 post 호출
+  PR 3 (L3): plugin-helm — origin "helm"으로 post 호출
   ```
 
 - 나쁜 예:
 
   ```text
-  PR 1: contracts + ext-host + core-loop + group-helm + apps/cli 를 한 번에 수정
+  PR 1: contracts + ext-host + core-loop + plugin-helm + apps/cli 를 한 번에 수정
         (F 스키마 변경과 4개 층 구현이 섞여 리뷰와 되돌리기가 어렵다)
   ```
 

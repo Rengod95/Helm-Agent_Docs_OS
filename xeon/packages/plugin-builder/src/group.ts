@@ -5,7 +5,7 @@ import {
   defineOrchestration,
   type OrchestrationManifest,
   type OrchestrationModule,
-} from "@fresnel/group-sdk";
+} from "@fresnel/orchestration-sdk";
 import { authoringWriteGuard } from "./guard.ts";
 import { authoringDrive } from "./group-drive.ts";
 import {

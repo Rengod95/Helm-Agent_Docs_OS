@@ -28,7 +28,7 @@ import {
   type OrchestrationServiceWithUsage,
   type PromotionHostView,
   type ScopeUsage,
-} from "@fresnel/group-sdk";
+} from "@fresnel/orchestration-sdk";
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
 import type { SettingsEngine } from "../settings-engine.ts";
 import { operationsSource } from "../settings-sources.ts";

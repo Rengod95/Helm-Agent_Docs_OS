@@ -5,11 +5,11 @@ import {
   type OrchestrationServiceDeps,
   type OrchestrationCatalogEntry,
   type OrchestrationServiceWithUsage,
-} from "@fresnel/group-sdk";
+} from "@fresnel/orchestration-sdk";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { SettingsEngine } from "./settings-engine.ts";
 
-// m2-plan HOST.6, L3.group-sdk.plan §8. group-sdk은 서비스 팩토리(`createOrchestrationService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 만들어
+// m2-plan HOST.6, L3.group-sdk.plan §8. orchestration-sdk은 서비스 팩토리(`createOrchestrationService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 만들어
 // 서비스가 받는 포트를 실제 구현으로 잇는다:
 // - 그룹 목록(OrchestrationCatalogPort): 설치한 단위 가운데 L3 매니페스트
 // 서비스는 조립 루트가 만들어 확장 읽기(`group.*`)에 넘긴다. 중재 포트와 구동 그룹 설정은 없다(E3, drive-isolation.md 2.2).
@@ -28,7 +28,7 @@ export interface HostOrchestrationsOptions {
 
 /**
  * 그룹 카탈로그에 올릴 매니페스트인가. `group` 선언이 있고 id 없는 루트 플러그인이 L3다.
- * group-sdk의 defineGroup이 그룹을 알아보는 기준(orchestrationOf)과 같다. 옛 형식의 `layer === "L3"`를 대신한다
+ * orchestration-sdk의 defineGroup이 그룹을 알아보는 기준(orchestrationOf)과 같다. 옛 형식의 `layer === "L3"`를 대신한다
  */
 export function isOrchestrationCatalogManifest(manifest: ExtensionManifest): boolean {
   return (

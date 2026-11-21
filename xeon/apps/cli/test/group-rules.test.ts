@@ -12,19 +12,19 @@ import {
   targetPathOf,
 } from "../src/group/rules.ts";
 
-// L4.cli.spec §3.8: apps/cli는 group-sdk을 import하지 않는다(DR-14). 그래서 이름 상수와 색인 형식을 복사해 두었다.
-// 이 시험은 group-sdk 소스 텍스트와 비교해, 두 목록이 갈라지면 실패한다(L3.slots.spec §3.3.4 정본은 group-sdk이다).
+// L4.cli.spec §3.8: apps/cli는 orchestration-sdk을 import하지 않는다(DR-14). 그래서 이름 상수와 색인 형식을 복사해 두었다.
+// 이 시험은 orchestration-sdk 소스 텍스트와 비교해, 두 목록이 갈라지면 실패한다(L3.slots.spec §3.3.4 정본은 orchestration-sdk이다).
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const GROUP_SDK = join(HERE, "..", "..", "..", "packages", "group-sdk");
+const GROUP_SDK = join(HERE, "..", "..", "..", "packages", "orchestration-sdk");
 const CONTRACTS = join(HERE, "..", "..", "..", "packages", "contracts");
 
-/** 이름 규칙의 정본 파일은 contracts(F)다. group-sdk는 그 값을 다시 내보낸다(AGE-60) */
+/** 이름 규칙의 정본 파일은 contracts(F)다. orchestration-sdk는 그 값을 다시 내보낸다(AGE-60) */
 function orchestrationSdkSource(): string {
   return readFileSync(join(CONTRACTS, "src", "services", "group-names.ts"), "utf8");
 }
 
-/** group-sdk의 `RESERVED_ORCHESTRATION_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
+/** orchestration-sdk의 `RESERVED_ORCHESTRATION_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
 function reservedNamesInOrchestrationSdk(source: string): readonly string[] {
   const block = /RESERVED_ORCHESTRATION_NAMES: readonly string\[\] = \[([\s\S]*?)\];/.exec(
     source,
@@ -33,13 +33,13 @@ function reservedNamesInOrchestrationSdk(source: string): readonly string[] {
   return [...block.matchAll(/"([^"]*)"/g)].map((match) => match[1] ?? "");
 }
 
-test("the reserved group names match group-sdk's RESERVED_ORCHESTRATION_NAMES in value and order", () => {
+test("the reserved group names match orchestration-sdk's RESERVED_ORCHESTRATION_NAMES in value and order", () => {
   const fromKit = reservedNamesInOrchestrationSdk(orchestrationSdkSource());
   expect(fromKit).toHaveLength(23);
   expect([...RESERVED_ORCHESTRATION_NAMES]).toEqual([...fromKit]);
 });
 
-test("the name pattern matches group-sdk's ORCHESTRATION_NAME_PATTERN", () => {
+test("the name pattern matches orchestration-sdk's ORCHESTRATION_NAME_PATTERN", () => {
   const match = /ORCHESTRATION_NAME_PATTERN: string = "([^"]*)"/.exec(orchestrationSdkSource());
   expect(match?.[1]).toBe("^[a-z][a-z0-9-]{1,31}$");
   expect(ORCHESTRATION_NAME_PATTERN).toBe(match?.[1] ?? "");

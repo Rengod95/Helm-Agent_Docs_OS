@@ -5733,7 +5733,7 @@
   "desktop.compose.profile.driver.info": "The group that takes the drive when a conversation opens. Changing it does not take back a drive already held.",
   "desktop.compose.profile.locked": "Locked",
   "desktop.compose.profile.locked.info": "Built-in core extensions can't be turned on or off by a profile.",
-  "desktop.compose.issue.au012": "The replay discipline scan did not run in this build. Run scanDriveSource from group-sdk to check the drive code.",
+  "desktop.compose.issue.au012": "The replay discipline scan did not run in this build. Run scanDriveSource from orchestration-sdk to check the drive code.",
   "desktop.compose.profile.testRun": "New test run with this profile",
   "desktop.compose.profile.testRun.info": "Creates a new test conversation with the saved profile applied. The open conversation is not changed.",
   "desktop.compose.profile.testRun.unsaved": "Save your changes before creating a test run from this profile.",

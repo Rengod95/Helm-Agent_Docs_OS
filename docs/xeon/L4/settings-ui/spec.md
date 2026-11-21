@@ -1162,7 +1162,7 @@ sequenceDiagram
 - 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
 - 확장(외부 오케스트레이션 플러그인 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
 - L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~launch), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
-- 구동 그룹을 키로 고르는 설정은 없다(`x.primitives.activeDriver`는 E3에서 걷었다, drive-isolation.md 2.2). 주도는 주도 시작 명령과 프로필의 시작 설정(`startDrive`)이 정한다. 같은 탭의 `x.primitives.driveRequiresOrchestration`(boolean, 기본 켜짐)은 "drive는 오케스트레이션 플러그인만" 토글이다. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. 깊이 상한 `x.primitives.driveMaxDepth`(정수, 기본 8)도 이 탭에 둔다. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6). [근거: drive-isolation.md 2.2]
+- 구동 그룹을 키로 고르는 설정은 없다(`x.primitives.activeDriver`는 E3에서 걷었다, drive-isolation.md 2.2). 주도는 주도 시작 명령과 프로필의 시작 설정(`startDrive`)이 정한다. 같은 탭의 `x.primitives.driveRequiresOrchestration`(boolean, 기본 켜짐)은 "drive는 오케스트레이션 플러그인만" 토글이다. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. 깊이 상한 `x.primitives.driveMaxDepth`(정수, 기본 8)도 이 탭에 둔다. orchestration-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6). [근거: drive-isolation.md 2.2]
 - [제안] 확장이 설정 화면에 자기 화면 부품(맞춤 패널)을 넣는 것은 M3 범위에 두지 않는다(§10 미결 13).
 
 ## 8. 다른 문서와의 인터페이스

@@ -16,7 +16,7 @@ import {
 /** 그룹의 drive 역할(`OrchestrationStatus.drive`) */
 export type DriveRole = OrchestrationStatusWire["drive"];
 
-/** drive 구역의 그룹 한 줄. `id`는 그룹 id이고 등록 id와 같다(group-sdk가 매니페스트 이름을 등록 id로 쓴다) */
+/** drive 구역의 그룹 한 줄. `id`는 그룹 id이고 등록 id와 같다(orchestration-sdk가 매니페스트 이름을 등록 id로 쓴다) */
 export interface DriveMemberVM {
   readonly id: string;
   readonly displayName: string;

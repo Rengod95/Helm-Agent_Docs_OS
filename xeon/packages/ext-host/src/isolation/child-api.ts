@@ -7,7 +7,7 @@
 // `drive`는 setup에서 단계 함수를 한 번 받아 두고, 엔진이 단계마다 `drive.step` 요청으로 부른다(drive-isolation.md 1.1, 3.2).
 // 막힌 API(`provide`, `providePort`, `registerWebProvider`, `registerShortcut`)는 이름을 상태에 남기고 던진다.
 // setup이 이들을 썼으면 등록이 `unsupported_api`로 떨어진다.
-// `port`는 예외다. group-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
+// `port`는 예외다. orchestration-sdk의 wrap이 setup에서 port를 읽고 `service_reserved`를 "없음"으로 받으므로, 막힘을 기록하지 않고
 // 엔진 쪽 비내장 확장과 같은 `service_reserved`로 던진다.
 import type { AsyncLocalStorage } from "node:async_hooks";
 import {

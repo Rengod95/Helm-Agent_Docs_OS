@@ -10,12 +10,12 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { DevkitError } from "@fresnel/contracts/services";
 import { registerSdkModules, X_SDK_MODULES } from "@fresnel/ext-host";
-import * as orchestrationSdk from "@fresnel/group-sdk";
+import * as orchestrationSdk from "@fresnel/orchestration-sdk";
 import {
   createRuntimeReplayHarness,
   replayDrive,
   type ReplayDriveReport,
-} from "@fresnel/group-sdk/testing";
+} from "@fresnel/orchestration-sdk/testing";
 
 function invalid(message: string): DevkitError {
   return { kind: "invalid_input", message };
@@ -24,7 +24,7 @@ function invalid(message: string): DevkitError {
 /** 설치 폴더의 매니페스트 경로. 제작 코어(`core-authoring`)의 `MANIFEST_PATH`와 같은 값이다(플러그인은 코어를 import하지 않는다, DR-15) */
 const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
 
-// 설치된 플러그인 그룹의 재생(W-29 `ext.test.run` replay). 호스트 운영 코드는 `@fresnel/group-sdk/testing`을 import하지 않으므로(DR-08)
+// 설치된 플러그인 그룹의 재생(W-29 `ext.test.run` replay). 호스트 운영 코드는 `@fresnel/orchestration-sdk/testing`을 import하지 않으므로(DR-08)
 // 재생기는 이 패키지에 둔다. 설치 폴더의 매니페스트와 엔트리를 읽어 `OrchestrationModule`을 만들고 `replayDrive`를 돌린다.
 // 재생에는 `manifest`와 `entry`만 쓰인다. `stateVersion`은 설치본에서 알 수 없어 0으로 둔다(재생 하니스는 읽지 않는다).
 
@@ -71,7 +71,7 @@ function messageOf(caught: unknown): string {
   return caught instanceof Error ? caught.message : String(caught);
 }
 
-/** 그룹 매니페스트인가: `group` 선언과 루트 L3 플러그인이 있어야 한다. 규칙은 group-sdk `validateOrchestrationDef`가 정한 것을 쓴다 */
+/** 그룹 매니페스트인가: `group` 선언과 루트 L3 플러그인이 있어야 한다. 규칙은 orchestration-sdk `validateOrchestrationDef`가 정한 것을 쓴다 */
 function isOrchestrationManifest(
   manifest: ExtensionManifest,
 ): manifest is orchestrationSdk.OrchestrationManifest {
@@ -159,10 +159,10 @@ export async function runInstalledReplay(
     return err(invalid(`entry ${declared} resolves outside the extension root`));
   }
 
-  // SDK 가상 모듈을 등록해야 번들의 외부 import(`@fresnel/group-sdk` 등)가 풀린다. 로더가 같은 객체를 이미 등록했으면 아무 일도 하지 않는다
+  // SDK 가상 모듈을 등록해야 번들의 외부 import(`@fresnel/orchestration-sdk` 등)가 풀린다. 로더가 같은 객체를 이미 등록했으면 아무 일도 하지 않는다
   const registered = registerSdkModules({
     ...X_SDK_MODULES,
-    "@fresnel/group-sdk": orchestrationSdk,
+    "@fresnel/orchestration-sdk": orchestrationSdk,
   });
   if (!registered.ok) {
     return err({

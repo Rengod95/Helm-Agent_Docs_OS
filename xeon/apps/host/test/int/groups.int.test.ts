@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { defineManifest } from "@fresnel/contracts/extensions";
 import { ExtHostPortKey, hostOf, type ExtHost, SETTINGS_READ_PORT } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import type { OrchestrationSettingsSource } from "@fresnel/group-sdk";
+import type { OrchestrationSettingsSource } from "@fresnel/orchestration-sdk";
 import { AssembleError, assemble } from "../../src/assemble.ts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
@@ -13,7 +13,7 @@ import { testOrchestration } from "../fixtures/test-group.ts";
 import { writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// HOST.6 group-sdk (int): 조립 루트가 그룹 서비스를 만들어 `onService`로 넘기고, 서비스가 보는 그룹 목록·그룹 설정 읽기를 실제 구현으로 잇는다.
+// HOST.6 orchestration-sdk (int): 조립 루트가 그룹 서비스를 만들어 `onService`로 넘기고, 서비스가 보는 그룹 목록·그룹 설정 읽기를 실제 구현으로 잇는다.
 // 그룹의 drive 역할은 thread의 주도권 스택에서 읽는다(drive-isolation.md 2.6). 중재 포트와 구동 그룹 설정은 없다(E3).
 // 서비스는 확장이 포트로 얻어 쓴다(여기서는 포트를 붙잡아 두는 시험용 확장).
 

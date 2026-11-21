@@ -6,7 +6,7 @@ import {
   PLUGIN_MODES,
   type DevkitService,
 } from "@fresnel/contracts/services";
-import { checkOrchestrationName, type OrchestrationApi } from "@fresnel/group-sdk";
+import { checkOrchestrationName, type OrchestrationApi } from "@fresnel/orchestration-sdk";
 import { Type, type TSchema } from "typebox";
 import {
   errorKeyOf,

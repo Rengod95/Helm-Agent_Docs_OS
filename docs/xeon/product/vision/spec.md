@@ -132,7 +132,7 @@ drive 함수는 경계마다 마지막으로 커밋된 상태로 다시 호출�
 
 [제안] 사용자가 "설계 검토 그룹"을 직접 만들어 붙이는 경우의 흐름이다. 그룹 이름 `review`는 예시다. 훅 이름(`request`, `tool.before`)은 7.2와 같은 의사코드 표기이며, 실제 훅 이름은 `F.extensions.spec`의 훅 선언 표를 따른다(ADR-0007 §3.3 [제안]에서는 `input.agent.before`, `tool.call.before`).
 
-1. 사용자가 `group-sdk`의 `defineOrchestration`으로 `review` 그룹 패키지를 만든다. 코어 패키지(`contracts`, `ext-host`, `platform-*`, `core-*`)는 수정하지 않는다.
+1. 사용자가 `orchestration-sdk`의 `defineOrchestration`으로 `review` 그룹 패키지를 만든다. 코어 패키지(`contracts`, `ext-host`, `platform-*`, `core-*`)는 수정하지 않는다.
 2. 그룹은 `scope("review", { state })` 안에서 `on("request", …)`(chain)으로 검토 관점을 주입하고, `on("tool.before", …)`(first)로 검토 중 쓰기를 막는다.
 3. 사용자가 설정 화면이나 명령에서 그룹을 켠다. 등록은 다음 단계 경계에서 활성화된다.
 4. Helm이 켜져 있으면 두 그룹의 chain 핸들러가 정해진 순서로 합성되고, first 핸들러는 먼저 거부한 쪽이 결과를 정한다. 합성 순서는 X 운영 규칙(실행 순서와 tier)을 따른다(`X.operations.spec`).

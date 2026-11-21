@@ -172,7 +172,7 @@ test("a package that throws while loading, then is fixed in place, loads on the 
   // 같은 경로를 고쳐 쓰면 Bun의 모듈 캐시가 아니라 새로 평가한 코드가 실린다
   await putFile(
     join(root, "src", "index.ts"),
-    `import * as kit from "${["@fresnel", "group-sdk"].join("/")}";
+    `import * as kit from "${["@fresnel", "orchestration-sdk"].join("/")}";
 export const extension = ({ register }) => {
   register("flaky", {}, (g) => {
     g.on("boundary.settle.after", () => { kit.record("flaky:fixed"); });
@@ -188,7 +188,7 @@ export const extension = ({ register }) => {
   expect(await harness.loader.unload("flaky")).toBe(true);
   await putFile(
     join(root, "src", "index.ts"),
-    `import * as kit from "${["@fresnel", "group-sdk"].join("/")}";
+    `import * as kit from "${["@fresnel", "orchestration-sdk"].join("/")}";
 export const extension = ({ register }) => {
   register("flaky", {}, (g) => {
     g.on("boundary.settle.after", () => { kit.record("flaky:third"); });

@@ -19,5 +19,5 @@ binds: [xeon/packages/core-authoring/**]
 ## 2. 순서
 
 1. F: 그룹 이름 규칙과 카탈로그 버전을 contracts로 올린다(완료).
-2. L1: 위 파일을 `plugin-builder`에서 옮기고 호스트의 제작 포트가 `@fresnel/core-authoring`을 쓰게 한다. 기존 시험은 그대로 `plugin-builder/test`에 두고 코어 함수를 `@fresnel/core-authoring`에서 가져온다(group-sdk 시험 하니스가 필요해서다).
+2. L1: 위 파일을 `plugin-builder`에서 옮기고 호스트의 제작 포트가 `@fresnel/core-authoring`을 쓰게 한다. 기존 시험은 그대로 `plugin-builder/test`에 두고 코어 함수를 `@fresnel/core-authoring`에서 가져온다(orchestration-sdk 시험 하니스가 필요해서다).
 3. L4: 테스트 챗에서 빌더가 프로필·드래프트와 무관하게 뜨게 한다(`L3.authoring.spec` §4의 켜고 끄기 항목).

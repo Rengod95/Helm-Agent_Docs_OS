@@ -5,12 +5,12 @@ import type {
   RegistrationStatus,
 } from "../extensions/index.ts";
 
-// L3.group-sdk.spec §3.8. 구현은 group-sdk이다. 엔진은 주도권 스택(drive-isolation.md 2.1)을 `ExtHost.driveFrames`로 읽고,
+// L3.group-sdk.spec §3.8. 구현은 orchestration-sdk이다. 엔진은 주도권 스택(drive-isolation.md 2.1)을 `ExtHost.driveFrames`로 읽고,
 // 그룹 서비스는 그 스택에서 drive 역할을 계산한다. 후보 중재와 구동 그룹 설정(`x.primitives.activeDriver`)은 없다(2.2).
 
 export const OrchestrationServiceName = "fresnel.orchestration" as const;
 
-/** OrchestrationStatus.metrics. group-sdk OrchestrationMetrics(L3.group-sdk.spec §3.12)의 부분 필드와 같은 모양이다 */
+/** OrchestrationStatus.metrics. orchestration-sdk OrchestrationMetrics(L3.group-sdk.spec §3.12)의 부분 필드와 같은 모양이다 */
 export interface OrchestrationMetricsSummary {
   readonly denies: number;
   readonly posts: number;

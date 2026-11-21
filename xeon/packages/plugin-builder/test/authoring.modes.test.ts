@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import type { PluginMode } from "@fresnel/contracts/services";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
 

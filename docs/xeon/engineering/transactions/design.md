@@ -693,7 +693,7 @@ session.commit(resultRequest(call.toolCallId, out));
 좋은 예:
 
 ```ts
-// group-helm: on 지점 결과로 확장 이벤트 초안을 돌려준다 (C5·C6 경계 커밋에 함께 들어간다)
+// plugin-helm: on 지점 결과로 확장 이벤트 초안을 돌려준다 (C5·C6 경계 커밋에 함께 들어간다)
 g.on("boundary.step.after", (t, st) => ({
   drafts: [helm.draft({ kind: "grp.helm.phase.changed", causationId: t.eventId,
     payload: { from: st.phase, to: next(st) } /* … */ })],

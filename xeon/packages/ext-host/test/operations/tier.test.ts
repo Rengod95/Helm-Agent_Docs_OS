@@ -161,7 +161,7 @@ test("tier: assignTier table", () => {
     { ok: true, value: "builtin" },
   );
   expect(
-    assignTier({ name: "group-helm", source: "builtin", trust: "builtin", layer: "L3" }),
+    assignTier({ name: "plugin-helm", source: "builtin", trust: "builtin", layer: "L3" }),
   ).toEqual({ ok: true, value: "builtin" });
   expect(
     assignTier({ name: "some-plugin", source: "builtin", trust: "builtin", layer: "plugin" }),

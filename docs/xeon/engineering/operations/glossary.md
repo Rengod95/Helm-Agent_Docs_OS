@@ -133,7 +133,7 @@ binds: []
 | System | 시스템 | System | `L0` | proposed |
 | Native UI | 기본 UI | Native UI | `declarative`, `native`, `ViewNode` | proposed |
 | Orchestration plugin | 오케스트레이션 플러그인 | Orchestration plugin | — | proposed |
-| Orchestration SDK | 오케스트레이션 SDK | Orchestration SDK | `group-sdk`, `defineOrchestration` | proposed |
+| Orchestration SDK | 오케스트레이션 SDK | Orchestration SDK | `orchestration-sdk`, `defineOrchestration` | proposed |
 | Placement | 전체 화면·옆 패널·대화 카드·상태 표시줄·명령·설정 | Page·Side panel·Card·Status bar·Command·Settings | `page`, `well`, `card`, `status`, `command`, `settings` | proposed |
 | Plugin | 플러그인 | Plugin | — | proposed |
 | Plugin App | 플러그인 앱 | Plugin app | `frame`, `app`, `FrameDecl`, `AppDecl` | proposed |
@@ -178,7 +178,7 @@ binds: []
 | `drive 임대` (`DriveLease`, lease) | `drive lock`(`DriveLock`), 가진 쪽은 `Driver` | 저장 문자열 `lease.*` 이벤트와 `leaseId`·`leaseEpoch`는 그대로입니다 |
 | 구동 그룹 설정 `x.primitives.activeDriveGroup` | `x.primitives.activeDriver`(화면: 주도 플러그인) | 옛 키는 읽지 않습니다. 새 키 `x.primitives.driveRequiresOrchestration`(기본 켜짐)이 더해집니다 |
 | 매니페스트 `kind`, `usesDrive`, `points` | `plugins[]`(`layer`, `hooks`, `drives`)와 `orchestration` 선언 유무 | 스키마 2입니다. 옛 형식은 읽지 않습니다 |
-| group-kit | group-sdk | 패키지 이름 |
+| group-kit | orchestration-sdk | 패키지 이름 |
 | 예약 종류 `loop` | `repeat` | 예약 상태 파일은 version 2입니다 |
 | bench (측정) | benchmark | `just benchmark`, `just benchmark-gate` |
 | 작업대 표시 이름 | LightCraft (화면 ko 크래프트) | 코드 id `workbench`는 그대로입니다 |

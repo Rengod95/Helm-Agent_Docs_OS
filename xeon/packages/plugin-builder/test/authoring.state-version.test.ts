@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Bug, parse } from "@fresnel/contracts";
 import { toJsonValue } from "@fresnel/contracts/conversation";
-import { migrationChain } from "@fresnel/group-sdk";
+import { migrationChain } from "@fresnel/orchestration-sdk";
 import {
   AuthoringStateSchema,
   INITIAL_AUTHORING_STATE,

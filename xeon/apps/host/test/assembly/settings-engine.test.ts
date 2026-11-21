@@ -152,16 +152,16 @@ test("the old group setting keys are not read: they load as unknown keys, and th
     fileWith(
       "old-group-keys.json",
       JSON.stringify({
-        "l3.group-sdk.instrumentation": false,
-        "l3.group-sdk.statusLine": false,
+        "l3.orchestration-sdk.instrumentation": false,
+        "l3.orchestration-sdk.statusLine": false,
         "x.primitives.driveRequiresGroup": false,
         "l3.orchestration.instrumentation": false,
       }),
     ),
   );
   for (const old of [
-    "l3.group-sdk.instrumentation",
-    "l3.group-sdk.statusLine",
+    "l3.orchestration-sdk.instrumentation",
+    "l3.orchestration-sdk.statusLine",
     "x.primitives.driveRequiresGroup",
   ]) {
     expect(built.catalog.has(old)).toBe(false);
