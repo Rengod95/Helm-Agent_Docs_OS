@@ -4,11 +4,8 @@
   /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
      오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
   --rv-end: 20px;
-  --rv-inject: color-mix(
-    in oklch,
-    var(--cs-color-identity-iris) 84%,
-    var(--cs-color-text-secondary)
-  );
+  /* Inject는 앱의 cobalt 셋(`src/color-sets.css`, AGE-31)을 섞지 않고 그대로 쓴다. 테마는 셋이 바꾼다 */
+  --rv-inject: var(--fr-color-cobalt-graphic);
   --rv-hook: color-mix(
     in oklch,
     var(--cs-color-identity-amber) 80%,
