@@ -15,11 +15,11 @@ import { InfoTip } from "../../info-tip.tsx";
 import { Icon, KIND_COLOR, KindTile, PartGlyph } from "./glyphs.tsx";
 import {
   inProfile,
-  INSTALLED,
+  installedPlugins,
   isBaseOf,
+  requiredByOf,
   type CanvasProfile,
   type Kind,
-  type SceneId,
 } from "./model.ts";
 import { bundleMetaOf } from "../shared-meta.ts";
 import { KIND_WORD } from "./words.ts";
@@ -40,20 +40,29 @@ const ROW = cn(
 /** 줄 오른쪽의 네모난 체크 칸: 줄과 같은 높이·모서리·면 */
 const CHECK = "cv6-cell cv6-check rounded-lg";
 
-const CHOICES: readonly { readonly id: SceneId; readonly name: MessageId }[] = [
-  { id: "dev", name: "desktop.craft.canvas.cv3.profile.dev" },
-  { id: "empty", name: "desktop.craft.canvas.cv3.profile.empty" },
-  { id: "scale", name: "desktop.craft.canvas.sample.scale" },
-  { id: "attach", name: "desktop.craft.canvas.cv4.profile.attach" },
-];
+/** 표본 장면의 이름(개발 빌드의 표본 보기). 엔진 프로필은 저장된 이름을 쓴다 */
+const SAMPLE_NAMES: Readonly<Record<string, MessageId>> = {
+  dev: "desktop.craft.canvas.cv3.profile.dev",
+  empty: "desktop.craft.canvas.cv3.profile.empty",
+  scale: "desktop.craft.canvas.sample.scale",
+  attach: "desktop.craft.canvas.cv4.profile.attach",
+};
+
+function choiceName(choice: { readonly id: string; readonly title: string | null }): string {
+  if (choice.title !== null) return choice.title;
+  const key = SAMPLE_NAMES[choice.id];
+  return key === undefined ? choice.id : t(key);
+}
 
 export interface PaletteProps {
   readonly profile: CanvasProfile;
-  readonly current: SceneId;
+  readonly current: string;
+  /** 고를 수 있는 프로필(목록 순서). 엔진 프로필은 이름이 있고 표본은 null */
+  readonly choices: readonly { readonly id: string; readonly title: string | null }[];
   readonly bundles: readonly { readonly id: string; readonly members: readonly string[] }[];
   readonly focused: string | null;
   readonly open: boolean;
-  readonly onProfile: (id: SceneId) => void;
+  readonly onProfile: (id: string) => void;
   readonly onPick: (id: string) => void;
   readonly onAdd: (name: string) => void;
   readonly onRemove: (name: string) => void;
@@ -165,7 +174,8 @@ function Row(props: {
 
 export function Palette(props: PaletteProps): ReactElement {
   if (!props.open) return <PaletteRail {...props} />;
-  const count = INSTALLED.filter((p) => inProfile(props.profile, p.name)).length;
+  const installed = installedPlugins();
+  const count = installed.filter((p) => inProfile(props.profile, p.name)).length;
   return (
     <aside
       aria-label={t("desktop.craft.canvas.cv3.palette.label")}
@@ -191,14 +201,14 @@ export function Palette(props: PaletteProps): ReactElement {
           aria-label={t("desktop.craft.canvas.cv3.profile")}
           value={props.current}
           onValueChange={(v) => {
-            const hit = CHOICES.find((c) => c.id === v);
+            const hit = props.choices.find((c) => c.id === v);
             if (hit !== undefined) props.onProfile(hit.id);
           }}
           className="w-full"
         >
-          {CHOICES.map((c) => (
+          {props.choices.map((c) => (
             <SelectOption key={c.id} value={c.id}>
-              {t(c.name)}
+              {choiceName(c)}
             </SelectOption>
           ))}
         </Select>
@@ -210,7 +220,7 @@ export function Palette(props: PaletteProps): ReactElement {
         </span>
         <InfoTip text={t("desktop.craft.canvas.cv3.palette.hint")} />
         <span className="ms-auto text-hint text-text-tertiary tabular-nums">
-          {t("desktop.craft.canvas.cv3.palette.inCount", { n: count, of: INSTALLED.length })}
+          {t("desktop.craft.canvas.cv3.palette.inCount", { n: count, of: installed.length })}
         </span>
       </div>
       <ul className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 pt-1 pb-4">
@@ -265,7 +275,7 @@ export function Palette(props: PaletteProps): ReactElement {
           </li>
         ) : null}
         {ORDER.map((kind) => {
-          const rows = INSTALLED.filter((p) => p.kind === kind);
+          const rows = installed.filter((p) => p.kind === kind);
           return (
             <li key={kind}>
               <Heading word={t(KIND_WORD[kind])} count={rows.length} color={KIND_COLOR[kind]} />
@@ -273,13 +283,20 @@ export function Palette(props: PaletteProps): ReactElement {
                 {rows.map((p) => {
                   const inside = inProfile(props.profile, p.name);
                   const base = isBaseOf(props.profile, p.name);
+                  // 엔진이 필요로 하는 플러그인은 든 채로 잠긴다(빼기만 막는다. 들지 않았으면 넣을 수 있다)
+                  const required = inside && requiredByOf(p.name).length > 0;
+                  const locked = base || required;
                   const draft = p.meta.review.state === "draft";
                   const pending = !draft && p.meta.pending !== null;
                   const toggleLabel = base
                     ? t("desktop.craft.canvas.cv3.act.baseFixed")
-                    : inside
-                      ? t("desktop.craft.canvas.cv3.act.removeNamed", { name: p.name })
-                      : t("desktop.craft.canvas.cv3.act.addNamed", { name: p.name });
+                    : required
+                      ? t("desktop.craft.canvas.cv9.lock.why", {
+                          parts: requiredByOf(p.name).join(", "),
+                        })
+                      : inside
+                        ? t("desktop.craft.canvas.cv3.act.removeNamed", { name: p.name })
+                        : t("desktop.craft.canvas.cv3.act.addNamed", { name: p.name });
                   return (
                     <Row
                       key={p.name}
@@ -290,7 +307,7 @@ export function Palette(props: PaletteProps): ReactElement {
                           : "desktop.craft.canvas.cv3.palette.row",
                         { name: p.name, kind: t(KIND_WORD[p.kind]) },
                       )}
-                      leading={<KindTile kind={p.kind} size={18} draft={draft || pending} />}
+                      leading={<KindTile kind={p.kind} size={16} draft={draft || pending} />}
                       name={p.name}
                       on={inside}
                       meta={
@@ -316,13 +333,13 @@ export function Palette(props: PaletteProps): ReactElement {
                           aria-label={toggleLabel}
                           title={toggleLabel}
                           tabIndex={-1}
-                          disabled={base}
+                          disabled={locked}
                           onClick={() => {
                             if (inside) props.onRemove(p.name);
                             else props.onAdd(p.name);
                           }}
                         >
-                          {base ? (
+                          {locked ? (
                             <PartGlyph name="lock" size={13} />
                           ) : inside ? (
                             <CheckGlyph />
@@ -365,37 +382,39 @@ function PaletteRail(props: PaletteProps): ReactElement {
           key={kind}
           className="grid gap-px border-t border-border-subtle pt-1.5 pb-1 first-of-type:border-t-0"
         >
-          {INSTALLED.filter((p) => p.kind === kind).map((p) => {
-            const inside = inProfile(props.profile, p.name);
-            return (
-              <li key={p.name}>
-                <button
-                  type="button"
-                  data-slot="cv6-button"
-                  data-row=""
-                  data-palette={p.name}
-                  title={p.name}
-                  aria-current={props.focused === p.name ? "page" : undefined}
-                  aria-label={t(
-                    inside
-                      ? "desktop.craft.canvas.cv3.palette.rowIn"
-                      : "desktop.craft.canvas.cv3.palette.row",
-                    { name: p.name, kind: t(KIND_WORD[p.kind]) },
-                  )}
-                  onPointerDown={(e) => props.onPointerDown(p.name, e)}
-                  onClick={() => props.onPick(p.name)}
-                  onKeyDown={(e) => rowKey(e, p.name, props)}
-                  className={cn(
-                    listNavigationLink({ kind: "sessions", size: "sm" }),
-                    "size-control-md justify-center px-0",
-                  )}
-                  style={{ opacity: inside ? 1 : 0.5 }}
-                >
-                  <KindTile kind={p.kind} size={20} draft={p.meta.review.state === "draft"} />
-                </button>
-              </li>
-            );
-          })}
+          {installedPlugins()
+            .filter((p) => p.kind === kind)
+            .map((p) => {
+              const inside = inProfile(props.profile, p.name);
+              return (
+                <li key={p.name}>
+                  <button
+                    type="button"
+                    data-slot="cv6-button"
+                    data-row=""
+                    data-palette={p.name}
+                    title={p.name}
+                    aria-current={props.focused === p.name ? "page" : undefined}
+                    aria-label={t(
+                      inside
+                        ? "desktop.craft.canvas.cv3.palette.rowIn"
+                        : "desktop.craft.canvas.cv3.palette.row",
+                      { name: p.name, kind: t(KIND_WORD[p.kind]) },
+                    )}
+                    onPointerDown={(e) => props.onPointerDown(p.name, e)}
+                    onClick={() => props.onPick(p.name)}
+                    onKeyDown={(e) => rowKey(e, p.name, props)}
+                    className={cn(
+                      listNavigationLink({ kind: "sessions", size: "sm" }),
+                      "size-control-md justify-center px-0",
+                    )}
+                    style={{ opacity: inside ? 1 : 0.5 }}
+                  >
+                    <KindTile kind={p.kind} size={20} draft={p.meta.review.state === "draft"} />
+                  </button>
+                </li>
+              );
+            })}
         </ul>
       ))}
     </aside>

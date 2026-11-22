@@ -5,9 +5,9 @@
 // 필드 이름은 계약을 따른다: 매니페스트(`ExtensionManifest`의 version·author·license·purpose, `PluginDecl`의 requires·optional·provides·
 // readsRecordKinds·replaces, `group.members`), 카드(`PluginCard`의 origin·review·enforcement·runs·cost·health·usedBy), 드래프트(`DraftInfo`).
 // 묶음은 매니페스트 `plugins[]` + `group`을 가진 패키지 하나이고 프로필은 그 이름 하나를 참조한다(`PluginRef.name`).
-import type { MessageId } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import type { CardMcpLaunch, HookName } from "@fresnel/contracts/extensions";
-import { ALL_SHARED_PLUGINS, SHARED_PROFILES, type SharedProfileId } from "./shared-sample.ts";
+import { SHARED_PROFILES, type SharedProfileId } from "./shared-sample.ts";
 
 /** `PLUGIN_ORIGIN_KINDS` */
 export type OriginKind = "builtin" | "bundled" | "user" | "project" | "managed";
@@ -16,7 +16,7 @@ export type ReviewState = "approved" | "pending" | "draft" | "none";
 /** `PLUGIN_HEALTH_STATES` */
 export type HealthState = "ok" | "idle" | "error" | "stopped" | "integrity";
 
-export interface CapabilityNeed {
+interface CapabilityNeed {
   readonly id: string;
   readonly range: string;
 }
@@ -46,8 +46,11 @@ export interface PluginMeta {
   readonly displayName: string;
   /** 매니페스트 `purpose`(한 문장) */
   readonly purpose: MessageId;
+  /** 엔진 카드의 목적 글(카드 `purpose`). 있으면 `purpose` 대신 그린다. null이면 카드에 목적이 없다 */
+  readonly purposeText?: string | null;
   readonly version: string;
-  readonly author: string;
+  /** 작성자. 카드에는 없어 엔진 값에서는 null이다 */
+  readonly author: string | null;
   readonly license: string | null;
   readonly origin: OriginKind;
   /** 이 플러그인을 담은 패키지(확장) 이름. 등록 id는 패키지와 같거나 `<패키지>/<id>`다 */
@@ -84,6 +87,16 @@ export interface PluginMeta {
   readonly hooks: readonly HookName[];
   /** 도구만: 승인하면 실행될 명령(`CardMcpLaunch`) */
   readonly launch: CardMcpLaunch | null;
+  /** 카드 `usedBy`(이 플러그인을 쓰는 프로필 id, 공통 묶음은 `"common"`). 표본은 `usedByOf`로 센다 */
+  readonly usedBy?: readonly string[];
+  /** 카드 `requiredByCore`: 엔진이 이 플러그인에 기대는 코어 부분. 비어 있지 않으면 프로필에서 뺄 수 없다 */
+  readonly requiredBy?: readonly string[];
+}
+
+/** 화면에 그릴 목적 한 문장: 엔진 카드의 글이 있으면 그것, 카드에 목적이 없으면 "목적이 적혀 있지 않아요", 표본은 카탈로그 글 */
+export function purposeOf(meta: Pick<PluginMeta, "purpose" | "purposeText">): string {
+  if (meta.purposeText === undefined) return t(meta.purpose);
+  return meta.purposeText ?? t("desktop.craft.canvas.cv9.purposeNone");
 }
 
 const APPROVED = (hash: string, at: string): PluginMeta["review"] => ({
@@ -465,38 +478,4 @@ export function usedByOf(name: string): readonly string[] {
     if (p.plugins.includes(name)) out.push(id);
   }
   return out;
-}
-
-/** 코어 기능 묶음(`packages/cap-*`)이 주는 기능의 이름 앞부분. 이 기능은 프로필에 내는 플러그인이 없어도 채워진다 */
-const ENGINE_CAPS = [
-  "agents.",
-  "artifacts.",
-  "dialog.",
-  "knowledge.",
-  "mcp.",
-  "models.",
-  "schedule.",
-  "web.",
-  "work.",
-  "workspace.",
-] as const;
-
-function engine(id: string): boolean {
-  return ENGINE_CAPS.some((prefix) => id.startsWith(prefix));
-}
-
-/** 표본 플러그인이 내는 기능 전부 */
-const PROVIDED: ReadonlySet<string> = new Set(
-  ALL_SHARED_PLUGINS.flatMap((p) => metaOf(p.name, p.kind).provides.map((c) => c.id)),
-);
-
-/**
- * 플러그인끼리의 의존으로 그릴 것: 표본 안의 다른 플러그인이 내는 기능(필수·선택 둘 다)과, 엔진도 주지 않아 채워지지 않을 수 있는 필수 기능.
- * 엔진이 주는 기능만 바라는 의존은 플러그인끼리의 관계가 아니므로 뺀다(엔진 쪽 공급자를 따로 그리는 시안 G는 `metaOf`를 그대로 읽는다)
- */
-export function pluginNeeds(meta: PluginMeta): readonly CapabilityNeed[] {
-  return [
-    ...meta.requires.filter((r) => PROVIDED.has(r.id) || !engine(r.id)),
-    ...meta.optional.filter((r) => PROVIDED.has(r.id)),
-  ];
 }

@@ -3,7 +3,8 @@
 // 본문 순서(사용자 2026-11-20): 1) 설명 2) 작동 방식(cv3의 작동 + 설명과 동작의 네 줄) 3) 비용 4) 구성 요소 5) 권한과 위임 6) 출처와 리뷰.
 // 섹션 제목에 아이콘이 없다. 아래 줄: 내부 보기·테스트 런·빼기.
 // 값은 계약에 있는 필드만 쓴다(표본 `shared-sample.ts`·`shared-meta.ts` + `sample-ext.ts`의 `description`, 계약의 `HOOKS`·`HOOK_POSITIONS`).
-import { t } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import type { ProfileIssue } from "@fresnel/contracts/wire";
 import { badgeVariants, Button, IconButton } from "@caustic/react";
 import {
   useRef,
@@ -14,6 +15,8 @@ import {
   type ReactNode,
 } from "react";
 import { InfoTip } from "../../info-tip.tsx";
+import { ProgressOrb } from "../../../effects/progress-orb.tsx";
+import type { PointHook } from "./live.ts";
 import { agoText } from "../shared-sample.ts";
 import { Icon, KIND_COLOR, KindGlyph, KindTile, PartGlyph } from "./glyphs.tsx";
 import { FOLD_WORD, foldsOf, pluginFacts, type Fact } from "./facts.ts";
@@ -21,17 +24,20 @@ import { descriptionOf } from "./sample-ext.ts";
 import {
   BUILDER,
   canNudge,
+  orderFixed,
+  swapPlugins,
   inProfile,
   placedOf,
   pluginOf,
   providerOf,
   relationsOf,
+  type Anchor,
   type CanvasProfile,
   type Placed,
   type Plugin,
   type RelationKind,
 } from "./model.ts";
-import { bundleMetaOf, usedByOf } from "../shared-meta.ts";
+import { bundleMetaOf, purposeOf, usedByOf } from "../shared-meta.ts";
 import {
   anchorWord,
   BLOCK_WORD,
@@ -58,10 +64,14 @@ export interface PanelActions {
   remove(name: string): void;
   add(name: string): void;
   nudge(name: string, delta: -1 | 1): void;
+  /** 블록 상세: 한 Hook의 차례에서 이웃(`other`)과 프로필 자리를 맞바꾼다 */
+  swap(name: string, other: string): void;
   setStart(name: string): void;
   toggleBundle(id: string): void;
   removeBundle(id: string): void;
   testRun(name: string): void;
+  /** Hook 자리 하나의 블록 상세(그 자리에 붙은 플러그인과 순서, 충돌)를 연다 */
+  point(anchor: Anchor): void;
 }
 
 /**
@@ -730,6 +740,7 @@ export function PluginDetail(props: {
       ? t("desktop.craft.canvas.cv3.review.pendingVersion", { v: meta.pending.version })
       : t(REVIEW_WORD[meta.review.state]);
   const healthBad = meta.health === "error" || meta.health === "integrity";
+  const requiredBy = meta.requiredBy ?? [];
 
   const head = (
     <Head
@@ -762,6 +773,7 @@ export function PluginDetail(props: {
           {meta.enforcement === "enforced" ? (
             <Chip>{t("desktop.craft.canvas.cv3.works.enforced")}</Chip>
           ) : null}
+          {requiredBy.length > 0 ? <Chip>{t("desktop.craft.canvas.cv9.lock.chip")}</Chip> : null}
         </>
       }
       line={
@@ -804,6 +816,14 @@ export function PluginDetail(props: {
           <PartGlyph name="lock" size={12} />
           {t("desktop.craft.canvas.cv3.act.baseFixed")}
         </span>
+      ) : requiredBy.length > 0 ? (
+        <span className="flex items-center gap-1.5 text-ui-sm text-text-tertiary">
+          <PartGlyph name="lock" size={12} />
+          {t("desktop.craft.canvas.cv9.lock.short")}
+          <InfoTip
+            text={t("desktop.craft.canvas.cv9.lock.why", { parts: requiredBy.join(", ") })}
+          />
+        </span>
       ) : (
         <Button size="sm" variant="ghost" onClick={() => props.actions.remove(p.name)}>
           <Icon name="remove" size={14} />
@@ -827,7 +847,7 @@ export function PluginDetail(props: {
       {/* 1) 설명: 한 문장 목적(15.5/600)과 설명 글, 사이를 넓게 */}
       <Section title={t("desktop.craft.canvas.cv4.sec.about")}>
         <p className="m-0 text-[15.5px] leading-[22px] font-semibold text-text-primary">
-          {t(meta.purpose)}
+          {purposeOf(meta)}
         </p>
         {description === null ? null : (
           <p className="m-0 mt-2.5 text-ui-relaxed text-text-secondary">{t(description)}</p>
@@ -899,6 +919,13 @@ export function PluginDetail(props: {
             ))}
           </div>
         ) : null}
+        {p.kind === "hook" && inside ? (
+          <div className="mt-2">
+            <Button size="sm" variant="ghost" onClick={() => props.actions.point(p.anchor)}>
+              {t("desktop.craft.canvas.cv9.point.open", { at: t(anchorWord(p.anchor)) })}
+            </Button>
+          </div>
+        ) : null}
         <div className="mt-3">
           <RelationRows
             p={p}
@@ -950,8 +977,20 @@ export function PluginDetail(props: {
         </Section>
       )}
 
-      {/* 4) 구성 요소 */}
+      {/* 4) 구성 요소. 카드가 알려 주는 것이 하나도 없으면 그렇다고 한 줄로 말한다(빈 제목만 두지 않는다) */}
       <Section title={t("desktop.craft.canvas.cv3.sec.parts")}>
+        {s.instructions.length === 0 &&
+        s.skills.length === 0 &&
+        s.memory.length === 0 &&
+        s.mcp === undefined &&
+        meta.hooks.length === 0 &&
+        (s.steps ?? []).length === 0 &&
+        s.settings.length === 0 &&
+        meta.recordKinds.length === 0 ? (
+          <p className="m-0 text-ui text-text-secondary">
+            {t("desktop.craft.canvas.cv9.partsNone")}
+          </p>
+        ) : null}
         <dl className="m-0">
           {s.instructions.length > 0 ? (
             <Row k={t("desktop.craft.canvas.cv3.part.instructions")}>
@@ -1164,24 +1203,27 @@ export function PluginDetail(props: {
               <span className="cv6-mono">{meta.createdIn}</span>
             </Row>
           ) : null}
-          <Row k={t("desktop.craft.canvas.cv3.meta.author")}>
-            {meta.author}
-            {meta.license === null ? null : (
-              <span className="ms-2 text-text-tertiary">{meta.license}</span>
-            )}
-          </Row>
+          {meta.author === null ? null : (
+            <Row k={t("desktop.craft.canvas.cv3.meta.author")}>
+              {meta.author}
+              {meta.license === null ? null : (
+                <span className="ms-2 text-text-tertiary">{meta.license}</span>
+              )}
+            </Row>
+          )}
           <Row k={t("desktop.craft.canvas.cv3.meta.usedBy")}>
-            {usedByOf(p.name)
-              .map((u) =>
-                t(
-                  u === "base"
-                    ? "desktop.craft.canvas.cv3.base"
-                    : u === "dev"
-                      ? "desktop.craft.canvas.cv3.profile.dev"
-                      : "desktop.craft.canvas.sample.scale",
-                ),
-              )
-              .join(", ") || t("desktop.craft.canvas.cv3.meta.usedByNone")}
+            {(meta.usedBy !== undefined
+              ? meta.usedBy.map((u) => (u === "common" ? t("desktop.craft.canvas.cv3.base") : u))
+              : usedByOf(p.name).map((u) =>
+                  t(
+                    u === "base"
+                      ? "desktop.craft.canvas.cv3.base"
+                      : u === "dev"
+                        ? "desktop.craft.canvas.cv3.profile.dev"
+                        : "desktop.craft.canvas.sample.scale",
+                  ),
+                )
+            ).join(", ") || t("desktop.craft.canvas.cv3.meta.usedByNone")}
           </Row>
         </dl>
       </Section>
@@ -1298,7 +1340,7 @@ export function BundleDetail(props: {
                     {m.plugin.name}
                   </span>
                   <span className="block truncate text-ui-sm text-text-tertiary">
-                    {t(m.plugin.meta.purpose)}
+                    {purposeOf(m.plugin.meta)}
                   </span>
                 </span>
               </button>
@@ -1372,6 +1414,234 @@ export function BuilderDetail(props: {
             </li>
           ))}
         </ul>
+      </Section>
+    </FloatingPanel>
+  );
+}
+
+// ── 블록 상세: Hook 자리 하나 ───────────────────────────────────────
+
+/** 블록 상세가 그릴 순서의 출처: 엔진이 적용한 순서(`blocks.applied`), 읽는 중, 표본(캔버스 순서) */
+export type PointOrder =
+  | { readonly type: "engine"; readonly hooks: readonly PointHook[] }
+  /** 엔진의 적용 블록에 이 자리의 Hook이 없다(대화 경계 같은 블록 밖 자리). 프로필 순서를 보인다 */
+  | { readonly type: "unreported" }
+  | { readonly type: "loading" }
+  | { readonly type: "sample" };
+
+const ISSUE_WORD: Partial<Record<ProfileIssue["code"], MessageId>> = {
+  replace_conflict: "desktop.craft.canvas.cv9.issue.replace",
+  dependency_missing: "desktop.craft.canvas.cv9.issue.dependency",
+  dependency_disabled: "desktop.craft.canvas.cv9.issue.dependency",
+  dependency_range: "desktop.craft.canvas.cv9.issue.dependency",
+  plugin_not_reviewed: "desktop.craft.canvas.cv9.issue.notReviewed",
+};
+
+function issueText(issue: ProfileIssue): string {
+  const word = ISSUE_WORD[issue.code] ?? "desktop.craft.canvas.cv9.issue.other";
+  return t(word, {
+    plugin: issue.plugin ?? "",
+    other: issue.other ?? "",
+    tool: issue.tool ?? "",
+  });
+}
+
+/** 순서 한 줄: 번호, 종류 타일, 이름, 넣은 곳, 같은 자리 안에서 앞·뒤로 */
+function OrderRow(props: {
+  readonly n: number;
+  readonly name: string;
+  readonly profile: CanvasProfile;
+  /** 같은 Hook 차례의 바로 앞, 바로 뒤 이름 */
+  readonly prev: string | null;
+  readonly next: string | null;
+  readonly busy: boolean;
+  readonly actions: PanelActions;
+}): ReactElement {
+  const p = pluginOf(props.name);
+  const base = props.profile.base.includes(props.name);
+  const fixed = orderFixed(props.name);
+  const movable = p !== undefined && !base && !fixed && inProfile(props.profile, props.name);
+  const can = (other: string | null): other is string =>
+    other !== null && swapPlugins(props.profile, props.name, other) !== props.profile;
+  return (
+    <li className="flex min-h-9 items-center gap-2.5" data-point-row={props.name}>
+      <span className="w-5 shrink-0 text-end text-ui-sm text-text-tertiary tabular-nums">
+        {String(props.n)}
+      </span>
+      <KindTile kind={p?.kind ?? "hook"} size={18} />
+      <button
+        type="button"
+        data-slot="cv6-button"
+        className="min-w-0 truncate text-start text-ui text-text-primary"
+        disabled={p === undefined}
+        onClick={() => props.actions.focus(props.name)}
+      >
+        {props.name}
+      </button>
+      {base ? <Chip>{t("desktop.craft.canvas.cv3.base")}</Chip> : null}
+      {p === undefined ? <Chip>{t("desktop.craft.canvas.cv9.point.engine")}</Chip> : null}
+      {fixed ? <Chip>{t("desktop.craft.canvas.cv9.lock.chip")}</Chip> : null}
+      {movable ? (
+        <span className="ms-auto flex items-center">
+          <IconButton
+            size="xs"
+            variant="ghost"
+            disabled={props.busy || !can(props.prev)}
+            label={t("desktop.craft.canvas.cv9.point.earlier", { name: props.name })}
+            onClick={() => {
+              if (can(props.prev)) props.actions.swap(props.name, props.prev);
+            }}
+          >
+            <Icon name="up" size={14} />
+          </IconButton>
+          <IconButton
+            size="xs"
+            variant="ghost"
+            disabled={props.busy || !can(props.next)}
+            label={t("desktop.craft.canvas.cv9.point.later", { name: props.name })}
+            onClick={() => {
+              if (can(props.next)) props.actions.swap(props.name, props.next);
+            }}
+          >
+            <Icon name="down" size={14} />
+          </IconButton>
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
+/**
+ * 블록 상세(C4, craft-flows §6.11): Hook 자리 하나에 붙은 플러그인과 그 순서, 걸린 충돌. 묻는 것은 하나다: "이 자리에서 무엇이 어떤 차례로 도나".
+ * 순서는 엔진이 적용한 디스패치 순서(`blocks.applied`)를 그대로 보이고, 앞·뒤 단추는 프로필 순서를 바꿔 저장한다(저장 뒤 다시 읽는다).
+ * 공통 묶음과 엔진 부품은 프로필에서 옮길 수 없어 단추가 없다
+ */
+export function PointDetail(props: {
+  readonly anchor: Anchor;
+  readonly profile: CanvasProfile;
+  readonly order: PointOrder;
+  readonly issues: readonly ProfileIssue[];
+  readonly saving: boolean;
+  readonly actions: PanelActions;
+}): ReactNode {
+  const placed = placedOf(props.profile).filter((x) => x.plugin.anchor === props.anchor);
+  const groups: readonly PointHook[] =
+    props.order.type === "engine"
+      ? props.order.hooks
+      : [
+          {
+            hook: "",
+            // 엔진이 늘 먼저 싣는 것(`orderFixed`)이 앞에 선다. 나머지는 프로필 순서다
+            plugins: [
+              ...placed.filter((x) => orderFixed(x.plugin.name)),
+              ...placed.filter((x) => !orderFixed(x.plugin.name)),
+            ].map((x) => x.plugin.name),
+          },
+        ];
+  const count = new Set(groups.flatMap((g) => g.plugins)).size;
+  const head = (
+    <Head
+      tile={<KindTile kind="hook" size={32} />}
+      title={t(anchorWord(props.anchor))}
+      sub={
+        <>
+          <span className="font-medium" style={{ color: KIND_COLOR.hook }}>
+            {t("desktop.craft.canvas.cv9.point.kind")}
+          </span>
+          <span className="tabular-nums">
+            {t("desktop.craft.canvas.cv9.point.count", { n: count })}
+          </span>
+        </>
+      }
+    />
+  );
+  return (
+    <FloatingPanel
+      label={t("desktop.craft.canvas.cv9.point.label", { at: t(anchorWord(props.anchor)) })}
+      page={props.anchor}
+      head={head}
+      foot={null}
+      onClose={() => props.actions.close()}
+    >
+      <Section
+        title={t("desktop.craft.canvas.cv9.point.order")}
+        aside={
+          props.saving || props.order.type === "loading" ? (
+            <>
+              <ProgressOrb />
+              <span>
+                {t(
+                  props.saving
+                    ? "desktop.craft.canvas.cv9.point.saving"
+                    : "desktop.craft.canvas.cv9.point.reading",
+                )}
+              </span>
+            </>
+          ) : undefined
+        }
+      >
+        <p className="m-0 mb-3 text-ui-sm text-text-tertiary">
+          {t(
+            props.order.type === "engine"
+              ? "desktop.craft.canvas.cv9.point.fromEngine"
+              : props.order.type === "unreported"
+                ? "desktop.craft.canvas.cv9.point.unreported"
+                : "desktop.craft.canvas.cv9.point.fromProfile",
+          )}
+        </p>
+        {count === 0 ? (
+          <p className="m-0 text-ui text-text-secondary">
+            {t("desktop.craft.canvas.cv9.point.none")}
+          </p>
+        ) : (
+          <div className="grid gap-3">
+            {groups.map((g) => (
+              <div key={g.hook} className="grid gap-1">
+                {g.hook === "" || groups.length < 2 ? null : (
+                  <span className="cv6-mono text-ui-sm text-text-tertiary">{g.hook}</span>
+                )}
+                <ol className="m-0 grid list-none gap-0.5 p-0">
+                  {g.plugins.map((name, i) => (
+                    <OrderRow
+                      key={name}
+                      n={i + 1}
+                      name={name}
+                      prev={g.plugins[i - 1] ?? null}
+                      next={g.plugins[i + 1] ?? null}
+                      profile={props.profile}
+                      busy={props.saving}
+                      actions={props.actions}
+                    />
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+      <Section title={t("desktop.craft.canvas.cv9.point.conflicts")}>
+        {props.issues.length === 0 ? (
+          <p className="m-0 flex items-center gap-2 text-ui text-text-secondary">
+            <span aria-hidden="true" className="cv6-orb" data-tone="ok" />
+            {t("desktop.craft.canvas.cv9.point.noConflict")}
+          </p>
+        ) : (
+          <ul className="m-0 grid list-none gap-2 p-0">
+            {props.issues.map((issue) => (
+              <li
+                key={`${issue.code}:${issue.plugin ?? ""}:${issue.other ?? ""}:${issue.tool ?? ""}`}
+                className="flex items-center gap-2 text-ui text-text-primary"
+              >
+                <span
+                  aria-hidden="true"
+                  className="cv6-orb"
+                  data-tone={issue.severity === "error" ? "danger" : "warn"}
+                />
+                <span className="min-w-0">{issueText(issue)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
     </FloatingPanel>
   );

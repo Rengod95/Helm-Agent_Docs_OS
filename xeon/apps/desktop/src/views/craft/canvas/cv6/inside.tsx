@@ -10,6 +10,7 @@ import { useMotionReduced } from "../../../../lib/motion-presets.tsx";
 import { useCraftTheme } from "../../orbit.tsx";
 import { Icon, KIND_COLOR, KindTile, PartGlyph, type PartIcon } from "./glyphs.tsx";
 import { pluginOf, type Kind, type Plugin } from "./model.ts";
+import { purposeOf } from "../shared-meta.ts";
 import { currentProfile, useCanvasStore } from "./store.ts";
 import {
   anchorWord,
@@ -782,7 +783,7 @@ export function PluginInside(props: {
         </Button>
       </div>
       <p className="cv6-chrome absolute bottom-3 left-3 z-10 max-w-[560px] px-3.5 py-2 text-[12.5px] leading-[18px] text-text-secondary">
-        {t(p.meta.purpose)}
+        {purposeOf(p.meta)}
       </p>
       <div aria-live="polite" className="sr-only">
         {say}

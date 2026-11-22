@@ -51,6 +51,25 @@ export function anchorWord(a: Anchor): MessageId {
   return ANCHOR_WORD[a];
 }
 
+/** Hook이 붙는 자리(블록 앞·뒤와 경계). 재료 자리와 Drive 자리는 뺀다 */
+export const HOOK_ANCHORS: readonly Anchor[] = [
+  "boundary:conversation-start",
+  "boundary:input-received",
+  "before:context",
+  "after:context",
+  "before:model",
+  "after:model",
+  "before:tools",
+  "after:tools",
+  "before:ask",
+  "after:ask",
+  "before:agents",
+  "after:agents",
+  "before:record",
+  "after:record",
+  "boundary:before-turn-end",
+];
+
 export const DECISION_WORD: Readonly<Record<"block" | "replace" | "ask", MessageId>> = {
   block: "desktop.craft.canvas.cv3.decision.block",
   replace: "desktop.craft.canvas.cv3.decision.replace",

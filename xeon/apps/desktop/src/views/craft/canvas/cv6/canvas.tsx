@@ -3,7 +3,7 @@
 // 사이드 패널에서 줄을 누르면 캔버스가 그 노드로 부드럽게 옮겨 가고(멀면 확대), 노드가 한 번 밝아지며 상세가 열린다.
 // 키보드(캔버스): 화살표 = 그 방향의 다음 노드, Enter = 상세, Shift+Enter = 안으로, Alt+↑↓ = 같은 자리 안 순서, Delete = 빼기, Esc = 닫기.
 // 끌기: 목록 줄을 캔버스에 놓으면 넣고(붙는 자리가 미리 밝아진다), 판을 목록으로 끌어 놓으면 뺀다.
-import { t } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { FloatingBar, FloatingBarItem, FloatingBarSeparator, ZoomControl } from "@caustic/react";
 import { Maximize } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { useMotionReduced } from "../../../../lib/motion-presets.tsx";
+import { ProgressOrb } from "../../../effects/progress-orb.tsx";
 import { InfoTip } from "../../info-tip.tsx";
 import { useCraftTheme } from "../../orbit.tsx";
 import { Icon, KIND_COLOR, KindTile } from "./glyphs.tsx";
@@ -28,14 +29,20 @@ import { dotGrid, dotShift, GLOW_REACH, openViewOf } from "./floor.ts";
 import {
   addPlugin,
   laneOf,
+  inProfile,
+  moveOnto,
+  orderFixed,
   nudge,
+  swapPlugins,
   placedOf,
   pluginOf,
   relationsOf,
   removeBundle,
   removePlugin,
+  requiredByOf,
   setStartDrive,
   type Anchor,
+  type CanvasProfile,
   type RelationKind,
 } from "./model.ts";
 import {
@@ -51,12 +58,43 @@ import {
   BundleDetail,
   PANEL_W,
   PluginDetail,
+  PointDetail,
   RelationSwatch,
   type PanelActions,
+  type PointOrder,
 } from "./panel.tsx";
 import { bundleMetaOf } from "../shared-meta.ts";
-import { currentProfile, setCollapsed, setProfile, updateStore, useCanvasStore } from "./store.ts";
-import { KIND_WORD, RELATION_HINT, RELATION_WORD } from "./words.ts";
+import {
+  chooseProfile,
+  currentProfile,
+  saveProfile,
+  setCollapsed,
+  titleOf,
+  updateStore,
+  useCanvasStore,
+} from "./store.ts";
+import { issuesOf, pointHooks, type PointHook } from "./live.ts";
+
+import { useProfileCommands } from "../profile-source.ts";
+import { profileErrorText } from "../../../compose/compose-text.ts";
+import { anchorWord, HOOK_ANCHORS, KIND_WORD, RELATION_HINT, RELATION_WORD } from "./words.ts";
+
+/**
+ * 블록 상세의 순서. 엔진의 적용 블록은 설치된 모든 플러그인의 핸들러를 세므로, 캔버스가 아는 플러그인 가운데 이 프로필에서 돌지 않는 것
+ * (프로필에도 베이스에도 없고 엔진이 늘 싣는 것도 아닌 것)은 뺀다. 캔버스가 모르는 이름(엔진 부품)은 그대로 둔다.
+ * 엔진이 이 자리의 Hook을 하나도 알려 주지 않으면(블록 밖 자리) 프로필 순서를 보이고 그렇다고 말한다
+ */
+function pointOrderOf(hooks: readonly PointHook[], profile: CanvasProfile): PointOrder {
+  const runs = (name: string): boolean =>
+    pluginOf(name) === undefined ||
+    orderFixed(name) ||
+    profile.base.includes(name) ||
+    inProfile(profile, name);
+  const kept = hooks
+    .map((h) => ({ hook: h.hook, plugins: h.plugins.filter(runs) }))
+    .filter((h) => h.plugins.length > 0);
+  return kept.length === 0 ? { type: "unreported" } : { type: "engine", hooks: kept };
+}
 
 /** 이보다 좁은 창에서는 사이드 패널을 타일 막대로 접은 채 연다 */
 const WIDE_ENOUGH = 1280;
@@ -65,6 +103,9 @@ const FIT_PAD = { top: "72px", left: "28px", right: "60px", bottom: "64px" } as 
 /** 처음 시점의 여백(화면 픽셀): 위는 프로필 머리(40) 아래 24, 오른쪽은 앱의 세로 도구 자리 */
 const OPEN_PAD = { top: 76, left: 32, right: 64, bottom: 72 } as const;
 const REL_KINDS: readonly RelationKind[] = ["handoff", "depends", "reads", "creates", "replaces"];
+/** Hook 자리 누름 칸의 반 폭과 위아래 여유(캔버스 좌표). 소켓 꺾쇠와 줄기 가운데 수 칸(폭 30, 높이 20)을 덮는다 */
+const POINT_HALF = 16;
+const POINT_PAD = 12;
 
 interface Drag {
   readonly name: string;
@@ -72,6 +113,17 @@ interface Drag {
   readonly x: number;
   readonly y: number;
   readonly over: "canvas" | "palette" | "none";
+  /** 캔버스에서 끌 때 아래에 있는 같은 자리의 다른 판(놓으면 그 자리로 순서가 바뀐다) */
+  readonly onto: string | null;
+}
+
+/** 화면 점 아래의 플러그인 판 이름 */
+function plateAt(x: number, y: number): string | null {
+  const el = document
+    .elementFromPoint(x, y)
+    ?.closest<HTMLElement>('.react-flow__node[data-id^="p:"]');
+  const id = el?.getAttribute("data-id");
+  return id === null || id === undefined ? null : id.slice(2);
 }
 
 function detachView(work: Promise<boolean>): void {
@@ -117,6 +169,9 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   const reduced = useMotionReduced();
   const zoom = useViewportStore((s) => s.transform[2]);
   const [selected, setSelected] = useState<string | null>(null);
+  const commands = useProfileCommands();
+  /** 저장이 거절된 까닭(보이는 줄). 다음 바꿈이나 닫기에서 지운다 */
+  const [failure, setFailure] = useState<string | null>(null);
   const [arrive, setArrive] = useState<{ id: string; n: number }>({ id: "", n: 0 });
   const [drag, setDrag] = useState<Drag | null>(null);
   const [say, setSay] = useState("");
@@ -236,7 +291,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       setSelected(id);
       // 플로팅 판이 노드를 가리면 시점만 옮긴다(확대는 그대로)
       const el = wrapRef.current?.querySelector<HTMLElement>(
-        `.react-flow__node[data-id="${CSS.escape(id.startsWith("bundle:") || id === "@builder" ? id : `p:${id}`)}"]`,
+        `.react-flow__node[data-id="${CSS.escape(id.startsWith("bundle:") || id.startsWith("point:") || id === "@builder" ? id : `p:${id}`)}"]`,
       );
       const box = wrapRef.current?.getBoundingClientRect();
       if (el === null || el === undefined || box === undefined) return;
@@ -252,17 +307,35 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     [glide],
   );
 
+  /** 바꾼 프로필을 그리고 저장한다. 거절되면 저장된 모양으로 돌아가고 그 까닭이 보인다 */
+  const commit = useCallback(
+    (next: CanvasProfile, done: string): void => {
+      setFailure(null);
+      setSay(done);
+      detach(
+        saveProfile(commands, next).then((saved) => {
+          if (saved.ok) return null;
+          const why = t(profileErrorText(saved.error));
+          setFailure(why);
+          setSay(why);
+          return null;
+        }),
+        rethrow,
+      );
+    },
+    [commands],
+  );
+
   const add = useCallback(
     (name: string): void => {
       const next = addPlugin(profile, name);
       if (next === profile) return;
-      setProfile(next);
-      setSay(t("desktop.craft.canvas.cv3.say.added", { name }));
+      commit(next, t("desktop.craft.canvas.cv3.say.added", { name }));
       setSelected(name);
       setArrive((a) => ({ id: name, n: a.n + 1 }));
       glideTo(rectIn(layoutProfile(next, store.collapsed), name), false);
     },
-    [profile, store.collapsed, glideTo],
+    [profile, store.collapsed, glideTo, commit],
   );
 
   const remove = useCallback(
@@ -270,19 +343,23 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       const r = removePlugin(profile, name);
       if (!r.ok) {
         setSay(
-          t(
-            r.reason === "base"
-              ? "desktop.craft.canvas.cv3.say.baseFixed"
-              : "desktop.craft.canvas.cv3.say.absent",
-          ),
+          r.reason === "required"
+            ? t("desktop.craft.canvas.cv9.say.required", {
+                name,
+                parts: requiredByOf(name).join(", "),
+              })
+            : t(
+                r.reason === "base"
+                  ? "desktop.craft.canvas.cv3.say.baseFixed"
+                  : "desktop.craft.canvas.cv3.say.absent",
+              ),
         );
         return;
       }
-      setProfile(r.profile);
       setSelected(null);
-      setSay(t("desktop.craft.canvas.cv3.say.removed", { names: r.removed.join(", ") }));
+      commit(r.profile, t("desktop.craft.canvas.cv3.say.removed", { names: r.removed.join(", ") }));
     },
-    [profile],
+    [profile, commit],
   );
 
   const toggleBundle = useCallback(
@@ -299,10 +376,28 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   );
 
   // ── 끌기 ──
-  const latest = useRef({ add, remove });
+  /** 끌어 놓기로 순서 바꾸기: 같은 자리의 다른 판 위에 놓으면 그 자리로 간다 */
+  const reorder = useCallback(
+    (name: string, onto: string): void => {
+      const next = moveOnto(profile, name, onto);
+      if (next === profile) return;
+      commit(next, t("desktop.craft.canvas.cv3.say.moved", { name }));
+    },
+    [profile, commit],
+  );
+  /** 끄는 판 아래의 판이 같은 자리이고 옮길 수 있으면 그 이름 */
+  const ontoOf = useCallback(
+    (name: string, x: number, y: number): string | null => {
+      const under = plateAt(x, y);
+      if (under === null || under === name) return null;
+      return moveOnto(profile, name, under) === profile ? null : under;
+    },
+    [profile],
+  );
+  const latest = useRef({ add, remove, reorder, ontoOf });
   useLayoutEffect(() => {
-    latest.current = { add, remove };
-  }, [add, remove]);
+    latest.current = { add, remove, reorder, ontoOf };
+  }, [add, remove, reorder, ontoOf]);
   const whereIs = useCallback((x: number, y: number): Drag["over"] => {
     const inRect = (r: DOMRect | undefined): boolean =>
       r !== undefined && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
@@ -319,7 +414,12 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       const move = (m: PointerEvent): void => {
         if (!dragging && Math.hypot(m.clientX - sx, m.clientY - sy) < 6) return;
         dragging = true;
-        setDrag({ name, from, x: m.clientX, y: m.clientY, over: whereIs(m.clientX, m.clientY) });
+        const over = whereIs(m.clientX, m.clientY);
+        const onto =
+          from === "canvas" && over === "canvas"
+            ? latest.current.ontoOf(name, m.clientX, m.clientY)
+            : null;
+        setDrag({ name, from, x: m.clientX, y: m.clientY, over, onto });
       };
       const end = (m: PointerEvent): void => {
         window.removeEventListener("pointermove", move);
@@ -330,6 +430,10 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         const over = whereIs(m.clientX, m.clientY);
         if (from === "palette" && over === "canvas") latest.current.add(name);
         if (from === "canvas" && over === "palette") latest.current.remove(name);
+        if (from === "canvas" && over === "canvas") {
+          const onto = latest.current.ontoOf(name, m.clientX, m.clientY);
+          if (onto !== null) latest.current.reorder(name, onto);
+        }
       };
       const cancel = (): void => {
         window.removeEventListener("pointermove", move);
@@ -389,11 +493,12 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       (e.key === "ArrowUp" || e.key === "ArrowDown") &&
       pluginOf(name) !== undefined
     ) {
-      const next = nudge(profile, name, e.key === "ArrowUp" ? -1 : 1);
-      if (next !== profile) {
-        setProfile(next);
-        setSay(t("desktop.craft.canvas.cv3.say.moved", { name }));
+      if (orderFixed(name)) {
+        setSay(t("desktop.craft.canvas.cv9.say.fixedOrder", { name }));
+        return;
       }
+      const next = nudge(profile, name, e.key === "ArrowUp" ? -1 : 1);
+      if (next !== profile) commit(next, t("desktop.craft.canvas.cv3.say.moved", { name }));
       return;
     }
     const here = nodeIds.find((n) => n.id === name);
@@ -472,7 +577,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   // 빛 0 · 바닥 1 · 받침판·빌더 2 · 관계 선 3 · 판·더미 4
   const nodes = useMemo((): CanvasNode[] => {
     const markOf = (id: string): Mark =>
-      id === selected ? "selected" : related.has(id) ? "related" : "none";
+      id === selected || id === drag?.onto ? "selected" : related.has(id) ? "related" : "none";
     const b = layout.bounds;
     const list: CanvasNode[] = [
       {
@@ -543,6 +648,26 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         }),
       });
     }
+    // Hook 자리: 소켓마다 누름 칸 하나(블록 상세를 연다)
+    for (const k of layout.sockets) {
+      if (laneOf(k.anchor) !== "hook") continue;
+      const id = `point:${k.anchor}`;
+      const top = k.side === "top" ? k.cy - POINT_PAD : RAIL_HALF - POINT_PAD / 2;
+      const bottom = k.side === "top" ? -RAIL_HALF + POINT_PAD / 2 : k.cy + POINT_PAD;
+      list.push({
+        id,
+        type: "point",
+        position: { x: k.x - POINT_HALF, y: top },
+        data: { anchor: k.anchor, mark: id === selected ? "selected" : "none" },
+        width: POINT_HALF * 2,
+        height: bottom - top,
+        draggable: false,
+        selectable: false,
+        focusable: true,
+        zIndex: 4,
+        ariaLabel: t("desktop.craft.canvas.cv9.point.label", { at: t(anchorWord(k.anchor)) }),
+      });
+    }
     if (layout.builder !== null) {
       list.push({
         id: "@builder",
@@ -593,9 +718,11 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   };
 
   const removeBundleById = (id: string): void => {
-    setProfile(removeBundle(profile, id));
     setSelected(null);
-    setSay(t("desktop.craft.canvas.cv3.say.removed", { names: bundleMetaOf(id).displayName }));
+    commit(
+      removeBundle(profile, id),
+      t("desktop.craft.canvas.cv3.say.removed", { names: bundleMetaOf(id).displayName }),
+    );
   };
 
   const panelActions: PanelActions = {
@@ -608,16 +735,23 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     add,
     nudge: (name, delta) => {
       const next = nudge(profile, name, delta);
-      if (next !== profile) setProfile(next);
+      if (next !== profile) commit(next, t("desktop.craft.canvas.cv3.say.moved", { name }));
+    },
+    swap: (name, other) => {
+      const next = swapPlugins(profile, name, other);
+      if (next !== profile) commit(next, t("desktop.craft.canvas.cv3.say.moved", { name }));
     },
     setStart: (name) => {
-      setProfile(setStartDrive(profile, name));
-      setSay(t("desktop.craft.canvas.cv3.say.start", { name }));
+      commit(setStartDrive(profile, name), t("desktop.craft.canvas.cv3.say.start", { name }));
     },
     toggleBundle,
     removeBundle: removeBundleById,
     testRun: (name) => {
       setSay(t("desktop.craft.canvas.cv3.say.testRun", { name }));
+    },
+    point: (anchor) => {
+      setSelected(`point:${anchor}`);
+      setSay(t("desktop.craft.canvas.cv9.say.point", { at: t(anchorWord(anchor)) }));
     },
   };
 
@@ -631,6 +765,21 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       ? bundleList.find((b) => `bundle:${b.id}` === selected)
       : undefined;
   const dragPlugin = drag === null ? undefined : pluginOf(drag.name);
+  const selectedPoint = pointAnchorOf(selected);
+  const applied = store.live?.applied[store.current];
+  const pointOrder: PointOrder =
+    store.live === null
+      ? { type: "sample" }
+      : applied === undefined || selectedPoint === null
+        ? { type: "loading" }
+        : pointOrderOf(pointHooks(applied, store.live.positions, selectedPoint), profile);
+  const pointIssues =
+    selectedPoint === null
+      ? []
+      : issuesOf(
+          store.live?.issues[store.current] ?? [],
+          placed.filter((x) => x.plugin.anchor === selectedPoint).map((x) => x.plugin.name),
+        );
 
   return (
     <CanvasActionsContext value={actions}>
@@ -649,9 +798,11 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
             bundles={bundleList}
             focused={selected}
             open={paletteOpen}
+            choices={store.order.map((id) => ({ id, title: titleOf(store, id) }))}
             onProfile={(id) => {
-              updateStore((s) => ({ ...s, current: id }));
               setSelected(null);
+              setFailure(null);
+              detach(chooseProfile(commands, id), rethrow);
             }}
             onPick={focusOn}
             onAdd={add}
@@ -715,15 +866,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
           {/* 위 왼쪽: 프로필 머리 */}
           <div className="glass glass-shadow-3 rounded-toolbar absolute top-3 left-3 z-10 flex h-10 items-center gap-3 ps-3.5 pe-3">
             <span className="text-[13px] font-semibold text-text-primary">
-              {t(
-                store.current === "dev"
-                  ? "desktop.craft.canvas.cv3.profile.dev"
-                  : store.current === "empty"
-                    ? "desktop.craft.canvas.cv3.profile.empty"
-                    : store.current === "attach"
-                      ? "desktop.craft.canvas.cv4.profile.attach"
-                      : "desktop.craft.canvas.sample.scale",
-              )}
+              {titleOf(store, store.current) ?? t(sampleTitle(store.current))}
             </span>
             <span className="flex items-center gap-3 text-[12px] text-text-tertiary tabular-nums">
               <span>{t("desktop.craft.canvas.cv6.count.plugins", { n: placed.length })}</span>
@@ -745,7 +888,22 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
                 {t("desktop.craft.canvas.cv3.head.review", { n: pendingReview })}
               </span>
             ) : null}
+            {store.live?.saving === store.current ? (
+              <span className="flex items-center gap-1.5 text-[12px] text-text-tertiary">
+                <ProgressOrb />
+                {t("desktop.craft.canvas.cv9.point.saving")}
+              </span>
+            ) : null}
           </div>
+          {failure === null ? null : (
+            <div
+              role="status"
+              className="glass glass-shadow-3 rounded-toolbar absolute top-16 left-3 z-10 flex h-9 items-center gap-2 px-3.5 text-[12.5px] text-text-primary"
+            >
+              <span aria-hidden="true" className="cv6-orb" data-tone="danger" />
+              {failure}
+            </div>
+          )}
 
           {/* 아래 오른쪽 도구 막대: 막대 하나만 면(caustic FloatingBar의 유리)을 갖고, 안의 단추는 전부 ghost다.
               앱의 확대 막대(`craft/finder.tsx`의 ZoomBar)와 같은 부품·크기: 관계 보기, 범례(정보), 확대·축소, 맞춤 */}
@@ -835,6 +993,16 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
               created={relations.filter((r) => r.kind === "creates").map((r) => r.to)}
               actions={panelActions}
             />
+          ) : selectedPoint !== null ? (
+            <PointDetail
+              key={selected}
+              anchor={selectedPoint}
+              profile={profile}
+              order={pointOrder}
+              issues={pointIssues}
+              saving={store.live?.saving === store.current}
+              actions={panelActions}
+            />
           ) : selected !== null && pluginOf(selected) !== undefined ? (
             <PluginDetail
               key={selected}
@@ -847,7 +1015,14 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
           {drag?.from === "canvas" ? (
             <div className="pointer-events-none absolute top-16 left-3 z-20 glass glass-shadow-3 rounded-xl px-3 py-2 text-[12.5px] text-text-secondary">
-              {t("desktop.craft.canvas.cv3.say.dropToRemove")}
+              {t(
+                orderFixed(drag.name)
+                  ? "desktop.craft.canvas.cv9.say.fixedOrder"
+                  : drag.onto === null
+                    ? "desktop.craft.canvas.cv9.say.dragHint"
+                    : "desktop.craft.canvas.cv9.say.dropToMove",
+                { name: orderFixed(drag.name) ? drag.name : (drag.onto ?? "") },
+              )}
             </div>
           ) : null}
         </div>
@@ -869,6 +1044,21 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       </div>
     </CanvasActionsContext>
   );
+}
+
+/** 표본 장면의 이름(엔진 프로필이 아닐 때) */
+function sampleTitle(id: string): MessageId {
+  if (id === "dev") return "desktop.craft.canvas.cv3.profile.dev";
+  if (id === "empty") return "desktop.craft.canvas.cv3.profile.empty";
+  if (id === "attach") return "desktop.craft.canvas.cv4.profile.attach";
+  return "desktop.craft.canvas.sample.scale";
+}
+
+/** 고른 것이 Hook 자리(`point:<자리>`)면 그 자리 */
+function pointAnchorOf(selected: string | null): Anchor | null {
+  if (selected === null || !selected.startsWith("point:")) return null;
+  const at = selected.slice("point:".length);
+  return HOOK_ANCHORS.find((a) => a === at) ?? null;
 }
 
 /**

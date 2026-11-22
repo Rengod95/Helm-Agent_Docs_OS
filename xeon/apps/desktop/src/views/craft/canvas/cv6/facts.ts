@@ -85,7 +85,7 @@ const DECISION_FACT: Readonly<Record<"block" | "replace" | "ask", MessageId>> = 
 };
 
 /** 계약의 Hook 자리를 캔버스의 붙는 자리 말로. 블록에 붙지 않은 소식은 null */
-function anchorOfPosition(p: HookPosition): Anchor | null {
+export function anchorOfPosition(p: HookPosition): Anchor | null {
   if (p.kind === "block") return `${p.side}:${p.block}`;
   if (p.kind === "boundary") return `boundary:${p.boundary}`;
   if (p.kind === "event" && p.anchor !== undefined && p.anchor.block !== "record")

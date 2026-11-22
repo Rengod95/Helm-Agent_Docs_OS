@@ -2,7 +2,8 @@
    화면 가장자리로 갈수록 점이 어둠에 묻힌다(비네트, 화면에 고정된 정지 면). 고른 판 뒤에만 종류 색의 빛이 번진다.
    판은 무채색 카드이고 종류는 왼쪽 위의 책갈피(탭) 하나로만 말한다. 셰이더·유리·번쩍임·backdrop-filter 없이 그림자와 겹침으로 층을 가른다:
    빛 < 바닥(레일·소켓·줄기, 그림자 없음) < 받침판(낮은 그림자) < 판(높은 그림자) < 플로팅 상세(가장 높은 그림자).
-   React Flow 규칙은 `@layer xyflow`에, 나머지는 components 층에 둔다(무층 규칙 금지). base.css는 cvA.css가 이미 불러온다. */
+   React Flow 규칙은 `@layer xyflow`에, 나머지는 components 층에 둔다(무층 규칙 금지). React Flow의 기본 규칙(base.css)은 여기서 불러온다. */
+@import "@xyflow/react/base.css";
 
 @layer xyflow {
   .cv6-root {
@@ -185,6 +186,7 @@
   .cv6-flow .react-flow__node-plate > *,
   .cv6-flow .react-flow__node-pedestal > *,
   .cv6-flow .react-flow__node-pile > *,
+  .cv6-flow .react-flow__node-point > *,
   .cv6-flow .react-flow__node-builder > * {
     pointer-events: auto;
   }
@@ -205,10 +207,6 @@
 
   .cv6-flow .react-flow__pane.dragging {
     cursor: grabbing;
-  }
-
-  .cv6-flow .react-flow__attribution {
-    display: none;
   }
 }
 
@@ -1554,5 +1552,54 @@
   .cv6-in-label-return,
   .cv6-in-label-handoff {
     fill: var(--cv6-drive-text);
+  }
+
+  /* Hook 자리 누름 칸(블록 상세를 연다): 그림은 바닥이 그리고 이 칸은 가리킬 때와 고를 때의 테두리만 갖는다 */
+  .cv6-point {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .cv6-point:hover {
+    box-shadow: inset 0 0 0 1px var(--cv6-hook);
+  }
+
+  .cv6-point[data-mark="selected"],
+  .cv6-flow .react-flow__node:focus-visible .cv6-point {
+    box-shadow: inset 0 0 0 1.5px var(--cv6-hook);
+  }
+
+  /* 상태 구슬: 빛이 위 왼쪽에서 드는 작은 공. 색은 상태 토큰 그대로다 */
+  .cv6-orb {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 35% 30%,
+      var(--orb-light) 0,
+      var(--orb-face) 60%,
+      var(--orb-edge) 100%
+    );
+  }
+
+  .cv6-orb[data-tone="ok"] {
+    --orb-light: var(--cs-color-success-border);
+    --orb-face: var(--cs-color-success-graphic);
+    --orb-edge: var(--cs-color-success-solid);
+  }
+
+  .cv6-orb[data-tone="warn"] {
+    --orb-light: var(--cs-color-warning-border);
+    --orb-face: var(--cs-color-warning-graphic);
+    --orb-edge: var(--cs-color-warning-solid);
+  }
+
+  .cv6-orb[data-tone="danger"] {
+    --orb-light: var(--cs-color-danger-border);
+    --orb-face: var(--cs-color-danger-graphic);
+    --orb-edge: var(--cs-color-danger-solid);
   }
 }

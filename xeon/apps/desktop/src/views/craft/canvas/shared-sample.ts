@@ -96,7 +96,7 @@ const GITHUB_TOOLS: readonly SharedTool[] = [
 const NONE = { instructions: [], skills: [], memory: [], settings: [] } as const;
 
 /** 설치된 플러그인 열셋(프로필 "개발"의 열과 프로필 밖의 셋) */
-export const SHARED_PLUGINS: readonly SharedPlugin[] = [
+const SHARED_PLUGINS: readonly SharedPlugin[] = [
   {
     ...NONE,
     name: "house-style",

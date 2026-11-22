@@ -27,8 +27,8 @@ import {
   type PlateGeo,
   type ProfileLayout,
 } from "./layout.ts";
-import { pluginOf, type Kind, type Plugin, type RelationKind } from "./model.ts";
-import { bundleMetaOf } from "../shared-meta.ts";
+import { pluginOf, type Anchor, type Kind, type Plugin, type RelationKind } from "./model.ts";
+import { bundleMetaOf, purposeOf } from "../shared-meta.ts";
 import { agoText } from "../shared-sample.ts";
 import { descriptionOf } from "./sample-ext.ts";
 import {
@@ -116,6 +116,11 @@ interface BuilderData extends Record<string, unknown> {
   readonly mark: Mark;
 }
 
+interface PointData extends Record<string, unknown> {
+  readonly anchor: Anchor;
+  readonly mark: Mark;
+}
+
 export type CanvasNode =
   | Node<GlowData, "glow">
   | Node<FloorData, "floor">
@@ -123,7 +128,8 @@ export type CanvasNode =
   | Node<PlateData, "plate">
   | Node<PedestalData, "pedestal">
   | Node<PedestalData, "pile">
-  | Node<BuilderData, "builder">;
+  | Node<BuilderData, "builder">
+  | Node<PointData, "point">;
 
 // ── 빛 층: 고른 판 뒤의 번짐 ─────────────────────────────────────
 
@@ -603,7 +609,7 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
           </button>
         ) : null}
       </div>
-      <p className="cv6-desc">{t(p.meta.purpose)}</p>
+      <p className="cv6-desc">{purposeOf(p.meta)}</p>
       <div className="cv6-card-well">
         <span className="cv6-tag">{t(anchorWord(p.anchor))}</span>
         {description === null ? null : <p className="cv6-well-text">{t(description)}</p>}
@@ -853,7 +859,26 @@ function BuilderNode(props: NodeProps<Node<BuilderData, "builder">>): ReactNode 
   );
 }
 
+/**
+ * Hook 자리 하나의 누름 칸: 소켓 꺾쇠에서 줄기 가운데 수 칸까지를 덮는다. 누르거나 Enter면 블록 상세(그 자리의 순서와 충돌)가 열린다.
+ * 그림은 바닥이 그리고, 이 칸은 가리킬 때와 고를 때의 테두리만 갖는다
+ */
+function PointNode(props: NodeProps<Node<PointData, "point">>): ReactNode {
+  const actions = use(CanvasActionsContext);
+  return (
+    <div
+      className="cv6-point"
+      data-mark={props.data.mark === "none" ? undefined : props.data.mark}
+      title={t("desktop.craft.canvas.cv9.point.label", { at: t(anchorWord(props.data.anchor)) })}
+      onClick={() => {
+        actions.select(`point:${props.data.anchor}`);
+      }}
+    />
+  );
+}
+
 export const NODE_TYPES: NodeTypes = {
+  point: PointNode,
   glow: GlowNode,
   floor: FloorNode,
   links: LinksNode,

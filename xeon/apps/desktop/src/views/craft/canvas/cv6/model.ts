@@ -57,7 +57,7 @@ export function laneOf(anchor: Anchor): Lane {
   return "hook";
 }
 
-const CATALOG: ReadonlyMap<string, Plugin> = new Map([
+const SAMPLE_CATALOG: ReadonlyMap<string, Plugin> = new Map([
   ...ALL_SHARED_PLUGINS.map((p): [string, Plugin] => [
     p.name,
     { name: p.name, kind: p.kind, anchor: anchorOf(p), shared: p, meta: metaOf(p.name, p.kind) },
@@ -75,15 +75,57 @@ const CATALOG: ReadonlyMap<string, Plugin> = new Map([
   ]),
 ]);
 
-export function pluginOf(name: string): Plugin | undefined {
-  return CATALOG.get(name);
-}
-
 /** 설치된 플러그인 전부(표본 13). 30개 장면의 스물은 그 장면에서만 보인다 */
-export const INSTALLED: readonly Plugin[] = ALL_SHARED_PLUGINS.slice(0, 13).flatMap((p) => {
-  const hit = CATALOG.get(p.name);
+const SAMPLE_INSTALLED: readonly Plugin[] = ALL_SHARED_PLUGINS.slice(0, 13).flatMap((p) => {
+  const hit = SAMPLE_CATALOG.get(p.name);
   return hit === undefined ? [] : [hit];
 });
+
+/**
+ * 지금 그리는 플러그인 목록. 프로필 화면은 엔진 카드(`plugin.list`)로 바꿔 끼우고(`installLiveCatalog`), 표본은 개발 빌드의 표본 보기에만 쓴다.
+ * 캔버스의 순수 함수들이 이름으로 플러그인을 찾으므로 모듈 하나에 둔다. 바꿔 끼우면 캔버스 스토어가 다시 그린다(`store.ts`)
+ */
+interface Catalog {
+  readonly live: boolean;
+  readonly byName: ReadonlyMap<string, Plugin>;
+  readonly installed: readonly Plugin[];
+}
+
+const SAMPLE: Catalog = { live: false, byName: SAMPLE_CATALOG, installed: SAMPLE_INSTALLED };
+
+let catalog: Catalog = SAMPLE;
+
+/** 표본으로 되돌린다(개발 빌드의 표본 보기, 시험) */
+export function installSampleCatalog(): void {
+  catalog = SAMPLE;
+}
+
+/** 엔진 카드에서 온 플러그인으로 바꿔 끼운다. 순서는 목록의 순서다 */
+export function installLiveCatalog(plugins: readonly Plugin[]): void {
+  catalog = { live: true, byName: new Map(plugins.map((p) => [p.name, p])), installed: plugins };
+}
+
+export function pluginOf(name: string): Plugin | undefined {
+  return catalog.byName.get(name);
+}
+
+/** 목록에 보이는 설치된 플러그인 */
+export function installedPlugins(): readonly Plugin[] {
+  return catalog.installed;
+}
+
+/** 엔진이 이 플러그인을 필요로 하는 코어 부분(카드 `requiredByCore`). 비어 있으면 뺄 수 있다 */
+export function requiredByOf(name: string): readonly string[] {
+  return pluginOf(name)?.meta.requiredBy ?? [];
+}
+
+/**
+ * 순서가 고정된 플러그인: 엔진이 필요로 하는 것은 엔진이 프로필보다 먼저, 정해진 차례로 싣는다(호스트 `forcedPlugins`).
+ * 프로필에서 자리를 옮겨도 호출 차례가 바뀌지 않으므로 캔버스는 옮기지 않는다
+ */
+export function orderFixed(name: string): boolean {
+  return requiredByOf(name).length > 0;
+}
 
 /** 프로필 항목 하나: 플러그인 하나, 또는 묶음 하나(이름 하나로 들고 구성원은 매니페스트 순서) */
 type Entry =
@@ -133,6 +175,8 @@ export function attachProfile(n: number): CanvasProfile {
 
 /** 묶음 표(표본에서 아는 묶음). 목록에서 구성원 하나를 넣으면 묶음째 든다 */
 function bundleOfPlugin(name: string): { id: string; members: readonly string[] } | null {
+  // 엔진 카드는 묶음을 알리지 않는다(프로필은 이름 목록뿐이다)
+  if (catalog.live) return null;
   for (const id of ["dev", "scale"] as const) {
     const g = SHARED_PROFILES[id].groups.find((x) => x.members.includes(name));
     if (g !== undefined) return { id: g.id, members: g.members };
@@ -317,11 +361,12 @@ export function addPlugin(profile: CanvasProfile, name: string): CanvasProfile {
 
 export type RemoveResult =
   | { readonly ok: true; readonly profile: CanvasProfile; readonly removed: readonly string[] }
-  | { readonly ok: false; readonly reason: "base" | "absent" };
+  | { readonly ok: false; readonly reason: "base" | "absent" | "required" };
 
-/** 빼기. 베이스는 프로필에서 뺄 수 없다. 묶음 구성원이면 묶음째 빠진다 */
+/** 빼기. 베이스와 엔진이 필요로 하는 플러그인(`requiredByCore`)은 프로필에서 뺄 수 없다. 묶음 구성원이면 묶음째 빠진다 */
 export function removePlugin(profile: CanvasProfile, name: string): RemoveResult {
   if (profile.base.includes(name)) return { ok: false, reason: "base" };
+  if (requiredByOf(name).length > 0) return { ok: false, reason: "required" };
   const idx = profile.entries.findIndex(
     (e) =>
       (e.type === "plugin" && e.name === name) || (e.type === "bundle" && e.members.includes(name)),
@@ -351,7 +396,7 @@ export function removeBundle(profile: CanvasProfile, id: string): CanvasProfile 
  */
 export function nudge(profile: CanvasProfile, name: string, delta: -1 | 1): CanvasProfile {
   const p = pluginOf(name);
-  if (p === undefined) return profile;
+  if (p === undefined || orderFixed(name)) return profile;
   const idx = profile.entries.findIndex((e) => e.type === "plugin" && e.name === name);
   if (idx < 0) return profile;
   const sameAnchor = (e: Entry): boolean =>
@@ -365,9 +410,47 @@ export function nudge(profile: CanvasProfile, name: string, delta: -1 | 1): Canv
   const other = profile.entries[j];
   const self = profile.entries[idx];
   if (other === undefined || self === undefined) return profile;
+  if (other.type === "plugin" && orderFixed(other.name)) return profile;
   const entries = [...profile.entries];
   entries[idx] = other;
   entries[j] = self;
+  return { ...profile, entries };
+}
+
+/**
+ * 끌어 놓기: 같은 자리의 다른 항목(`target`) 자리로 옮긴다. 아래로 끌면 그 뒤에, 위로 끌면 그 앞에 선다.
+ * 자리가 다르거나 베이스, 묶음 구성원이면 그대로다
+ */
+export function moveOnto(profile: CanvasProfile, name: string, target: string): CanvasProfile {
+  const self = pluginOf(name);
+  const other = pluginOf(target);
+  if (self === undefined || other === undefined || self.anchor !== other.anchor) return profile;
+  if (orderFixed(name) || orderFixed(target)) return profile;
+  const from = profile.entries.findIndex((e) => e.type === "plugin" && e.name === name);
+  const to = profile.entries.findIndex((e) => e.type === "plugin" && e.name === target);
+  const moving = profile.entries[from];
+  if (from < 0 || to < 0 || from === to || moving === undefined) return profile;
+  const entries = profile.entries.filter((_, i) => i !== from);
+  const at = entries.findIndex((e) => e.type === "plugin" && e.name === target);
+  entries.splice(from < to ? at + 1 : at, 0, moving);
+  return { ...profile, entries };
+}
+
+/**
+ * 두 플러그인의 프로필 자리를 맞바꾼다(블록 상세: 한 Hook의 호출 차례에서 바로 앞이나 뒤의 이웃과).
+ * 엔진은 Hook마다 프로필 순서로 부르므로 판의 자리와 관계없이 두 이름의 앞뒤만 바뀐다. 둘 중 하나라도 프로필 항목이 아니거나(베이스, 묶음 구성원, 프로필 밖)
+ * 순서가 고정된 것(`orderFixed`)이면 그대로다
+ */
+export function swapPlugins(profile: CanvasProfile, name: string, other: string): CanvasProfile {
+  const a = profile.entries.findIndex((e) => e.type === "plugin" && e.name === name);
+  const b = profile.entries.findIndex((e) => e.type === "plugin" && e.name === other);
+  const self = profile.entries[a];
+  const them = profile.entries[b];
+  if (a === b || self === undefined || them === undefined) return profile;
+  if (orderFixed(name) || orderFixed(other)) return profile;
+  const entries = [...profile.entries];
+  entries[a] = them;
+  entries[b] = self;
   return { ...profile, entries };
 }
 

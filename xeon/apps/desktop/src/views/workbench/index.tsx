@@ -1,5 +1,5 @@
 // 크래프트 화면 묶음(개요·확장·테스트·측정·구성·엔진). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
-import { useMemo, type ReactNode } from "react";
+import { lazy, Suspense, useMemo, type ReactNode } from "react";
 import {
   useWorkbench,
   WorkbenchStoreContext,
@@ -34,16 +34,34 @@ import {
   ListChecks,
   Package,
   Plug,
+  Rows3,
   Spline,
   SquareStack,
   Target,
 } from "@caustic/react/icons";
+
+const ProfileScreen = lazy(() =>
+  import("../craft/canvas/cv6/index.tsx").then((m) => ({ default: m.Screen })),
+);
 
 function scoped(store: WorkbenchStore, children: ReactNode): ReactNode {
   return <WorkbenchStoreContext value={store}>{children}</WorkbenchStoreContext>;
 }
 
 export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore): void {
+  registry.registerScreen({
+    id: "profile",
+    area: "workbench",
+    label: "desktop.shell.nav.profile",
+    icon: <Rows3 />,
+    // 프로필 캔버스(C3)가 무대 가장자리까지 깔린다. @xyflow는 이 화면을 열 때 불러온다
+    bleed: true,
+    render: () => (
+      <Suspense fallback={null}>
+        <ProfileScreen />
+      </Suspense>
+    ),
+  });
   registry.registerScreen({
     id: "overview",
     area: "workbench",
