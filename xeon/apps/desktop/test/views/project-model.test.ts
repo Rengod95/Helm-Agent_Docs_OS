@@ -26,6 +26,8 @@ function project(id: string, root: string, name: string): ProjectListItem {
     rev: 1,
     threadCount: 0,
     runningCount: 0,
+    rootMissing: false,
+    pendingReviewCount: 0,
   };
 }
 

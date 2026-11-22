@@ -124,6 +124,11 @@ export interface PluginFolder {
 export interface ReadFolderOptions {
   /** 원본이 어디서 왔는가. 읽는 결과에 그대로 싣는다(읽기 방식은 출처와 무관하다) */
   readonly origin: PluginOriginKind;
+  /**
+   * 플러그인 이름(매니페스트가 없을 때만 쓴다). 생략하면 폴더 경로의 마지막 이름이다.
+   * 후보 스냅샷(`candidates/<hex>/tree`)과 검토본 사본(`reviewed/…/tree`)은 마지막 이름이 `tree`라서 호출자가 원래 이름을 준다
+   */
+  readonly name?: string;
 }
 
 const McpFileShape = Type.Object({ mcpServers: Type.Record(Type.String(), Type.Unknown()) });
@@ -458,7 +463,7 @@ export function readPluginFolder(
   if (!tree.ok) return reject("tree_rejected", [treeDiagnostic(tree.error)]);
   const { files, contentHash } = tree.value;
   const present: ReadonlySet<string> = new Set(files.map((file) => file.path));
-  const folderName = basename(resolve(dir));
+  const folderName = options.name ?? basename(resolve(dir));
   const diagnostics: FolderDiagnostic[] = [];
 
   let manifest: ExtensionManifest | undefined;

@@ -5,7 +5,7 @@ import {
   type Project,
   type ProjectCreateParams,
   type ProjectInstructionsResult,
-  type ProjectListResult,
+  type ProjectListItem,
   type ProjectRenameParams,
   type ThreadProjectRef,
   type Unsubscribe,
@@ -36,9 +36,13 @@ export type ProjectPortFailure =
   /** 작업 폴더 문자열이 절대 경로가 아니다. 대화 생성이 쓰는 작업 폴더 오류와 같은 와이어 오류로 옮긴다 */
   | { readonly kind: "workspace"; readonly failure: WorkspaceFailure };
 
+/** `project.list` 항목에서 승인 대기 수를 뺀 것. 승인 대기 수는 처리기가 `pendingReviewOf`로 더한다 */
+export type ProjectListRow = Omit<ProjectListItem, "pendingReviewCount">;
+
 /** 처리기가 쓰는 포트. 구현은 `assembly/m4/project-port.ts`다 */
 export interface ProjectPort {
-  list(): Promise<Result<ProjectListResult, ProjectPortFailure>>;
+  /** 프로젝트마다 대화 수, 실행 중 수, 루트 없음 여부를 준다 */
+  list(): Promise<Result<{ readonly projects: readonly ProjectListRow[] }, ProjectPortFailure>>;
   get(projectId: string): Promise<Result<Project, ProjectPortFailure>>;
   create(params: ProjectCreateParams): Promise<Result<Project, ProjectPortFailure>>;
   rename(params: ProjectRenameParams): Promise<Result<Project, ProjectPortFailure>>;
@@ -130,7 +134,21 @@ export function createProjectHandlers(
   pendingReviewOf: PendingReviewOf,
 ): Pick<WireHandlers, ProjectMethods> {
   return {
-    "project.list": async () => okOrThrow(await port.list()),
+    "project.list": async () => {
+      const listed = okOrThrow(await port.list());
+      // 승인 대기 수는 `project.get`과 같은 계산이다
+      const counted = await Promise.all(
+        listed.projects.map(async (row) => ({
+          row,
+          pendingReviewCount: await pendingReviewOf(row.projectId),
+        })),
+      );
+      const projects: ProjectListItem[] = [];
+      for (const { row, pendingReviewCount } of counted) {
+        projects.push({ ...row, pendingReviewCount });
+      }
+      return { projects };
+    },
     "project.get": async (params) => {
       const project = okOrThrow(await port.get(params.projectId));
       return { project, pendingReview: await pendingReviewOf(params.projectId) };

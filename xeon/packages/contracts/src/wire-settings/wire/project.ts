@@ -44,15 +44,22 @@ export const ProjectSchema: TUnsafe<Project> = Type.Unsafe<Project>(
   ProjectShape satisfies SchemaProof<Project, typeof ProjectShape>,
 );
 
-/** `project.list`의 한 항목. 대화 수와 실행 중 수를 더한다(M5c §3.6) */
+/**
+ * `project.list`의 한 항목. 대화 수와 실행 중 수를 더한다(M5c §3.6). 루트가 지금 없거나 폴더가 아니면 `rootMissing`이고,
+ * 승인 대기 항목 수(`pendingReviewCount`)는 `project.get`의 `pendingReview`와 같은 값이다(AGE-34)
+ */
 export interface ProjectListItem extends Project {
   readonly threadCount: number;
   readonly runningCount: number;
+  readonly rootMissing: boolean;
+  readonly pendingReviewCount: number;
 }
 const ProjectListItemShape = closed({
   ...ProjectShape.properties,
   threadCount: Count,
   runningCount: Count,
+  rootMissing: Type.Boolean(),
+  pendingReviewCount: Count,
 });
 export const ProjectListItemSchema: TUnsafe<ProjectListItem> = Type.Unsafe<ProjectListItem>(
   ProjectListItemShape satisfies SchemaProof<ProjectListItem, typeof ProjectListItemShape>,
