@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import { X } from "@caustic/react/icons";
 import { useEffect, useRef, useState } from "react";
 import { useCommands } from "../../commands.ts";
+import { LINE_GLYPH } from "../../illustrations/line-glyph.ts";
 import {
   HEADER_SEGMENTED_SIZE,
   HEADER_SELECT_SIZE,
@@ -130,7 +131,8 @@ function EmptyFigure(): ReactNode {
   return (
     <svg
       viewBox="0 0 520 132"
-      className="block w-full max-w-130"
+      // 판 테두리와 화살표는 직접 그린 선의 한 벌(화면 1px, AGE-34): 그림이 좁아져도 선은 1px다
+      className={`${LINE_GLYPH.className} block w-full max-w-130`}
       role="img"
       aria-label={steps.join(" → ")}
     >
@@ -167,7 +169,6 @@ function EmptyFigure(): ReactNode {
       </g>
       <g
         stroke="var(--cs-color-text-tertiary)"
-        strokeWidth="1.5"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"

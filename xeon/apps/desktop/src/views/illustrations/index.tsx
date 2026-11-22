@@ -1,14 +1,16 @@
 import type { ReactNode } from "react";
 
 // 빈 상태 그림. 장식이라 aria-hidden이고 외부 그림 없이 SVG로 직접 그린다.
-// 크래프트 Link의 선 언어를 따른다: 면 채움 없는 얇은 선(화면에서 약 1.1px), 한 줄 큐빅 곡선이 나란히 묶인 가닥, 끝에 점 하나.
+// 크래프트 Link의 선 언어를 따른다: 면 채움 없는 얇은 선(화면 1px, 직접 그린 선의 한 벌과 같은 값 [결정: 2026-11-22 사용자 "싹다 1px ㄱㄱ", AGE-34]),
+// 한 줄 큐빅 곡선이 나란히 묶인 가닥, 끝에 점 하나. 가닥은 모두 1px이고 앞 가닥은 진하기로만 앞선다. 흐르는 빛만 효과라 더 굵다.
 // 선은 currentColor(텍스트 보조색), 가닥과 점은 caustic accent 변수(라이트·다크 토큰이 바뀐다).
 // 느린 빛(illustrations.css)은 가닥 하나만 따라 흐르고, 움직임 줄이기에서는 멈춘다.
 // 160 좌표를 128px로 보이며, caustic EmptyState media 칸의 svg 크기 규칙을 style로 덮는다.
 
 const ACCENT = "var(--cs-color-accent-graphic)";
 const SIZE = 128;
-const HAIR = 1.4;
+/** 160 좌표를 128px로 보이므로 1.25칸이 화면 1px다 */
+const HAIR = 160 / SIZE;
 
 function Art({ children }: { readonly children: ReactNode }): ReactNode {
   return (
@@ -45,13 +47,7 @@ function Strands({
   return (
     <g stroke={ACCENT}>
       {Array.from({ length: n }, (_, i) => (
-        <path
-          key={i}
-          d={d}
-          transform={`translate(0 ${i * gap})`}
-          opacity={1 - i * 0.25}
-          strokeWidth={i === 0 ? HAIR * 1.15 : HAIR}
-        />
+        <path key={i} d={d} transform={`translate(0 ${i * gap})`} opacity={1 - i * 0.25} />
       ))}
       {light ? (
         <path d={d} pathLength={1} className="empty-art-light" strokeWidth={HAIR * 1.6} />

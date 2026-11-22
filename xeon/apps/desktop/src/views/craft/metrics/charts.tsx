@@ -4,6 +4,7 @@
 import { t } from "@fresnel/client/i18n";
 import { Button } from "@caustic/react";
 import { useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { LINE_GLYPH } from "../../illustrations/line-glyph.ts";
 
 // ───────── 공용 ─────────
 
@@ -972,11 +973,12 @@ export function MiniLine(props: {
                   style={{ fill: "color-mix(in oklab, var(--viz-ink-2) 12%, transparent)" }}
                 />
               ) : null}
+              {/* 추이 선은 직접 그린 선의 한 벌(화면 1px, AGE-34). 굵기를 줄인 만큼 색을 한 단계 올려(ink-2 → ink-3) 격자선(8%)과 고른 세로선에서 떨어진다 */}
               <path
                 d={line}
                 fill="none"
-                stroke="var(--viz-ink-2)"
-                strokeWidth={2}
+                stroke="var(--viz-ink-3)"
+                className={LINE_GLYPH.className}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -997,7 +999,7 @@ export function MiniLine(props: {
           <circle
             cx={xOf(props.hot)}
             cy={yOf(hotValue)}
-            r={4}
+            r={3}
             fill="var(--viz-ink-3)"
             stroke="var(--cs-color-surface-base)"
             strokeWidth={2}
@@ -1006,8 +1008,8 @@ export function MiniLine(props: {
           <circle
             cx={xOf(lastIndex)}
             cy={yOf(lastValue)}
-            r={4}
-            fill="var(--viz-ink-2)"
+            r={3}
+            fill="var(--viz-ink-3)"
             stroke="var(--cs-color-surface-base)"
             strokeWidth={2}
           />
