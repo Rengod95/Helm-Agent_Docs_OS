@@ -75,4 +75,7 @@
   --fr-color-glow-core-white: rgb(255 255 255);
   /* QR 판: QR 그림(qr-code.tsx, 검정과 흰색 고정)을 받치는 흰 바탕. 판과 QR 조용한 영역이 한 면으로 이어지게 테마와 상관없이 흰색이다 */
   --fr-color-qr-paper: rgb(255 255 255);
+  /* 그림자 먹과 윗변 빛: 캔버스(cv6.css)의 뜬 판 그림자가 쓴다. 진하기는 쓰는 곳에서 color-mix로 정한다. 테마와 상관없이 검정과 흰색이다 */
+  --fr-color-shadow-ink: rgb(0 0 0);
+  --fr-color-shadow-glint: rgb(255 255 255);
 }

@@ -71,11 +71,11 @@
     /* 빛의 세기: 변 바로 밖(5px)의 색의 세기(C)를 참고(위 변 0.033 ~ 왼쪽 변 0.043)에 맞춘다. G5는 0.028이었다(알파 20%) */
     --cv6-glow-a-base: 28%;
     /* 층의 그림자 */
-    --cv6-lift-ped: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 6px 14px -8px rgb(0 0 0 / 0.55);
-    --cv6-lift-plate: drop-shadow(0 14px 18px rgb(0 0 0 / 0.42))
-      drop-shadow(0 2px 3px rgb(0 0 0 / 0.38));
-    --cv6-lift-float: 0 30px 70px -16px rgb(0 0 0 / 0.7), 0 6px 16px rgb(0 0 0 / 0.38);
-    --cv6-lift-card: 0 12px 24px -14px rgb(0 0 0 / 0.7);
+    --cv6-lift-ped: 0 1px 0 0 color-mix(in srgb, var(--fr-color-shadow-glint) 3%, transparent) inset, 0 6px 14px -8px color-mix(in srgb, var(--fr-color-shadow-ink) 55%, transparent);
+    --cv6-lift-plate: drop-shadow(0 14px 18px color-mix(in srgb, var(--fr-color-shadow-ink) 42%, transparent))
+      drop-shadow(0 2px 3px color-mix(in srgb, var(--fr-color-shadow-ink) 38%, transparent));
+    --cv6-lift-float: 0 30px 70px -16px color-mix(in srgb, var(--fr-color-shadow-ink) 70%, transparent), 0 6px 16px color-mix(in srgb, var(--fr-color-shadow-ink) 38%, transparent);
+    --cv6-lift-card: 0 12px 24px -14px color-mix(in srgb, var(--fr-color-shadow-ink) 70%, transparent);
     --cv6-mono: var(--cs-font-mono, ui-monospace, monospace);
     background: var(--cv6-floor);
   }
@@ -128,11 +128,11 @@
       var(--cs-color-surface-base)
     );
     --cv6-glow-a-base: 36%;
-    --cv6-lift-ped: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 14px -10px rgb(0 0 0 / 0.18);
-    --cv6-lift-plate: drop-shadow(0 12px 16px rgb(0 0 0 / 0.1))
-      drop-shadow(0 1px 2px rgb(0 0 0 / 0.12));
-    --cv6-lift-float: 0 28px 64px -18px rgb(0 0 0 / 0.26), 0 4px 12px rgb(0 0 0 / 0.08);
-    --cv6-lift-card: 0 10px 20px -12px rgb(0 0 0 / 0.16), 0 1px 2px rgb(0 0 0 / 0.06);
+    --cv6-lift-ped: 0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 6%, transparent), 0 6px 14px -10px color-mix(in srgb, var(--fr-color-shadow-ink) 18%, transparent);
+    --cv6-lift-plate: drop-shadow(0 12px 16px color-mix(in srgb, var(--fr-color-shadow-ink) 10%, transparent))
+      drop-shadow(0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 12%, transparent));
+    --cv6-lift-float: 0 28px 64px -18px color-mix(in srgb, var(--fr-color-shadow-ink) 26%, transparent), 0 4px 12px color-mix(in srgb, var(--fr-color-shadow-ink) 8%, transparent);
+    --cv6-lift-card: 0 10px 20px -12px color-mix(in srgb, var(--fr-color-shadow-ink) 16%, transparent), 0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 6%, transparent);
   }
 
   /* 종류마다 탭·빛·글의 색 한 벌 */
@@ -1074,7 +1074,7 @@
     background: var(--cv6-chrome);
     box-shadow:
       inset 0 0 0 1px var(--cv6-line-soft),
-      0 4px 14px -6px rgb(0 0 0 / 0.3);
+      0 4px 14px -6px color-mix(in srgb, var(--fr-color-shadow-ink) 30%, transparent);
   }
 
   .cv6-root svg {
@@ -1469,22 +1469,22 @@
     background: var(--cv6-plate);
     box-shadow:
       inset 0 0 0 1px var(--cv6-plate-edge),
-      0 12px 18px -10px rgb(0 0 0 / 0.5),
-      0 2px 3px rgb(0 0 0 / 0.3);
+      0 12px 18px -10px color-mix(in srgb, var(--fr-color-shadow-ink) 50%, transparent),
+      0 2px 3px color-mix(in srgb, var(--fr-color-shadow-ink) 30%, transparent);
   }
 
   .cv6-root[data-scheme="light"] .cv6-icard {
     box-shadow:
       inset 0 0 0 1px var(--cv6-plate-edge),
-      0 10px 16px -10px rgb(0 0 0 / 0.16),
-      0 1px 2px rgb(0 0 0 / 0.1);
+      0 10px 16px -10px color-mix(in srgb, var(--fr-color-shadow-ink) 16%, transparent),
+      0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 10%, transparent);
   }
 
   .cv6-icard-step {
     box-shadow:
       inset 0 0 0 1px color-mix(in oklab, currentColor 55%, transparent),
       inset 3px 0 0 0 currentColor,
-      0 12px 18px -10px rgb(0 0 0 / 0.5);
+      0 12px 18px -10px color-mix(in srgb, var(--fr-color-shadow-ink) 50%, transparent);
   }
 
   .cv6-icard-ghost {
