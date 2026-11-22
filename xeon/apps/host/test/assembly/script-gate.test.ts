@@ -71,13 +71,14 @@ function callOf(
   thread: ThreadId,
   run: ScriptDraftCall["run"],
   extension = "draft-ext",
+  card: ScriptCard = CARD,
 ): ScriptDraftCall {
   return {
     extension,
     registration: "reg-1",
     threadId: thread,
     name: "check",
-    card: CARD,
+    card,
     run,
   };
 }
@@ -154,6 +155,20 @@ test("every call carries a memory key made of the draft content hash, the script
   expect(keys[2]).not.toBe(keys[0]);
   expect(keys[3]).not.toBe(keys[0]);
   expect(keys[0]?.length).toBeLessThanOrEqual(64);
+});
+
+test("the approval card carries envNotPassed when the script declared names that do not reach it, and has no such key otherwise", async () => {
+  const { tools, requests } = fakeTools("allow");
+  const gate = gateOf(tools, new Map([[TEST_THREAD, [mark("draft-ext")]]]));
+  await gate(
+    callOf(TEST_THREAD, () => Promise.resolve(ok(RESULT)), "draft-ext", {
+      ...CARD,
+      envNotPassed: ["API_TOKEN"],
+    }),
+  );
+  await gate(callOf(TEST_THREAD, () => Promise.resolve(ok(RESULT))));
+  expect(requests[0]?.input).toMatchObject({ envNotPassed: ["API_TOKEN"] });
+  expect(requests[1]?.input).not.toHaveProperty("envNotPassed");
 });
 
 test("each call gets its own request id, so a second call opens its own card", async () => {

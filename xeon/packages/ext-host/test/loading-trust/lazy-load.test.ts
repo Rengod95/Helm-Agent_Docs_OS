@@ -4,13 +4,15 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DependencyDecl } from "@fresnel/contracts/extensions";
 import { registrationToggleSourceOf } from "../../src/index.ts";
 import type {
+  BuiltinExtensionModule,
   LoaderPaths,
   ReviewedSource,
   ReviewedSourceEntry,
 } from "../../src/loading-trust/index.ts";
-import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";
+import { createLoaderHarness, moduleOf, type LoaderHarness } from "./support/harness.ts";
 import { fakeOrchestrationSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { makeTempDir, realLoaderFs } from "./support/real-fs.ts";
 
@@ -225,4 +227,97 @@ test("startup does not load an outside-the-default-set plugin even when its mani
   const thread = await openThread(harness);
   await fireIn(harness, thread, "startup");
   expect(fired()).toEqual([]);
+});
+
+// AGE-33 enDep: 기본 집합의 확장이 hard로 기대는 대상은 시작 때 미루지 않는다. 미루면 기대는 쪽이 `dependency_missing`으로 멈춘다.
+// soft로만 기대는 대상은 기본 집합 밖이면 미룬 채 두고(경고만 남는다), hard 닫힘의 대상만 기본 집합에 더해 싣는다.
+
+/** `dependsOn`을 가진 내장 확장 한 개. 설치될 때마다 `installed`에 이름을 남긴다 */
+function dependentOf(
+  name: string,
+  dependsOn: readonly DependencyDecl[],
+  installed: string[],
+): BuiltinExtensionModule {
+  return moduleOf(
+    {
+      name,
+      manifest: {
+        schemaVersion: 2,
+        name,
+        version: "1.0.0",
+        entry: "./src/index.ts",
+        plugins: [{ layer: "plugin", hooks: [], dependsOn: [...dependsOn] }],
+      },
+    },
+    () => {
+      installed.push(name);
+    },
+  );
+}
+
+test("a default-set plugin's hard target outside the default set is loaded at startup, target first", async () => {
+  const harness = await createLoaderHarness();
+  const installed: string[] = [];
+  const report = await harness.loader.loadAll(
+    harness.options(
+      [
+        dependentOf("app-kit", [{ plugin: "core-kit", kind: "hard" }], installed),
+        dependentOf("core-kit", [], installed),
+      ],
+      { defaultNames: ["app-kit"] },
+    ),
+  );
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["app-kit", "active"],
+    ["core-kit", "active"],
+  ]);
+  expect(report.diagnostics).toEqual([]);
+  expect(installed).toEqual(["core-kit", "app-kit"]);
+});
+
+test("the hard closure of a default-set plugin is pulled in transitively", async () => {
+  const harness = await createLoaderHarness();
+  const installed: string[] = [];
+  const report = await harness.loader.loadAll(
+    harness.options(
+      [
+        dependentOf("app-kit", [{ plugin: "mid-kit", kind: "hard" }], installed),
+        dependentOf("mid-kit", [{ plugin: "base-kit", kind: "hard" }], installed),
+        dependentOf("base-kit", [], installed),
+        dependentOf("other-kit", [], installed),
+      ],
+      { defaultNames: ["app-kit"] },
+    ),
+  );
+  // 보고는 로드 순서(이름순)다. 설치 순서(hard 대상이 먼저)는 아래에서 따로 본다
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["app-kit", "active"],
+    ["base-kit", "active"],
+    ["mid-kit", "active"],
+    ["other-kit", "disabled"],
+  ]);
+  expect(installed).toEqual(["base-kit", "mid-kit", "app-kit"]);
+});
+
+test("a soft target outside the default set stays deferred and the default-set plugin only warns", async () => {
+  const harness = await createLoaderHarness();
+  const installed: string[] = [];
+  const report = await harness.loader.loadAll(
+    harness.options(
+      [
+        dependentOf("app-kit", [{ plugin: "core-kit", kind: "soft" }], installed),
+        dependentOf("core-kit", [], installed),
+      ],
+      { defaultNames: ["app-kit"] },
+    ),
+  );
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["app-kit", "active"],
+    ["core-kit", "disabled"],
+  ]);
+  expect(report.diagnostics.map((entry) => [entry.extension, entry.code, entry.severity])).toEqual([
+    ["core-kit", "lazy_deferred", "info"],
+    ["app-kit", "dependency_missing", "warning"],
+  ]);
+  expect(installed).toEqual(["app-kit"]);
 });

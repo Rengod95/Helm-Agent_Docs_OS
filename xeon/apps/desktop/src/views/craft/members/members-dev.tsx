@@ -48,6 +48,8 @@ function member(
     registrationId: `sample-kit/${id}`,
     title,
     layer: "L3",
+    injects: [],
+    tools: [],
     hooks,
     drives,
     defaultEnabled: false,
@@ -98,6 +100,10 @@ function applied(members: readonly MemberInfo[], op: MemberOp): readonly MemberI
       ];
     case "rename":
       return members.map((m) => (m.id === op.id ? { ...m, id: op.to } : m));
+    case "retitle":
+      return members.map((m) =>
+        m.id === op.id ? { ...m, title: op.title === "" ? null : op.title } : m,
+      );
     case "remove":
       return members.filter((m) => m.id !== op.id);
     case "move": {

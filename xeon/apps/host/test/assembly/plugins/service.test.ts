@@ -327,3 +327,78 @@ test("캐시는 scan()을 부를 때만 바뀐다. 처음 읽을 때 한 번 훑
   expect((await service.scan()).ok).toBe(true);
   expect(await namesOf(service)).toEqual(["greeter", "notes"]);
 });
+
+// AGE-33 enDep 5a, M5c §4.1.17: 목록과 상세의 카드는 설치된 사실로 의존 칸을 채우고(저장된 항목은 그대로), 엔진이 필요로 하는 단위에는 `requiredByCore`를 싣는다.
+
+/** 내장 레코드 한 줄. 매니페스트만 있다 */
+function builtinRecordOf(name: string, version: string, dependsOn: readonly unknown[] = []) {
+  const manifest = manifestOf({
+    schemaVersion: 2,
+    name,
+    version,
+    purpose: `Keeps ${name}`,
+    plugins: [{ layer: "plugin", hooks: [], dependsOn: [...dependsOn] }],
+  });
+  return { manifest, origin: "builtin" as const, location: "builtin" };
+}
+
+test("plugin.list and plugin.get judge each dependsOn line against the installed records and list the dependents", async () => {
+  const { service } = harnessOf({
+    records: [
+      builtinRecordOf("app", "1.0.0", [
+        { plugin: "kit", kind: "hard", range: "^1.0.0" },
+        { plugin: "ghost" },
+      ]),
+      builtinRecordOf("lone", "1.0.0", [{ plugin: "kit", kind: "hard", range: "^2.0.0" }]),
+      builtinRecordOf("kit", "1.0.0"),
+    ],
+  });
+  const listed = await service.list({});
+  if (!listed.ok) throw new Error("the list must read");
+  const cardOf = (name: string) => listed.value.plugins.find((card) => card.name === name);
+  expect(cardOf("app")?.dependencies?.dependsOn).toEqual([
+    { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: null },
+    { from: "app", target: "ghost", kind: "soft", range: null, problem: "target_missing" },
+  ]);
+  expect(cardOf("lone")?.dependencies?.dependsOn).toEqual([
+    { from: "lone", target: "kit", kind: "hard", range: "^2.0.0", problem: "range_unmet" },
+  ]);
+  expect(cardOf("kit")?.dependencies).toEqual({
+    dependsOn: [],
+    dependents: [
+      { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: null },
+      { from: "lone", target: "kit", kind: "hard", range: "^2.0.0", problem: null },
+    ],
+  });
+
+  const got = await service.get("kit");
+  if (!got.ok) throw new Error("the get must read");
+  expect(got.value.card.dependencies?.dependents.map((line) => line.from)).toEqual(["app", "lone"]);
+});
+
+test("a dependsOn whose target is missing from the installed records is target_missing in get as well", async () => {
+  const { service } = harnessOf({
+    records: [builtinRecordOf("app", "1.0.0", [{ plugin: "kit", kind: "hard" }])],
+  });
+  const got = await service.get("app");
+  if (!got.ok) throw new Error("the get must read");
+  expect(got.value.card.dependencies?.dependsOn.map((line) => line.problem)).toEqual([
+    "target_missing",
+  ]);
+});
+
+test("a required-by-core unit carries requiredByCore with its core users, and other cards carry no such key", async () => {
+  const { service } = harnessOf({
+    records: [builtinRecordOf("cap-dialog", "1.0.0"), builtinRecordOf("core-tasks", "1.0.0")],
+  });
+  const listed = await service.list({});
+  if (!listed.ok) throw new Error("the list must read");
+  const dialog = listed.value.plugins.find((card) => card.name === "cap-dialog");
+  expect(dialog?.requiredByCore).toEqual(["core-tools"]);
+  expect(listed.value.plugins.find((card) => card.name === "core-tasks")?.requiredByCore).toBe(
+    undefined,
+  );
+  const got = await service.get("cap-dialog");
+  if (!got.ok) throw new Error("the get must read");
+  expect(got.value.card.requiredByCore).toEqual(["core-tools"]);
+});

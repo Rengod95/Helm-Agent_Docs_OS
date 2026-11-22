@@ -53,6 +53,11 @@ export interface ScriptCard {
   readonly stdinBytes: number;
   readonly stdinPreview: string;
   /**
+   * 선언했지만 자식에게 넘기지 않는 환경 변수 이름(AGE-33 enDep 11, AGE-63). 허용 목록 밖, 토큰·키 이름, 또는 이 프로세스에 값이 없는 이름이다.
+   * `envNames`는 실제로 넘어가는 이름이다. 없으면 모두 넘어간 것이라 키를 싣지 않는다
+   */
+  readonly envNotPassed?: readonly string[];
+  /**
    * 승인하면 이 스크립트가 쓸 수 있는 것(AGE-58 [제안]). 열린 정책의 스크립트는 `sandbox_full_access`(읽기·쓰기·시스템 도구, 막는 것은 보호 셋뿐),
    * `network`(차단 목록 밖 전체)를 싣는다. 자식 env는 허용 목록뿐이라 `user_environment`는 싣지 않는다. 승인 전 드래프트의 좁은 길은 `SCRIPT_NARROW_USES`다
    */

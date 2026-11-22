@@ -172,7 +172,7 @@ describe("fresnel.devkit and its wire methods", () => {
   test("ext.members.edit takes 1 to 32 typed ops and rejects unknown kinds, extra keys and bad values", () => {
     const params = WIRE_METHODS["ext.members.edit"].params;
     const base = { dir: "/tmp/x" };
-    // 네 가지 건 모두 받는다
+    // 다섯 가지 건 모두 받는다
     expect(
       parse(params, {
         ...base,
@@ -191,6 +191,23 @@ describe("fresnel.devkit and its wire methods", () => {
     expect(parse(params, { ...base, ops: removes(33) }).ok).toBe(false);
     expect(parse(params, { ...base, ops: removes(32) }).ok).toBe(true);
     expect(parse(params, { ...base, ops: [{ kind: "remove", id: "a" }] }).ok).toBe(false);
+    // 보이는 이름 바꾸기: 빈 문자열은 제목을 지우고, 64자는 받고 65자는 거절한다
+    expect(
+      parse(params, { ...base, ops: [{ kind: "retitle", id: "sync", title: "Sync" }] }).ok,
+    ).toBe(true);
+    expect(parse(params, { ...base, ops: [{ kind: "retitle", id: "sync", title: "" }] }).ok).toBe(
+      true,
+    );
+    expect(
+      parse(params, { ...base, ops: [{ kind: "retitle", id: "sync", title: "t".repeat(64) }] }).ok,
+    ).toBe(true);
+    expect(
+      parse(params, { ...base, ops: [{ kind: "retitle", id: "sync", title: "t".repeat(65) }] }).ok,
+    ).toBe(false);
+    expect(parse(params, { ...base, ops: [{ kind: "retitle", id: "sync" }] }).ok).toBe(false);
+    expect(
+      parse(params, { ...base, ops: [{ kind: "retitle", id: "sync", title: "x", to: "y" }] }).ok,
+    ).toBe(false);
     // 알 수 없는 종류, 닫힌 객체, 틀린 값
     expect(parse(params, { ...base, ops: [{ kind: "replace", id: "sync" }] }).ok).toBe(false);
     expect(parse(params, { ...base, ops: [{ kind: "add", id: "sync", extra: 1 }] }).ok).toBe(false);
@@ -226,6 +243,8 @@ describe("fresnel.devkit and its wire methods", () => {
       drives: false,
       defaultEnabled: false,
       blockIds: ["b1"],
+      injects: [],
+      tools: [],
     };
     roundTrip(WIRE_METHODS["ext.members.edit"].result, {
       members: [member],
@@ -259,6 +278,36 @@ describe("fresnel.devkit and its wire methods", () => {
       }).ok,
     ).toBe(false);
     roundTrip(WIRE_METHODS["ext.members.read"].result, { members: [member] });
+    // 지침·스킬 값과 도구 값은 항상 있어야 한다. 빠지거나 모르는 종류면 거절한다
+    roundTrip(WIRE_METHODS["ext.members.read"].result, {
+      members: [
+        {
+          ...member,
+          injects: [
+            { id: "guide.md", kind: "instruction" },
+            { id: "lookup", kind: "skill" },
+          ],
+          tools: ["lookup"],
+        },
+      ],
+    });
+    expect(
+      parse(WIRE_METHODS["ext.members.read"].result, {
+        members: [{ ...member, injects: [{ id: "guide.md", kind: "command" }] }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(WIRE_METHODS["ext.members.read"].result, {
+        members: [{ ...member, tools: "lookup" }],
+      }).ok,
+    ).toBe(false);
+    // `injects`가 빠진 구성원 요약은 거절한다(선택 필드가 아니다)
+    const withoutInjects = Object.fromEntries(
+      Object.entries(member).filter(([key]) => key !== "injects"),
+    );
+    expect(parse(WIRE_METHODS["ext.members.read"].result, { members: [withoutInjects] }).ok).toBe(
+      false,
+    );
     expect(parse(WIRE_METHODS["ext.members.read"].params, { dir: "/tmp/x" }).ok).toBe(true);
     expect(parse(WIRE_METHODS["ext.members.read"].params, {}).ok).toBe(false);
     // 세 마디 이름이지만 확장 메서드가 아니라 코어 메서드다(확장 이름 `members`는 예약이다)
@@ -279,6 +328,9 @@ describe("fresnel.devkit and its wire methods", () => {
       }).ok,
     ).toBe(true);
     // 방식 이름이나 빈 구성원 id, 알 수 없는 키는 거절한다
+    // 목적 문장은 200자까지 받는다
+    expect(parse(params, { ...input, purpose: "p".repeat(200) }).ok).toBe(true);
+    expect(parse(params, { ...input, purpose: "p".repeat(201) }).ok).toBe(false);
     expect(parse(params, { ...input, dependencyKind: "maybe" }).ok).toBe(false);
     expect(parse(params, { ...input, member: "" }).ok).toBe(false);
     expect(parse(params, { ...input, extra: true }).ok).toBe(false);
@@ -325,6 +377,8 @@ describe("fresnel.devkit and its wire methods", () => {
     expect(parse(params, { dirs: input.dirs, outDir: input.outDir }).ok).toBe(false);
     expect(parse(params, { ...input, extra: true }).ok).toBe(false);
     expect(parse(params, { ...input, title: "t".repeat(65) }).ok).toBe(false);
+    expect(parse(params, { ...input, purpose: "p".repeat(200) }).ok).toBe(true);
+    expect(parse(params, { ...input, purpose: "p".repeat(201) }).ok).toBe(false);
     const merged = {
       id: "alpha",
       registrationId: "pair/alpha",
@@ -334,6 +388,8 @@ describe("fresnel.devkit and its wire methods", () => {
       drives: false,
       defaultEnabled: false,
       blockIds: [],
+      injects: [],
+      tools: [],
     };
     roundTrip(WIRE_METHODS["ext.members.merge"].result, {
       outDir: "/work/pair",

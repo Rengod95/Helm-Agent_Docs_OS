@@ -94,7 +94,8 @@ interface Membership {
  * 조립 루트(`ports.ts`)가 로더에 연결한다. 로더에 없는 이름(내장 단위, 아직 설치하지 않은 이름)은 조립이 건너뛴다
  */
 export interface PluginLifecycle {
-  ensureLoaded(name: string): Promise<unknown>;
+  /** 이름을 싣는다(기록이 있으면 hard 대상을 먼저). `signal`을 주면 그 호출의 적재가 쓰고, 없으면 엔진의 수명 신호다 */
+  ensureLoaded(name: string, signal?: AbortSignal): Promise<unknown>;
   unload(name: string): Promise<unknown>;
 }
 

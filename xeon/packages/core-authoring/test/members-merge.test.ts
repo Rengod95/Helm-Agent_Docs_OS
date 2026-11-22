@@ -135,6 +135,8 @@ test("two folders merge into one manifest: a root with the title, one member per
       drives: false,
       defaultEnabled: false,
       blockIds: [],
+      injects: [],
+      tools: [],
     },
     {
       id: "beta",
@@ -145,6 +147,8 @@ test("two folders merge into one manifest: a root with the title, one member per
       drives: false,
       defaultEnabled: false,
       blockIds: [],
+      injects: [],
+      tools: [],
     },
   ]);
   expect(rawOf(outDir)).toEqual({
@@ -196,7 +200,7 @@ test("the source folders keep every byte, and the output is the only folder writ
   expect(filesOf(outDir)).toEqual([".fresnel-plugin/plugin.json"]);
 });
 
-test("a folder's defaultEnabled moves to its member, and a folder without it leaves the member off", async () => {
+test("a folder's defaultEnabled false keeps its member off, and true starts it on", async () => {
   const alpha = await sourceOf("defaults", "alpha");
   const beta = await sourceOf("defaults", "beta");
   editManifest(beta, (raw) => ({ ...raw, defaultEnabled: true }));
@@ -208,6 +212,54 @@ test("a folder's defaultEnabled moves to its member, and a folder without it lea
     { id: "alpha", layer: "plugin", hooks: ["boundary.settle.after"], defaultEnabled: false },
     { id: "beta", layer: "plugin", hooks: ["boundary.settle.after"], defaultEnabled: true },
   ]);
+});
+
+test("a folder without defaultEnabled starts its member on, the way its own plugin started", async () => {
+  const alpha = await sourceOf("on-default", "alpha");
+  const beta = await sourceOf("on-default", "beta");
+  editManifest(alpha, (raw) =>
+    Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "defaultEnabled")),
+  );
+  editManifest(beta, (raw) =>
+    Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "defaultEnabled")),
+  );
+  const outDir = join(root, "on-default", "out");
+  const merged = must(await mergeMembers({ dirs: [alpha, beta], outDir, name: "pair" }, OPTIONS));
+  expect(merged.members.map((member) => member.defaultEnabled)).toEqual([true, true]);
+  expect(arrayOf(rawOf(outDir)["plugins"])[1]).toEqual({
+    id: "alpha",
+    layer: "plugin",
+    hooks: ["boundary.settle.after"],
+    defaultEnabled: true,
+  });
+});
+
+test("a plugin's own defaultEnabled decides its member, and a plugin with its own id starts off as it did alone", async () => {
+  const alpha = await sourceOf("own-default", "alpha");
+  const beta = await sourceOf("own-default", "beta");
+  editDecl(alpha, { defaultEnabled: false });
+  editManifest(beta, (raw) => ({
+    ...Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "defaultEnabled")),
+    plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"], defaultEnabled: true }],
+  }));
+  const outDir = join(root, "own-default", "out");
+  const merged = must(await mergeMembers({ dirs: [alpha, beta], outDir, name: "pair" }, OPTIONS));
+  expect(merged.members.map((member) => member.defaultEnabled)).toEqual([false, true]);
+  // 선언에 id가 있는 플러그인은 떼어 놓으면 기본으로 꺼져 있었다. 합쳐도 그대로 꺼진다
+  const own = await sourceOf("own-id-off", "alpha");
+  const other = await sourceOf("own-id-off", "beta");
+  editDecl(own, { id: "kit" });
+  editManifest(own, (raw) =>
+    Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "defaultEnabled")),
+  );
+  editManifest(other, (raw) =>
+    Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "defaultEnabled")),
+  );
+  const kitOut = join(root, "own-id-off", "out");
+  const kit = must(
+    await mergeMembers({ dirs: [own, other], outDir: kitOut, name: "pair" }, OPTIONS),
+  );
+  expect(kit.members.map((member) => member.defaultEnabled)).toEqual([false, true]);
 });
 
 test("a folder whose only declaration has its own id is moved from that registration id, not from its name", async () => {
@@ -225,6 +277,66 @@ test("a folder whose only declaration has its own id is moved from that registra
     { from: "beta", to: "pair/beta" },
   ]);
   expect(merged.members.map((member) => member.id)).toEqual(["alpha", "beta"]);
+});
+
+test("the merged purpose joins the folders' purposes in declared order with '; ', skips the folders without one, and an input purpose wins", async () => {
+  const alpha = await sourceOf("purpose", "alpha");
+  const beta = await sourceOf("purpose", "beta");
+  const gamma = await sourceOf("purpose", "gamma");
+  editManifest(alpha, (raw) => ({ ...raw, purpose: "알파 목적" }));
+  editManifest(gamma, (raw) => ({ ...raw, purpose: "감마 목적" }));
+  const joined = must(
+    await mergeMembers(
+      { dirs: [alpha, beta, gamma], outDir: join(root, "purpose", "joined"), name: "trio" },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "purpose", "joined"))["purpose"]).toBe("알파 목적; 감마 목적");
+  expect(joined.issues.map((issue) => issue.code)).not.toContain("merge_purpose_truncated");
+
+  const typed = must(
+    await mergeMembers(
+      {
+        dirs: [alpha, beta, gamma],
+        outDir: join(root, "purpose", "typed"),
+        name: "trio",
+        purpose: "직접 쓴 목적",
+      },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "purpose", "typed"))["purpose"]).toBe("직접 쓴 목적");
+  expect(typed.changedFiles).toEqual([".fresnel-plugin/plugin.json"]);
+});
+
+test("when no folder has a purpose and no input is given, the merged manifest has none", async () => {
+  const dirs = [await sourceOf("no-purpose", "alpha"), await sourceOf("no-purpose", "beta")];
+  const outDir = join(root, "no-purpose", "out");
+  must(await mergeMembers({ dirs, outDir, name: "pair" }, OPTIONS));
+  expect(rawOf(outDir)).not.toHaveProperty("purpose");
+});
+
+test("a joined purpose over 200 characters is cut to 200 with the info merge_purpose_truncated", async () => {
+  const alpha = await sourceOf("long-purpose", "alpha");
+  const beta = await sourceOf("long-purpose", "beta");
+  editManifest(alpha, (raw) => ({ ...raw, purpose: "a".repeat(150) }));
+  editManifest(beta, (raw) => ({ ...raw, purpose: "b".repeat(150) }));
+  const outDir = join(root, "long-purpose", "out");
+  const merged = must(await mergeMembers({ dirs: [alpha, beta], outDir, name: "pair" }, OPTIONS));
+  const purpose = rawOf(outDir)["purpose"];
+  expect(typeof purpose).toBe("string");
+  expect(String(purpose)).toHaveLength(200);
+  expect(String(purpose).startsWith("a".repeat(150) + "; b")).toBe(true);
+  expect(merged.issues.filter((issue) => issue.code === "merge_purpose_truncated")).toEqual([
+    {
+      severity: "info",
+      code: "merge_purpose_truncated",
+      path: "/purpose",
+      message:
+        "원본들의 목적을 이어 붙이니 200자를 넘어 잘랐다. 목적을 직접 주려면 purpose를 넘긴다",
+    },
+  ]);
+  expect(validateManifest(rawOf(outDir)).manifest?.purpose).toBe(String(purpose));
 });
 
 test("a dependency on another folder of the merge is dropped with an info, and a dependency outside it is kept", async () => {

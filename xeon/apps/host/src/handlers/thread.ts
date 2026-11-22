@@ -63,6 +63,8 @@ export function createThreadCreateHandler(
       ...(storedProfileId === undefined ? {} : { profileId: storedProfileId }),
       // 작업 폴더를 주지 않으면 기본 폴더 아래 대화별 폴더를 쓴다(§4.4.5)
       ...(params.workspace === undefined ? { defaultFolder: true } : {}),
+      // 소속을 이벤트에 싣는다(thread.started.project). 다른 생성 경로는 싣지 않는다
+      attachProject: true,
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
     // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7)

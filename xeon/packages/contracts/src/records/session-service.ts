@@ -283,6 +283,11 @@ export interface ThreadCreateInput {
   readonly profileId?: string;
   /** 테스트 대화 표지(`thread.started.craftChat`, M5c §4.8.1). 있으면 기본 목록에서 빠진다 */
   readonly craftChat?: CraftChatStarted;
+  /**
+   * 대화가 속한 프로젝트(`thread.started.project`): 프로젝트 id와 루트 정규 경로. 속하지 않으면 null이다(기본 폴더 대화).
+   * 호스트가 대화를 쓰기 전에 정한다(M5c §4.4.2). 없으면 이벤트에 싣지 않는다(옛 이벤트와 같다)
+   */
+  readonly project?: { readonly id: string; readonly root: string } | null;
   /** 전역 생성 멱등 키 1~200자. 같은 키의 두 번째 호출은 새 thread를 만들지 않는다 */
   readonly creationKey?: string;
   /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 thread:<threadId> 임대를 얻는다 */

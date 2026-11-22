@@ -21,6 +21,8 @@ const EDITED: WireResult<"ext.members.edit"> = {
       drives: false,
       defaultEnabled: false,
       blockIds: [],
+      injects: [],
+      tools: [],
     },
   ],
   issues: [],

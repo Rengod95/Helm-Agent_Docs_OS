@@ -20,6 +20,11 @@ import type { PluginLifecycle } from "./plugin-set.ts";
 
 /** 엔진 포트에서 오는 의존. `createEnginePorts`가 넘긴다. 소유 트랙마다 필요한 만큼만 더한다 */
 export interface M4EngineDeps {
+  /**
+   * 앱의 편집 통신이 폴더를 쓴 뒤 그 폴더의 내용 해시를 적는 장부(AGE-33). 검토 서비스가 같은 해시를 "앱에서 고친 변경"으로 본다.
+   * 생략하면 적지 않는다
+   */
+  readonly appEdits?: { markDir(dir: string): void };
   /** T-WC: 예약 서비스(`schedule.update`, `schedule.runs`) */
   readonly schedule: Pick<ScheduleService, "open" | "list" | "runs" | "update">;
   /** T-WC: thread 존재 확인(`goal.status`, `work.tasks.list`). `ext.test.run`의 testRun이 Test run 대화를 만들고 지우는 데도 쓴다 */

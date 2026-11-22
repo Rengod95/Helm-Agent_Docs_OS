@@ -23,7 +23,13 @@ const project = {
   createdAt: "2026-11-17T00:00:00.000Z",
   rev: 1,
 };
-const item = { ...project, threadCount: 3, runningCount: 1 };
+const item = {
+  ...project,
+  threadCount: 3,
+  runningCount: 1,
+  rootMissing: false,
+  pendingReviewCount: 2,
+};
 
 describe("Project (M5c-1 §3.1, §3.4)", () => {
   test("Project round trips and the id uses the prj_ prefix", () => {
@@ -34,9 +40,13 @@ describe("Project (M5c-1 §3.1, §3.4)", () => {
     expect(parse(ProjectSchema, { ...project, extra: true }).ok).toBe(false);
   });
 
-  test("project.list items carry threadCount and runningCount (M5c §3.6)", () => {
+  test("project.list items carry threadCount and runningCount (M5c §3.6), rootMissing and pendingReviewCount (AGE-34)", () => {
     roundTrip(ProjectListItemSchema, item);
     expect(parse(ProjectListItemSchema, project).ok).toBe(false);
+    expect(parse(ProjectListItemSchema, { ...item, rootMissing: "no" }).ok).toBe(false);
+    expect(parse(ProjectListItemSchema, { ...item, pendingReviewCount: -1 }).ok).toBe(false);
+    const { pendingReviewCount: _omitted, ...withoutPending } = item;
+    expect(parse(ProjectListItemSchema, withoutPending).ok).toBe(false);
     roundTrip(ProjectListResultSchema, { projects: [item] });
     expect(PROJECT_LIMITS.projects).toBe(200);
     const many = Array.from({ length: 201 }, (_, index) => ({

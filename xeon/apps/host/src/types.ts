@@ -460,6 +460,11 @@ export interface ThreadPort {
     readonly defaultFolder?: boolean;
     /** 테스트 대화 표지(`thread.started.craftChat`, M5c §4.8.1). `craftChat.open`만 준다 */
     readonly craftChat?: CraftChatStarted;
+    /**
+     * 대화가 속한 프로젝트를 만들 때 정해 `thread.started.project`에 싣는다. `thread.create`만 켠다(AGE-33).
+     * 켜지 않은 경로는 값을 싣지 않는다(옛 이벤트와 같고 `thread.list`가 소속을 구한다). 프로젝트를 자동으로 만들 수 있다
+     */
+    readonly attachProject?: boolean;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 대화의 정규 작업 폴더(없으면 null). 모르는 대화는 `thread_not_found`가 아니라 읽기 실패로 준다 */
   workspaceOf(threadId: ThreadId): Result<string | null, ReadFailure>;

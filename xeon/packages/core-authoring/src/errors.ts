@@ -27,6 +27,11 @@ export function invalid(message: string): DevkitError {
   return { kind: "invalid_input", message };
 }
 
+/** 사유 하나를 싣는 거절. `code`는 화면이 문장을 고르는 값이고 `field`는 입력 안의 자리다 */
+export function refusal(code: string, field: string, message: string): DevkitError {
+  return { kind: "invalid_input", message, reasons: [{ code, field, message }] };
+}
+
 /** 항목마다 비동기 작업을 함께 돌리고 첫 실패를 돌려준다(항목은 서로 독립이다) */
 export async function mapAll<I, T>(
   items: readonly I[],

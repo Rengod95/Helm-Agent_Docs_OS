@@ -519,7 +519,10 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     // 설치도 승인도 `plugin.draft.create`도 부르지 않는다: 고친 폴더는 호출자가 다시 초안으로 만들어 검토를 다시 지난다
     editMembers: async (input) => {
       const refused = await sourceOnlyRefusal(deps, input.dir);
-      return refused === undefined ? editMembers(input) : err(refused);
+      if (refused !== undefined) return err(refused);
+      const edited = await editMembers(input);
+      if (edited.ok && input.ops.length > 0) deps.appEdits?.markDir(input.dir);
+      return edited;
     },
     readMembers: (dir) => readMembers(dir),
     // 떼기는 원본 폴더를 읽고 새 폴더(`outDir`)에 쓴다. 두 폴더가 설치본이나 저장소 안이면 거절한다(`denied`).
@@ -528,7 +531,12 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       const refused =
         (await sourceOnlyRefusal(deps, input.dir)) ?? (await sourceOnlyRefusal(deps, input.outDir));
       if (refused !== undefined) return err(refused);
-      return detachMember(input, { templates: templates(), installedNames: installedNames() });
+      const detached = await detachMember(input, {
+        templates: templates(),
+        installedNames: installedNames(),
+      });
+      if (detached.ok) deps.appEdits?.markDir(input.outDir);
+      return detached;
     },
     // 합치기는 원본 폴더들을 읽고 새 폴더(`outDir`)에 쓴다. 어느 폴더든 설치본이나 저장소 안이면 거절한다(`denied`).
     // 설치도 승인도 초안 만들기도 하지 않는다. 결과의 `outDir`로 화면이 `plugin.draft.create`를 부른다
@@ -538,12 +546,17 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       );
       const refused = refusals.find((found) => found !== undefined);
       if (refused !== undefined) return err(refused);
-      return mergeMembers(input, { installedNames: installedNames() });
+      const merged = await mergeMembers(input, { installedNames: installedNames() });
+      if (merged.ok) deps.appEdits?.markDir(input.outDir);
+      return merged;
     },
     // 의존 편집도 구성원 편집과 같은 규칙이다(원본 폴더만, 설치하지 않고 승인하지 않는다)
     editDependencies: async (input) => {
       const refused = await sourceOnlyRefusal(deps, input.dir);
-      return refused === undefined ? editDependencies(input) : err(refused);
+      if (refused !== undefined) return err(refused);
+      const edited = await editDependencies(input);
+      if (edited.ok && input.ops.length > 0) deps.appEdits?.markDir(input.dir);
+      return edited;
     },
     readDependencies: (dir) => readDependencies(dir),
     // 원본 폴더의 자리는 플러그인 서비스가 안다(`get`의 `source`: 없으면 null). 서비스의 `matchesReviewed`는 마지막 훑기의

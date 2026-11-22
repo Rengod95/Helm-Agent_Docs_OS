@@ -205,6 +205,114 @@ test("editMembers add: hook, inject and drive members take the fields of their m
   });
 });
 
+test("editMembers retitle: the title changes, an empty title removes the key, and a title over 64 characters is refused", async () => {
+  const dir = await scaffoldFolder("retitle", { layer: "L3" });
+  must(await editMembers({ dir, ops: [{ kind: "add", id: "alpha", title: "Alpha" }] }));
+  const retitled = must(
+    await editMembers({ dir, ops: [{ kind: "retitle", id: "alpha", title: "Alpha two" }] }),
+  );
+  expect(retitled.members[0]?.title).toBe("Alpha two");
+  expect(
+    arrayOf(rawOf(dir)["plugins"]).find((decl) => isRecord(decl) && decl["id"] === "alpha"),
+  ).toEqual({
+    id: "alpha",
+    layer: "L3",
+    title: "Alpha two",
+    hooks: ["boundary.settle.after"],
+    defaultEnabled: false,
+  });
+  // 64자는 받고 65자는 거절한다. 거절하면 아무 파일도 바뀌지 않는다
+  const exact = must(
+    await editMembers({ dir, ops: [{ kind: "retitle", id: "alpha", title: "t".repeat(64) }] }),
+  );
+  expect(exact.members[0]?.title).toBe("t".repeat(64));
+  const before = textOf(dir, ".fresnel-plugin/plugin.json");
+  const long = refusal(
+    await editMembers({ dir, ops: [{ kind: "retitle", id: "alpha", title: "t".repeat(65) }] }),
+  );
+  expect(long.kind).toBe("invalid_input");
+  expect(textOf(dir, ".fresnel-plugin/plugin.json")).toBe(before);
+  // 빈 문자열은 제목을 지운다: 목록의 제목은 null이고 매니페스트에 title 키가 없다
+  const cleared = must(
+    await editMembers({ dir, ops: [{ kind: "retitle", id: "alpha", title: "" }] }),
+  );
+  expect(cleared.members[0]?.title).toBeNull();
+  expect(arrayOf(rawOf(dir)["plugins"])[1]).not.toHaveProperty("title");
+});
+
+test("editMembers retitle: the id, the code file, the blocks and the order stay; an unknown id is not_found with the rename reason", async () => {
+  const dir = await scaffoldFolder("retitle-refs", {
+    layer: "L3",
+    orchestration: {
+      members: ["alpha", "beta"],
+      composition: {
+        blocks: [
+          {
+            id: "settle",
+            stage: "settle",
+            op: "on",
+            plugin: "alpha",
+            hooks: ["boundary.settle.after"],
+          },
+        ],
+      },
+    },
+  });
+  const codeBefore = textOf(dir, "src/members/alpha.ts");
+  const edited = must(
+    await editMembers({ dir, ops: [{ kind: "retitle", id: "alpha", title: "First" }] }),
+  );
+  expect(edited.members.map((member) => member.id)).toEqual(["alpha", "beta"]);
+  expect(edited.members[0]?.blockIds).toEqual(["settle"]);
+  expect(edited.members[0]?.registrationId).toBe("retitle-refs/alpha");
+  expect(textOf(dir, "src/members/alpha.ts")).toBe(codeBefore);
+  expect(edited.changedFiles).not.toContain("src/members/alpha.ts");
+  expect(orderOf(dir)).toEqual(["(root)", "alpha", "beta"]);
+  const missing = refusal(
+    await editMembers({ dir, ops: [{ kind: "retitle", id: "nope", title: "x" }] }),
+  );
+  expect(missing.kind).toBe("not_found");
+  expect(missing.message).toBe('plugin "nope" is not a member of this extension');
+});
+
+test("editMembers: a member carries no injects or tools of its own; the extension's instructions and tools stay at extension level", async () => {
+  const dir = await scaffoldFolder("extension-items", { layer: "plugin" });
+  const manifest = rawOf(dir);
+  await writeFile(
+    join(dir, ".fresnel-plugin/plugin.json"),
+    `${JSON.stringify(
+      {
+        ...manifest,
+        components: { instructions: ["instructions.md"], skills: ["skills/review"] },
+        tools: [{ name: "lookup", description: "찾아본다" }],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  const added = must(
+    await editMembers({
+      dir,
+      ops: [
+        { kind: "add", id: "alpha", mode: "inject" },
+        { kind: "add", id: "beta", mode: "hook" },
+      ],
+    }),
+  );
+  expect(added.members.map((member) => ({ injects: member.injects, tools: member.tools }))).toEqual(
+    [
+      { injects: [], tools: [] },
+      { injects: [], tools: [] },
+    ],
+  );
+  const read = must(await readMembers(dir));
+  expect(read.map((member) => ({ injects: member.injects, tools: member.tools }))).toEqual([
+    { injects: [], tools: [] },
+    { injects: [], tools: [] },
+  ]);
+  expect(manifestOf(dir).components?.instructions).toEqual(["instructions.md"]);
+});
+
 test("editMembers add: a drive member needs layer L3, and a member cannot mix external and internal layers", async () => {
   const dir = await scaffoldFolder("drive-plain");
   const before = textOf(dir, ".fresnel-plugin/plugin.json");
@@ -578,6 +686,8 @@ test("the members result carries the decl fields that the authoring screen reads
     drives: false,
     defaultEnabled: false,
     blockIds: [],
+    injects: [],
+    tools: [],
   });
 });
 

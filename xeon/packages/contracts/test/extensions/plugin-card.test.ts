@@ -359,3 +359,27 @@ describe("card dependency cells (AGE-33)", () => {
     );
   });
 });
+
+describe("required by core and the not-passed names (AGE-33 enDep 10, 11)", () => {
+  test("requiredByCore round trips by value, and a card without it parses with no such key", () => {
+    roundTrip(PluginCardSchema, { ...PLUGIN_CARD, requiredByCore: ["core-tools"] });
+    roundTrip(PluginCardSchema, PLUGIN_CARD);
+    expect("requiredByCore" in PLUGIN_CARD).toBe(false);
+  });
+
+  test("requiredByCore takes strings only and at most 16 names", () => {
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, requiredByCore: [42] }).ok).toBe(false);
+    const names = Array.from({ length: 17 }, (_, index) => `core-${index}`);
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, requiredByCore: names }).ok).toBe(false);
+  });
+
+  test("a script's envNotPassed round trips by value and may be omitted", () => {
+    const lint: CardScript = {
+      name: "lint",
+      launch: { command: "sh", args: ["scripts/lint.sh"], envNames: [], cwd: null },
+      timeoutMs: 10000,
+      envNotPassed: ["API_TOKEN"],
+    };
+    roundTrip(PluginCardSchema, withScriptLane([lint]));
+  });
+});

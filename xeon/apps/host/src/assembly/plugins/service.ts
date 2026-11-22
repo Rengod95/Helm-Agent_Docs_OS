@@ -12,10 +12,16 @@ import type {
 } from "@fresnel/contracts/wire";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { PluginPort, PluginPortFailure } from "../../handlers/m5/plugins.ts";
+import type { DependencyNode } from "@fresnel/ext-host";
 import type { ExtensionRecord } from "../m4/ext-read-port.ts";
 import { compareUtf8 } from "./content-hash.ts";
 import { addsToolsOf, invocablesOf } from "./invocables.ts";
-import { buildPluginCard, type CardSubject } from "./card.ts";
+import {
+  buildPluginCard,
+  withInstalledDependencies,
+  withRequiredByCore,
+  type CardSubject,
+} from "./card.ts";
 import { discoverPluginFolders, type DiscoverProjectRoot } from "./discover.ts";
 import {
   readPluginFolder,
@@ -490,6 +496,20 @@ function withUsedBy(card: PluginCard, listed: ProfileListResult): PluginCard {
   return { ...card, usedBy: usedByOf(card.name, listed) };
 }
 
+/** 설치된 레코드를 의존 판정의 노드로 옮긴다. 검토 서비스의 `facts`와 같은 원천(`extRead.extensions()`)이다 */
+function installedNodesOf(records: readonly PluginRecordSource[]): DependencyNode[] {
+  return records.map((record) => ({
+    name: record.manifest.name,
+    version: record.manifest.version,
+    manifest: record.manifest,
+  }));
+}
+
+/** 응답 값의 카드: 의존 칸을 설치된 사실로 채우고 필수 표시를 싣는다(AGE-33 enDep 5a, 10). 저장된 항목은 바꾸지 않는다 */
+function responseCardOf(card: PluginCard, nodes: readonly DependencyNode[]): PluginCard {
+  return withRequiredByCore(withInstalledDependencies(card, nodes));
+}
+
 /** 필터: 프로필은 그 프로필에 든 것과 공통 묶음에 든 것을 보인다(§3.4) */
 function matches(card: PluginCard, filter: PluginListFilter): boolean {
   if (filter.origin !== undefined && card.origin.kind !== filter.origin) return false;
@@ -539,8 +559,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     if (!read.ok) return read;
     const listed = await deps.profiles.list();
     if (!listed.ok) return err({ kind: "profiles", failure: listed.error });
+    const nodes = installedNodesOf(deps.records());
     const plugins = read.value.entries
-      .map((entry) => withUsedBy(entry.card, listed.value))
+      .map((entry) => withUsedBy(responseCardOf(entry.card, nodes), listed.value))
       .filter((card) => matches(card, filter));
     return ok({ plugins });
   }
@@ -553,13 +574,15 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     reviewKey: string,
     reviewedHash: string,
     origin: PluginCard["origin"]["kind"],
+    name: string,
   ): Promise<Result<PluginFolder | null, PluginPortFailure>> {
     const cacheKey = `${reviewKey}\0${reviewedHash}`;
     let outcome = reviewedReads.get(cacheKey);
     if (outcome === undefined) {
       const tree = await deps.store.treePath(reviewKey);
       if (!tree.ok) return err(storeFailure(tree.error));
-      outcome = readPluginFolder(tree.value, { origin });
+      // 검토본 폴더는 `tree`라서 매니페스트가 없을 때 플러그인 이름을 따로 준다
+      outcome = readPluginFolder(tree.value, { origin, name });
       reviewedReads.set(cacheKey, outcome);
     }
     if (!outcome.ok) {
@@ -576,7 +599,12 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     const reviewedHash = entry.reviewedHash;
     const reviewKey = entry.reviewKey;
     if (reviewedHash === null || reviewKey === null) return ok([]);
-    const folder = await reviewedFolderOf(reviewKey, reviewedHash, entry.card.origin.kind);
+    const folder = await reviewedFolderOf(
+      reviewKey,
+      reviewedHash,
+      entry.card.origin.kind,
+      entry.card.name,
+    );
     if (!folder.ok) return folder;
     return ok(
       invocablesOf({
@@ -653,7 +681,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       current: item.current,
     }));
     return ok({
-      card: withUsedBy(entry.card, listed.value),
+      card: withUsedBy(responseCardOf(entry.card, installedNodesOf(deps.records())), listed.value),
       versions: shaped,
       source:
         entry.source === null
