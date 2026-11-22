@@ -76,18 +76,18 @@ function pieceOf(
 /** 머리 문장에 이을 범주 조각의 상한. 넘으면 앞 두 조각 뒤에 "외 N가지"로 줄인다(DP-154: 머리는 한 줄로 읽힌다) */
 const SUMMARY_PIECES = 3;
 
-/** 끝난 묶음의 머리 문장: "app.ts, model.ts 읽음 · 명령 2개 실행함". 범주가 셋을 넘으면 "… · 외 N가지" */
-export function activitySummaryOf(calls: readonly ActivityCall[]): string {
+/**
+ * 끝난 묶음의 머리 문장의 조각: ["app.ts, model.ts 읽음", "명령 2개 실행함"]. 범주가 셋을 넘으면 마지막 조각이 "외 N가지"다
+ */
+export function activitySummaryOf(calls: readonly ActivityCall[]): readonly string[] {
   const grouped = groupToolCalls(
     calls.map((c) => ({ toolName: c.name, args: c.args, mcpServer: c.server })),
   );
   const names = readNamesOf(calls);
   const pieces = grouped.counts.map((c) => pieceOf(c.category, c.count, c.distinct, names));
-  if (pieces.length <= SUMMARY_PIECES) return pieces.join(" · ");
+  if (pieces.length <= SUMMARY_PIECES) return pieces;
   const shown = pieces.slice(0, SUMMARY_PIECES - 1);
-  return [...shown, t("desktop.convo.group.more", { count: pieces.length - shown.length })].join(
-    " · ",
-  );
+  return [...shown, t("desktop.convo.group.more", { count: pieces.length - shown.length })];
 }
 
 /** 묶음 머리의 곁 정보 한 조각. 실패 조각만 위험 글자색이다 */
@@ -107,7 +107,7 @@ export function groupHeadOf(input: {
   readonly live: boolean;
   readonly seconds: number;
   readonly currentVerb: string | null;
-}): { readonly title: string; readonly meta: readonly GroupMetaPiece[] } {
+}): { readonly title: readonly string[]; readonly meta: readonly GroupMetaPiece[] } {
   const count = input.calls.length;
   const parallel = input.steps === 1 && count > 1;
   const failed: GroupMetaPiece[] =
@@ -126,7 +126,7 @@ export function groupHeadOf(input: {
       input.seconds > 0
         ? [{ text: t("desktop.convo.group.seconds", { seconds: input.seconds }), tone: null }]
         : [];
-    return { title, meta: [...progress, ...failed, ...time] };
+    return { title: [title], meta: [...progress, ...failed, ...time] };
   }
   const shape: GroupMetaPiece = parallel
     ? { text: t("desktop.convo.group.parallel", { count }), tone: null }

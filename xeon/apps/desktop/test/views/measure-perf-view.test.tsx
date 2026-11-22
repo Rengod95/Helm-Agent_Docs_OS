@@ -38,7 +38,7 @@ describe("PerfView", () => {
     expect(out).toContain("Turn당 토큰 하루 평균 300, 앞선 날들 100 (올랐어요)");
     expect(out).toContain("Turn 1: 실패나 예산 초과 핸들러 1");
     expect(out).toContain("acme");
-    expect(out).toContain("helm · 5번 연달아 실패했어요");
+    expect(out).toContain("helm 확장이 5번 연달아 실패했어요");
     expect(out).toContain("900ms");
     expect(out).toContain("1개 Turn만 읽었어요");
   });

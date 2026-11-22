@@ -95,12 +95,19 @@ function LineTarget(props: { readonly target: ToolTarget }): ReactNode {
       );
     case "text":
       return target.text === "" ? null : (
-        <span
-          className={target.mono ? "convo-line-text convo-mono" : "convo-line-text"}
-          title={target.text}
-        >
-          {target.text}
-        </span>
+        <>
+          <span
+            className={target.mono ? "convo-line-text convo-mono" : "convo-line-text"}
+            title={target.text}
+          >
+            {target.text}
+          </span>
+          {target.suffix === undefined || target.suffix === "" ? null : (
+            <span className="convo-line-text" title={target.suffix}>
+              {target.suffix}
+            </span>
+          )}
+        </>
       );
     case "none":
       return null;
@@ -244,10 +251,11 @@ export function ToolLine(props: {
       : "text" in props.target
         ? props.target.text
         : props.target.path,
+    props.target.kind === "text" ? (props.target.suffix ?? "") : "",
     statusText(props.status),
   ]
     .filter((part) => part !== "")
-    .join(" · ");
+    .join(", ");
   // 상태가 이 줄이 화면에 있는 동안 바뀌었는가(도는 중 → 끝남·실패). 도는 동안의 빛은 상태 칩 테두리의 beam 하나다(DP-127)
   const changed = useChangedSinceMount(props.status.kind);
   return (

@@ -20,8 +20,11 @@ export function newTokensOf(usage: NonNullable<TurnSummary["usage"]>): number {
   return usage.input + usage.output;
 }
 
-/** 턴 발 줄 오른쪽 메타: "12단계 · 1분 4초 · 새로 412 토큰 · Claude Opus 5" */
-export function turnMetaOf(turn: TurnSummary, nameOf: ModelNameOf = prettyModelId): string {
+/** 턴 발 줄 오른쪽 메타의 조각: ["12단계", "1분 4초", "새로 412 토큰", "Claude Opus 5"] */
+export function turnMetaOf(
+  turn: TurnSummary,
+  nameOf: ModelNameOf = prettyModelId,
+): readonly string[] {
   const parts: string[] = [];
   if (turn.steps > 0) parts.push(t("desktop.convo.foot.steps", { count: turn.steps }));
   if (turn.durationMs !== null) parts.push(durationText(turn.durationMs));
@@ -31,7 +34,7 @@ export function turnMetaOf(turn: TurnSummary, nameOf: ModelNameOf = prettyModelI
     );
   }
   if (turn.model !== null) parts.push(nameOf(turn.model));
-  return parts.join(" · ");
+  return parts;
 }
 
 /** 메타 툴팁의 상세 줄: 전체(캐시 포함), 입력, 출력, 캐시, 비용, 모델 id */
@@ -44,7 +47,8 @@ export function turnDetailLinesOf(turn: TurnSummary): readonly string[] {
     t("desktop.convo.foot.output", { n: usage.output }),
   ];
   if (usage.cacheRead + usage.cacheWrite > 0) {
-    lines.push(t("desktop.convo.foot.cache", { read: usage.cacheRead, write: usage.cacheWrite }));
+    lines.push(t("desktop.convo.foot.cacheRead", { read: usage.cacheRead }));
+    lines.push(t("desktop.convo.foot.cacheWrite", { write: usage.cacheWrite }));
   }
   if (usage.cost !== null && usage.cost > 0)
     lines.push(t("desktop.convo.foot.cost", { cost: usage.cost }));

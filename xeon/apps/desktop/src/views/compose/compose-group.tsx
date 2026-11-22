@@ -5,6 +5,7 @@ import { FolderArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import {
   blockRowsOf,
+  type MemberTitleSource,
   compositionOf,
   flowDraftOf,
   issuesByBlockOf,
@@ -22,6 +23,7 @@ import { useTabRead } from "../workbench/tab-read.ts";
 import { CheckBanner, type CheckRead } from "./compose-check.tsx";
 import { FlowWorkspace } from "./compose-flow.tsx";
 import { GroupCanvas } from "./compose-group-canvas.tsx";
+import { membersOfManifest } from "../craft/members/members-model.ts";
 
 const MUTED = "m-0 text-ui text-text-tertiary";
 
@@ -110,19 +112,22 @@ export function NoComposition(): ReactNode {
 export function GroupBlocks(props: {
   readonly composition: CompositionDecl;
   readonly check: CheckRead;
+  /** 블록이 속한 구성원의 제목을 채우는 목록(m6Mb). 없으면 구성원 id만 보인다 */
+  readonly members?: readonly MemberTitleSource[];
 }): ReactNode {
   const issues = props.check.kind === "done" ? props.check.issues : [];
   const byBlock = issuesByBlockOf(props.composition, issues);
   return (
     <>
       <CheckBanner check={props.check} />
-      <GroupCanvas rows={blockRowsOf(props.composition)} issuesByBlock={byBlock} />
+      <GroupCanvas rows={blockRowsOf(props.composition, props.members)} issuesByBlock={byBlock} />
     </>
   );
 }
 
 function GroupBody(props: {
   readonly composition: CompositionDecl;
+  readonly members: readonly MemberTitleSource[];
   readonly link: TabLink;
   readonly onMake: (composition: CompositionDecl) => void;
 }): ReactNode {
@@ -141,7 +146,7 @@ function GroupBody(props: {
           {t("desktop.compose.group.clone")}
         </Button>
       </div>
-      <GroupBlocks composition={props.composition} check={check} />
+      <GroupBlocks composition={props.composition} check={check} members={props.members} />
     </>
   );
 }
@@ -219,6 +224,7 @@ export function GroupSource(props: {
         return props.mode === "group" ? (
           <GroupBody
             composition={composition.composition}
+            members={membersOfManifest(props.name, detail.manifest)}
             link={props.link}
             onMake={props.onMake}
           />

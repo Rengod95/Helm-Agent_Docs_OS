@@ -17,9 +17,9 @@ export const WEB_TOOLS: readonly string[] = ["web_search", "web_fetch"];
 
 const TASK_HEAD_CHARS = 80;
 
-/** 머리 한 줄: `<정의 이름> · <할 일 첫 줄>`. 인자가 모자라면 있는 것만 */
-export function agentHeadOf(args: JsonValue): string {
-  if (!isObj(args)) return "";
+/** 머리 한 줄의 조각: `[<정의 이름>, <할 일 첫 줄>]`. 인자가 모자라면 있는 것만 */
+export function agentHeadOf(args: JsonValue): readonly string[] {
+  if (!isObj(args)) return [];
   const agent = strOf(args["agent"]);
   const task = strOf(args["task"]);
   const firstLine = task === null ? null : (task.split("\n")[0] ?? "").trim();
@@ -29,7 +29,7 @@ export function agentHeadOf(args: JsonValue): string {
       : firstLine.length > TASK_HEAD_CHARS
         ? `${firstLine.slice(0, TASK_HEAD_CHARS)}…`
         : firstLine;
-  return [agent, clipped === "" ? null : clipped].filter((p) => p !== null).join(" · ");
+  return [agent, clipped].filter((p): p is string => p !== null && p !== "");
 }
 
 type AgentOutcome = "completed" | "aborted" | "error";

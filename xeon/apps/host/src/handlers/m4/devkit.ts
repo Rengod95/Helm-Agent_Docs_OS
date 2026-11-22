@@ -15,6 +15,9 @@ import type {
   DevkitError,
   DraftSummary,
   KindEntry,
+  MemberInfo,
+  MembersEditInput,
+  MembersEditResult,
   PackInput,
   PackResult,
   ScaffoldInput,
@@ -46,6 +49,13 @@ export interface DevkitPort {
   testRun(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, DevkitError>>;
   /** `ext.test.list`. 저장된 시험 기록을 시작 순서대로 돌려준다 */
   testList(): Promise<Result<ExtTestListResult, DevkitError>>;
+  /**
+   * `ext.members.edit`(L3.authoring.spec §3.3). 원본 폴더의 구성원을 고친다. 설치본과 검토본·초안 저장소 폴더는 거절한다(`denied`).
+   * 설치도 승인도 초안 만들기도 하지 않는다. 고친 폴더는 호출자가 `plugin.draft.create`로 다시 초안을 만든다
+   */
+  editMembers(input: MembersEditInput): Promise<Result<MembersEditResult, DevkitError>>;
+  /** `ext.members.read`. 쓰지 않고 구성원 요약을 돌려준다 */
+  readMembers(dir: string): Promise<Result<readonly MemberInfo[], DevkitError>>;
   /** 기존 플러그인의 원본 폴더 사실(M5c §4.9.3). 빌더 서비스가 부른다. wire 메서드가 아니다 */
   sourceOf(name: string): Promise<Result<SourceFacts, DevkitError>>;
   /** 플러그인의 초안 목록, 최신 먼저(M5c §4.9.2). 빌더 서비스가 부른다. wire 메서드가 아니다 */
@@ -65,6 +75,8 @@ export type DevkitMethods =
   | "ext.package"
   | "ext.test.run"
   | "ext.test.list"
+  | "ext.members.edit"
+  | "ext.members.read"
   | "ext.validateComposition";
 
 export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, DevkitMethods> {
@@ -75,6 +87,10 @@ export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, Devki
     "ext.package": async (params) => unwrap(await port.pack(params), "/dir"),
     "ext.test.run": async (params) => unwrap(await port.testRun(params), "/target"),
     "ext.test.list": async () => unwrap(await port.testList(), "/"),
+    "ext.members.edit": async (params) => unwrap(await port.editMembers(params), "/dir"),
+    "ext.members.read": async (params) => ({
+      members: unwrap(await port.readMembers(params.dir), "/dir"),
+    }),
     "ext.validateComposition": (params) => Promise.resolve(port.validateComposition(params)),
   };
 }

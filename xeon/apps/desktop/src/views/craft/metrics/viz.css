@@ -3,16 +3,27 @@
    중립 먹(--viz-ink-1~3)은 종류가 아닌 그림(턴 수, 전후 비교)에 쓴다.
    Hook 결정(막음·물음·고침·통과·시간 초과)은 먼저 점 구슬의 모양(glyphs.tsx)으로 가르고, 색은 누른 색으로 거든다:
    막음은 산호, 물음은 호박, 고침은 슬레이트, 통과는 흐린 먹, 고장(오류·시간 초과)만 위험 글자색이다.
-   다크는 text.secondary와, 라이트는 text.primary와 섞는다(앱 테마 data-theme, 없으면 시스템 설정). */
+   중립 먹과 고침(슬레이트)은 다크는 text.secondary와, 라이트는 text.primary와 섞는다(앱 테마 data-theme, 없으면 시스템 설정).
+   종류 색과 결정 색은 유채색이라 두 테마가 같다(AGE-31, 아래 :root). */
 :root {
-  --viz-inject: color-mix(
+  /* 종류 표시와 결정 색은 두 테마가 같다(AGE-31 라이트=다크 유채색, `src/chroma.css`): 라이트도 다크의 유채색 토큰과
+     다크의 보조 글 밝기(--fr-chroma-ink-secondary)를 섞는다. Inject는 앱의 cobalt 셋을 섞지 않고 그대로 쓴다 */
+  --viz-inject: var(--fr-color-cobalt-graphic);
+  --viz-hook: color-mix(
     in oklab,
-    var(--cs-color-identity-iris) 78%,
-    var(--cs-color-text-primary)
+    var(--cs-color-identity-amber) 74%,
+    var(--fr-chroma-ink-secondary)
   );
-  --viz-hook: color-mix(in oklab, var(--cs-color-identity-amber) 62%, var(--cs-color-text-primary));
-  --viz-drive: color-mix(in oklab, var(--cs-color-agent-stop-1) 82%, var(--cs-color-text-primary));
-  --viz-tool: color-mix(in oklab, var(--cs-color-identity-mint) 70%, var(--cs-color-text-primary));
+  --viz-drive: color-mix(
+    in oklab,
+    var(--cs-color-agent-stop-1) 76%,
+    var(--fr-chroma-ink-secondary)
+  );
+  --viz-tool: color-mix(
+    in oklab,
+    var(--cs-color-identity-mint) 66%,
+    var(--fr-chroma-ink-secondary)
+  );
   --viz-model: var(--cs-color-text-tertiary);
   --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 8%, transparent);
   --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 6%, transparent);
@@ -28,66 +39,37 @@
   --viz-asked: color-mix(
     in oklab,
     var(--cs-color-identity-amber) 58%,
-    var(--cs-color-text-primary)
+    var(--fr-chroma-ink-secondary)
   );
   --viz-blocked: color-mix(
     in oklab,
     var(--cs-color-identity-coral) 52%,
-    var(--cs-color-text-primary)
+    var(--fr-chroma-ink-secondary)
   );
   --viz-fault: var(--cs-color-danger-text);
-  /* 종류 타일(인사이트 카드의 28px 아이콘 칸)의 면과 그림 색. 프로필 캔버스 G5(m4/cv7 cv6.css)의 탭 면과 같은 값이다:
-     옅게 섞은 파스텔이 아니라 그 밝기에서 그릴 수 있는 진한 색. 밝은 테마는 밝은 면 + 같은 색상의 진한 글(명암비 4.5:1 넘게) */
-  --viz-inject-tab: oklch(0.82 0.1 240);
-  --viz-hook-tab: oklch(0.85 0.15 85);
-  --viz-drive-tab: oklch(0.82 0.09 288);
-  --viz-tool-tab: oklch(0.84 0.15 150);
+  /* 종류 타일(인사이트 카드의 28px 아이콘 칸)의 면과 그림 색. 프로필 캔버스 G5(m4/cv7 cv6.css)의 어두운 탭 면(참고 그림을 잰 밝기와 세기에
+     종류의 색상)과 종류의 다크 글이다. 두 테마가 같다(AGE-31) */
+  --viz-inject-tab: var(--fr-color-cobalt-face);
+  --viz-hook-tab: oklch(0.283 0.056 92);
+  --viz-drive-tab: oklch(0.263 0.105 288);
+  --viz-tool-tab: oklch(0.283 0.056 150);
   --viz-block-tab: color-mix(
     in srgb,
     var(--cs-color-text-primary) 9%,
     var(--cs-color-surface-base)
   );
-  --viz-inject-tab-text: oklch(0.42 0.088 240);
-  --viz-hook-tab-text: oklch(0.43 0.085 75);
-  --viz-drive-tab-text: oklch(0.42 0.2 288);
-  --viz-tool-tab-text: oklch(0.42 0.11 150);
+  --viz-inject-tab-text: var(--fr-chroma-cobalt-text);
+  --viz-hook-tab-text: var(--fr-chroma-warning-text);
+  --viz-drive-tab-text: var(--fr-chroma-agent-text);
+  --viz-tool-tab-text: var(--fr-chroma-success-text);
   --viz-block-tab-text: var(--cs-color-text-secondary);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
-    --viz-inject-tab: oklch(0.263 0.055 235);
-    --viz-hook-tab: oklch(0.283 0.056 92);
-    --viz-drive-tab: oklch(0.263 0.105 288);
-    --viz-tool-tab: oklch(0.283 0.056 150);
     --viz-block-tab: color-mix(
       in srgb,
       var(--cs-color-text-primary) 13%,
       var(--cs-color-bg-canvas)
-    );
-    --viz-inject-tab-text: var(--cs-color-info-text);
-    --viz-hook-tab-text: var(--cs-color-warning-text);
-    --viz-drive-tab-text: var(--cs-color-agent-text);
-    --viz-tool-tab-text: var(--cs-color-success-text);
-    --viz-inject: color-mix(
-      in oklab,
-      var(--cs-color-identity-iris) 74%,
-      var(--cs-color-text-secondary)
-    );
-    --viz-hook: color-mix(
-      in oklab,
-      var(--cs-color-identity-amber) 74%,
-      var(--cs-color-text-secondary)
-    );
-    --viz-drive: color-mix(
-      in oklab,
-      var(--cs-color-agent-stop-1) 76%,
-      var(--cs-color-text-secondary)
-    );
-    --viz-tool: color-mix(
-      in oklab,
-      var(--cs-color-identity-mint) 66%,
-      var(--cs-color-text-secondary)
     );
     --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
     --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
@@ -99,49 +81,10 @@
       var(--cs-color-identity-slate) 62%,
       var(--cs-color-text-secondary)
     );
-    --viz-asked: color-mix(
-      in oklab,
-      var(--cs-color-identity-amber) 58%,
-      var(--cs-color-text-secondary)
-    );
-    --viz-blocked: color-mix(
-      in oklab,
-      var(--cs-color-identity-coral) 52%,
-      var(--cs-color-text-secondary)
-    );
   }
 }
 :root[data-theme="dark"] {
-  /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
-  --viz-inject-tab: oklch(0.263 0.055 235);
-  --viz-hook-tab: oklch(0.283 0.056 92);
-  --viz-drive-tab: oklch(0.263 0.105 288);
-  --viz-tool-tab: oklch(0.283 0.056 150);
   --viz-block-tab: color-mix(in srgb, var(--cs-color-text-primary) 13%, var(--cs-color-bg-canvas));
-  --viz-inject-tab-text: var(--cs-color-info-text);
-  --viz-hook-tab-text: var(--cs-color-warning-text);
-  --viz-drive-tab-text: var(--cs-color-agent-text);
-  --viz-tool-tab-text: var(--cs-color-success-text);
-  --viz-inject: color-mix(
-    in oklab,
-    var(--cs-color-identity-iris) 74%,
-    var(--cs-color-text-secondary)
-  );
-  --viz-hook: color-mix(
-    in oklab,
-    var(--cs-color-identity-amber) 74%,
-    var(--cs-color-text-secondary)
-  );
-  --viz-drive: color-mix(
-    in oklab,
-    var(--cs-color-agent-stop-1) 76%,
-    var(--cs-color-text-secondary)
-  );
-  --viz-tool: color-mix(
-    in oklab,
-    var(--cs-color-identity-mint) 66%,
-    var(--cs-color-text-secondary)
-  );
   --viz-grid: color-mix(in oklab, var(--cs-color-text-primary) 9%, transparent);
   --viz-track: color-mix(in oklab, var(--cs-color-text-primary) 7%, transparent);
   --viz-pass: color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent);
@@ -150,16 +93,6 @@
   --viz-modified: color-mix(
     in oklab,
     var(--cs-color-identity-slate) 62%,
-    var(--cs-color-text-secondary)
-  );
-  --viz-asked: color-mix(
-    in oklab,
-    var(--cs-color-identity-amber) 58%,
-    var(--cs-color-text-secondary)
-  );
-  --viz-blocked: color-mix(
-    in oklab,
-    var(--cs-color-identity-coral) 52%,
     var(--cs-color-text-secondary)
   );
 }

@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { TurnInvokedRecord } from "../../state/engine/convo.ts";
 import { useCommands } from "../commands.ts";
 import { draftPluginsOf, type OneShotPick } from "./one-shot-model.ts";
+import { MetaParts } from "../meta-parts.tsx";
 
 // 원샷 부품(lcM6a, L4 desktop-ux §6.6.1, craft-flows T2):
 // - 슬래시 목록의 "원샷" 묶음 행(`OneShotRow`)
@@ -90,12 +91,16 @@ function PickIcon(props: { readonly pick: Pick<OneShotPick, "draftId" | "until">
 }
 
 /** 원샷이 남는 범위와 드래프트 표시 */
-function scopeTextOf(pick: Pick<OneShotPick, "draftId" | "until">): string {
+function scopeTextOf(pick: Pick<OneShotPick, "draftId" | "until">): ReactNode {
   const scope =
     pick.until === "release" ? t("desktop.oneShot.untilDrive") : t("desktop.oneShot.turnOnly");
-  return pick.draftId === null
-    ? scope
-    : `${t("desktop.oneShot.draft")} · ${t("desktop.oneShot.draftHint")}`;
+  return pick.draftId === null ? (
+    scope
+  ) : (
+    <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
+      <span>{t("desktop.oneShot.draft")}</span> <span>{t("desktop.oneShot.draftHint")}</span>
+    </span>
+  );
 }
 
 /** 슬래시 목록의 원샷 행. 이름 뒤에 플러그인, 범위(이 턴만 / Drive가 끝날 때까지), 드래프트면 그 표시 */
@@ -204,11 +209,11 @@ export function InvokedMark(props: { readonly invoked: readonly TurnInvokedRecor
   const shown = props.invoked.filter((item) => item.kind !== "drive");
   if (shown.length === 0) return null;
   const draft = shown.some((item) => item.draft);
-  const names = shown.map((item) => `/${item.entry}`).join(" · ");
+  const names = shown.map((item) => `/${item.entry}`);
   return (
     <span
       data-slot="turn-one-shot"
-      aria-label={t("desktop.oneShot.traceAria", { names })}
+      aria-label={t("desktop.oneShot.traceAria", { names: names.join(", ") })}
       className="convo-line-meta flex items-center gap-1 px-1.5"
     >
       {draft ? (
@@ -216,9 +221,14 @@ export function InvokedMark(props: { readonly invoked: readonly TurnInvokedRecor
       ) : (
         <SlashSquare aria-hidden className="size-3 shrink-0" />
       )}
-      <span aria-hidden>
-        {t("desktop.oneShot.group")} {names}
-        {draft ? ` · ${t("desktop.oneShot.draft")}` : ""}
+      <span aria-hidden className="flex min-w-0 flex-wrap items-baseline gap-2">
+        <MetaParts parts={[t("desktop.oneShot.group"), ...names]} />
+        {draft ? (
+          <>
+            {" "}
+            <span>{t("desktop.oneShot.draft")}</span>
+          </>
+        ) : null}
       </span>
     </span>
   );

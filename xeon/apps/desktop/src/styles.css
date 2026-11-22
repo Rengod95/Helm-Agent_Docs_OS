@@ -7,6 +7,8 @@
 @import "./fonts.css";
 @import "./type-scale.css";
 @import "./high-contrast.css";
+@import "./color-sets.css";
+@import "./chroma.css";
 @import "./views/craft/orbit.css";
 @import "./views/craft/link.css";
 @import "./views/craft/review/review.css";

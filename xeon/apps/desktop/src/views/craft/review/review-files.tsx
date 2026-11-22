@@ -65,7 +65,7 @@ const CHANGE_MARK: Readonly<Record<FileRow["change"], string>> = {
   added: "+",
   changed: "~",
   removed: "−",
-  same: "·",
+  same: "",
 };
 
 function sizeText(bytes: number): string {
@@ -374,7 +374,7 @@ export function FilesSection(props: {
                     size="xs"
                     variant="ghost"
                     aria-label={t("desktop.craft.review.files.prev")}
-                    title={`${t("desktop.craft.review.files.prev")} · [`}
+                    title={`${t("desktop.craft.review.files.prev")}\n[`}
                     className="w-control-xs px-0"
                     onClick={() => {
                       setCurrent((now) => stepFile(shown, now, -1));
@@ -386,7 +386,7 @@ export function FilesSection(props: {
                     size="xs"
                     variant="ghost"
                     aria-label={t("desktop.craft.review.files.next")}
-                    title={`${t("desktop.craft.review.files.next")} · ]`}
+                    title={`${t("desktop.craft.review.files.next")}\n]`}
                     className="w-control-xs px-0"
                     onClick={() => {
                       setCurrent((now) => stepFile(shown, now, 1));

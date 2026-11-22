@@ -395,7 +395,7 @@ describe("edit and write rows", () => {
     const html = render(<RecordedItem id={itm(1)} />, h);
     expect(html).toContain('<span class="convo-path" title="src/a.ts">src/a.ts</span>');
     expect(lineLabels(html)).toEqual([
-      `${t("desktop.convo.tool.edit")} · src/a.ts · ${t("desktop.convo.status.done")}`,
+      `${t("desktop.convo.tool.edit")}, src/a.ts, ${t("desktop.convo.status.done")}`,
     ]);
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain("oldText");
@@ -602,7 +602,7 @@ describe("agent row", () => {
     const html = renderWithPlugin(<RecordedItem id={itm(1)} />, h);
     const text = visibleText(html);
     expect(html).toContain(
-      '<span class="convo-mono min-w-0 truncate text-text-tertiary">explore</span>',
+      '<span class="convo-mono flex min-w-0 items-baseline gap-2 text-text-tertiary"><span class="min-w-0 truncate">explore</span>',
     );
     expect(html).toContain('<p class="convo-card-text">이 폴더를 조사해</p>');
     expect(text).toContain(t("desktop.convo.agent.title"));
@@ -648,8 +648,8 @@ describe("web source chips", () => {
     ]);
     const html = renderWithPlugin(<RecordedItem id={itm(1)} />, h);
     const text = visibleText(html);
-    expect(text).toContain("bun.sh · Bun");
-    expect(text).toContain("nodejs.org · Node");
+    expect(text).toContain("bun.sh Bun");
+    expect(text).toContain("nodejs.org Node");
   });
 
   test("an answer with a link draws a chip for it", () => {

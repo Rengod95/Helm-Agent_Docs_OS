@@ -338,9 +338,8 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     const failures = sectionOf(html, t("desktop.inspect.failures.title"));
     const text = textOf(failures);
     expect(text).toContain(t("desktop.inspect.failures.consecutive", { count: 2 }));
-    expect(text).toContain(
-      t("desktop.inspect.failures.last", { at: "2026-11-04T10:00:00Z", error: "timeout" }),
-    );
+    expect(text).toContain(t("desktop.inspect.failures.last", { at: "2026-11-04T10:00:00Z" }));
+    expect(text).toContain("timeout");
     expect(text).toContain("tool.call.before");
     expect(text).toContain("boom");
     expect(text).toContain(t("desktop.inspect.failures.streak", { count: 2 }));

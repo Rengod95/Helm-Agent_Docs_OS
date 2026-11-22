@@ -25,12 +25,16 @@ test("authoring.scaffold-equals-template: the single plugin is the template file
     { templates },
   );
   if (!made.ok) throw new Error(made.error.message);
+  // 생성 파일(`src/members.generated.ts`)은 템플릿에 없다: 구성원이 없을 때의 빈 목록이다
   const listed = [".fresnel-plugin/plugin.json", "README.md", "src/index.ts"];
-  expect(made.value.files).toEqual(listed);
+  expect(made.value.files).toEqual([...listed, "src/members.generated.ts"].toSorted());
   for (const file of listed) {
     const source = readFileSync(join(templates.single, file), "utf8");
     expect(readFileSync(join(dir, file), "utf8")).toBe(fillExpected(source, "eq-single"));
   }
+  expect(readFileSync(join(dir, "src/members.generated.ts"), "utf8")).toContain(
+    "export const memberSetups",
+  );
 });
 
 test("authoring.scaffold: a composition draft is patched into the manifest and the manifest validates", async () => {

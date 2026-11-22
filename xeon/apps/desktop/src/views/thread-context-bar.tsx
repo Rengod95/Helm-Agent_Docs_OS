@@ -48,11 +48,6 @@ import {
 // 폴더가 없어졌으면(`workspace.status`) 폴더 항목이 경고 모양으로 바뀐다. 예전 작업 폴더 띠(work-folder-band)를 대신한다.
 
 const ICON = "size-3.5 shrink-0";
-const SEP = (
-  <span aria-hidden className="px-2 text-ui text-text-tertiary select-none">
-    ·
-  </span>
-);
 
 /** 웹 셸이면 브라우저 주소의 호스트, 데스크톱이거나 모르면 null */
 function useWebHost(): string | null {
@@ -158,23 +153,13 @@ export function ThreadContextBarView(props: {
       data-slot="thread-context-bar"
       className="mb-1.5 flex h-7 min-w-0 items-center justify-between gap-4 px-3"
     >
-      <div className="flex min-w-0 items-center">
+      <div className="flex min-w-0 items-center gap-3">
         <FolderItem folder={line.folder} interactive={props.interactive === true} />
-        {line.git === null ? null : (
-          <>
-            {SEP}
-            <GitItem git={line.git} />
-          </>
-        )}
+        {line.git === null ? null : <GitItem git={line.git} />}
       </div>
-      <div className="flex min-w-0 shrink-0 items-center text-text-tertiary">
+      <div className="flex min-w-0 shrink-0 items-center gap-3 text-text-tertiary">
         <HostItem host={line.host} />
-        {line.clients.length === 0 ? null : (
-          <>
-            {SEP}
-            <ClientsItem clients={line.clients} />
-          </>
-        )}
+        {line.clients.length === 0 ? null : <ClientsItem clients={line.clients} />}
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ import {
   SegmentedControlItem,
 } from "@caustic/react";
 import { ChevronLeft } from "@caustic/react/icons";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
 import { HEADER_SEGMENTED_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
 import { StackRows, type Series } from "../metrics/charts.tsx";
@@ -116,16 +116,27 @@ function TurnRow(props: {
   const stopped =
     s.flags.blockedIntent + s.flags.blockedFault + s.flags.deniedPolicy + s.flags.deniedHuman;
   const meta = [
-    t("desktop.craft.trace.rail.counts", {
-      steps: countText(s.stepCount),
-      calls: countText(s.callCount),
-    }),
+    t("desktop.craft.trace.rail.steps", { steps: countText(s.stepCount) }),
+    t("desktop.craft.trace.rail.calls", { calls: countText(s.callCount) }),
     ...(stopped > 0 ? [t("desktop.craft.trace.rail.stopped", { n: countText(stopped) })] : []),
     ...(s.status === "completed" ? [] : [t(STATUS_WORD[s.status])]),
     ...(!s.complete && s.status !== "open" ? [t("desktop.craft.trace.status.partial")] : []),
-  ].join(" · ");
+  ];
   return (
-    <ListNavigationItem current={props.current} meta={<span>{meta}</span>} onSelect={props.onPick}>
+    <ListNavigationItem
+      current={props.current}
+      meta={
+        <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
+          {meta.map((part, i) => (
+            <Fragment key={part}>
+              {i === 0 ? null : " "}
+              <span>{part}</span>
+            </Fragment>
+          ))}
+        </span>
+      }
+      onSelect={props.onPick}
+    >
       <time className="viz-figure" dateTime={new Date(s.startedAt).toISOString()}>
         {clockText(s.startedAt, false)}
       </time>
@@ -268,9 +279,16 @@ function TurnSummaryStrip(props: {
 
 // ───────── Hook 결정 ─────────
 
-function entryPlaceText(e: HookEntry, locale: string): string {
+/** 결정이 놓인 자리. 도구 호출이 있으면 자리와 도구 이름을 따로 놓는다 */
+function entryPlaceOf(e: HookEntry, locale: string): ReactNode {
   const where = placeText(e.place, locale);
-  return e.call === null ? where : `${where} · ${e.call.tool}`;
+  return e.call === null ? (
+    where
+  ) : (
+    <span className="inline-flex flex-wrap items-baseline gap-2">
+      <span>{where}</span> <span>{e.call.tool}</span>
+    </span>
+  );
 }
 
 function HooksSection(props: {
@@ -357,7 +375,7 @@ function HooksSection(props: {
                     className="border-b border-border-subtle align-top last:border-b-0"
                   >
                     <td className="px-2 py-1.5 text-text-tertiary">{msText(e.run.atMs)}</td>
-                    <td className="px-2 py-1.5 text-text-secondary">{entryPlaceText(e, locale)}</td>
+                    <td className="px-2 py-1.5 text-text-secondary">{entryPlaceOf(e, locale)}</td>
                     <td className="px-2 py-1.5">
                       <div className="text-text-primary">{e.run.plugin}</div>
                       {e.run.decisionText === null ? null : (
@@ -445,13 +463,25 @@ function LoadedSection(props: { readonly record: TurnRecord }): ReactNode {
       <dl className="grid gap-1 text-ui compact:grid-cols-[10rem_minmax(0,1fr)]">
         <dt className="text-text-tertiary">{t("desktop.craft.trace.loaded.advertised")}</dt>
         <dd className="text-text-secondary">
-          {advertised === null
-            ? t("desktop.craft.trace.absent")
-            : t("desktop.craft.trace.loaded.advertisedValue", {
-                n: countText(advertised.count),
-                tokens: tokensText(advertised.tokens),
-                deferred: countText(advertised.deferredCount),
-              })}
+          {advertised === null ? (
+            t("desktop.craft.trace.absent")
+          ) : (
+            <span className="inline-flex flex-wrap items-baseline gap-2">
+              <span>
+                {t("desktop.craft.trace.loaded.advertisedCount", {
+                  n: countText(advertised.count),
+                })}
+              </span>{" "}
+              <span>
+                {t("desktop.craft.trace.tokens", { tokens: tokensText(advertised.tokens) })}
+              </span>{" "}
+              <span>
+                {t("desktop.craft.trace.loaded.deferred", {
+                  deferred: countText(advertised.deferredCount),
+                })}
+              </span>
+            </span>
+          )}
         </dd>
         <dt className="text-text-tertiary">{t("desktop.craft.trace.loaded.skillsRead")}</dt>
         <dd className="text-text-secondary">
@@ -567,14 +597,23 @@ function DriveSection(props: { readonly record: TurnRecord }): ReactNode {
                         </StateChip>
                       )}
                     </div>
-                    <div className="viz-figure text-ui-sm text-text-secondary">
-                      {msText(f.enteredAtMs)} →{" "}
-                      {f.exitedAtMs === null
-                        ? t("desktop.craft.trace.running")
-                        : msText(f.exitedAtMs)}
-                      {f.userMessages > 0
-                        ? ` · ${t("desktop.craft.trace.drive.userMessages", { n: countText(f.userMessages) })}`
-                        : ""}
+                    <div className="viz-figure flex flex-wrap items-baseline gap-2 text-ui-sm text-text-secondary">
+                      <span>
+                        {msText(f.enteredAtMs)} →{" "}
+                        {f.exitedAtMs === null
+                          ? t("desktop.craft.trace.running")
+                          : msText(f.exitedAtMs)}
+                      </span>
+                      {f.userMessages > 0 ? (
+                        <>
+                          {" "}
+                          <span>
+                            {t("desktop.craft.trace.drive.userMessages", {
+                              n: countText(f.userMessages),
+                            })}
+                          </span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                   <div className="grid content-start gap-1">
@@ -713,12 +752,18 @@ function ChildrenSection(props: { readonly record: TurnRecord }): ReactNode {
             <span className="text-text-primary">{c.agent}</span>
             <StateChip danger={c.status === "failed"}>{t(CHILD_WORD[c.status])}</StateChip>
             <span className="viz-figure ml-auto text-ui-sm text-text-tertiary">
-              {c.used === null
-                ? t("desktop.craft.trace.absent")
-                : t("desktop.craft.trace.children.used", {
-                    turns: countText(c.used.turns),
-                    tokens: tokensText(c.used.tokens),
-                  })}
+              {c.used === null ? (
+                t("desktop.craft.trace.absent")
+              ) : (
+                <span className="inline-flex flex-wrap items-baseline gap-2">
+                  <span>
+                    {t("desktop.craft.trace.children.turns", { turns: countText(c.used.turns) })}
+                  </span>{" "}
+                  <span>
+                    {t("desktop.craft.trace.tokens", { tokens: tokensText(c.used.tokens) })}
+                  </span>
+                </span>
+              )}
             </span>
           </li>
         ))}

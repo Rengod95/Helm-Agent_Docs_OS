@@ -261,14 +261,12 @@ function Source(props: { readonly entry: NoticeEntry; readonly onOpen: () => voi
   );
 }
 
-/** 대화 이름. 예약에서 만든 대화면 앞에 "예약 ·"을 붙인다. 대화를 모르면 null */
+/** 대화 이름. 예약에서 만든 대화면 이름 뒤에 "(예약)"을 붙인다. 대화를 모르면 null */
 function useThreadLabel(threadId: ThreadId): string | null {
   const thread = useThread(threadId);
   if (thread === undefined) return null;
   const name = thread.title ?? t("desktop.threads.untitled");
-  return thread.origin?.kind === "schedule"
-    ? `${t("desktop.notices.origin.schedule")} · ${name}`
-    : name;
+  return thread.origin?.kind === "schedule" ? t("desktop.notices.threadScheduled", { name }) : name;
 }
 
 function ThreadSource(props: {

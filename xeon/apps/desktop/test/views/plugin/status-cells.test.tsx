@@ -70,7 +70,7 @@ describe("status cells in the status bar", () => {
       ],
     });
     expect(html).toContain('data-status-origin="helm"');
-    expect(html).toContain('title="helm · 단계"');
+    expect(html).toContain('title="helm의 단계"');
     expect(html).not.toContain("‮");
     expect(html).not.toContain("\u0007");
   });

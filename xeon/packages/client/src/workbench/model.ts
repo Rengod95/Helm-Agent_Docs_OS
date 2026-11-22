@@ -25,6 +25,7 @@ export type ListStatus = "idle" | "loading" | "ready" | "error";
 /** 자세히 보기의 탭 이름. 확장 상세(`ext-detail.tsx`)의 탭 값과 같다 */
 export const DETAIL_TABS = [
   "overview",
+  "members",
   "hooks",
   "settings",
   "metrics",

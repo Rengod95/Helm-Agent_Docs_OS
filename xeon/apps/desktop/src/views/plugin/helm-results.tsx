@@ -192,6 +192,7 @@ function InquiryItem(props: {
   const { inquiry, labels, body } = props;
   const expanded = body.expandedId === inquiry.inquiryId;
   const topic = inquiry.topic.trim() === "" ? labels.untitled : inquiry.topic;
+  const caption = captionOf(inquiry, labels);
   return (
     <li className="grid gap-1.5 border-b border-border-subtle py-2.5 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -208,7 +209,14 @@ function InquiryItem(props: {
         </Button>
         <Badge size="sm">{labels.statuses[inquiry.status]}</Badge>
       </div>
-      <p className={CAPTION}>{captionOf(inquiry, labels)}</p>
+      <p className={`${CAPTION} flex flex-wrap items-baseline gap-2`}>
+        {caption.outcome === null ? null : (
+          <>
+            <span>{caption.outcome}</span>{" "}
+          </>
+        )}
+        <span>{caption.count}</span>
+      </p>
       {expanded && <FindingsBlock inquiry={inquiry} labels={labels} body={body} />}
     </li>
   );

@@ -95,6 +95,13 @@ const FILES: Readonly<Record<string, string>> = {
   "scripts": { "check": { "run": "bash hooks/check.sh", "uses": ["system_tools"] } }
 }
 `,
+  "hooks/message-check.sh": `#!/bin/sh
+# 커밋 메시지의 첫 줄이 "영역: 내용" 꼴인지 본다. 아니면 막는다
+input=$(cat)
+message=$(printf '%s' "$input" | jq -r '.args.message // empty')
+[ -z "$message" ] && exit 0
+printf '%s' "$message" | head -n 1 | grep -qE '^[a-z]+(\\([a-z-]+\\))?: ' || { echo "첫 줄을 '영역: 내용'으로 써 주세요" >&2; exit 2; }
+`,
   "hooks/check.sh": `#!/bin/bash
 # 쓰기 도구가 고치려는 파일을 린트하고, 실패하면 막는다
 set -euo pipefail
@@ -461,6 +468,8 @@ export function sampleItems(): readonly ReviewItem[] {
                 launch: { command: "bun", args: ["scripts/warm.ts"], envNames: [], cwd: null },
                 timeoutMs: 30_000,
                 uses: SCRIPT_USES,
+                // 선언했지만 키 이름이라 넘어가지 않는다(AGE-63, enPp6-b). 서버는 설정의 env로 받지만 스크립트는 받지 못한다
+                envNotPassed: ["FETCH_API_KEY"],
               },
             ],
           }),
@@ -527,6 +536,53 @@ export function sampleItems(): readonly ReviewItem[] {
         },
       }),
       files: filesOf(["plugin.json", "drive.ts"], "d"),
+    }),
+    // 스크립트만 있는 승인 전 드래프트(플러그인 코드 없음, AGE-63 enPp6-b): `narrowDrafts`를 켜면 이 경우에도 `runs.narrowBeforeApproval`이 참이다.
+    // 선언한 이름 가운데 허용 목록의 `LANG`만 넘어가고 `GITHUB_TOKEN`은 받지 못한다
+    item({
+      itemId: "rvw_sample_script_draft",
+      name: "commit-guard",
+      createdAt: ago(5),
+      originThreadId: "thr_sample_pr",
+      originProfileId: "default",
+      card: card({
+        name: "commit-guard",
+        displayName: "Commit Guard",
+        version: "0.1.0",
+        purpose: "커밋 전에 메시지 형식을 보고, 맞지 않으면 막는다.",
+        enforcement: "enforced",
+        runs: { code: false, isolated: null, narrowBeforeApproval: true },
+        does: {
+          inject: inventory({
+            scripts: [
+              {
+                name: "message-check",
+                launch: {
+                  command: "sh",
+                  args: ["hooks/message-check.sh"],
+                  envNames: ["LANG"],
+                  cwd: null,
+                },
+                timeoutMs: 10_000,
+                uses: SCRIPT_USES,
+                envNotPassed: ["GITHUB_TOKEN"],
+              },
+            ],
+          }),
+          hook: {
+            hooks: [
+              {
+                name: "tool.call.before",
+                fold: "first",
+                position: "tools.before",
+                powers: ["decide"],
+              },
+            ],
+          },
+          drive: null,
+        },
+      }),
+      files: filesOf(["plugin.json", "hooks/message-check.sh"], "h"),
     }),
     item({
       itemId: "rvw_sample_notes",

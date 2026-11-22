@@ -880,7 +880,9 @@ function ComposerFor(props: {
             </Button>
           }
         >
-          {t("desktop.composer.slash.unknown")} · /{unknownName}
+          <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
+            <span>{t("desktop.composer.slash.unknown")}</span> <span>/{unknownName}</span>
+          </span>
         </ProblemLine>
       )}
       <Presence show={retrying !== null} variant="band" initial={false}>

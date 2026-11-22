@@ -110,7 +110,16 @@ describe("검사 탭 구성 구역과 설정 바인딩", () => {
       },
     };
     expect(inspectCompositionOf(manifest)).toEqual([
-      { id: "lint", stage: "check", op: "on", title: "Lint" },
+      { id: "lint", stage: "check", op: "on", title: "Lint", plugin: null },
+    ]);
+    // 블록이 구성원을 가리키면 그 id를 싣는다
+    const members = {
+      composition: {
+        blocks: [{ id: "sync-run", stage: "sync", op: "on", plugin: "sync" }],
+      },
+    };
+    expect(inspectCompositionOf(members)).toEqual([
+      { id: "sync-run", stage: "sync", op: "on", title: null, plugin: "sync" },
     ]);
     expect(
       inspectCompositionOf({ composition: { blocks: [{ id: "x", stage: "check", op: "run" }] } }),

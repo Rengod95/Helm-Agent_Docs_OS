@@ -71,7 +71,8 @@ export function groupEdgesOf(rows: readonly BlockRow[], selected: string | null)
 
 function blockHeight(row: BlockRow, issues: number): number {
   const ports = Math.max(row.consumes.length, row.produces.length);
-  return 44 + ports * 24 + issues * 20;
+  // 구성원의 블록은 구성원 이름 한 줄(20)이 더 선다(m6Mb)
+  return 44 + ports * 24 + issues * 20 + (row.plugin === null ? 0 : 20);
 }
 
 function BlockNode(props: {
@@ -100,6 +101,11 @@ function BlockNode(props: {
         }
       }}
     >
+      {row.plugin === null ? null : (
+        <p data-block-member={row.plugin} className="m-0 text-ui-sm text-text-tertiary">
+          {t("desktop.compose.block.member", { name: row.memberTitle ?? row.plugin })}
+        </p>
+      )}
       {row.consumes.length === 0 && row.produces.length === 0 ? null : (
         <div className="grid grid-cols-2 gap-x-3">
           <div className="grid content-start">

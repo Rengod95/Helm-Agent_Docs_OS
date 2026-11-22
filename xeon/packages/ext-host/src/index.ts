@@ -381,6 +381,7 @@ export {
   createScriptRunner,
   type ScriptRefReader,
   type ScriptRefStat,
+  scriptEnvNamesOf,
   type ScriptRunnerDeps,
   type ScriptTarget,
 } from "./isolation/script-runner.ts";

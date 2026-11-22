@@ -311,6 +311,13 @@ type BringUpFailure = {
   readonly failure: SwapFailure;
 };
 
+/** 플러그인의 구성원 Registration인가(뿌리 포함). `orchestration` 선언이 있는 플러그인의 Registration이다 */
+function inGroup(record: RegistrationRecord): boolean {
+  return pluginsOf(record.manifest).some(
+    (entry) => entry.registrationId === record.id && entry.inOrchestration,
+  );
+}
+
 export function createRegistrationRuntime(
   core: HostCore,
   deps: RegistrationRuntimeDeps,
@@ -367,11 +374,13 @@ export function createRegistrationRuntime(
   }
 
   async function runSetup(record: RegistrationRecord): Promise<SetupResult> {
+    // 교체(`applySwap`)가 잡아 둔 바쁨은 setup이 끝나도 풀지 않는다. 풀면 교체 중에 켜기가 끼어든다
+    const wasBusy = record.busy;
     record.busy = true;
     try {
       return await runSetupInner(record);
     } finally {
-      record.busy = false;
+      record.busy = wasBusy;
     }
   }
 
@@ -497,6 +506,43 @@ export function createRegistrationRuntime(
       return { ok: false, failure: { kind: "threw" }, issues, waiting: [] };
     }
     return { ok: true, generation, issues };
+  }
+
+  /**
+   * 구성원 하나의 켜기가 실패하면 그 플러그인 전체 켜기가 실패한다(X.primitives §4.4 4번 [제안]). 이 대화에서 같은 플러그인의 Registration을
+   * 모두 막고(`refused`), 이 경계에서 새로 연 세대는 닫고 경계의 기록에서 뺀다. 막은 것은 끄기·켜기 요청이나 교체가 풀어 준다
+   */
+  async function refuseGroupIn(
+    thread: ThreadRuntime,
+    txn: BoundaryTxn,
+    failed: RegistrationRecord,
+  ): Promise<void> {
+    if (!inGroup(failed)) return;
+    const group = [...core.scopes.values()].filter(
+      (record) => record.extension === failed.extension && inGroup(record),
+    );
+    const opened: RegistrationRecord[] = [];
+    for (const record of group) {
+      thread.refused.add(record.id);
+      thread.want.delete(record.id);
+      const newlyOpened = txn.opening.indexOf(record);
+      if (newlyOpened >= 0) {
+        txn.opening.splice(newlyOpened, 1);
+        opened.push(record);
+      }
+      const activating = txn.activating.indexOf(record);
+      if (activating >= 0) txn.activating.splice(activating, 1);
+    }
+    await eachInOrder(opened.toReversed(), async (record) => {
+      const generation = record.generation;
+      record.generation = null;
+      if (generation !== null) {
+        await disposeGeneration(record, generation);
+        if (generation.number === record.generationCount) record.generationCount -= 1;
+      }
+      return "continue";
+    });
+    for (const record of group) refreshStatus(record);
   }
 
   function markFailed(
@@ -636,7 +682,26 @@ export function createRegistrationRuntime(
     }
   }
 
+  /**
+   * 단위 교체를 적용한다. 옛 세대를 닫고 정의를 바꾸고 새 세대를 여는 동안 교체 대상 scope를 바쁜 것으로 잡아 둔다. 그러지 않으면
+   * 같은 경계의 켜기가 닫힌 scope를 다시 열어 세대가 둘 열리고, 핸들러가 두 번 돈다(X.primitives §4.4.10 4번: 닫기 → 정의 → 열기는 한 단위).
+   * 켜기는 `busy`를 보고 건너뛰며, 끝난 뒤 적용을 다시 맞춘다
+   */
   async function applySwap(plan: SwapPlan): Promise<SwapResult> {
+    const locked = plan.staged.flatMap((item) => {
+      const record = core.scopes.get(item.id);
+      return record === undefined ? [] : [record];
+    });
+    for (const record of locked) record.busy = true;
+    try {
+      return await applySwapUnlocked(plan);
+    } finally {
+      for (const record of locked) record.busy = false;
+      if (locked.length > 0) deps.requestApply();
+    }
+  }
+
+  async function applySwapUnlocked(plan: SwapPlan): Promise<SwapResult> {
     const unit = plan.unit;
     const newIds = new Set(plan.staged.map((item) => item.id));
     const removed = unit.scopeIds.filter((id) => !newIds.has(id));
@@ -1014,6 +1079,7 @@ export function createRegistrationRuntime(
         const result = await runSetup(record);
         if (!result.ok) {
           markFailed(record, result);
+          await refuseGroupIn(thread, txn, record);
           return "continue";
         }
         const refused = await deps.state.prepareStored(record, result.generation, thread);

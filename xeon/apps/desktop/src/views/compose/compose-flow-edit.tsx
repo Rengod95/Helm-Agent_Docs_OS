@@ -253,9 +253,14 @@ function Inspector(props: {
                 key={`${edge.to}:${edge.event ?? ""}`}
                 className="flex items-center justify-between gap-2 text-ui text-text-secondary"
               >
-                <span>
-                  {t("desktop.compose.flow.to", { to: titleOf(edge.to) })}
-                  {edge.event === undefined ? "" : ` · ${edge.event}`}
+                <span className="inline-flex min-w-0 items-baseline gap-2">
+                  <span>{t("desktop.compose.flow.to", { to: titleOf(edge.to) })}</span>
+                  {edge.event === undefined ? null : (
+                    <>
+                      {" "}
+                      <span>{edge.event}</span>
+                    </>
+                  )}
                 </span>
                 <IconButton
                   size="xs"

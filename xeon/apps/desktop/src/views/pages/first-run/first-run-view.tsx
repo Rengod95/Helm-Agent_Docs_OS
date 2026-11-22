@@ -118,8 +118,10 @@ export interface FirstRunViewProps {
   readonly keyEntry: FirstRunKeyEntry;
   /** 화면 아래 한 줄 알림(저장됨, 저장 실패). 없으면 null */
   readonly notice: string | null;
-  /** 바닥글의 엔진 한 줄(상태·출처·연결)이다. 상태 표시줄과 같은 문장을 쓴다. 문장은 화면이 만든다 */
+  /** 바닥글의 엔진 칸(상태·출처)이다. 상태 표시줄과 같은 문장을 쓴다. 문장은 화면이 만든다 */
   readonly engineState: string;
+  /** 바닥글의 연결 칸이다(상태 표시줄의 연결 글과 같다) */
+  readonly linkState: string;
   /** 읽지 못한 설정 파일의 첫 문제(`host.status.settingsProblems`). 있으면 화면 맨 위에 경고 띠를 그린다 */
   readonly settingsProblem: SettingsFileProblem | null;
   readonly handlers: FirstRunViewHandlers;
@@ -268,7 +270,10 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
               {props.notice}
             </p>
           )}
-          <footer className="text-ui text-text-tertiary">{props.engineState}</footer>
+          <footer className="flex min-w-0 flex-wrap items-baseline gap-3 text-ui text-text-tertiary">
+            <span>{props.engineState}</span>
+            <span>{props.linkState}</span>
+          </footer>
         </div>
       </div>
     </section>
@@ -520,16 +525,23 @@ function ToolStatus(props: { readonly row: BinaryView["rows"][number] }): ReactN
   const { row } = props;
   if (row.ok) {
     return (
-      <span className="text-text-secondary">
-        {t("desktop.settings.tools.status.available")} · <span>{row.note}</span>
+      <span className="flex min-w-0 flex-wrap items-baseline gap-2 text-text-secondary">
+        <span className="flex-none">{t("desktop.settings.tools.status.available")}</span>{" "}
+        <span>{row.note}</span>
       </span>
     );
   }
   const tone = row.need === "required" ? "text-danger-text" : "text-warning-text";
   return (
-    <span className={tone}>
-      {t("desktop.settings.tools.status.unavailable")} · <span>{row.note}</span>
-      {row.impact === "" ? null : ` · ${row.impact}`}
+    <span className={`flex min-w-0 flex-wrap items-baseline gap-2 ${tone}`}>
+      <span className="flex-none">{t("desktop.settings.tools.status.unavailable")}</span>{" "}
+      <span>{row.note}</span>
+      {row.impact === "" ? null : (
+        <>
+          {" "}
+          <span>{row.impact}</span>
+        </>
+      )}
     </span>
   );
 }
