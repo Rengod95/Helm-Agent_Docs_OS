@@ -124,15 +124,13 @@ export function CallMark(props: CallChipProps): ReactNode {
         aria-hidden
         className="call-mark"
       >
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden className="call-mark-ring">
-          <circle
-            cx="8"
-            cy="8"
-            r="5.25"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeDasharray="2.5 2.25"
-          />
+        <svg
+          viewBox="0 0 16 16"
+          {...LINE_GLYPH}
+          aria-hidden
+          className={`${LINE_GLYPH.className} call-mark-ring`}
+        >
+          <circle cx="8" cy="8" r="5.25" strokeDasharray="2.5 2.25" />
         </svg>
       </span>
     );

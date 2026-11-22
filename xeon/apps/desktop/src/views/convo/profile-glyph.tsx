@@ -1,5 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
 import type { ReactNode } from "react";
+import { LINE_GLYPH } from "../illustrations/line-glyph.ts";
 import type { ProfileLook } from "./profile-chip-model.ts";
 
 // 프로필 아이콘(lcM6c, L4 desktop-ux §6.6.1). 프로필은 "이 대화에 쓸 플러그인 묶음과 권한 설정을 한 벌로 맞춘 구성"이라
@@ -67,7 +68,10 @@ function partsOf(look: ProfileLook): ReactNode {
   }
 }
 
-/** 프로필 아이콘 하나. 칩은 16, 메뉴 줄은 20. 크기는 부모의 아이콘 크기 규칙보다 앞서도록 style로 준다 */
+/**
+ * 프로필 아이콘 하나. 칩은 16, 메뉴 줄은 20. 크기는 부모의 아이콘 크기 규칙보다 앞서도록 style로 준다.
+ * 선은 직접 그린 아이콘의 한 벌(`LINE_GLYPH`, AGE-34): 20으로 커져도 화면 1px다(전에는 칸 1이라 20에서 1.25px)
+ */
 export function ProfileGlyph(props: {
   readonly look: ProfileLook;
   readonly size: 16 | 20;
@@ -79,13 +83,11 @@ export function ProfileGlyph(props: {
       aria-hidden
       focusable="false"
       viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      {...LINE_GLYPH}
       data-profile-glyph={props.look}
-      className={["profile-glyph shrink-0", props.className ?? ""].join(" ").trim()}
+      className={[LINE_GLYPH.className, "profile-glyph shrink-0", props.className ?? ""]
+        .join(" ")
+        .trim()}
       style={{ width: px, height: px }}
     >
       {partsOf(props.look)}
