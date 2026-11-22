@@ -153,6 +153,11 @@ export interface IsolatedEntryDeps {
   readonly versionId: string;
   readonly port: IsolationProcessPort;
   readonly launch: (info: IsolationLaunchInfo) => IsolationLaunch;
+  /**
+   * 참을 돌려주면 이 프로세스를 좁은 샌드박스(`IsolationSpawnSpec.narrow`)로 띄운다. 호출(재시작 포함)마다 읽는다.
+   * 승인 전 드래프트의 프로세스가 설정 `l0.sandbox.narrowDrafts`를 켰을 때만 참이다. 없으면 열린 정책이다 [결정: 2026-11-22, 사용자, AGE-63]
+   */
+  readonly narrow?: () => boolean;
   readonly setTimer: (ms: number, fn: () => void) => () => void;
   readonly now: () => number;
   /** 표준오류 줄 마스킹과 감독의 진단이 쓴다. 없으면 기록을 버린다 */
@@ -491,6 +496,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       ...(launch.runtimeReadRoots === undefined
         ? {}
         : { runtimeReadRoots: [...launch.runtimeReadRoots] }),
+      ...(deps.narrow?.() === true ? { narrow: true } : {}),
       label: `ext:${deps.manifest.name}:${deps.versionId}`,
     };
   }
