@@ -749,9 +749,9 @@ export function PluginInside(props: {
         <span className="text-[12.5px]" style={{ color: KIND_COLOR[p.kind] }}>
           {t(KIND_WORD[p.kind])}
         </span>
-        <span className="text-[12.5px] text-text-tertiary">{`· ${t(anchorWord(p.anchor))}`}</span>
+        <span className="text-[12.5px] text-text-tertiary">{t(anchorWord(p.anchor))}</span>
       </div>
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+      <div className="absolute top-3 right-[calc(var(--canvas-switcher-room,0px)+var(--spacing)*3)] z-10 flex h-11 items-center gap-1.5">
         <Button
           size="sm"
           variant="outline"

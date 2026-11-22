@@ -725,12 +725,10 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
                       : "desktop.craft.canvas.sample.scale",
               )}
             </span>
-            <span className="text-[12px] text-text-tertiary tabular-nums">
-              {t("desktop.craft.canvas.cv3.head.counts", {
-                n: placed.length,
-                base: profile.base.length,
-                bundles: bundleList.length,
-              })}
+            <span className="flex items-center gap-3 text-[12px] text-text-tertiary tabular-nums">
+              <span>{t("desktop.craft.canvas.cv6.count.plugins", { n: placed.length })}</span>
+              <span>{t("desktop.craft.canvas.cv6.count.base", { n: profile.base.length })}</span>
+              <span>{t("desktop.craft.canvas.cv6.count.bundles", { n: bundleList.length })}</span>
             </span>
             {profile.startDrive === null ? (
               <span className="text-[12px] text-text-tertiary">

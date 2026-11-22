@@ -1,4 +1,4 @@
-// 시안 전환기(AGE-31, 개발 빌드만). 캔버스 위 오른쪽 끝의 작은 메뉴 "시안 · G5"(리뷰 화면의 표본 메뉴와 같은 부품·모양:
+// 시안 전환기(AGE-31, 개발 빌드만). 캔버스 위 오른쪽 끝의 작은 메뉴 "시안 G5"(리뷰 화면의 표본 메뉴와 같은 부품·모양:
 // ghost 단추 md + 플라스크·아래 꺾쇠, 메뉴는 끝 맞춤 sm, 고른 칸에 체크, 오른쪽에 키). 캔버스에는 화면 머리가 없으므로
 // 왼쪽 위 프로필 요약 띠와 같은 높이(위 12, 높이 40)의 유리 띠에 담아 오른쪽 위에 둔다. 왼쪽 아래 구석은 옆 내비의 설정 줄과
 // 아래쪽 띠("다시 시작 대기")에 겹쳐 글자가 가려졌다.
@@ -10,7 +10,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { attempt } from "@fresnel/contracts";
 import { Button, Kbd, Menu, MenuGroup, MenuHeading, MenuItem, MenuSeparator } from "@caustic/react";
 import { Check, ChevronDown, FlaskConical } from "@caustic/react/icons";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { HEADER_CONTROL_SIZE } from "../../shell/screen-header.tsx";
 import { CANVAS_DESIGNS, type CanvasDesign } from "./registry.tsx";
 
@@ -55,10 +55,19 @@ const BANDS: readonly {
   { heading: "desktop.craft.canvas.band.first", has: (r) => r === 1 },
 ];
 
-/** 메뉴 줄의 이름. 둘째 판부터의 이름은 글자("G5 · …")로 시작하고, 첫 판의 이름에는 글자를 앞에 붙인다 */
+/** 메뉴 줄의 이름(화면 낭독용): 글자와 이름. 화면에는 둘을 가운뎃점 없이 두 칸으로 나눠 그린다(`RowLabel`) */
 function rowName(d: CanvasDesign): string {
-  const name = t(d.name);
-  return name.startsWith(`${d.letter} `) ? name : `${d.letter} · ${name}`;
+  return `${d.letter} ${t(d.name)}`;
+}
+
+/** 메뉴 줄의 글: 글자 칸(폭 고정, 모든 줄의 이름이 같은 세로줄에서 시작한다)과 이름 */
+function RowLabel(props: { readonly letter: string; readonly name: string }): ReactNode {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="w-6 shrink-0 text-text-tertiary tabular-nums">{props.letter}</span>
+      <span className="min-w-0 truncate">{props.name}</span>
+    </span>
+  );
 }
 
 /** 키보드 숫자(1~9, 그다음은 없음) */
@@ -68,6 +77,24 @@ function keyOf(index: number): string | null {
 
 export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode {
   const [choice, setChoice] = useState(stored);
+  const bar = useRef<HTMLDivElement>(null);
+  // 시안 안의 위 오른쪽 줄(플러그인 안의 테스트 런·맞춤 단추)이 이 띠 밑에 깔리지 않게, 띠의 폭 + 사이 8을
+  // `--canvas-switcher-room`으로 알린다. 시안은 `right: calc(var(--canvas-switcher-room, 0px) + 12px)`로 비킨다(띠가 없는 출시 빌드는 0)
+  useEffect(() => {
+    const el = bar.current;
+    const host = el?.parentElement ?? null;
+    // ResizeObserver는 observe 직후 한 번 부르므로 처음 값도 이것이 적는다
+    const watch =
+      el === null || host === null || typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            host.style.setProperty("--canvas-switcher-room", `${String(el.offsetWidth + 8)}px`);
+          });
+    if (el !== null) watch?.observe(el);
+    return () => {
+      watch?.disconnect();
+    };
+  }, []);
   const choose = (id: string): void => {
     remember(id);
     setChoice(id);
@@ -88,7 +115,7 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
   }, []);
   const design = CANVAS_DESIGNS.find((d) => d.id === choice);
   const shown = design?.letter ?? t("desktop.craft.canvas.current");
-  const row = (id: string, name: string, key: string | null): ReactNode => (
+  const row = (id: string, label: ReactNode, key: string | null): ReactNode => (
     <MenuItem
       key={id}
       role="menuitemradio"
@@ -99,7 +126,7 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
         choose(id);
       }}
     >
-      {name}
+      {label}
     </MenuItem>
   );
   return (
@@ -107,6 +134,7 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
       {design === undefined ? props.current : <design.Screen key={design.id} />}
       {/* 캔버스 위 오른쪽: 왼쪽 위 프로필 요약 띠와 같은 높이의 유리 띠. 상세 판(위 56부터)과 겹치지 않는다 */}
       <div
+        ref={bar}
         data-canvas-switcher=""
         className="glass glass-shadow-3 rounded-toolbar absolute top-3 right-3 z-40 flex h-10 items-center px-1"
       >
@@ -132,13 +160,17 @@ export function CanvasDesigns(props: { readonly current: ReactNode }): ReactNode
               <MenuGroup>
                 <MenuHeading>{t(band.heading)}</MenuHeading>
                 {CANVAS_DESIGNS.map((d, index) =>
-                  band.has(d.round) ? row(d.id, rowName(d), keyOf(index)) : null,
+                  band.has(d.round)
+                    ? row(d.id, <RowLabel letter={d.letter} name={t(d.name)} />, keyOf(index))
+                    : null,
                 )}
               </MenuGroup>
             </Fragment>
           ))}
           <MenuSeparator />
-          <MenuGroup>{row(CURRENT, t("desktop.craft.canvas.current"), "0")}</MenuGroup>
+          <MenuGroup>
+            {row(CURRENT, <RowLabel letter="" name={t("desktop.craft.canvas.current")} />, "0")}
+          </MenuGroup>
         </Menu>
       </div>
     </div>

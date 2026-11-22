@@ -48,16 +48,17 @@
        탭 면(-tab)만 이 화면 전용 값이다: 참고 그림의 탭을 OKLCH로 잰 밝기(L)·색의 세기(C)에 우리 종류의 색상(H)을 둔다.
        참고의 탭은 둘이다: 파랑(LLM) L0.263 C0.105, 초록(Output) L0.283 C0.056. 종류마다 색상이 가까운 탭을 따른다
        (Inject 235·Drive 288 → 파랑, 도구 150·Hook 92 → 초록). 토큰을 바탕에 섞으면 C가 절반쯤으로 떨어져(G5: Inject C0.043) 쓰지 않는다.
-       sRGB가 그 L·H에서 그릴 수 있는 C에는 끝이 있다: Inject(235)는 L0.263에서 0.056까지라 참고의 0.105에 못 미치고, 그 끝 값을 쓴다 */
-    --cv6-inject: var(--cs-color-identity-iris);
+       Inject만 세 값 모두 앱의 cobalt 셋(`src/color-sets.css`, H260)이다: 빛은 solid, 글은 text, 탭 면은 face(참고 파랑 탭의 L0.263 C0.105).
+       caustic info·iris(H235)는 이 L에서 C0.056까지라 참고의 파랑이 나오지 않았다(2026-11-22 사용자: 토큰을 바꾸지 말고 새 셋을 더한다) */
+    --cv6-inject: var(--fr-color-cobalt-solid);
     --cv6-hook: var(--cs-color-identity-amber);
     --cv6-drive: var(--cs-color-agent-stop-1);
     --cv6-tool: var(--cs-color-identity-mint);
-    --cv6-inject-text: var(--cs-color-info-text);
+    --cv6-inject-text: var(--fr-color-cobalt-text);
     --cv6-hook-text: var(--cs-color-warning-text);
     --cv6-drive-text: var(--cs-color-agent-text);
     --cv6-tool-text: var(--cs-color-success-text);
-    --cv6-inject-tab: oklch(0.263 0.055 235);
+    --cv6-inject-tab: var(--fr-color-cobalt-face);
     --cv6-hook-tab: oklch(0.283 0.056 92);
     --cv6-drive-tab: oklch(0.263 0.105 288);
     --cv6-tool-tab: oklch(0.283 0.056 150);
@@ -112,12 +113,11 @@
     --cv6-line-soft: color-mix(in srgb, var(--cs-color-text-primary) 12%, transparent);
     --cv6-chrome: color-mix(in oklab, var(--cs-color-surface-base) 96%, transparent);
     /* 밝은 탭: 어두운 탭을 뒤집는다. 면은 밝되 그 L·H에서 sRGB가 그릴 수 있는 C의 끝 가까이(옅게 섞은 파스텔이 아니다),
-       글·아이콘은 같은 색상의 진한 색(L0.42, 면과 명암비 4.5:1 넘게). 색상은 밝은 테마 토큰의 색상(iris 240, amber 85) */
-    --cv6-inject-text: oklch(0.42 0.088 240);
+       글·아이콘은 같은 색상의 진한 색(L0.42, 면과 명암비 4.5:1 넘게). 색상은 밝은 테마 토큰의 색상(amber 85).
+       Inject는 여기서 덮지 않는다: cobalt 셋이 앱 테마를 따라 라이트 값(face L0.82, text L0.43)으로 바뀐다 */
     --cv6-hook-text: oklch(0.43 0.085 75);
     --cv6-drive-text: oklch(0.42 0.2 288);
     --cv6-tool-text: oklch(0.42 0.11 150);
-    --cv6-inject-tab: oklch(0.82 0.1 240);
     --cv6-hook-tab: oklch(0.85 0.15 85);
     --cv6-drive-tab: oklch(0.82 0.09 288);
     --cv6-tool-tab: oklch(0.84 0.15 150);

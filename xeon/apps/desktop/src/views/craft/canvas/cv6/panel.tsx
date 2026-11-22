@@ -235,7 +235,7 @@ function Head(props: {
             </span>
           )}
         </h2>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui-sm text-text-tertiary">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 text-ui-sm text-text-tertiary">
           {props.sub}
         </div>
       </div>
@@ -249,7 +249,7 @@ function Tuck(props: { readonly chips: ReactNode; readonly line?: ReactNode }): 
     <>
       <div className="flex flex-wrap gap-1">{props.chips}</div>
       {props.line === undefined ? null : (
-        <div className="mt-2.5 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
+        <div className="mt-2.5 flex min-w-0 items-center gap-3 text-ui-sm text-text-tertiary">
           {props.line}
         </div>
       )}
@@ -442,7 +442,7 @@ function DriveWorks(props: { readonly p: Plugin; readonly start: boolean }): Rea
             .map((s) =>
               t("desktop.craft.canvas.cv3.works.lanes", {
                 step: t(STEP_WORD[s.id]),
-                lanes: (s.lanes ?? []).map((l) => t(LANE_WORD[l])).join(" · "),
+                lanes: (s.lanes ?? []).map((l) => t(LANE_WORD[l])).join(", "),
               }),
             )
             .join(" ")}
@@ -459,12 +459,13 @@ function ToolWorks(props: { readonly p: Plugin }): ReactElement {
       <div className="mb-2 flex items-center gap-2 text-[12.5px] text-text-secondary">
         <PartGlyph name="mcp" size={14} />
         <span className="cv6-mono">{props.p.shared.mcp?.server ?? props.p.name}</span>
-        <span className="text-text-tertiary">
-          {t("desktop.craft.canvas.cv3.summary.tool", {
-            server: "",
-            n: tools.length,
-            w: tools.filter((x) => x.writes).length,
-          }).trim()}
+        <span className="ms-1 flex items-center gap-3 text-text-tertiary">
+          <span>{t("desktop.craft.canvas.cv5.cost.tools", { n: tools.length })}</span>
+          <span>
+            {t("desktop.craft.canvas.cv6.count.writes", {
+              n: tools.filter((x) => x.writes).length,
+            })}
+          </span>
         </span>
       </div>
       <div className="grid grid-cols-2 gap-1">
@@ -740,9 +741,7 @@ export function PluginDetail(props: {
           <span className="font-medium" style={{ color: KIND_COLOR[p.kind] }}>
             {t(KIND_WORD[p.kind])}
           </span>
-          <span aria-hidden="true">·</span>
           <span>{t(anchorWord(p.anchor))}</span>
-          <span aria-hidden="true">·</span>
           <span className="cv6-mono">{`v${draft ? (meta.pending?.version ?? meta.version) : meta.version}`}</span>
         </>
       }
@@ -767,11 +766,12 @@ export function PluginDetail(props: {
       }
       line={
         <>
-          <PartGlyph name="clock" size={13} />
-          <span>
-            {t("desktop.craft.canvas.cv3.meta.lastUsedLine", { ago: agoText(s.lastUsedMin) })}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <PartGlyph name="clock" size={13} />
+            <span>
+              {t("desktop.craft.canvas.cv3.meta.lastUsedLine", { ago: agoText(s.lastUsedMin) })}
+            </span>
           </span>
-          <span aria-hidden="true">·</span>
           <span className={healthBad ? "text-danger-text" : ""}>{t(HEALTH_WORD[meta.health])}</span>
         </>
       }
@@ -970,7 +970,12 @@ export function PluginDetail(props: {
           ) : null}
           {s.mcp !== undefined ? (
             <Row k={t("desktop.craft.canvas.cv3.part.mcp")}>
-              <span className="cv6-mono">{`${s.mcp.server} · ${String(s.mcp.tools.length)}`}</span>
+              <span className="flex items-center gap-2">
+                <span className="cv6-mono">{s.mcp.server}</span>
+                <span className="text-text-tertiary">
+                  {t("desktop.craft.canvas.cv5.cost.tools", { n: s.mcp.tools.length })}
+                </span>
+              </span>
             </Row>
           ) : null}
           {meta.hooks.length > 0 ? (
@@ -1142,14 +1147,15 @@ export function PluginDetail(props: {
                       from: meta.pending.parentVersion,
                     })}
               </span>
-              <span className="block text-ui-sm text-text-tertiary">
-                {t(
-                  meta.pending.provenance === "assistant"
-                    ? "desktop.craft.canvas.cv3.meta.byBuilder"
-                    : "desktop.craft.canvas.cv3.meta.byUser",
-                )}
-                {" · "}
-                {t(meta.pending.label)}
+              <span className="flex flex-wrap items-center gap-x-3 text-ui-sm text-text-tertiary">
+                <span>
+                  {t(
+                    meta.pending.provenance === "assistant"
+                      ? "desktop.craft.canvas.cv3.meta.byBuilder"
+                      : "desktop.craft.canvas.cv3.meta.byUser",
+                  )}
+                </span>
+                <span>{t(meta.pending.label)}</span>
               </span>
             </Row>
           ) : null}
@@ -1206,13 +1212,14 @@ export function BundleDetail(props: {
       sub={
         <>
           <span>{t("desktop.craft.canvas.cv3.bundle.word")}</span>
-          <span aria-hidden="true">·</span>
           <span>{t("desktop.craft.canvas.cv3.bundle.count", { n: props.members.length })}</span>
-          {kinds.map((k) => (
-            <span key={k} style={{ color: KIND_COLOR[k] }} className="flex">
-              <KindGlyph kind={k} size={12} />
-            </span>
-          ))}
+          <span className="flex items-center gap-1">
+            {kinds.map((k) => (
+              <span key={k} style={{ color: KIND_COLOR[k] }} className="flex">
+                <KindGlyph kind={k} size={12} />
+              </span>
+            ))}
+          </span>
         </>
       }
     />
