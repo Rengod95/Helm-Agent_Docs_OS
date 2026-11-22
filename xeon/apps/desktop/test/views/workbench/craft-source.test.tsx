@@ -23,6 +23,7 @@ import type { MirrorInput } from "../../../src/state/engine/input.ts";
 import { reduceMirror } from "../../../src/state/engine/reduce.ts";
 import { INITIAL_MIRROR, type EngineMirror } from "../../../src/state/engine/state.ts";
 import type { ReadonlyStore } from "../../../src/state/shared/readonly-store.ts";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import { createWorkbenchStore, WorkbenchStoreContext } from "../../../src/state/workbench/index.ts";
 import {
   CommandsContext,
@@ -399,13 +400,16 @@ function sourceOf(
     seen.source = useCraftSource(controller, request);
     return null;
   }
+  // 원천의 새 플러그인 입구가 테스트 챗 창을 열며 Craft 영역으로 간다(셸 상태가 필요하다)
   renderToString(
     <EngineStoreContext value={engine}>
-      <CommandsContext value={commands}>
-        <WorkbenchStoreContext value={store}>
-          <Probe />
-        </WorkbenchStoreContext>
-      </CommandsContext>
+      <ShellStoreContext value={createShellStore(1440)}>
+        <CommandsContext value={commands}>
+          <WorkbenchStoreContext value={store}>
+            <Probe />
+          </WorkbenchStoreContext>
+        </CommandsContext>
+      </ShellStoreContext>
     </EngineStoreContext>,
   );
   if (seen.source === null) throw new Error("probe did not render");
@@ -439,12 +443,25 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
       }),
     );
     const requests: [string, boolean][] = [];
+    const opened: unknown[] = [];
+    const base = fakeCommands();
+    const commands = fakeCommands({
+      testChat: {
+        ...base.testChat,
+        open: (params) => {
+          opened.push(params);
+          return Promise.resolve(err({ kind: "offline" }));
+        },
+      },
+    });
     const source = sourceOf(
       store,
       (name, target) => {
         requests.push([name, target]);
       },
       controller,
+      harness().store.read,
+      commands,
     );
 
     expect(onOf(source.snapshot)).toEqual([
@@ -456,8 +473,11 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
     await source.setOn(["web", "core-loop"], false);
     expect(requests).toEqual([["web", false]]);
 
+    // "새로 만들기"는 빌더 요청 대신 묶이지 않은 새 테스트 챗을 연다(C7). 고른 Hook은 싣지 않는다
     source.openBuilder("tool.call.before");
-    expect(store.actions.snapshot().builder).toEqual({ hook: "tool.call.before" });
+    await Promise.resolve();
+    expect(opened).toEqual([{ plugin: null, reuse: "new" }]);
+    expect(store.actions.snapshot().builder).toBeNull();
   });
 
   test("열린 대화가 없으면 최근 실행은 null이다", async () => {

@@ -57,12 +57,13 @@ function isInternalThread(thread: Pick<ThreadSummary, "spawnedBy">): boolean {
 /**
  * 보통 대화 목록(사이드바)에 둘 대화: 테스트 런 대화(`ThreadSummary.testRun` 표지, W-34)를 뺀다. 엔진의 `thread.list` 기본 목록은
  * 테스트 챗만 빼고 테스트 런은 준다(enTr 2026-11-20). 테스트 런은 Craft의 테스트 화면에서 열고 사이드바에는 두지 않는다(lcM6e, AGE-32).
+ * 테스트 챗(`ThreadSummary.craftChat` 표지)도 뺀다. 엔진 기본 목록과 같은 기준이다(거울이 `thread.started`로 안 것도 포함).
  * 대화는 지우지 않고, 진행 중 묶음(상태 줄)과 테스트 화면은 그대로 본다. 목록 순서는 지킨다
  */
-export function listedThreadsOf<T extends Pick<ThreadSummary, "testRun">>(
+export function listedThreadsOf<T extends Pick<ThreadSummary, "testRun" | "craftChat">>(
   threads: readonly T[],
 ): readonly T[] {
-  return threads.filter((thread) => thread.testRun === undefined);
+  return threads.filter((thread) => thread.testRun === undefined && thread.craftChat === undefined);
 }
 
 /** 사이드바의 행 하나. `child`이면 부모 행 아래 들여 쓴 하위 행이다 */

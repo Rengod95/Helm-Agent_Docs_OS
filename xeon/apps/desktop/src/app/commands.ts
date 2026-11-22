@@ -61,6 +61,7 @@ import { createSkillCommands } from "./skills.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createMeasureCommands } from "./measure-commands.ts";
 import { createCraftMetricsCommands } from "./craft-metrics.ts";
+import { createTestChatCommands } from "./test-chat-commands.ts";
 import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import {
@@ -615,6 +616,17 @@ export function createCommands(
     tests: createTestCommands(withConnection, withWriteConnection),
     measure: createMeasureCommands(withConnection),
     craftMetrics: createCraftMetricsCommands(withConnection, withWriteConnection),
+    testChat: createTestChatCommands({
+      withRead: withConnection,
+      withWrite: withWriteConnection,
+      known: (threads) => engine.ingest({ type: "craft_chats", threads }),
+      leave: () => {
+        leaveSelected(null);
+        engine.flush();
+        ui.actions.selectThread(null);
+        session.link()?.closeThread();
+      },
+    }),
     schedule: createScheduleCommands(withConnection, () => connectionCommands.setServiceMode(true)),
     pluginUi: { withConnection, current: () => session.connection() },
     connection: connectionCommands,

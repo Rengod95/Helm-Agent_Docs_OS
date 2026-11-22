@@ -218,6 +218,11 @@ export type MirrorInput =
   | { readonly type: "subscribe_failed" }
   | { readonly type: "threads"; readonly threads: readonly ThreadSummary[] }
   /**
+   * 테스트 챗 요약을 거울에 더한다(`craftChat.list`, 플로팅 테스트 챗 창). 엔진의 기본 목록이 테스트 챗을 빼므로,
+   * 다시 연 테스트 챗은 이 입력으로만 거울에 들어온다. 표지(`craftChat`)가 없는 요약은 버린다
+   */
+  | { readonly type: "craft_chats"; readonly threads: readonly ThreadSummary[] }
+  /**
    * 새로 열린 대화의 표지: `spawnedBy`(위임으로 만든 자식), `testRun`(테스트 런). 대화 시작 사실(`thread.started`)에는 둘 다 없어서
    * 목록을 다시 읽어 표지만 가져온다. 그 표지가 없는 대화에만 붙이고 다른 칸은 건드리지 않는다 [결정: 오케스트레이터 기본값, rtE R-3]
    * (`testRun`은 lcM6e: 보통 대화 목록이 테스트 런을 빼려면 새로 만든 테스트 런에도 표지가 있어야 한다)

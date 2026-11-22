@@ -114,6 +114,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       removeFromProfile: () => Promise.resolve(err({ kind: "unsupported" })),
       minSample: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    testChat: {
+      open: () => Promise.resolve(err({ kind: "unsupported" })),
+      submitDraft: () => Promise.resolve(err({ kind: "unsupported" })),
+      leave: () => {},
+    },
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},

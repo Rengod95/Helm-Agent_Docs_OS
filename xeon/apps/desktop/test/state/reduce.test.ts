@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { ItemRecord, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type {
+  ItemRecord,
+  ThreadId,
+  ThreadStartedPayload,
+  TurnId,
+} from "@fresnel/contracts/conversation";
 import {
   HANDLER_FAILURE_CAP,
   INITIAL_MIRROR,
@@ -975,7 +980,11 @@ describe("lease.*·scope.changed: 디코드와 거울의 전환 기록", () => {
 
 const updated = (
   seq: number,
-  payload: { readonly model?: string | null; readonly title?: string },
+  payload: {
+    readonly model?: string | null;
+    readonly title?: string;
+    readonly craftChat?: { readonly plugin: string };
+  },
 ): DurableFact => ({
   type: "thread.updated",
   seq,
@@ -999,6 +1008,95 @@ describe("thread model", () => {
     expect(renamed.threads.byId[T]?.title).toBe("새 제목");
     const cleared = run([batch(7, 8, [updated(8, { model: null })])], renamed);
     expect(cleared.threads.byId[T] !== undefined && "model" in cleared.threads.byId[T]).toBe(false);
+  });
+});
+
+const STARTED_AT = "2026-11-21T00:00:00.000Z";
+const startedFact = (seq: number, payload: ThreadStartedPayload): DurableFact => ({
+  type: "thread.started",
+  seq,
+  eventId: evt(seq),
+  threadId: T,
+  turnId: null,
+  at: STARTED_AT,
+  payload,
+});
+
+describe("test chat marks (craftChat)", () => {
+  test("thread.started keeps the plugin mark on the summary; without it there is no craftChat key", () => {
+    const marked = run([
+      head(5),
+      batch(5, 6, [
+        startedFact(6, {
+          title: null,
+          forkedFrom: null,
+          craftChat: { plugin: "repo-guard", contexts: [] },
+        }),
+      ]),
+    ]);
+    expect(marked.threads.ids).toEqual([T]);
+    expect(marked.threads.byId[T]).toEqual(
+      summary(T, {
+        title: null,
+        createdAt: STARTED_AT,
+        updatedAt: STARTED_AT,
+        headSeq: 6,
+        craftChat: { plugin: "repo-guard" },
+      }),
+    );
+    const plain = run([head(5), batch(5, 6, [startedFact(6, { title: null, forkedFrom: null })])]);
+    expect(plain.threads.byId[T] !== undefined && "craftChat" in plain.threads.byId[T]).toBe(false);
+  });
+
+  test("thread.updated binds a test chat to its plugin", () => {
+    const base = run([
+      head(5),
+      { type: "threads", threads: [summary(T, { craftChat: { plugin: null } })] },
+    ]);
+    const bound = run([batch(5, 6, [updated(6, { craftChat: { plugin: "x" } })])], base);
+    expect(bound.threads.byId[T]).toEqual(
+      summary(T, { craftChat: { plugin: "x" }, updatedAt: "2026-10-25T00:00:00.000Z" }),
+    );
+  });
+
+  test("a thread.list reload keeps known test chats after the listed ones and drops other missing threads", () => {
+    const normal = summary(thr(2), { title: "보통" });
+    const chat = summary(T, { title: "테스트 챗", craftChat: { plugin: "repo-guard" } });
+    const unbound = summary(thr(7), { title: "새 플러그인", craftChat: { plugin: null } });
+    const before = run([head(5), { type: "threads", threads: [normal, chat, unbound] }]);
+    const after = run([{ type: "threads", threads: [summary(thr(5), { title: "목록" })] }], before);
+    expect(after.threads.ids).toEqual([thr(5), T, thr(7)]);
+    expect(after.threads.byId[T]).toEqual(chat);
+    expect(after.threads.byId[thr(7)]).toEqual(unbound);
+    expect(after.threads.byId[thr(2)]).toBeUndefined();
+  });
+
+  test("craft_chats adds unknown test chats after the list, updates known ones and drops unmarked summaries", () => {
+    const normal = summary(thr(2), { title: "보통" });
+    const before = run([
+      head(5),
+      {
+        type: "threads",
+        threads: [normal, summary(T, { title: "옛 제목", craftChat: { plugin: "a" } })],
+      },
+    ]);
+    const fresh = summary(thr(7), { title: "새 테스트 챗", craftChat: { plugin: "a" } });
+    const renamed = summary(T, { title: "새 제목", craftChat: { plugin: "a" } });
+    const after = run(
+      [{ type: "craft_chats", threads: [fresh, renamed, summary(thr(9), { title: "표지 없음" })] }],
+      before,
+    );
+    expect(after.threads.ids).toEqual([thr(2), T, thr(7)]);
+    expect(after.threads.byId[T]).toEqual(renamed);
+    expect(after.threads.byId[thr(7)]).toEqual(fresh);
+    expect(after.threads.byId[thr(9)]).toBeUndefined();
+    expect(after.threads.byId[thr(2)]).toEqual(normal);
+  });
+
+  test("craft_chats without any marked summary leaves the mirror as it was", () => {
+    const before = run([head(5), { type: "threads", threads: [summary(thr(2))] }]);
+    const after = run([{ type: "craft_chats", threads: [summary(thr(3))] }], before);
+    expect(after.threads).toBe(before.threads);
   });
 });
 

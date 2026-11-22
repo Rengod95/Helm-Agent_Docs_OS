@@ -124,4 +124,13 @@ describe("listedThreadsOf (lcM6e)", () => {
       [null, ["나중"]],
     ]);
   });
+
+  test("drops test chats (craftChat mark) bound to a plugin or not yet bound, and keeps plain threads", () => {
+    const plain = summary(thr(1), { title: "보통" });
+    const bound = summary(thr(2), { title: "묶인 테스트 챗", craftChat: { plugin: "repo-guard" } });
+    const unbound = summary(thr(3), { title: "새 플러그인", craftChat: { plugin: null } });
+    expect(listedThreadsOf([plain, bound, unbound]).map((thread) => thread.threadId)).toEqual([
+      thr(1),
+    ]);
+  });
 });

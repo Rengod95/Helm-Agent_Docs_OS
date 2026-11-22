@@ -8,6 +8,7 @@ import { Button, IconButton, Popover, ToneScopeContext, type ToneScope } from "@
 import { ChevronDown, ChevronRight, X } from "@caustic/react/icons";
 import { useRef, useState, type ReactNode } from "react";
 import type { CommandError } from "../../commands.ts";
+import { isRequiredByCore } from "../core-required.ts";
 import { subjectRefText } from "../trace/place.ts";
 import { InfoTip } from "../info-tip.tsx";
 import { KindGlyph, KindTile, kindOfSubject, type Kind } from "./glyphs.tsx";
@@ -152,7 +153,11 @@ function NextSteps(props: {
           <span role="alert" className="me-1 min-w-0 truncate text-ui-sm text-danger-text">
             {failure.kind === "unsupported"
               ? t("desktop.craft.metrics.next.unsupported")
-              : t("desktop.craft.metrics.next.failed")}
+              : isRequiredByCore(failure)
+                ? t("desktop.craft.metrics.next.requiredByCore", {
+                    plugin: props.finding.subject.plugin,
+                  })
+                : t("desktop.craft.metrics.next.failed")}
           </span>
         )}
         {steps.map((step) => {

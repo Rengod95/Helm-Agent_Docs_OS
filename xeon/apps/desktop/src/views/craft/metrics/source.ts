@@ -12,6 +12,7 @@ import type {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLinkPhase, useThreadSummaries } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
+import { useOpenTestChat } from "../test-chat/use-test-chat.ts";
 import { useCommands, type CommandError } from "../../commands.ts";
 import { tabLinkOf } from "../../workbench/tab-read.ts";
 import { openTrace } from "../trace/target.ts";
@@ -175,6 +176,7 @@ function useRead<T>(
 export function useMetricsSource(): MetricsData {
   const commands = useCommands();
   const shell = useShellActions();
+  const openTestChat = useOpenTestChat();
   const link = tabLinkOf(useLinkPhase());
   const [filter, setFilter] = useState<MetricsFilter>(DEFAULT_FILTER);
   const threads = useThreadSummaries();
@@ -274,18 +276,13 @@ export function useMetricsSource(): MetricsData {
         if (done.ok) reload();
         return done;
       },
-      openFix: async (finding) => {
-        const opened = await m.openCraftChat({
+      // 근거를 들고 Craft의 테스트 챗 창(C7)을 연다. 창은 메트릭 위에 뜨고 화면을 옮기지 않는다
+      openFix: (finding) =>
+        openTestChat({
           plugin: finding.subject.plugin,
           reuse: "last",
           context: [{ kind: "finding", findingId: finding.id }],
-        });
-        if (!opened.ok) return opened;
-        // 테스트 챗 창(C7)이 아직 없어 대화 영역에서 그 대화를 연다. 창이 생기면 이 자리만 바꾼다
-        commands.selectThread(opened.value.threadId);
-        shell.switchArea("chat");
-        return ok(null);
-      },
+        }),
       removeFromProfile: async (profile, plugin) => {
         const removed = await m.removeFromProfile(profile.id, plugin, profile.rev);
         if (!removed.ok) return removed;
@@ -327,7 +324,7 @@ export function useMetricsSource(): MetricsData {
         });
       },
     }),
-    [commands, m, shell, reload, filter, now],
+    [commands, m, shell, reload, filter, now, openTestChat],
   );
 
   return {

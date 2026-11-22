@@ -21,6 +21,7 @@ import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
 import { ReviewBadge, ReviewMark } from "../craft/review/review-badge.tsx";
 import { ReviewScreen } from "../craft/review/review-screen.tsx";
+import { TestChatLayer } from "../craft/test-chat/test-chat-layer.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
@@ -122,6 +123,8 @@ export function inspectEndTab(store: WorkbenchStore): EndTabDef {
     area: "workbench",
     label: "desktop.shell.tab.inspect",
     icon: <Eye />,
+    // 테스트 챗 창(C7)은 Craft 어디서나 떠 있어야 해서 Craft 영역의 모든 화면에 서는 이 탭과 함께 그린다(`craft/test-chat/test-chat-layer.tsx`)
+    alwaysMounted: scoped(store, <TestChatLayer />),
     render: () => scoped(store, <InspectTab />),
   };
 }
