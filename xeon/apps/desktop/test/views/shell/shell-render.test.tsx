@@ -130,7 +130,7 @@ describe("Shell slots", () => {
 
   test("the workbench area lists six workbench items, no plugin pages item, and no thread list", () => {
     const out = render(1400, (model) => switchArea(model, "workbench"));
-    for (const label of ["개요", "확장", "테스트", "성능 측정", "구성", "엔진"]) {
+    for (const label of ["개요", "플러그인", "테스트", "성능 측정", "구성", "엔진"]) {
       expect(out).toContain(label);
     }
     expect(out).not.toContain("플레이그라운드");
