@@ -5,6 +5,7 @@
 import { t } from "@fresnel/client/i18n";
 import {
   blockRowsOf,
+  type MemberTitleSource,
   compositionOf,
   lockOf,
   type BlockRow,
@@ -20,6 +21,7 @@ import { useCommands } from "../commands.ts";
 import { lockText } from "../workbench/ext-row.tsx";
 import { useTabRead } from "../workbench/tab-read.ts";
 import { NoComposition, ReadGate } from "./compose-group.tsx";
+import { membersOfManifest } from "../craft/members/members-model.ts";
 
 /** 플러그인 빌더 확장의 이름(§6.29). 켜고 끄기는 이 확장의 on/off다 */
 export const AUTHORING_EXT = "authoring";
@@ -75,13 +77,17 @@ function CodeLine(props: { readonly row: BlockRow }): ReactNode {
  * 매니페스트 블록을 줄 번호와 함께 보인다. 시안처럼 틀 없이 글 줄로 놓는다(줄 번호는 흐린 글, 코드는 mono).
  * 제목이 id와 같으면 제목 줄은 뺀다
  */
-export function CodeBlocks(props: { readonly composition: CompositionDecl }): ReactNode {
+export function CodeBlocks(props: {
+  readonly composition: CompositionDecl;
+  /** 블록이 속한 구성원의 제목을 채우는 목록(m6Mb). 구성원의 블록이면 줄 아래에 구성원 이름이 선다 */
+  readonly members?: readonly MemberTitleSource[];
+}): ReactNode {
   return (
     <ol
       aria-label={t("desktop.compose.blocks")}
       className="m-0 grid list-none gap-1 p-0 font-mono text-mono-sm leading-5"
     >
-      {blockRowsOf(props.composition).map((row, index) => (
+      {blockRowsOf(props.composition, props.members).map((row, index) => (
         <li key={row.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 rounded-sm">
           <span aria-hidden className="w-8 select-none text-end text-text-tertiary">
             {index + 1}
@@ -90,6 +96,14 @@ export function CodeBlocks(props: { readonly composition: CompositionDecl }): Re
             <CodeLine row={row} />
             {row.title === row.id ? null : (
               <span className="font-ui text-ui text-text-tertiary">{row.title}</span>
+            )}
+            {row.plugin === null ? null : (
+              <span
+                data-block-member={row.plugin}
+                className="font-ui text-ui-sm text-text-tertiary"
+              >
+                {t("desktop.compose.block.member", { name: row.memberTitle ?? row.plugin })}
+              </span>
             )}
           </div>
         </li>
@@ -177,7 +191,10 @@ export function CodeSource(props: {
           return composition.kind === "none" ? (
             <NoComposition />
           ) : (
-            <CodeBlocks composition={composition.composition} />
+            <CodeBlocks
+              composition={composition.composition}
+              members={membersOfManifest(props.name, detail.manifest)}
+            />
           );
         }}
       </ReadGate>

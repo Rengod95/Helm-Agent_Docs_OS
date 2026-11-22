@@ -38,6 +38,7 @@ import {
 } from "./review-detail.tsx";
 import { KindTile, ToneGlyph } from "./review-glyphs.tsx";
 import { agoText, ENTRY_WORD } from "./review-parts.tsx";
+import { clearReviewItem, peekReviewItem } from "./review-pick.ts";
 import {
   entryKindOf,
   nextAfter,
@@ -118,7 +119,9 @@ function useReviewState(data: ReviewData, ready: Ready) {
   );
   const groups = useMemo(() => groupsOf(pending, decidedItems), [pending, decidedItems]);
   const ids = useMemo(() => groups.flatMap((g) => g.items.map((i) => i.itemId)), [groups]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // 다른 화면이 건넨 항목(구성원 탭의 "리뷰에서 보기", `review-pick.ts`)이 있으면 그 항목부터 연다
+  const [selected, setSelected] = useState<string | null>(peekReviewItem);
+  useEffect(clearReviewItem, []);
   const current = selected !== null && ids.includes(selected) ? selected : (ids[0] ?? null);
   const item = pending.find((i) => i.itemId === current) ?? kept.get(current ?? "") ?? null;
   const handleRef = useRef<DecisionHandle | null>(null);

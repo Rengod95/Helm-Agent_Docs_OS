@@ -44,6 +44,8 @@ import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { requestAddon } from "../plugin/plugin-pick.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { hasMembers } from "../craft/members/members-model.ts";
+import { MembersTab } from "../craft/members/members-tab.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
@@ -422,6 +424,7 @@ export function ExtDetail(props: {
   const { entry } = props;
   const row = rowOf(entry, props.state.pending);
   const scope = enabledScopeOf(entry.enabledSource);
+  const withMembers = hasMembers(entry);
   const [get, setGet] = useState<Load>({ kind: "loading" });
   const [timings, setTimings] = useState<TimingsLoad>({ kind: "loading" });
   useEffect(() => {
@@ -514,6 +517,10 @@ export function ExtDetail(props: {
       >
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
+          {/* 구성원이 있는 플러그인만 구성원 탭이 있다(m6Mb). 없는 플러그인은 지금과 같다 */}
+          {withMembers && (
+            <TabsTrigger value="members">{t("desktop.craft.members.tab")}</TabsTrigger>
+          )}
           <TabsTrigger value="hooks" count={entry.hookCount}>
             {t("desktop.workbench.detail.tab.hooks")}
           </TabsTrigger>
@@ -526,6 +533,14 @@ export function ExtDetail(props: {
         <TabsContent value="overview">
           <Overview entry={entry} get={get} />
         </TabsContent>
+        {withMembers && (
+          <TabsContent value="members">
+            <MembersTab
+              entry={entry}
+              manifest={get.kind === "ready" ? get.result.manifest : null}
+            />
+          </TabsContent>
+        )}
         <TabsContent value="hooks">
           <HooksTab get={get} timings={timings} />
         </TabsContent>
