@@ -1090,7 +1090,8 @@ function DotFloor(): ReactNode {
 
 /**
  * 루프의 오른쪽이 화면 밖으로 넘치면 오른쪽 가장자리, 레일 블록 바로 아래에 "루프 계속" 단추를 띄운다(누르면 오른쪽으로 옮긴다).
- * 블록 이름을 가리지 않게 블록 아래 변에서 20px 밑에 서고, 레일이 화면 위·아래로 벗어나면 가장자리 안쪽에 머문다.
+ * 블록 이름을 가리지 않게 블록 아래 변에서 20px 밑에 서고, 그 자리가 화면 밑으로 넘치면 블록 위 변에서 20px 위에 선다.
+ * 둘 다 화면 밖이면 가장자리 안쪽에 머문다.
  * 넘침 여부와 그 높이가 바뀔 때만 다시 그린다
  */
 function MoreRight(props: { readonly bounds: Rect; readonly onMore: () => void }): ReactNode {
@@ -1098,14 +1099,15 @@ function MoreRight(props: { readonly bounds: Rect; readonly onMore: () => void }
   const over = useViewportStore(
     (s) => bounds.x * s.transform[2] + s.transform[0] + bounds.w * s.transform[2] > s.width + 24,
   );
-  const railY = useViewportStore((s) =>
-    Math.round(
-      Math.min(
-        Math.max(s.transform[1] + RAIL_HALF * s.transform[2] + 34, 72),
-        Math.max(72, s.height - 72),
-      ),
-    ),
-  );
+  const railY = useViewportStore((s) => {
+    const below = s.transform[1] + RAIL_HALF * s.transform[2] + 34;
+    const above = s.transform[1] - RAIL_HALF * s.transform[2] - 34;
+    const floor = Math.max(72, s.height - 72);
+    // 블록 아래가 화면 밑으로 넘치면 블록 위로 올린다(가장자리에 눌려 블록 이름을 덮지 않게)
+    if (below <= floor) return Math.round(Math.max(below, 72));
+    if (above >= 72) return Math.round(above);
+    return Math.round(floor);
+  });
   if (!over) return null;
   return (
     <span className="cv6-more" style={{ top: railY }}>

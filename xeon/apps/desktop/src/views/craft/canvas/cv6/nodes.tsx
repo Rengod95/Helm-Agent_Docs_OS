@@ -22,6 +22,7 @@ import { Icon, KIND_COLOR, KindGlyph, KindTile, PartGlyph, type PartIcon } from 
 import { lodOf, plateMarks, type Lod, type PlateMark } from "./lod.ts";
 import {
   PILE_OFFSET,
+  purposeMissing,
   RAIL_HALF,
   type BundleGeo,
   type PlateGeo,
@@ -609,8 +610,9 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
           </button>
         ) : null}
       </div>
-      <p className="cv6-desc">{purposeOf(p.meta)}</p>
-      <div className="cv6-card-well">
+      {/* 목적이 없으면 그 줄을 비운다(상세가 "목적이 적혀 있지 않아요"를 말한다). 안쪽 글이 없으면 안쪽 면 없이 꼬리표만 */}
+      {purposeMissing(p) ? null : <p className="cv6-desc">{purposeOf(p.meta)}</p>}
+      <div className="cv6-card-well" data-empty={description === null ? "true" : undefined}>
         <span className="cv6-tag">{t(anchorWord(p.anchor))}</span>
         {description === null ? null : <p className="cv6-well-text">{t(description)}</p>}
       </div>

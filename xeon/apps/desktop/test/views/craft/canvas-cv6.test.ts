@@ -73,13 +73,18 @@ describe("openViewOf", () => {
   });
 
   test("좁은 화면: OPEN_ZOOM_MIN으로 열고 루프 왼쪽 끝을 화면 왼쪽에 붙이며 넘친다고 알린다", () => {
-    const v = openViewOf({ x: -80, y: -710, w: 2032, h: 1126 }, { x: 32, y: 76, w: 816, h: 752 });
+    const v = openViewOf({ x: -80, y: -710, w: 2032, h: 1126 }, { x: 32, y: 76, w: 500, h: 752 });
     expect(v).toEqual({
       x: 32 + 80 * OPEN_ZOOM_MIN,
-      y: 76 + (752 - 563) / 3 + 710 * OPEN_ZOOM_MIN,
+      y: 76 + (752 - 1126 * OPEN_ZOOM_MIN) / 3 + 710 * OPEN_ZOOM_MIN,
       zoom: OPEN_ZOOM_MIN,
       overflowRight: true,
     });
+  });
+
+  test("판 전체가 창에 들어가는 배율이 50%보다 작아도 30%까지는 그 배율로 다 보인다(아래 Hook 판이 잘리지 않는다)", () => {
+    const v = openViewOf({ x: 0, y: -900, w: 2400, h: 1800 }, { x: 0, y: 0, w: 1200, h: 720 });
+    expect([v.zoom, v.overflowRight, OPEN_ZOOM_MIN]).toEqual([0.4, false, 0.3]);
   });
 
   test("그 사이: 들어가는 배율 그대로", () => {

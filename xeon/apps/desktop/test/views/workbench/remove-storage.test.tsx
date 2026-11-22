@@ -10,7 +10,10 @@ import {
   type StoragePreview,
   type StorageTable,
 } from "../../../src/views/workbench/remove-model.ts";
-import { RemoveDialogBody } from "../../../src/views/workbench/remove-dialog.tsx";
+import {
+  RemoveDialogBody,
+  removeConfirmDisabled,
+} from "../../../src/views/workbench/remove-dialog.tsx";
 
 // 지우기 확인의 저장 데이터 구역: 미리 보기 값의 판단(순수 함수)과 상자 본문의 여러 상태(서버 렌더).
 
@@ -47,6 +50,17 @@ describe("저장 데이터 판단", () => {
       "desktop.workbench.remove.storage.none",
     );
     expect(storageNoteOf({ kind: "ready", tables: TABLES })).toBeNull();
+  });
+});
+
+describe("지우기 단추", () => {
+  test("의존 거절 까닭이 보이는 동안과 지우는 중에는 꺼지고, 그 밖에는 켜진다", () => {
+    const refusal = { reason: "required_by", plugin: "members-kit", items: [] } as const;
+    expect([
+      removeConfirmDisabled(false, null),
+      removeConfirmDisabled(true, null),
+      removeConfirmDisabled(false, refusal),
+    ]).toEqual([false, true, true]);
   });
 });
 

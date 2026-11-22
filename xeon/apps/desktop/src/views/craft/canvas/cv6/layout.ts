@@ -17,8 +17,10 @@ import {
   type Kind,
   type Lane,
   type Placed,
+  type Plugin,
   type Relation,
 } from "./model.ts";
+import { descriptionOf } from "./sample-ext.ts";
 
 /**
  * 판 한 장: 네 종류가 같은 크기다. 참고 그림의 카드(317 × 308, 안쪽 글 다섯 줄)를 실제 px로 옮긴 값이고, 안쪽 글을 네 줄까지 둔다.
@@ -28,6 +30,23 @@ import {
  */
 const PLATE_W = 316;
 export const PLATE_H = 289;
+
+/**
+ * 적은 판: 카드에 목적이 없고 안쪽 글(설명)도 없는 플러그인. 설명 두 줄과 안쪽 면을 그리지 않고 붙는 자리 꼬리표만 둔다.
+ * 가까이에서 12 + 머리 20 + 10 + 꼬리표 18 + 11 + 알약 24 + 12 + 푸터 16 + 12 = 135, 중간 단계의 큰 글을 넣어 144다
+ */
+export const PLATE_LEAN_H = 144;
+
+/** 목적이 비었나. 표본은 목적이 카탈로그 키라(`purposeText`가 없다) 늘 있다 */
+export function purposeMissing(p: Plugin): boolean {
+  const text = p.meta.purposeText;
+  return text === null || (text !== undefined && text.trim() === "");
+}
+
+/** 판 높이: 목적도 안쪽 글도 없으면 적은 판, 아니면 PLATE_H. 묶음(받침판, 더미) 안의 판은 줄을 맞추려고 늘 PLATE_H다 */
+export function plateHeightOf(p: Plugin): number {
+  return purposeMissing(p) && descriptionOf(p.name) === null ? PLATE_LEAN_H : PLATE_H;
+}
 /** 탭이 카드 윗변 위로 솟는 높이의 상한(멀리 단계). 판 위에 늘 이만큼 비워 둔다 */
 export const TAB_ROOM = 36;
 /** 더미 안 판 사이: 위 판의 순서 번호와 아래 판의 탭이 함께 들어갈 만큼 */
@@ -220,7 +239,7 @@ type Item =
   | { readonly type: "bundle"; readonly id: string; readonly members: readonly Placed[] };
 
 function itemSize(item: Item, collapsed: ReadonlySet<string>): { w: number; h: number } {
-  if (item.type === "plate") return { w: PLATE_W, h: PLATE_H };
+  if (item.type === "plate") return { w: PLATE_W, h: plateHeightOf(item.placed.plugin) };
   if (collapsed.has(item.id)) return { w: PILE_W, h: PILE_H };
   return pedestalSize(item.members.length);
 }
@@ -393,7 +412,7 @@ export function layoutProfile(
       x: px,
       y: py,
       w: PLATE_W,
-      h: PLATE_H,
+      h: inBundle === null ? plateHeightOf(m.plugin) : PLATE_H,
       placed: m,
       stackIndex: k,
       lane,

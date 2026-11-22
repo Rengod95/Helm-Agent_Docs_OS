@@ -12,6 +12,14 @@ export const KIND_COLOR: Readonly<Record<Kind, string>> = {
   tool: "var(--cv6-tool-text)",
 };
 
+/** 종류의 먹 색(탭 면 위의 그림과 글) */
+const KIND_INK: Readonly<Record<Kind, string>> = {
+  inject: "var(--cv6-inject-ink)",
+  hook: "var(--cv6-hook-ink)",
+  drive: "var(--cv6-drive-ink)",
+  tool: "var(--cv6-tool-ink)",
+};
+
 /** 종류의 면 색(탭 면) */
 const KIND_FACE: Readonly<Record<Kind, string>> = {
   inject: "var(--cv6-inject-tab)",
@@ -68,7 +76,7 @@ export function KindTile(props: {
   readonly size: number;
   readonly draft?: boolean;
 }): ReactElement {
-  const color = KIND_COLOR[props.kind];
+  const color = KIND_INK[props.kind];
   const style: CSSProperties = {
     width: props.size,
     height: props.size,

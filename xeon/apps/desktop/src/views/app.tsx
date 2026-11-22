@@ -134,13 +134,15 @@ export function App(props: AppProps): ReactNode {
       rethrow,
     );
   }, [commands]);
-  // 모델 키와 기본 모델이 끝나지 않았으면 첫 실행 화면(P-01)을 이 앱 실행에서 한 번 무대에 연다. 나중에 다른 화면에 가도 다시 열지 않는다
+  // 모델 키와 기본 모델이 끝나지 않았으면 첫 실행 화면(P-01)을 이 앱 실행에서 한 번 무대에 연다. 나중에 다른 화면에 가도 다시 열지 않는다.
+  // 늘 대화 영역에 연다: 지난 실행이 크래프트 영역에서 끝났어도 크래프트의 자리(프로필 등)를 덮지 않는다(덮으면 저장되어 크래프트를 눌러도 남는다)
   const setupNeeded = useSetupNeeded();
   const firstRunOpened = useRef(false);
   useEffect(() => {
     if (!firstRunAutoOpenDue({ needed: setupNeeded, openedThisRun: firstRunOpened.current }))
       return;
     firstRunOpened.current = true;
+    shell.switchArea("chat");
     shell.updatePlace({ screen: "first-run", scroll: 0 });
   }, [setupNeeded, shell]);
   // 놓을 곳이 아닌 데에 놓은 파일로 WebView가 이동하지 않게 한다(`dragDropEnabled: false`의 부작용)

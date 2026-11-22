@@ -67,6 +67,14 @@ interface RemoveDialogProps {
   readonly onCancel: () => void;
 }
 
+/** 지우기 단추를 끄나: 지우는 중이거나, 엔진이 의존 때문에 거절한 까닭이 상자에 보이는 동안(다시 눌러도 같은 거절이다) */
+export function removeConfirmDisabled(
+  busy: boolean,
+  refusal: DependencyRefusalView | null,
+): boolean {
+  return busy || refusal !== null;
+}
+
 export function RemoveDialog(props: RemoveDialogProps): ReactNode {
   // 상자마다 새로 읽는다. 이름을 키로 두어 다른 확장의 저장 데이터나 체크 상태가 잠깐도 보이지 않게 한다
   return <RemoveDialogOf key={props.name ?? ""} {...props} />;
@@ -136,7 +144,7 @@ function RemoveDialogOf(props: RemoveDialogProps): ReactNode {
             </Button>
           </DialogClose>
           <DialogAction
-            disabled={props.busy}
+            disabled={removeConfirmDisabled(props.busy, props.refusal ?? null)}
             onClick={(event) => {
               // 확인 단추가 닫기를 먼저 하지 않는다: 지우는 동안 상자를 두고, 끝나면 부른 쪽이 닫는다
               event.preventDefault();

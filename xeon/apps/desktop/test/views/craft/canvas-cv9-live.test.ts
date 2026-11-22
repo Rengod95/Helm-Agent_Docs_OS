@@ -24,6 +24,12 @@ import {
   swapPlugins,
   type CanvasProfile,
 } from "../../../src/views/craft/canvas/cv6/model.ts";
+import {
+  PLATE_H,
+  PLATE_LEAN_H,
+  plateHeightOf,
+  purposeMissing,
+} from "../../../src/views/craft/canvas/cv6/layout.ts";
 import { purposeOf } from "../../../src/views/craft/canvas/shared-meta.ts";
 
 function card(name: string, over: Partial<PluginCard> = {}): PluginCard {
@@ -157,6 +163,21 @@ describe("카드 → 캔버스 플러그인", () => {
       ["cap-workspace"],
       null,
     ]);
+  });
+});
+
+describe("적은 판", () => {
+  test("목적이 없는 카드는 목적 줄을 비우고 판이 짧다. 목적이 있으면 그대로다", () => {
+    const bare = pluginOfCard(
+      card("bare", { purpose: null, does: { inject, hook: null, drive: null } }),
+    );
+    const told = pluginOfCard(CARDS[0] ?? card("x"));
+    expect([
+      purposeMissing(bare),
+      plateHeightOf(bare),
+      purposeMissing(told),
+      plateHeightOf(told),
+    ]).toEqual([true, PLATE_LEAN_H, false, PLATE_H]);
   });
 });
 

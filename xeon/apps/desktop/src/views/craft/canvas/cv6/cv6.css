@@ -45,24 +45,26 @@
     --cv6-line: color-mix(in srgb, var(--cs-color-text-primary) 20%, transparent);
     --cv6-line-soft: color-mix(in srgb, var(--cs-color-text-primary) 10%, transparent);
     --cv6-chrome: color-mix(in oklab, var(--cs-color-surface-raised) 94%, transparent);
-    /* 종류 색. 빛(--cv6-<종류>)은 채도 높은 토큰 그대로, 글·아이콘(-text)은 같은 색상의 글 토큰 그대로다.
-       탭 면(-tab)만 이 화면 전용 값이다: 참고 그림의 탭을 OKLCH로 잰 밝기(L)·색의 세기(C)에 우리 종류의 색상(H)을 둔다.
-       참고의 탭은 둘이다: 파랑(LLM) L0.263 C0.105, 초록(Output) L0.283 C0.056. 종류마다 색상이 가까운 탭을 따른다
-       (Inject 235·Drive 288 → 파랑, 도구 150·Hook 92 → 초록). 토큰을 바탕에 섞으면 C가 절반쯤으로 떨어져(G5: Inject C0.043) 쓰지 않는다.
-       Inject만 세 값 모두 앱의 cobalt 셋(`src/color-sets.css`, H260)이다: 빛은 solid, 글은 text, 탭 면은 face(참고 파랑 탭의 L0.263 C0.105).
-       caustic info·iris(H235)는 이 L에서 C0.056까지라 참고의 파랑이 나오지 않았다(2026-11-22 사용자: 토큰을 바꾸지 말고 새 셋을 더한다) */
-    --cv6-inject: var(--fr-color-cobalt-solid);
-    --cv6-hook: var(--cs-color-identity-amber);
-    --cv6-drive: var(--cs-color-agent-stop-1);
-    --cv6-tool: var(--cs-color-identity-mint);
-    --cv6-inject-text: var(--fr-color-cobalt-text);
-    --cv6-hook-text: var(--cs-color-warning-text);
-    --cv6-drive-text: var(--cs-color-agent-text);
-    --cv6-tool-text: var(--cs-color-success-text);
-    --cv6-inject-tab: var(--fr-color-cobalt-face);
-    --cv6-hook-tab: oklch(0.283 0.056 92);
-    --cv6-drive-tab: oklch(0.263 0.105 288);
-    --cv6-tool-tab: oklch(0.283 0.056 150);
+    /* 종류 색: 앱의 선명한 한 벌(`src/chroma.css`, spec DP-229) 그대로이고 두 테마가 같다. 이 화면만의 색 값은 없다.
+       빛·선·점(--cv6-<종류>)은 표지, 탭과 아이콘 타일의 면(-tab)과 그 위 그림·글(-ink)은 면 + 먹 짝,
+       바탕 위 글(-text)은 바탕 위 글 값(라이트는 밝은 바탕에 4.5 이상, 다크는 표지)이다.
+       색상: Inject cobalt(H260), Hook 노랑(H88), Drive 보라(H288), 도구 초록(H150) */
+    --cv6-inject: var(--fr-vivid-cobalt);
+    --cv6-hook: var(--fr-vivid-yellow);
+    --cv6-drive: var(--fr-vivid-purple);
+    --cv6-tool: var(--fr-vivid-green);
+    --cv6-inject-text: var(--fr-vivid-cobalt-text);
+    --cv6-hook-text: var(--fr-vivid-yellow-text);
+    --cv6-drive-text: var(--fr-vivid-purple-text);
+    --cv6-tool-text: var(--fr-vivid-green-text);
+    --cv6-inject-tab: var(--fr-vivid-cobalt-face);
+    --cv6-hook-tab: var(--fr-vivid-yellow-face);
+    --cv6-drive-tab: var(--fr-vivid-purple-face);
+    --cv6-tool-tab: var(--fr-vivid-green-face);
+    --cv6-inject-ink: var(--fr-vivid-cobalt-ink);
+    --cv6-hook-ink: var(--fr-vivid-yellow-ink);
+    --cv6-drive-ink: var(--fr-vivid-purple-ink);
+    --cv6-tool-ink: var(--fr-vivid-green-ink);
     --cv6-bundle-tab: color-mix(
       in srgb,
       var(--cs-color-text-primary) 13%,
@@ -71,16 +73,23 @@
     /* 빛의 세기: 변 바로 밖(5px)의 색의 세기(C)를 참고(위 변 0.033 ~ 왼쪽 변 0.043)에 맞춘다. G5는 0.028이었다(알파 20%) */
     --cv6-glow-a-base: 28%;
     /* 층의 그림자 */
-    --cv6-lift-ped: 0 1px 0 0 color-mix(in srgb, var(--fr-color-shadow-glint) 3%, transparent) inset, 0 6px 14px -8px color-mix(in srgb, var(--fr-color-shadow-ink) 55%, transparent);
-    --cv6-lift-plate: drop-shadow(0 14px 18px color-mix(in srgb, var(--fr-color-shadow-ink) 42%, transparent))
+    --cv6-lift-ped:
+      0 1px 0 0 color-mix(in srgb, var(--fr-color-shadow-glint) 3%, transparent) inset,
+      0 6px 14px -8px color-mix(in srgb, var(--fr-color-shadow-ink) 55%, transparent);
+    --cv6-lift-plate: drop-shadow(
+        0 14px 18px color-mix(in srgb, var(--fr-color-shadow-ink) 42%, transparent)
+      )
       drop-shadow(0 2px 3px color-mix(in srgb, var(--fr-color-shadow-ink) 38%, transparent));
-    --cv6-lift-float: 0 30px 70px -16px color-mix(in srgb, var(--fr-color-shadow-ink) 70%, transparent), 0 6px 16px color-mix(in srgb, var(--fr-color-shadow-ink) 38%, transparent);
-    --cv6-lift-card: 0 12px 24px -14px color-mix(in srgb, var(--fr-color-shadow-ink) 70%, transparent);
+    --cv6-lift-float:
+      0 30px 70px -16px color-mix(in srgb, var(--fr-color-shadow-ink) 70%, transparent),
+      0 6px 16px color-mix(in srgb, var(--fr-color-shadow-ink) 38%, transparent);
+    --cv6-lift-card: 0 12px 24px -14px
+      color-mix(in srgb, var(--fr-color-shadow-ink) 70%, transparent);
     --cv6-mono: var(--cs-font-mono, ui-monospace, monospace);
     background: var(--cv6-floor);
   }
 
-  /* 밝은 테마: 참고 그림은 어두운 것뿐이다. 같은 구조에 밝은 바탕의 값을 둔다(탭은 종류 색의 옅은 면 + 진한 글) */
+  /* 밝은 테마: 참고 그림은 어두운 것뿐이다. 같은 구조에 밝은 바탕의 값을 둔다(종류 색은 두 테마가 같은 선명한 한 벌이라 여기서 덮지 않는다) */
   .cv6-root[data-scheme="light"] {
     --cv6-dot: color-mix(in srgb, var(--cs-color-text-primary) 16%, transparent);
     --cv6-plate: var(--cs-color-surface-base);
@@ -113,26 +122,25 @@
     --cv6-line: color-mix(in srgb, var(--cs-color-text-primary) 26%, transparent);
     --cv6-line-soft: color-mix(in srgb, var(--cs-color-text-primary) 12%, transparent);
     --cv6-chrome: color-mix(in oklab, var(--cs-color-surface-base) 96%, transparent);
-    /* 밝은 탭: 어두운 탭을 뒤집는다. 면은 밝되 그 L·H에서 sRGB가 그릴 수 있는 C의 끝 가까이(옅게 섞은 파스텔이 아니다),
-       글·아이콘은 같은 색상의 진한 색(L0.42, 면과 명암비 4.5:1 넘게). 색상은 밝은 테마 토큰의 색상(amber 85).
-       Inject는 여기서 덮지 않는다: cobalt 셋이 앱 테마를 따라 라이트 값(face L0.82, text L0.43)으로 바뀐다 */
-    --cv6-hook-text: oklch(0.43 0.085 75);
-    --cv6-drive-text: oklch(0.42 0.2 288);
-    --cv6-tool-text: oklch(0.42 0.11 150);
-    --cv6-hook-tab: oklch(0.85 0.15 85);
-    --cv6-drive-tab: oklch(0.82 0.09 288);
-    --cv6-tool-tab: oklch(0.84 0.15 150);
     --cv6-bundle-tab: color-mix(
       in srgb,
       var(--cs-color-text-primary) 9%,
       var(--cs-color-surface-base)
     );
     --cv6-glow-a-base: 36%;
-    --cv6-lift-ped: 0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 6%, transparent), 0 6px 14px -10px color-mix(in srgb, var(--fr-color-shadow-ink) 18%, transparent);
-    --cv6-lift-plate: drop-shadow(0 12px 16px color-mix(in srgb, var(--fr-color-shadow-ink) 10%, transparent))
+    --cv6-lift-ped:
+      0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 6%, transparent),
+      0 6px 14px -10px color-mix(in srgb, var(--fr-color-shadow-ink) 18%, transparent);
+    --cv6-lift-plate: drop-shadow(
+        0 12px 16px color-mix(in srgb, var(--fr-color-shadow-ink) 10%, transparent)
+      )
       drop-shadow(0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 12%, transparent));
-    --cv6-lift-float: 0 28px 64px -18px color-mix(in srgb, var(--fr-color-shadow-ink) 26%, transparent), 0 4px 12px color-mix(in srgb, var(--fr-color-shadow-ink) 8%, transparent);
-    --cv6-lift-card: 0 10px 20px -12px color-mix(in srgb, var(--fr-color-shadow-ink) 16%, transparent), 0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 6%, transparent);
+    --cv6-lift-float:
+      0 28px 64px -18px color-mix(in srgb, var(--fr-color-shadow-ink) 26%, transparent),
+      0 4px 12px color-mix(in srgb, var(--fr-color-shadow-ink) 8%, transparent);
+    --cv6-lift-card:
+      0 10px 20px -12px color-mix(in srgb, var(--fr-color-shadow-ink) 16%, transparent),
+      0 1px 2px color-mix(in srgb, var(--fr-color-shadow-ink) 6%, transparent);
   }
 
   /* 종류마다 탭·빛·글의 색 한 벌 */
@@ -140,6 +148,7 @@
     --cv6-k: var(--cv6-inject);
     --cv6-k-text: var(--cv6-inject-text);
     --cv6-k-tab: var(--cv6-inject-tab);
+    --cv6-k-ink: var(--cv6-inject-ink);
   }
 
   .cv6-root [data-kind="hook"] {
@@ -148,18 +157,21 @@
     --cv6-k: var(--cv6-hook);
     --cv6-k-text: var(--cv6-hook-text);
     --cv6-k-tab: var(--cv6-hook-tab);
+    --cv6-k-ink: var(--cv6-hook-ink);
   }
 
   .cv6-root [data-kind="drive"] {
     --cv6-k: var(--cv6-drive);
     --cv6-k-text: var(--cv6-drive-text);
     --cv6-k-tab: var(--cv6-drive-tab);
+    --cv6-k-ink: var(--cv6-drive-ink);
   }
 
   .cv6-root [data-kind="tool"] {
     --cv6-k: var(--cv6-tool);
     --cv6-k-text: var(--cv6-tool-text);
     --cv6-k-tab: var(--cv6-tool-tab);
+    --cv6-k-ink: var(--cv6-tool-ink);
   }
 
   .cv6-flow.react-flow {
@@ -505,7 +517,7 @@
     padding: var(--cs-space-1) var(--cs-space-2) 0;
     border-radius: 6px 6px 0 0;
     background: var(--cv6-k-tab);
-    color: var(--cv6-k-text);
+    color: var(--cv6-k-ink);
     font: 500 12px/12px var(--cs-font-ui);
     white-space: nowrap;
     pointer-events: none;
@@ -846,6 +858,15 @@
     margin-top: var(--cs-space-3);
     padding: var(--cs-space-2_5);
     border-radius: 8px;
+  }
+
+  /* 안쪽 글이 없는 판: 안쪽 면을 그리지 않고 꼬리표만 머리 아래에 둔다(빈 상자를 남기지 않는다) */
+  .cv6-card-well[data-empty="true"],
+  .cv6-plate-body[data-lod="mid"] .cv6-card-well[data-empty="true"] {
+    flex: none;
+    padding: 0;
+    background: none;
+    box-shadow: none;
   }
 
   .cv6-plate-body[data-lod="mid"] .cv6-tag {

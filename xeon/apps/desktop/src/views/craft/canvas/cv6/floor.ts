@@ -37,7 +37,7 @@ export function dotShift(t: number, screen: number): number {
 }
 
 /** 처음 시점의 가장 작은 배율(중간 단계에서 이름과 하는 일이 읽히는 크기)과 가장 큰 배율 */
-export const OPEN_ZOOM_MIN = 0.5;
+export const OPEN_ZOOM_MIN = 0.3;
 export const OPEN_ZOOM_MAX = 0.8;
 
 export interface Box {
