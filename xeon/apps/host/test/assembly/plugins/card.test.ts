@@ -244,6 +244,39 @@ test("코드와 드라이브 선언이 있으면 칸, 강제력, 격리 값이 �
   expect(cardOf(folder, { kind: "managed" }).runs).toEqual({ code: true, isolated: true });
 });
 
+test("with narrowDrafts on, a code plugin's card says it runs narrow before approval; off, code-less and builtin cards say nothing more [결정: 2026-11-22, 사용자, AGE-63]", () => {
+  const folder = folderOf("coded", {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "coded",
+      version: "1.0.0",
+      purpose: "Runs code",
+      entry: "./plugin.ts",
+    }),
+    "plugin.ts": "export {};",
+  });
+  const input = {
+    folder,
+    origin: { kind: "user" as const },
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+  };
+  const on = buildPluginCard({ ...input, narrowDrafts: true });
+  expect(on.runs).toEqual({ code: true, isolated: true, narrowBeforeApproval: true });
+  expect(parse(PluginCardSchema, on).ok).toBe(true);
+  expect(buildPluginCard({ ...input, narrowDrafts: false }).runs).toEqual({
+    code: true,
+    isolated: true,
+  });
+  expect(
+    buildPluginCard({ ...input, origin: { kind: "builtin" }, narrowDrafts: true }).runs,
+  ).toEqual({
+    code: true,
+    isolated: false,
+  });
+});
+
 test("선언만 있는 도구, 명령, 대체는 Inject 칸에 들고 도구 수가 비용에 든다", () => {
   const card = cardOf(
     folderOf("tool-kit", {

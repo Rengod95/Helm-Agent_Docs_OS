@@ -546,20 +546,27 @@ export function selectSandboxProvider(input: {
 
 [결정: 2026-11-21, 사용자, AGE-63] 플러그인 격리·가져오기 훑기·플러그인 스크립트·MCP 서버의 읽기·쓰기 제한을 셸 도구와 같게 풀었다. 막는 것은 사용자가 더한 막을 곳, Fresnel 자신의 secret_key·fresnel_data·fresnel_config, 차단 도메인뿐이다. 승인 전 드래프트만 설정 `l0.sandbox.narrowDrafts`(기본 끔, [제안] 이름)를 켜면 좁은 샌드박스로 돈다.
 
-- **열린 정책**: `defaultPolicy({ workspaceRoots: [], tempDir, writeEverywhere: true })`(프로필 없음)다. 쓰기 루트는 `/`, 읽기 거부는 `read_write` 보호 경로(Fresnel 자신의 시크릿·데이터, 사용자 `extra`), 쓰기 거부는 3.3절의 열린 목록(`fresnel_data`, `fresnel_config`, `secret_key`, `user_extra`)이다. `tempDir`은 쓰기 루트가 아니다. `wrapArgv`는 열린 정책에서 임시 폴더를 만들지 않고 `TMPDIR`도 바꾸지 않는다(셸 도구와 같다). 열린 정책은 `systemTools`를 무시한다(도구 막기를 하지 않는다). 열린 정책도 읽기 예외(`readCarveOuts`, 아래 `script-env` 절의 규칙)를 받는다 [제안, AGE-63]: 플러그인 격리와 스크립트가 넘기는 `readRoot`(플러그인 폴더)가 보호 경로 안에 있으면(검토본 사본은 `fresnel_data` 아래에 있다) 그 폴더만 다시 읽힌다. 읽기 거부 경로 안에 있지 않은 대상은 규칙을 더하지 않고 뺀다(이미 읽히므로). 안에 있는 대상은 보호 경로를 품었으면 닫힌 실패다. 이 예외가 없으면 격리 자식이 자기 코드를 읽지 못해 기동 직후 `exit 1`로 끝난다(실제 srt 시험 `migration-hook-run.int.test.ts`로 확인).
-- **좁은 길**: `narrow`가 참인 호출만 `profile: "no-write"`(아래 쓰기 없음 프로필 절)를 쓴다. 승인 전 드래프트가 설정 `l0.sandbox.narrowDrafts`를 켰을 때 이 길을 쓴다. 옵트인 옛 길 `script-env`(스크립트 환경 절)와 서브에이전트 `explore`의 `read-only`는 그대로다.
+- **열린 정책**: `defaultPolicy({ workspaceRoots: [], tempDir, writeEverywhere: true })`(프로필 없음)다. 쓰기 루트는 `/`, 읽기 거부는 `read_write` 보호 경로(Fresnel 자신의 시크릿·데이터, 사용자 `extra`), 쓰기 거부는 3.3절의 열린 목록(`fresnel_data`, `fresnel_config`, `secret_key`, `user_extra`)이다. `tempDir`은 쓰기 루트가 아니다. `wrapArgv`는 열린 정책에서 임시 폴더를 만들지 않고 `TMPDIR`도 바꾸지 않는다(셸 도구와 같다). 열린 정책은 `systemTools`를 무시한다(도구 막기를 하지 않는다). 열린 정책도 읽기 예외(`readCarveOuts`, 아래 `script-env` 절의 규칙)를 받는다 [제안, AGE-63]: 플러그인 격리와 스크립트가 넘기는 `readRoot`(플러그인 폴더)가 보호 경로 안에 있으면(검토본 사본은 `fresnel_data` 아래에 있다) 그 폴더만 다시 읽힌다. 읽기 거부 경로 안에 있지 않은 대상은 규칙을 더하지 않고 뺀다(이미 읽히므로). Seatbelt가 아닌 제공자(bubblewrap)는 프로필 끝이 없어 같은 후보를 srt 파일 설정의 `allowRead`(`EffectivePolicy.readCarve`, 허용 목록 방식이 아니라 같은 `denyRead` 위의 다시 열기)로 넘긴다. 이 Linux 길은 가짜 srt로 설정 모양만 시험했고 실제 bwrap에서는 돌려 보지 못했다([미결: 실제 Linux 확인] [근거: packages/platform-sandbox/test/script-env.test.ts]). MCP stdio 서버도 작업 폴더와 있는 절대 경로 실행 파일·인자를 읽기 예외 후보로 넘겨, `fresnel_data` 안에 설치된 서버가 자기 파일을 읽는다 [제안, AGE-63]. 안에 있는 대상은 보호 경로를 품었으면 닫힌 실패다. 이 예외가 없으면 격리 자식이 자기 코드를 읽지 못해 기동 직후 `exit 1`로 끝난다(실제 srt 시험 `migration-hook-run.int.test.ts`로 확인).
+- **좁은 길**: `narrow`가 참인 호출만 `profile: "no-write"`(아래 쓰기 없음 프로필 절)를 쓴다. 설정 `l0.sandbox.narrowDrafts`를 켰을 때 승인 전 드래프트의 스크립트와 플러그인 프로세스(재시작 포함, 호출마다 설정을 읽는다)가 이 길을 쓴다 [결정: 2026-11-22, 사용자, AGE-63 "프로세스도 좁게"]. 승인된 플러그인은 설정과 상관없이 열린 길이다. 읽기는 플러그인 폴더(`fresnel_data` 안의 초안 사본이어도 된다, 시험 `sandbox.draft-plugin.int.test.ts`)와 실행에 필요한 곳뿐이고 쓰기는 없다. 설정을 켤 때 이미 열린 길로 떠 있는 드래프트 프로세스는 다음 시작(재시작 포함)부터 좁아진다.
+
+  | `narrowDrafts` | 승인 전 드래프트의 스크립트 | 승인 전 드래프트의 플러그인 프로세스 | 승인된 플러그인(스크립트, 프로세스) |
+  |---|---|---|---|
+  | 끔(기본) | 열린 길 | 열린 길 | 열린 길 |
+  | 켬 | 좁은 길 | 좁은 길 | 열린 길 |
+
+  검토 카드는 켬일 때 코드가 있는 격리 플러그인에 `runs.narrowBeforeApproval: true`를 싣는다(승인 뒤에는 `runs.isolated`가 말하는 열린 샌드박스). 옵트인 옛 길 `script-env`(스크립트 환경 절)와 서브에이전트 `explore`의 `read-only`는 그대로다.
 - **네트워크**: 네 경로 모두 차단 목록만(사용자 `network.blockedDomains`, 나머지 전부 허용)이다. 열린 정책과 좁은 길이 같다.
-- **환경 변수**: 열린 길은 부모 env에서 `FRESNEL_`로 시작하는 이름만 뺀 값에 호출자가 준 env(플러그인 격리는 `spec.env`, MCP는 정의의 평문 env와 시크릿)를 더하고, 샌드박스가 준 env를 마지막에 덮는다. 이름 패턴(`*_TOKEN`, `*_API_KEY` 등)으로 거르지 않는다. 좁은 길은 허용 목록(PATH, HOME, USER, LOGNAME, LANG, LC_ALL, LC_CTYPE, TZ, TMPDIR, SHELL)에 호출자 env를 더한다. 셸 도구의 env는 이 절이 바꾸지 않는다. L0.exec §3.5의 허용 목록을 그대로 쓴다.
+- **환경 변수** [결정: 2026-11-22, 사용자, AGE-63; 2026-11-21의 "열린 길은 부모 env 전부(`FRESNEL_` 제외)"를 대체한다]: 네 경로(플러그인 격리, 가져오기 훑기, 플러그인 스크립트, MCP 서버)는 열린 길이든 좁은 길이든 셸 도구와 같은 허용 목록(PATH, HOME, USER, LOGNAME, LANG, LC_ALL, LC_CTYPE, TZ, TMPDIR, SHELL)의 부모 값만 받는다. 정본은 F 상수 `BASE_ENV_PASS_NAMES`(`contracts/services/exec.ts`) 하나이고 셸 실행기(L0.exec §3.5)와 `platform-process`의 `childEnv`가 같이 쓴다. 이 위에 호출자가 준 env(플러그인 격리는 `spec.env`, MCP는 사용자가 서버 설정에 적은 평문 env와 시크릿)를 더하고 샌드박스가 준 env를 마지막에 덮는다. 토큰·키가 든 부모 변수와 `FRESNEL_` 내부 값은 목록에 없어 넘어가지 않는다. 토큰이 필요한 MCP 서버는 그 서버 설정의 `env`로 받는다. 가져온 훅의 환경 모드(`scriptEnv`)와 설정 정의 훅(X.operations §4.7.5)은 이 결정의 범위가 아니다.
 
 | 경로(호출처) | 읽기 전 → 후 | 쓰기 전 → 후 | 네트워크 전 → 후 | 환경 변수 전 → 후 | 막힌 도구 전 → 후 |
 |---|---|---|---|---|---|
 | 셸 도구(`wrapShell`, 기준, 바뀌지 않음) | 보호 `read_write`만 거부 → 같음 | `/`, 거부는 `fresnel_data`·`fresnel_config`·`secret_key`·`user_extra` → 같음 | 차단 목록만 → 같음 | 셸 실행기의 허용 목록(L0.exec §3.5) → 같음 | 없음 → 같음 |
-| 플러그인 격리 자식, `narrow` 없음(기본) | 허용 목록(readRoot, 실행 파일, runtimeReadRoots, 런타임 시스템 경로) → 보호 `read_write`만 거부, `readRoot`는 보호 안에 있어도 읽기 예외 | 빈 임시 폴더 하나 → `/`, 열린 거부 목록 | 차단 목록만 → 같음 | 허용 목록 + `spec.env` → 부모 env에서 `FRESNEL_*`를 뺀 값 + `spec.env` | 없음 → 없음 |
-| 플러그인 격리 자식, `narrow: true`(승인 전 드래프트) | 허용 목록 → 같음 | 빈 임시 폴더 하나 → 같음(쓰기 없음) | 차단 목록만 → 같음 | 허용 목록 + `spec.env` → 같음 | 시스템 도구를 켠 호출만(`systemTools`) → 같음 |
-| 가져오기 훑기 자식(같은 포트, `spec.env` 빈 값, `narrow` 없음) | 허용 목록(첫 루트, 나머지 루트, 실행 파일, 소스 작업 공간) → 보호 `read_write`만 거부 | 쓰기 없음(빈 임시 폴더) → `/`, 열린 거부 목록 | 차단 목록만 → 같음. 옛 3.3절의 `read-only`(네트워크 차단) 설명은 코드와 다르다 | 허용 목록(빈 `spec.env`) → 부모 env에서 `FRESNEL_*`를 뺀 값 | 없음 → 없음 |
-| 스크립트 실행기(플러그인 스크립트, `narrow` 없음) | 허용 목록 + 시스템 도구 읽기·실행(`systemTools`) → 보호 `read_write`만 거부, 검토본 폴더(`readRoot`)는 보호 안에 있어도 읽기 예외 | 빈 임시 폴더 하나 → `/`, 열린 거부 목록 | 차단 목록만 → 같음 | 허용 목록 + `spec.env` → 부모 env에서 `FRESNEL_*`를 뺀 값 + `spec.env` | `systemTools`의 `toolDeny`·`machDeny`·`systemInfoDeny` → 없음(열린 정책이 무시) |
-| MCP stdio 서버, `sandbox: true` | 보호 `read_write`만 거부 → 같음(쓰기 전용 줄은 읽기를 막지 않았다) | 작업 폴더와 임시 폴더만, 제안 목록과 `.git` 쓰기 거부 → `/`, 열린 거부 목록 | 차단 목록만 → 같음 | 허용 목록 + 정의 env + 시크릿 → 부모 env에서 `FRESNEL_*`를 뺀 값 + 정의 env + 시크릿 | 없음 → 없음 |
-| MCP stdio 서버, `sandbox: false` | 샌드박스 없음 → 같음 | 샌드박스 없음 → 같음 | 샌드박스 없음 → 같음 | 허용 목록 + 정의 env + 시크릿 → 부모 env에서 `FRESNEL_*`를 뺀 값 + 정의 env + 시크릿 | 없음 → 없음 |
+| 플러그인 격리 자식, `narrow` 없음(승인된 플러그인, 또는 `narrowDrafts` 끔) | 허용 목록(readRoot, 실행 파일, runtimeReadRoots, 런타임 시스템 경로) → 보호 `read_write`만 거부, `readRoot`는 보호 안에 있어도 읽기 예외 | 빈 임시 폴더 하나 → `/`, 열린 거부 목록 | 차단 목록만 → 같음 | 허용 목록 + `spec.env` → 같음(허용 목록 + `spec.env`) | 없음 → 없음 |
+| 플러그인 격리 자식, `narrow: true`(승인 전 드래프트의 플러그인 프로세스, `narrowDrafts` 켬) | 허용 목록 → 같음 | 빈 임시 폴더 하나 → 같음(쓰기 없음) | 차단 목록만 → 같음 | 허용 목록 + `spec.env` → 같음 | 시스템 도구를 켠 호출만(`systemTools`) → 같음 |
+| 가져오기 훑기 자식(같은 포트, `spec.env` 빈 값, `narrow` 없음) | 허용 목록(첫 루트, 나머지 루트, 실행 파일, 소스 작업 공간) → 보호 `read_write`만 거부 | 쓰기 없음(빈 임시 폴더) → `/`, 열린 거부 목록 | 차단 목록만 → 같음. 옛 3.3절의 `read-only`(네트워크 차단) 설명은 코드와 다르다 | 허용 목록(빈 `spec.env`) → 같음 | 없음 → 없음 |
+| 스크립트 실행기(플러그인 스크립트, `narrow` 없음) | 허용 목록 + 시스템 도구 읽기·실행(`systemTools`) → 보호 `read_write`만 거부, 검토본 폴더(`readRoot`)는 보호 안에 있어도 읽기 예외 | 빈 임시 폴더 하나 → `/`, 열린 거부 목록 | 차단 목록만 → 같음 | 허용 목록 + `spec.env` → 같음 | `systemTools`의 `toolDeny`·`machDeny`·`systemInfoDeny` → 없음(열린 정책이 무시) |
+| MCP stdio 서버, `sandbox: true` | 보호 `read_write`만 거부 → 같음(쓰기 전용 줄은 읽기를 막지 않았다) | 작업 폴더와 임시 폴더만, 제안 목록과 `.git` 쓰기 거부 → `/`, 열린 거부 목록 | 차단 목록만 → 같음 | 허용 목록 + 정의 env + 시크릿 → 같음 | 없음 → 없음 |
+| MCP stdio 서버, `sandbox: false` | 샌드박스 없음 → 같음 | 샌드박스 없음 → 같음 | 샌드박스 없음 → 같음 | 허용 목록 + 정의 env + 시크릿 → 같음 | 없음 → 없음 |
 
 #### 쓰기 없음 프로필과 읽기 허용 목록 [결정: 2026-11-18 메인 제안, 사용자 보고됨]
 
@@ -695,7 +702,7 @@ export function selectSandboxProvider(input: {
 | `l0.sandbox.network.blockedDomains` | `string[]`(`host`, `*.host`, `host:port`) | `[]` | `managed`, `user`, `project` | `restart` | M3 | `permissions`(임시), `list`. 목록 밖은 모두 허용 |
 | `l0.sandbox.nestedNamespaces` | `boolean` | `false` | `managed`, `user` | `restart` | M3 | `permissions`(임시), `toggle`. 켤 때 위험 고지 필요 |
 | `l0.sandbox.sandboxImportedHooks` | `boolean` | `false` | `managed`, `user` | `nextTurn` | M5g [제안] | `permissions`(임시), `toggle`. 켜면 가져온 훅이 샌드박스 안에서 돈다(§4.9 "스크립트 환경 프로필"). 기본은 끔이다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"; 키 이름은 [제안]] |
-| `l0.sandbox.narrowDrafts` | `boolean` | `false` | `managed`, `user` | `nextTurn` | AGE-63 [제안] | `permissions`(임시), `toggle`. 켜면 승인 전 플러그인 드래프트의 스크립트가 좁은 샌드박스(쓰기 없음, 읽기 허용 목록, 허용 목록 env, 4.9절)에서 돈다. 끄면 승인된 스크립트와 같은 열린 정책이다 [결정: 2026-11-21, 사용자, AGE-63; 키 이름은 [제안]] |
+| `l0.sandbox.narrowDrafts` | `boolean` | `false` | `managed`, `user` | `nextTurn` | AGE-63 [제안] | `permissions`(임시), `toggle`. 켜면 승인 전 플러그인 드래프트의 스크립트와 플러그인 프로세스가 좁은 샌드박스(쓰기 없음, 읽기 허용 목록, 허용 목록 env, 4.9절)에서 돈다. 끄면 승인된 스크립트와 같은 열린 정책이다 [결정: 2026-11-21, 사용자, AGE-63; 키 이름은 [제안]] |
 | `l0.sandbox.selfTestIntervalMin` | `integer`(`range` 0~1440, 0은 시작 때만) | `60` | `managed`, `user` | `restart` | M1 | 탭 `advanced`(파일만) |
 | `l0.sandbox.network.allowedDomains` | `string[]`(`host` 또는 `host:port`) | 정의하지 않음 | | | 후속 | 기본 허용 방식이라 허용 목록 키는 두지 않는다(§10 1번) |
 

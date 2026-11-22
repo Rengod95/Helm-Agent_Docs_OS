@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { SecretHandle } from "@fresnel/contracts/capabilities";
 import type { SecretError, SecretLease } from "@fresnel/contracts/services";
@@ -288,7 +288,10 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     expect(background.list({ kind: "mcp" })).toHaveLength(1);
 
     // 열린 정책: 쓰기 루트 `/`(임시 폴더와 작업 폴더는 쓰기 루트가 아니다) [결정: 2026-11-21, 사용자, AGE-63]
-    expect(sandbox.policyInputs).toEqual([{ workspaceRoots: [], tempDir, writeEverywhere: true }]);
+    // 읽기 예외 후보는 실제로 있는 절대 경로인 작업 폴더뿐이다(원래 명령은 없는 경로). Fresnel 데이터 폴더 안에 설치된 서버가 자기 파일을 읽게 한다 [제안, AGE-63]
+    expect(sandbox.policyInputs).toEqual([
+      { workspaceRoots: [], tempDir, writeEverywhere: true, readCarveOuts: [resolve(workDir)] },
+    ]);
     expect(sandbox.wrapCalls).toHaveLength(1);
     expect(sandbox.wrapCalls[0]?.request).toEqual({
       command: ORIGINAL,
@@ -374,7 +377,7 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     expect(existsSync(marker)).toBe(false);
   });
 
-  test("a sandboxed server gets the open policy and a child env that keeps token names except FRESNEL_ names, then the definition env", async () => {
+  test("a sandboxed server gets the open policy and a child env of only the allow-listed names, then the definition env [결정: 2026-11-22, 사용자, AGE-63]", async () => {
     const dir = tempDirOf();
     const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "env"] }));
     const { port } = open({
@@ -383,34 +386,47 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
       parentEnv: {
         PATH: process.env["PATH"],
         HOME: "/home/user",
+        FAKE_TOKEN_FOR_TEST: "fixture-token-not-real",
         GITHUB_TOKEN: "fixture-token-not-real",
         MY_API_KEY: "fixture-key-not-real",
         UNLISTED_NAME: "not-passed",
         FRESNEL_FOO: "fresnel-internal",
       },
     });
-    const child = await started(port, specOf({ args: [MCP_CHILD, "env"], env: { PLAIN: "kept" } }));
+    const child = await started(
+      port,
+      specOf({ args: [MCP_CHILD, "env"], env: { PLAIN: "kept", SERVER_TOKEN: "from-config" } }),
+    );
+    // 절대 경로인 실행 파일(`process.execPath`)과 인자(자식 스크립트)가 읽기 예외 후보다. 보호 경로 밖의 것은 샌드박스가 규칙 없이 뺀다
     expect(sandbox.policyInputs).toEqual([
-      { workspaceRoots: [], tempDir: dir, writeEverywhere: true },
+      {
+        workspaceRoots: [],
+        tempDir: dir,
+        writeEverywhere: true,
+        readCarveOuts: [process.execPath, MCP_CHILD],
+      },
     ]);
     const env = await envOfChild(child);
-    expect(env["GITHUB_TOKEN"]).toBe("fixture-token-not-real");
-    expect(env["MY_API_KEY"]).toBe("fixture-key-not-real");
-    expect(env["UNLISTED_NAME"]).toBe("not-passed");
+    expect(env).not.toHaveProperty("FAKE_TOKEN_FOR_TEST");
+    expect(env).not.toHaveProperty("GITHUB_TOKEN");
+    expect(env).not.toHaveProperty("MY_API_KEY");
+    expect(env).not.toHaveProperty("UNLISTED_NAME");
     expect(env["HOME"]).toBe("/home/user");
     expect(env["PLAIN"]).toBe("kept");
+    expect(env["SERVER_TOKEN"]).toBe("from-config");
     expect(env).not.toHaveProperty("FRESNEL_FOO");
     child.stdin.end();
     expect(await child.exited).toEqual({ code: 0, signal: null });
   });
 
-  test("an unsandboxed server (sandbox:false) gets the same env rule: every parent name except FRESNEL_ names", async () => {
+  test("an unsandboxed server (sandbox:false) gets the same allow-list env rule", async () => {
     const sandbox = fakeSandbox(err({ kind: "aborted" }));
     const { port } = open({
       sandbox: () => sandbox.source,
       tempDir: tempDirOf(),
       parentEnv: {
         PATH: process.env["PATH"],
+        FAKE_TOKEN_FOR_TEST: "fixture-token-not-real",
         GITHUB_TOKEN: "fixture-token-not-real",
         UNLISTED_NAME: "not-passed",
         FRESNEL_FOO: "fresnel-internal",
@@ -418,8 +434,10 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     });
     const child = await started(port, specOf({ args: [MCP_CHILD, "env"], sandbox: false }));
     const env = await envOfChild(child);
-    expect(env["GITHUB_TOKEN"]).toBe("fixture-token-not-real");
-    expect(env["UNLISTED_NAME"]).toBe("not-passed");
+    expect(env).not.toHaveProperty("FAKE_TOKEN_FOR_TEST");
+    expect(env).not.toHaveProperty("GITHUB_TOKEN");
+    expect(env).not.toHaveProperty("UNLISTED_NAME");
+    expect(env["PATH"]).toBe(process.env["PATH"]);
     expect(env).not.toHaveProperty("FRESNEL_FOO");
     // sandbox:false는 샌드박스 서비스를 부르지 않는다
     expect(sandbox.wrapCalls).toHaveLength(0);

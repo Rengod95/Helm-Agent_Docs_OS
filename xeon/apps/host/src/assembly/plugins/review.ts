@@ -133,6 +133,8 @@ export interface PluginReviewDeps {
   readonly log: Logger;
   /** 참이면 가져온 훅(환경 모드)이 샌드박스 안에서 돈다(설정 `l0.sandbox.sandboxImportedHooks`). 검토 카드의 권한 표시가 이 값을 따른다. 생략하면 거짓 */
   readonly envSandboxed?: () => boolean;
+  /** 참이면 승인 전 드래프트가 좁은 샌드박스에서 돈다(설정 `l0.sandbox.narrowDrafts`). 검토 카드의 `runs.narrowBeforeApproval`이 이 값을 따른다. 생략하면 거짓 */
+  readonly narrowDrafts?: () => boolean;
   /**
    * 돌려보내기 사유를 `originThreadId` 대화의 다음 입력으로 넣는다(M5c §4.7.3 [제안]). 대화가 없거나 닫혔으면 false다.
    * 생략하면 사유는 항목에만 남는다
@@ -442,11 +444,13 @@ function candidateCard(
   itemId: string,
   reviewed: ReviewedVersion | null,
   envSandboxed: boolean,
+  narrowDrafts: boolean,
   importedHookOrigin: ImportedHookOrigin | undefined,
 ): PluginCard {
   return buildPluginCard({
     folder,
     envSandboxed,
+    narrowDrafts,
     ...(importedHookOrigin === undefined ? {} : { importedHookOrigin }),
     origin: originOf(origin, projectId),
     review: {
@@ -656,6 +660,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       itemId,
       reviewed.value,
       deps.envSandboxed?.() === true,
+      deps.narrowDrafts?.() === true,
       input.importedHookOrigin,
     );
     const withPurpose: PluginCard = { ...card, purpose: card.purpose ?? input.purpose ?? null };

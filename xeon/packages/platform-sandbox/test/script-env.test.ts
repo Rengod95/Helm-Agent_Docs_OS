@@ -268,7 +268,7 @@ describe("wrapArgv open policy: read carve-outs (plugin folder inside Fresnel's 
     });
   });
 
-  test("on bwrap a carve-out inside the denied data folder is refused as a value, so nothing is started with it", async () => {
+  test("on bwrap a carve-out inside the denied data folder is passed to srt as allowRead on top of the same denyRead, with no allow-list mode (not run on real Linux)", async () => {
     const r = await rig();
     const tree = join(r.dirs.data, "plugin-store", "tree");
     mkdirSync(tree, { recursive: true });
@@ -279,13 +279,26 @@ describe("wrapArgv open policy: read carve-outs (plugin folder inside Fresnel's 
       readCarveOuts: [tree],
     });
     const result = await r.service.wrapArgv(policy, tool, NO_CANCEL);
-    expect(result).toEqual({
-      ok: false,
-      error: {
-        kind: "failed",
-        message: "read carve-outs are not supported on this sandbox provider",
-      },
+    expect(result.ok).toBe(true);
+    const fs = r.srt.wrapCalls[0]?.customConfig.filesystem;
+    expect((fs?.allowRead ?? []).map(String)).toEqual([canonicalizePath(tree)]);
+    expect((fs?.denyRead ?? []).map(String)).toContain(r.dirs.data);
+    expect((fs?.denyRead ?? []).map(String)).not.toContain("/");
+    if (result.ok) result.value.cleanup();
+  });
+
+  test("on bwrap a carve-out outside every denied path adds no allowRead", async () => {
+    const r = await rig();
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+      readCarveOuts: [r.project],
     });
+    const result = await r.service.wrapArgv(policy, tool, NO_CANCEL);
+    expect(result.ok).toBe(true);
+    expect(r.srt.wrapCalls[0]?.customConfig.filesystem?.allowRead).toBeUndefined();
+    if (result.ok) result.value.cleanup();
   });
 });
 
