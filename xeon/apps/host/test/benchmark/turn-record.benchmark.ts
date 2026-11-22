@@ -8,8 +8,10 @@
 // 세 부분을 잰다: (1) 동기 구간 = 싱크 호출과 `step.completed` 커밋, 모델·도구 경로가 기다리는 시간. (2) 연기된 쓰기 = 묶음(마이크로태스크)에서 SQLite에 쓰는 시간,
 // 단계마다와 턴마다. (3) 턴 벽시계 시간의 켬과 끔 차이(짝 맞춘 차이의 분포).
 // 출력: stdout에 시나리오마다 JSON 한 줄(분위수는 p50·p95·max, 표본 수 n). stderr에는 같은 값의 표.
-// 판정은 하지 않는다. 명세에 기준값이 없다(§9 29, X.operations §4.8.5 "기준값은 아직 없다").
-// 종료코드: 0 측정 끝, 1 잘못된 인자나 합성 턴이 기대와 다른 쓰기(측정이 틀렸다), 2 환경 문제(측정 폴더를 열지 못함).
+// 판정: 뒤쪽 쓰기의 예산(§9 29, L4.host-service.spec §4.20, 결정 2026-11-20 사용자, AGE-50)은 긴 턴(steps=20,calls=10)의
+// 턴당 뒤쪽 쓰기 p95 25 ms 이하다. 그 시나리오의 줄에 판정(within, over)을 싣고 끝에 한 줄로 다시 낸다. 다른 시나리오는 not_judged다.
+// 동기 구간과 턴 차이에는 기준값이 없어 수치만 낸다(X.operations §4.8.5 "기준값은 아직 없다").
+// 종료코드: 0 측정 끝(예산 안), 1 잘못된 인자, 합성 턴이 기대와 다른 쓰기(측정이 틀렸다), 또는 예산을 넘음(고친다), 2 환경 문제(측정 폴더를 열지 못함).
 import { parseArgs } from "node:util";
 import {
   BenchEnvironmentError,
@@ -18,13 +20,20 @@ import {
   type ScenarioRun,
 } from "./turn-record-driver.ts";
 import { scenarioGrid, scenarioLabel } from "./turn-record-fixture.ts";
-import { summarize, type Summary } from "./turn-record-stats.ts";
+import {
+  describeVerdict,
+  judgeDeferredTurn,
+  summarize,
+  type BudgetVerdict,
+  type Summary,
+} from "./turn-record-stats.ts";
 
 const DEFAULT_ITERATIONS = 200;
 const DEFAULT_DEADLINE_S = 90;
 
-/** 기준값이 명세에 없다. 여기서는 판정하지 않고 이 문구만 함께 낸다 */
-const BUDGET_NOTE = "none in spec (turn-record-metrics §9 29); numbers only, no verdict";
+/** 예산이 무엇을 재는지. 판정은 시나리오 줄의 `verdict`에 있다 */
+const BUDGET_NOTE =
+  "deferred/turn p95 <= 25 ms at steps=20,calls=10 (turn-record-metrics §9 29, AGE-50); other numbers have no budget";
 
 interface ScenarioLine {
   readonly scenario: string;
@@ -49,6 +58,7 @@ interface ScenarioLine {
   readonly turn_ms_trace_off: Summary;
   readonly turn_overhead_ms: Summary;
   readonly budget: string;
+  readonly verdict: BudgetVerdict;
   readonly runtime: { readonly bun: string; readonly platform: string; readonly arch: string };
 }
 
@@ -76,6 +86,7 @@ function lineOf(run: ScenarioRun): ScenarioLine {
     turn_ms_trace_off: summarize(run.off.wallMs),
     turn_overhead_ms: summarize(run.overheadMs),
     budget: BUDGET_NOTE,
+    verdict: judgeDeferredTurn(run.scenario, summarize(on.turnDeferredMs)),
     runtime: { bun: Bun.version, platform: process.platform, arch: process.arch },
   };
 }
@@ -144,10 +155,13 @@ if (import.meta.main) {
     const iterations = intFlag("iterations", values.iterations, DEFAULT_ITERATIONS, 1, 5000);
     const deadlineS = intFlag("deadline-s", values["deadline-s"], DEFAULT_DEADLINE_S, 5, 900);
     process.stderr.write(`${TABLE_HEADER}\n`);
+    const verdicts: BudgetVerdict[] = [];
     for (const scenario of scenarioGrid()) {
       // oxlint-disable-next-line no-await-in-loop -- 시나리오는 하나씩 돈다. 같은 시간대에 두 개를 돌리면 서로의 비용이 섞인다 (eng.testing.guide TS-05)
       const run = await runScenario(scenario, { iterations, deadlineMs: deadlineS * 1000 });
-      process.stdout.write(`${JSON.stringify(lineOf(run))}\n`);
+      const line = lineOf(run);
+      verdicts.push(line.verdict);
+      process.stdout.write(`${JSON.stringify(line)}\n`);
       process.stderr.write(`${tableRow(run)}\n`);
       if (run.deadlineHit) {
         process.stderr.write(
@@ -156,7 +170,9 @@ if (import.meta.main) {
       }
     }
     process.stderr.write(`budget: ${BUDGET_NOTE}\n`);
-    process.exit(0);
+    const judged = verdicts.filter((v) => v.kind !== "not_judged");
+    for (const verdict of judged) process.stderr.write(`verdict: ${describeVerdict(verdict)}\n`);
+    process.exit(judged.some((v) => v.kind === "over") ? 1 : 0);
   } catch (error) {
     if (error instanceof UsageError) {
       process.stderr.write(`turn-record benchmark: ${error.message}\n`);

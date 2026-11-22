@@ -79,7 +79,10 @@ Y11 packages/ext-host test/loading-trust/version-history.test.ts
 Y12 packages/ext-host test/loading-trust/levels.test.ts test/operations/handler-timings.test.ts test/operations/safe-mode-x-hooks.test.ts
 Y12 packages/orchestration-sdk test/service.test.ts
 Y12 apps/host test/int/startup-health.int.test.ts test/assembly/ext-enabled.test.ts
+# Y13: spec §9 C items each have a status (scripts), and no raw colour value in apps/desktop/src outside the token layer and the
+# reasoned exceptions (mask black, QR black and white, canvas paint; AGE-37, 2026-11-20 and 2026-11-22 user decisions).
 Y13 scripts caustic-gaps.test.ts
+Y13 apps/desktop test/styles/color-tokens.test.ts
 # Y14 (AGE-37, 2026-11-20 user decision): the condition is name and role checks plus a keyboard path test per screen; axe-core is not added. These two files cover control names, alt text and tabindex over the connection screen render. The keyboard path test and the chat, inbox and Craft screens wait until the design is merged.
 Y14 apps/desktop test/lib/a11y-markup.test.ts test/views/a11y-names.test.tsx
 # Y15 half (the cli.* keys are out of scope, no CLI is released: 2026-11-18 AGE-12, AGE-37): en locale tests and the Hangul rule's own tests. The repo scan is `just check-ts-rules`, `just terms check`.

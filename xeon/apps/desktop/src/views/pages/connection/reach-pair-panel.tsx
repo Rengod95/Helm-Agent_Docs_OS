@@ -48,7 +48,7 @@ export function PairPanel(props: PairPanelProps): ReactNode {
           <div
             data-slot="reach-qr"
             data-expired={expired ? "true" : "false"}
-            className={`rounded-lg bg-[#fff] p-2 ${expired ? "opacity-20" : ""}`}
+            className={`rounded-lg bg-[var(--fr-color-qr-paper)] p-2 ${expired ? "opacity-20" : ""}`}
           >
             <QrCode value={qrValue} size={168} label={t("desktop.connection.reach.pair.qrLabel")} />
           </div>

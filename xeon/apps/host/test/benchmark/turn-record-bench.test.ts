@@ -8,7 +8,13 @@ import {
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { runScenario } from "./turn-record-driver.ts";
 import { buildTurn, scenarioGrid, type Scenario } from "./turn-record-fixture.ts";
-import { keepGoing, summarize } from "./turn-record-stats.ts";
+import {
+  describeVerdict,
+  judgeDeferredTurn,
+  keepGoing,
+  summarize,
+  type Summary,
+} from "./turn-record-stats.ts";
 
 // 턴 기록 벤치의 시험. 통계 계산, 합성 턴의 모양과 페이로드 스키마, 구동기가 기대한 행을 쓰는지(짧은 실행)를 본다.
 
@@ -24,6 +30,24 @@ test("summaries use nearest rank: p50 is the 10th of 20, p95 the 19th, max the l
   const samples = Array.from({ length: 20 }, (_, index) => index + 1);
   expect(summarize(samples)).toEqual({ n: 20, p50: 10, p95: 19, max: 20 });
   expect(summarize([7])).toEqual({ n: 1, p50: 7, p95: 7, max: 7 });
+});
+
+/** 턴당 뒤쪽 쓰기 분포(p95만 바꾼다) */
+const at = (p95: number): Summary => ({ n: 200, p50: 10, p95, max: 40 });
+
+test("only the long turn is judged against the 25 ms deferred/turn p95 budget, and 25 itself is within", () => {
+  const long = { steps: 20, callsPerStep: 10 };
+  expect(judgeDeferredTurn(long, at(17.5))).toEqual({ kind: "within", p95Ms: 17.5, budgetMs: 25 });
+  expect(judgeDeferredTurn(long, at(25))).toEqual({ kind: "within", p95Ms: 25, budgetMs: 25 });
+  expect(judgeDeferredTurn(long, at(25.001))).toEqual({
+    kind: "over",
+    p95Ms: 25.001,
+    budgetMs: 25,
+  });
+  expect(judgeDeferredTurn({ steps: 5, callsPerStep: 10 }, at(90))).toEqual({ kind: "not_judged" });
+  expect(describeVerdict({ kind: "over", p95Ms: 27, budgetMs: 25 })).toBe(
+    "over budget: deferred/turn p95 27 ms > 25 ms",
+  );
 });
 
 test("the deadline and the target both stop the loop", () => {

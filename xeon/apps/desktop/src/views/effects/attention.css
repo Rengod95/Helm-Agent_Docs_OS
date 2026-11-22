@@ -67,7 +67,7 @@
   corner-shape: inherit;
   pointer-events: none;
   mix-blend-mode: plus-lighter;
-  --fx-glow-core: rgb(255 255 255);
+  --fx-glow-core: var(--fr-color-glow-core-white);
 }
 .fx-attend-glow[data-scheme="light"] {
   mix-blend-mode: multiply;
