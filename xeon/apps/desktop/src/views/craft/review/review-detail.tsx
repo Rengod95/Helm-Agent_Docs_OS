@@ -578,12 +578,8 @@ function EnvFacts(props: { readonly env: CardScriptEnv }): ReactNode {
 function RunRow(props: { readonly line: RunLine }): ReactNode {
   const { line } = props;
   const env = line.kind === "script" ? line.env : null;
-  // Fresnel에서 만든 스크립트는 셸 도구와 같은 허용 목록의 환경 변수만 받는다(AGE-63, 2026-11-22). 엔진이 아직 `user_environment`를 실어도
-  // 사용자 환경을 받는다는 칩을 보이지 않는다. 가져온 훅(환경 모드)만 사용자 환경으로 돈다
-  const uses =
-    line.kind === "script" && line.uses !== null
-      ? line.uses.filter((use) => env !== null || use !== "user_environment")
-      : [];
+  // 엔진은 `user_environment`를 가져온 훅(환경 모드)에만 싣는다(AGE-63, enPp6-b). 화면은 받은 값을 그대로 칩으로 보인다
+  const uses = line.kind === "script" ? (line.uses ?? []) : [];
   // 가져온 훅은 엔진이 실제로 부르는 원래 명령 한 줄을 보인다(실행기와 인자를 이어 붙인 줄이 아니다)
   const command = env === null ? line.command : env.command;
   return (
@@ -625,6 +621,12 @@ function RunRow(props: { readonly line: RunLine }): ReactNode {
       {line.envNames.length === 0 ? null : (
         <p className="m-0 text-ui-sm text-text-tertiary">
           {t("desktop.craft.review.run.env", { names: line.envNames.join(", ") })}
+        </p>
+      )}
+      {/* 선언했지만 허용 목록 밖이라 넘어가지 않는 이름. 경고가 아니라 사실 안내이고 이름만 보인다(값은 카드에 없다) */}
+      {line.kind !== "script" || line.envNotPassed.length === 0 ? null : (
+        <p className="m-0 text-ui-sm text-text-tertiary" data-slot="review-env-not-passed">
+          {t("desktop.craft.review.run.envNotPassed", { names: line.envNotPassed.join(", ") })}
         </p>
       )}
     </li>

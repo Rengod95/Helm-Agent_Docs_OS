@@ -4231,6 +4231,7 @@
   "desktop.craft.review.run.httpServer": "Remote server: nothing runs on this computer",
   "desktop.craft.review.run.timeout": "{seconds}s limit",
   "desktop.craft.review.run.env": "Environment {names}",
+  "desktop.craft.review.run.envNotPassed": "Declared but not received {names}",
   "desktop.craft.review.run.usesNetwork": "Network",
   "desktop.craft.review.run.usesSystemTools": "System tools",
   "desktop.craft.review.run.none": "No code runs. Only instructions and descriptions reach the model.",

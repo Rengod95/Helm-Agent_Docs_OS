@@ -4,11 +4,9 @@
   /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
      오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
   --rv-end: 20px;
-  --rv-inject: color-mix(
-    in oklch,
-    var(--cs-color-identity-iris) 84%,
-    var(--cs-color-text-secondary)
-  );
+  /* Inject는 앱의 cobalt 셋(`src/color-sets.css`, AGE-31)을 섞지 않고 그대로 쓴다. 라이트는 한 단계 진한 solid(graphic은 흰 바탕 타일에서 대비 3.08로 아슬하다),
+     다크는 바로 아래 두 블록에서 graphic이다 */
+  --rv-inject: var(--fr-color-cobalt-solid);
   --rv-hook: color-mix(
     in oklch,
     var(--cs-color-identity-amber) 80%,
@@ -16,6 +14,15 @@
   );
   --rv-drive: color-mix(in oklch, var(--cs-color-agent-stop-1) 84%, var(--cs-color-text-secondary));
   --rv-tool: color-mix(in oklch, var(--cs-color-identity-mint) 74%, var(--cs-color-text-secondary));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rv-root {
+    --rv-inject: var(--fr-color-cobalt-graphic);
+  }
+}
+:root[data-theme="dark"] .rv-root {
+  --rv-inject: var(--fr-color-cobalt-graphic);
 }
 
 /* 막대와 겹치는 줄(m6R5): 그 줄만 끝 바깥 여백으로 막대 왼쪽 12px 앞에서 끝난다. 폭은 훅이 잰다(`--rail-cut`). 선과 면은 그대로 끝까지 간다 */
