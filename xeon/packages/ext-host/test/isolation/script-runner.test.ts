@@ -810,7 +810,7 @@ test("a draft script with a gate and a thread opens the card first: the card sho
         stdinBytes: new TextEncoder().encode("token secret-value é").byteLength,
         stdinPreview: "token [masked] é",
         // 설정을 켜지 않은 승인 전 드래프트는 열린 정책으로 돈다 [결정: 2026-11-21, AGE-63]
-        uses: ["sandbox_full_access", "user_environment", "network"],
+        uses: ["sandbox_full_access", "network"],
       },
     },
   ]);
@@ -869,9 +869,7 @@ test("narrowDrafts off: an unapproved draft script runs open, with no narrow fla
     replay: false,
     threadId: DRAFT_THREAD,
   });
-  expect(calls.map((call) => call.card.uses)).toEqual([
-    ["sandbox_full_access", "user_environment", "network"],
-  ]);
+  expect(calls.map((call) => call.card.uses)).toEqual([["sandbox_full_access", "network"]]);
   expect(launched.map((entry) => entry.spec)).toEqual([
     {
       command: "/bin/sh",

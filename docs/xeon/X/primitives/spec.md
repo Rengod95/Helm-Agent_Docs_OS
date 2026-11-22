@@ -123,7 +123,7 @@ import type {
 | `ProjectTrustResult`, `ResolveProjectTrustInput`, `ProjectTrustStore`, `createProjectTrustStore`, `resolveProjectTrust`, `findTrustRequiringResources`, `TRUST_REQUIRING_PROJECT_RESOURCES`, `trustOptions`, `TrustLookup`, `TrustStoreError`, `TrustVerdict`, `TrustVia`, `LoaderMode` | 인터페이스, 함수, 상수, 타입 | X.loading-trust.spec §3.7 |
 | `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustChoice`, `TrustChoiceKind`, `TrustOption`, `TrustUpdate` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.7) |
 | `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.8) |
-| `createScriptRunner`, `ScriptRunnerDeps`, `ScriptTarget`, `ScriptRefReader`, `ScriptRefStat` | 함수, 인터페이스 | X.loading-trust.spec §3.8 [제안: 확장마다 만든 스크립트 실행기, 조립 루트가 격리 항목에 넘긴다] |
+| `createScriptRunner`, `scriptEnvNamesOf`, `ScriptRunnerDeps`, `ScriptTarget`, `ScriptRefReader`, `ScriptRefStat` | 함수, 인터페이스 | X.loading-trust.spec §3.8 [제안: 확장마다 만든 스크립트 실행기, 조립 루트가 격리 항목에 넘긴다. `scriptEnvNamesOf`는 선언한 환경 변수 이름이 실제로 넘어가는지 이름만으로 가른다(검토 카드가 쓴다, AGE-63)] |
 | `VirtualModuleRegistry` | 인터페이스 | X.loading-trust.spec §3.9 |
 | `Tier`, `TIERS` | 타입, 상수 | X.operations.spec §3.1 |
 | `ScopeChangeReason`, `RegistrationControl`, `OperationsNotifier`, `HandlerOutcomeRecord`, `FailureStats` | 타입, 인터페이스 | X.operations.spec §3.3 |

@@ -106,7 +106,7 @@ describe("what runs when approved", () => {
         kind: "script",
         name: "check",
         command: "bash hooks/check.sh",
-        uses: ["sandbox_full_access", "user_environment", "network"],
+        uses: ["sandbox_full_access", "network"],
         timeoutMs: 10_000,
         envNames: [],
         env: null,
