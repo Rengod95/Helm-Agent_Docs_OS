@@ -162,11 +162,11 @@
    무대가 840px보다 좁으면 셸이 이미 본문에 막대 자리를 주므로(styles.css DP-135) 24px로 돌린다. px 유틸리티를 이기도록 utilities 층에 둔다 */
 @layer utilities {
   .cm-charts[data-narrow] {
-    padding-inline-end: max(24px, calc(var(--stage-rail, 0px) + 12px));
+    padding-inline-end: max(var(--cs-space-6), calc(var(--stage-rail, 0px) + var(--cs-space-3)));
   }
   @container stage (max-width: 840px) {
     .cm-charts[data-narrow] {
-      padding-inline-end: 24px;
+      padding-inline-end: var(--cs-space-6);
     }
   }
 }

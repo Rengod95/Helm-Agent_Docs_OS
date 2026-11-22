@@ -366,7 +366,7 @@ export function EndPanel(props: {
         show={open}
         variant="pop"
         initial={false}
-        className="pointer-events-auto absolute inset-y-2 end-[calc(100%+0.375rem)] z-30 flex origin-right"
+        className="pointer-events-auto absolute inset-y-2 end-[calc(100%+var(--spacing)*1.5)] z-30 flex origin-right"
       >
         <Card
           variant="well"

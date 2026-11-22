@@ -81,7 +81,7 @@
 .fx-attend-edge {
   position: absolute;
   inset: 0;
-  padding: 1px;
+  padding: var(--cs-space-0_25);
   border-radius: inherit;
   corner-shape: inherit;
   -webkit-mask:
@@ -287,7 +287,7 @@
 [data-slot="list-navigation-item"]:has(> [data-attention]):has(
     + [data-row-menu] + [data-slot="list-navigation-item"] > [data-attention]
   )::before {
-  bottom: -2px;
+  bottom: calc(var(--cs-space-0_5) * -1);
   border-end-start-radius: 0;
   border-end-end-radius: 0;
 }

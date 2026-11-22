@@ -61,7 +61,11 @@ describe("thread list alignment and search field (DP-136, DP-138)", () => {
     const cell = /<li data-row-menu[^>]*class="([^"]*)"/.exec(out)?.[1]?.split(" ") ?? [];
     expect(
       cell.filter((c) => c.startsWith("-mt-") || c.startsWith("pe-") || c.startsWith("h-")),
-    ).toEqual(["-mt-[calc(var(--spacing-control-md)+1px)]", "h-control-md", "pe-0.75"]);
+    ).toEqual([
+      "-mt-[calc(var(--spacing-control-md)+var(--spacing)*0.25)]",
+      "h-control-md",
+      "pe-0.75",
+    ]);
   });
 
   test("the search field is the 32px md size, like the nav rows", () => {

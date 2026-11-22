@@ -139,7 +139,7 @@ test("a screen header's gap is one shared value, and only a header marked data-f
   const token = rules.find(
     (rule) => rule.prelude === ":root" && rule.body.includes("--shell-header-gap"),
   );
-  expect(token?.body).toContain("--shell-header-gap: 24px;");
+  expect(token?.body).toContain("--shell-header-gap: var(--cs-space-6);");
   const gap = rules.find((rule) => rule.prelude === ".shell-header:not([data-flush]) + *");
   expect(gap?.body).toContain("margin-block-start: var(--shell-header-gap);");
 });

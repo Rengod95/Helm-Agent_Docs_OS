@@ -82,7 +82,7 @@ describe("Shell slots", () => {
     const main = /<main[^>]*>/.exec(out)?.[0] ?? "";
     expect(main).not.toMatch(/\bpe-10\b/);
     expect(main).toContain("data-rail");
-    expect(main).toContain("[--shell-rail:3rem]");
+    expect(main).toContain("[--shell-rail:calc(var(--spacing)*12)]");
   });
 
   test("a screen registered to run to the edge (bleed) gets no rail inset; it steps around the bar itself (m6R5)", () => {

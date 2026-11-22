@@ -68,7 +68,7 @@ export function Finder(): ReactNode {
           variant="surface"
           size="xs"
           shadow="4"
-          className="craft-glass absolute bottom-11 left-0 z-30 w-80"
+          className="craft-glass absolute bottom-12 left-0 z-30 w-80"
         >
           {shown.length === 0 ? (
             <span className="px-2 py-1.5 text-body text-text-tertiary">

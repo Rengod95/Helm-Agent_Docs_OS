@@ -736,7 +736,7 @@ export function PluginView(props: {
       <div
         className={
           page
-            ? "min-h-0 flex-1 overflow-auto ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-6"
+            ? "min-h-0 flex-1 overflow-auto ps-6 pe-[calc(var(--shell-rail,0px)+var(--cs-space-6))] pb-6"
             : "min-h-0 flex-1 overflow-auto px-3 pb-3"
         }
       >

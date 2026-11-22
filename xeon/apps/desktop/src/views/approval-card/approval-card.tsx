@@ -427,7 +427,10 @@ function PendingCard(props: {
           label={t("desktop.approvals.body.label")}
           className="-m-1 h-auto min-h-0 w-[calc(100%+0.5rem)] shrink [&:not(:has([data-slot=approval-body]>:not(:empty)))]:hidden"
         >
-          <div data-slot="approval-body" className="grid min-w-0 gap-2 p-1 pl-11">
+          <div
+            data-slot="approval-body"
+            className="grid min-w-0 gap-2 p-1 pl-[calc(var(--cs-space-7)+var(--cs-space-3)+var(--cs-space-1))]"
+          >
             {bodyNode}
             {sendState === undefined || sendState === "sending" ? null : (
               <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>

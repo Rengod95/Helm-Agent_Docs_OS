@@ -107,7 +107,8 @@ import { ScreenSwap } from "../../lib/motion-presets.tsx";
 // 모델은 `addon-model.ts`(순수), 치수 근거는 노트 `design/dz/dzP-design.md`다.
 
 /** 가운데 열: 960px, 오른쪽 막대만큼 비켜 둔다(설정 화면과 같은 식) */
-const SCROLL = "min-h-0 flex-1 overflow-y-auto ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-12";
+const SCROLL =
+  "min-h-0 flex-1 overflow-y-auto ps-6 pe-[calc(var(--shell-rail,0px)+var(--cs-space-6))] pb-12";
 const COLUMN = "mx-auto grid w-full max-w-240 content-start";
 const ICON = "size-4 flex-none text-text-tertiary";
 /** 줄 목록 카드(설정 카드와 같은 면·선·반경) */

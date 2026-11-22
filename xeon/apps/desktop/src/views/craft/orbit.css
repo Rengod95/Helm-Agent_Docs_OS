@@ -1,5 +1,8 @@
 /* 떠 있는 면의 바탕은 포털(찾기 목록, 말풍선)에도 닿아야 해서 루트에 둔다. */
 :root {
+  /* 캔버스 위 떠 있는 판(툴바, 층 판, 고른 판, 범례)의 오른쪽 끝 자리(AGE-32, DP-228): 오른쪽 떠 있는 막대 자리 48(셸의 `--stage-rail`과 같은 값)
+     + 간격 8. 개요 캔버스는 무대 끝까지 깔려(`bleed`) 셸이 막대 자리를 비워 주지 않으므로 판이 스스로 비킨다 */
+  --craft-float-end: calc(var(--cs-space-12) + var(--cs-space-2));
   /* 면 알파: 표면 토큰에 이 비율만큼 섞고 나머지는 뒤가 비친다(시안 glass.css와 같은 74%) */
   --craft-glass-alpha: 74%;
   --craft-glass-fill: color-mix(
@@ -187,7 +190,7 @@
   --craft-edge: 40%;
   --craft-solid: var(--cs-color-surface-raised);
   position: relative;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   border: 1px solid color-mix(in oklab, var(--craft-tint) var(--craft-edge), transparent);
   background: color-mix(in oklab, var(--craft-solid) var(--craft-glass-alpha), transparent);
   color: var(--cs-color-text-primary);

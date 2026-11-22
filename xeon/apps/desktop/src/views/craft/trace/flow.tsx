@@ -164,7 +164,7 @@ export function BlockFlow(props: {
               {i < BLOCK_IDS.length - 1 ? (
                 <span
                   aria-hidden="true"
-                  className="absolute top-7 bottom-0 left-[13px] w-px bg-border-default"
+                  className="absolute top-7 bottom-0 left-3.5 w-px -translate-x-1/2 bg-border-default"
                 />
               ) : null}
               <span

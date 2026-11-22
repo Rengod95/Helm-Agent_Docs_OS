@@ -286,7 +286,7 @@ export function Strata(): ReactNode {
       className="h-full overflow-y-auto"
       style={panelOpen ? { paddingRight: PANEL_W + 24 } : undefined}
     >
-      <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-24">
+      <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-18">
         <Card variant="surface" size="sm" shadow="3" className="gap-0 p-2">
           <SectionHeader
             size="sm"
@@ -312,7 +312,7 @@ export function Strata(): ReactNode {
           <div className="relative">
             <span
               aria-hidden
-              className="absolute bottom-6 left-[20px] top-4 w-px bg-border-strong"
+              className="absolute bottom-6 left-5 top-4 w-px -translate-x-1/2 bg-border-strong"
             />
             {PHASES.map((phase) => (
               <div key={phase}>
@@ -326,7 +326,7 @@ export function Strata(): ReactNode {
               </div>
             ))}
             <details className="mt-3 px-2 py-2">
-              <summary className="ms-9 cursor-pointer text-ui text-text-secondary">
+              <summary className="ms-[calc(var(--cs-space-6)+var(--cs-space-3))] cursor-pointer text-ui text-text-secondary">
                 {t("desktop.craft.strata.others", { count: OTHER_HOOKS.length })}
               </summary>
               <div className="mt-2">

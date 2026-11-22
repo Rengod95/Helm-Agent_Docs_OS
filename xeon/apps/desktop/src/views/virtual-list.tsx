@@ -371,7 +371,7 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: 8,
+            bottom: "var(--cs-space-2)",
             textAlign: "center",
             pointerEvents: "none",
           }}

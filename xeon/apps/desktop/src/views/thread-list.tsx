@@ -312,7 +312,7 @@ const ThreadRow = memo(function ThreadRow(props: {
           줄 끝 − 8(줄 꼬리 글과 폴더 머리 "+"의 끝)에 온다 */}
       <li
         data-row-menu={selected ? "current" : ""}
-        className="pointer-events-none relative -mt-[calc(var(--spacing-control-md)+1px)] flex h-control-md list-none items-center justify-end pe-0.75"
+        className="pointer-events-none relative -mt-[calc(var(--spacing-control-md)+var(--spacing)*0.25)] flex h-control-md list-none items-center justify-end pe-0.75"
       >
         <ThreadRowMenu
           id={id}
