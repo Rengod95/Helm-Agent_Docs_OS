@@ -114,25 +114,26 @@ describe("what runs when approved", () => {
     ]);
   });
 
-  test("the code notice reads the open policy from an approved script, and the narrow draft path with its uses", () => {
+  test("the code notice reads the open policy, and the narrow draft only from the card's narrowBeforeApproval", () => {
     expect(codeNoticeOf(LINT.card)).toEqual({
       mode: "open",
       isolated: true,
-      systemTools: false,
-      network: true,
-      userEnvironment: true,
+      serverEnv: false,
       usesUnknown: false,
     });
-    expect(codeNoticeOf(NOTES.card)).toEqual({
+    // 로컬 MCP 서버의 설정에 환경 변수 이름이 있다(FETCH_API_KEY)
+    expect(codeNoticeOf(FETCH.card)?.serverEnv).toBe(true);
+    // 승인 전 드래프트: 스크립트의 uses는 승인 뒤의 값(SCRIPT_USES)이어도 카드의 runs가 좁다고 알린다
+    expect(codeNoticeOf(DRIVE.card)).toEqual({
       mode: "narrow",
-      isolated: null,
-      systemTools: true,
-      network: true,
-      userEnvironment: false,
+      isolated: true,
+      serverEnv: false,
       usesUnknown: false,
     });
-    // 드래프트 스크립트가 좁아도 플러그인 코드(entry)는 열린 정책이라 가장 넓은 쪽을 말한다
-    expect(codeNoticeOf(DRIVE.card)?.mode).toBe("open");
+    expect(codeNoticeOf({ ...DRIVE.card, runs: { code: true, isolated: true } })?.mode).toBe(
+      "open",
+    );
+    expect(codeNoticeOf(NOTES.card)).toBeNull();
     expect(codeNoticeOf(RULE.card)).toBeNull();
   });
 

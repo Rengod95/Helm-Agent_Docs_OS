@@ -318,21 +318,25 @@ describe("fourth round (m6R4)", () => {
     expect(BOXED).toContain("이 기기에서 찾지 못한 실행 파일이에요: ruff.");
   });
 
-  test("the code notice says what the engine does (AGE-63): an approved script reads and writes like the shell tool, a draft runs narrow", () => {
+  test("the code notice says what the engine does (AGE-63): open like the shell tool, a narrow draft until approval, only basic environment variables", () => {
     expect(LINT_HTML).toContain(
-      "셸 도구처럼 파일을 읽고 쓰고, 시스템 도구와 네트워크를 써요. 막히는 것은 Fresnel 자신의 데이터, 당신이 막아 둔 경로와 도메인뿐이에요. 당신의 환경 변수도 받아요. Fresnel 내부 값만 빠져요.",
+      "셸 도구처럼 파일을 읽고 쓰고, 시스템 도구와 네트워크를 써요. 막히는 것은 Fresnel 자신의 데이터, 당신이 막아 둔 경로와 도메인뿐이에요. 환경 변수는 PATH, HOME 같은 기본 값만 받아요.",
     );
     expect(LINT_HTML).not.toContain("자기 폴더 밖의 파일은");
-    for (const chip of [">파일 읽고 쓰기<", ">환경 변수<", ">네트워크<"])
-      expect(LINT_HTML).toContain(chip);
-    expect(LINT_HTML).not.toContain(">넓은 읽기<");
-    const notes = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_notes")));
-    expect(notes).toContain(
-      "승인 전 드래프트라 좁게 돌아요. 자기 폴더만 읽고, 파일을 쓰지 못해요. 네트워크를 쓸 수 있어요. 시스템 도구(/bin, /usr/bin)를 실행할 수 있어요.",
+    expect(LINT_HTML).not.toContain("당신의 환경 변수");
+    // Fresnel에서 만든 스크립트는 사용자 환경을 받지 않으니 "환경 변수" 칩이 없다
+    for (const chip of [">파일 읽고 쓰기<", ">네트워크<"]) expect(LINT_HTML).toContain(chip);
+    for (const chip of [">넓은 읽기<", ">환경 변수<"]) expect(LINT_HTML).not.toContain(chip);
+    expect(HELPER).toContain(
+      "승인 전 드래프트라 지금은 좁게 돌아요. 자기 폴더만 읽고, 파일을 쓰지 못해요. 승인하면 다른 플러그인처럼 셸 도구와 같이 읽고 써요. 환경 변수는 PATH, HOME 같은 기본 값만 받아요.",
     );
-    expect(notes).not.toContain("셸 도구처럼");
-    expect(notes).not.toContain(">파일 읽고 쓰기<");
-    expect(HELPER).toContain("셸 도구처럼 파일을 읽고 쓰고");
+    expect(HELPER).not.toContain("셸 도구처럼 파일을");
+    const fetch = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_fetch")));
+    expect(fetch).toContain(
+      "환경 변수는 PATH, HOME 같은 기본 값과 서버 설정에 적힌 이름만 받아요.",
+    );
+    // 가져온 훅은 여전히 사용자 환경으로 돈다
+    expect(IMPORTED).toContain(">환경 변수<");
   });
 
   test("an observe-only hook is not the model's call: the chip says the engine watches", () => {

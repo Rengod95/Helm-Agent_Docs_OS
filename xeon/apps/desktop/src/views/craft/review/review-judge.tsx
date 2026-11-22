@@ -97,14 +97,22 @@ function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
     );
   }
   const extra: string[] = [];
-  if (notice.mode === "open") {
-    // 격리되지 않은 내장 코드는 샌드박스 문장을 말하지 않는다(막는 것이 없다)
-    if (notice.isolated !== false) extra.push(t("desktop.craft.review.code.open"));
-    if (notice.userEnvironment) extra.push(t("desktop.craft.review.code.userEnv"));
-  } else {
-    extra.push(t("desktop.craft.review.code.narrow"));
-    if (notice.network) extra.push(t("desktop.craft.review.code.network"));
-    if (notice.systemTools) extra.push(t("desktop.craft.review.code.systemTools"));
+  // 엔진 안에서 도는 내장 코드(`isolated: false`)는 샌드박스와 환경 변수 문장을 말하지 않는다(막는 것이 없다)
+  if (notice.isolated !== false) {
+    extra.push(
+      t(
+        notice.mode === "narrow"
+          ? "desktop.craft.review.code.narrow"
+          : "desktop.craft.review.code.open",
+      ),
+    );
+    extra.push(
+      t(
+        notice.serverEnv
+          ? "desktop.craft.review.code.baseEnvServer"
+          : "desktop.craft.review.code.baseEnv",
+      ),
+    );
   }
   if (notice.usesUnknown) extra.push(t("desktop.craft.review.code.usesUnknown"));
   if (notice.isolated === false) extra.push(t("desktop.craft.review.code.notIsolated"));
