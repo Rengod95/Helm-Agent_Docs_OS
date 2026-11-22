@@ -8,7 +8,8 @@
    탭 면 L0.263 C0.105 H261, 탭 글 L0.73 C0.104 H263. caustic info·iris(H235, 청록빛 파랑)는 이 밝기의 탭 면에서 C0.056까지만 되어
    참고의 파랑이 나오지 않는다. info·iris는 바꾸지 않고(알림, 정보 칩 등이 그대로 쓴다) Inject만 이 셋으로 옮긴다.
    다크 text는 L0.74(Drive 글 agent-text와 같은 밝기, 참고 탭 글 L0.73 C0.104에 가깝게)다.
-   명암비(WCAG): 다크 text/face 6.8(참고 탭 6.5), on/solid 7.5. 라이트 text/face 4.8, text/흰 바탕 8.4, on/solid 4.8. */
+   명암비(WCAG): 다크 text/face 6.8(참고 탭 6.5), on/solid 7.5. 라이트 text/face 4.8, text/흰 바탕 8.4, on/solid 4.8.
+   이 셋의 graphic, solid(+hover), on, face는 `chroma.css`가 선명한 벌 `--fr-vivid-cobalt-*`로 덮는다(DP-229, AGE-31 다시). 위 값과 명암비는 첫 판 기록이다. */
 :root {
   --fr-color-cobalt-tint: oklch(0.965 0.016 260);
   --fr-color-cobalt-soft: oklch(0.935 0.03 260);
@@ -52,4 +53,26 @@
   --fr-color-cobalt-text: oklch(0.74 0.11 260);
   --fr-color-cobalt-on: oklch(0.12 0 0);
   --fr-color-cobalt-face: oklch(0.263 0.105 260);
+}
+
+/* 빛깔 셋(AGE-37, Y13): 입력창, 칩, 띠의 빛(beam.css)과 승인 카드의 빛(attention.css)이 쓰는 날 빛깔이다.
+   값은 border-beam(MIT) `line`의 colorful 그대로라 sRGB로 둔다(oklch로 옮기면 반올림만큼 빛이 바뀐다). 테마와 상관없다:
+   다크는 더하기, 라이트는 곱하기로 겹쳐서 같은 빛깔이 두 테마에 맞게 보인다(beam.css 판 주석). 노랑은 띠 전용(lcM6d)이다.
+   심(core)은 세 자리다: 입력창의 분홍빛 흰 심, 띠의 푸른빛 흰 심, 승인 카드 다크의 흰 심. */
+:root {
+  --fr-color-glow-teal: rgb(30 185 170);
+  --fr-color-glow-purple: rgb(180 40 240);
+  --fr-color-glow-green: rgb(50 200 80);
+  --fr-color-glow-blue: rgb(40 140 255);
+  --fr-color-glow-pink: rgb(255 50 100);
+  --fr-color-glow-indigo: rgb(100 70 255);
+  --fr-color-glow-cyan: rgb(40 180 220);
+  --fr-color-glow-orange: rgb(255 160 30);
+  --fr-color-glow-magenta: rgb(240 50 180);
+  --fr-color-glow-yellow: rgb(245 205 60);
+  --fr-color-glow-core: rgb(255 236 244);
+  --fr-color-glow-core-band: rgb(236 246 255);
+  --fr-color-glow-core-white: rgb(255 255 255);
+  /* QR 판: QR 그림(qr-code.tsx, 검정과 흰색 고정)을 받치는 흰 바탕. 판과 QR 조용한 영역이 한 면으로 이어지게 테마와 상관없이 흰색이다 */
+  --fr-color-qr-paper: rgb(255 255 255);
 }

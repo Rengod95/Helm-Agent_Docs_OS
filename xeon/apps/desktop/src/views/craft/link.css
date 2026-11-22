@@ -171,28 +171,6 @@
   --craft-link-hue-drive: var(--cs-color-warning-graphic);
   --craft-link-hue-record: var(--cs-color-success-graphic);
 }
-:root[data-theme="light"] .craft-link-root {
-  --craft-link-hue-hook: color-mix(
-    in oklch,
-    var(--cs-color-info-graphic),
-    var(--cs-color-text-primary) 22%
-  );
-  --craft-link-hue-cap: color-mix(
-    in oklch,
-    var(--cs-color-agent-graphic),
-    var(--cs-color-text-primary) 15%
-  );
-  --craft-link-hue-drive: color-mix(
-    in oklch,
-    var(--cs-color-warning-graphic),
-    var(--cs-color-text-primary) 28%
-  );
-  --craft-link-hue-record: color-mix(
-    in oklch,
-    var(--cs-color-success-graphic),
-    var(--cs-color-text-primary) 22%
-  );
-}
 
 .craft-link-box {
   padding-inline: clamp(var(--cs-space-5), 3cqw, var(--cs-space-12));

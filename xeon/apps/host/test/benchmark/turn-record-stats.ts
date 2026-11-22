@@ -42,3 +42,36 @@ export function keepGoing(
 ): boolean {
   return measured < target && nowMs < deadlineMs;
 }
+
+/**
+ * 뒤쪽 쓰기의 예산(L4.host-service.spec §4.20, review/m5/turn-record-metrics §9 29, 결정 2026-11-20 사용자, AGE-50):
+ * 긴 턴(20단계, 단계당 호출 10)에서 턴당 뒤쪽 쓰기의 p95가 25 ms 이하. 다른 시나리오는 예산이 없어 판정하지 않는다
+ */
+const DEFERRED_TURN_BUDGET = { steps: 20, callsPerStep: 10, p95Ms: 25 } as const;
+
+export type BudgetVerdict =
+  | { readonly kind: "not_judged" }
+  | { readonly kind: "within"; readonly p95Ms: number; readonly budgetMs: number }
+  | { readonly kind: "over"; readonly p95Ms: number; readonly budgetMs: number };
+
+/** 시나리오 하나의 턴당 뒤쪽 쓰기 분포를 예산에 댄다. 예산과 같은 값은 넘지 않은 것이다 */
+export function judgeDeferredTurn(
+  scenario: { readonly steps: number; readonly callsPerStep: number },
+  deferredPerTurn: Summary,
+): BudgetVerdict {
+  const budget = DEFERRED_TURN_BUDGET;
+  if (scenario.steps !== budget.steps || scenario.callsPerStep !== budget.callsPerStep) {
+    return { kind: "not_judged" };
+  }
+  const kind = deferredPerTurn.p95 <= budget.p95Ms ? "within" : "over";
+  return { kind, p95Ms: deferredPerTurn.p95, budgetMs: budget.p95Ms };
+}
+
+/** 판정을 사람이 읽는 한 줄로 */
+export function describeVerdict(verdict: BudgetVerdict): string {
+  if (verdict.kind === "not_judged") {
+    return "no budget for this scenario (budget is steps=20,calls=10 only)";
+  }
+  const sign = verdict.kind === "within" ? "<=" : ">";
+  return `${verdict.kind === "within" ? "within" : "over"} budget: deferred/turn p95 ${String(verdict.p95Ms)} ms ${sign} ${String(verdict.budgetMs)} ms`;
+}

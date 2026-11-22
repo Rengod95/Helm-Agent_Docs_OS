@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { read, SRC } from "./source-scan.ts";
 
-// 라이트에서도 다크의 유채색을 쓰는 앱 토큰 층(`src/chroma.css`, AGE-31). caustic 토큰 파일은 고치지 않고 앱이 라이트에서 덮는다.
-// 면, 테두리, 그림, 채움은 다크 값 그대로, 바탕 위 글만 다크의 색상과 세기를 두고 명암비 4.5 이상으로 내린다(spec 예외 표).
+// 선명한 유채색 층(`src/chroma.css`, AGE-31 다시). 색상마다 표지, 채움과 그 위 글, 면과 그 위 먹, 바탕 위 글을 두고 두 테마가 같은 값을 쓴다.
+// 다른 곳은 바탕 위 글뿐이다(라이트는 읽히는 진하기, 다크는 표지 값). 큰 면(tint, soft, border)은 덮지 않는다(spec L4.desktop-ux §13.0.1 DP-229).
 
 const strip = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, "");
 const CSS = strip(read(join(SRC, "chroma.css")));
@@ -83,106 +83,133 @@ const inGamut = (color: Oklch): boolean => linear(color).every((v) => v >= -1e-4
 
 const LIGHT_ATTR = declarationsOf(CSS, ':root[data-theme="light"]');
 const LIGHT_MEDIA = declarationsOf(CSS, ':root:not([data-theme="dark"])');
+const DARK_ATTR = declarationsOf(CSS, ':root[data-theme="dark"]');
+const DARK_MEDIA = declarationsOf(CSS, ':root:not([data-theme="light"])');
 const ROOT = declarationsOf(CSS, ":root");
 const CAUSTIC_DARK = declarationsOf(CAUSTIC, ':root[data-theme="dark"]');
 const COBALT_DARK = declarationsOf(COBALT, ':root[data-theme="dark"]');
 
-/** 바탕 위 글: 다크 값이 아니라 명암비를 맞춘 값을 쓰는 이름 */
+const HUES = ["green", "yellow", "coral", "blue", "purple", "cobalt", "teal", "orange", "pink"];
+
+/** 한 벌의 값. 없으면 시험이 실패하게 검정으로 둔다 */
+const vivid = (hue: string, part: string): Oklch =>
+  oklchOf(ROOT[`--fr-vivid-${hue}${part}`] ?? "") ?? { l: 0, c: 0, h: 0 };
+
+const LIGHT_PAGE = { l: 0.93, c: 0, h: 0 };
+const DARK_CARD = { l: 0.18, c: 0, h: 0 };
+
+/** 바탕 위 글: 라이트에서 명암비를 맞춘 값을 쓰는 이름 */
 const ON_PAGE = (name: string): boolean =>
   /^--cs-color-((success|warning|danger|info|agent)-text|syntax-[\w-]+|ansi-[\w-]+|diff-(add|remove)-text|category-component)$/.test(
     name,
   ) || name === "--fr-color-cobalt-text";
 
-/** 다크 값을 찾는다: caustic 다크 블록이나 앱 cobalt 셋 */
 const darkOf = (name: string): string | undefined => CAUSTIC_DARK[name] ?? COBALT_DARK[name];
 
-test("system light and app light carry the same overrides", () => {
-  expect(Object.keys(LIGHT_ATTR).length).toBeGreaterThan(100);
-  expect(LIGHT_MEDIA).toEqual(LIGHT_ATTR);
-});
-
-test("faces, borders, graphics and fills take the dark value exactly", () => {
-  const same = Object.entries(LIGHT_ATTR).filter(
-    ([name]) => name !== "--fr-chroma-face-base" && !ON_PAGE(name),
+test("every hue has a vivid mark, fill, face, ink and page text inside sRGB", () => {
+  const parts = ["", "-solid", "-solid-hover", "-on", "-face", "-ink", "-text"];
+  const missing = HUES.flatMap((hue) =>
+    parts
+      .filter((part) => oklchOf(ROOT[`--fr-vivid-${hue}${part}`] ?? "") === null)
+      .map((part) => `${hue}${part}`),
   );
-  expect(same.filter(([name, value]) => darkOf(name) !== value)).toEqual([]);
+  expect(missing).toEqual([]);
+  const outside = HUES.flatMap((hue) =>
+    parts.filter((part) => !inGamut(vivid(hue, part))).map((part) => `${hue}${part}`),
+  );
+  expect(outside).toEqual([]);
 });
 
-test("every chromatic dark token is overridden in light, except the diff line backgrounds", () => {
-  const chromatic = Object.entries(CAUSTIC_DARK)
-    .filter(([, value]) => (oklchOf(value)?.c ?? 0) > 0.02)
-    .map(([name]) => name);
-  expect(chromatic.filter((name) => LIGHT_ATTR[name] === undefined)).toEqual([
-    "--cs-color-diff-add-bg",
-    "--cs-color-diff-remove-bg",
+test("the mark is vivid and moderately bright: L 0.64 to 0.76 and chroma at least 0.12", () => {
+  const dull = HUES.filter((hue) => {
+    const mark = vivid(hue, "");
+    return mark.l < 0.64 || mark.l > 0.76 || mark.c < 0.12;
+  });
+  expect(dull).toEqual([]);
+});
+
+test("ink reads on the face and the fill's text reads on the fill (4.5 or more)", () => {
+  const rows = HUES.map((hue) => [
+    hue,
+    contrast(vivid(hue, "-ink"), vivid(hue, "-face")) >= 4.5,
+    contrast(vivid(hue, "-on"), vivid(hue, "-solid")) >= 4.5,
   ]);
-  expect(Object.keys(COBALT_DARK).filter((name) => LIGHT_ATTR[name] === undefined)).toEqual([]);
+  expect(rows).toEqual(HUES.map((hue) => [hue, true, true]));
 });
 
-test("text placed on the page keeps the dark hue, never gains chroma, and reaches 4.5 against oklch(0.93 0 0)", () => {
-  const page = { l: 0.93, c: 0, h: 0 };
-  const rows = Object.entries(LIGHT_ATTR)
-    .filter(([name]) => ON_PAGE(name))
-    .map(([name, value]) => {
-      const now = oklchOf(value);
-      const dark = oklchOf(darkOf(name) ?? "");
-      return {
-        name,
-        sameHue: now !== null && dark !== null && now.h === dark.h,
-        chromaKept: now !== null && dark !== null && now.c <= dark.c && inGamut(now),
-        readable: now !== null && contrast(now, page) >= 4.5,
-      };
-    });
+test("page text reads in light against oklch(0.93 0 0) and in dark against the dark card", () => {
+  const rows = HUES.map((hue) => [
+    hue,
+    contrast(vivid(hue, "-text"), LIGHT_PAGE) >= 4.5,
+    contrast(vivid(hue, ""), DARK_CARD) >= 4.5,
+  ]);
+  expect(rows).toEqual(HUES.map((hue) => [hue, true, true]));
+});
+
+test("dark page text is the mark, the same in system dark and app dark", () => {
+  expect(DARK_MEDIA).toEqual(DARK_ATTR);
+  expect(Object.entries(DARK_ATTR)).toEqual(
+    HUES.map((hue) => [`--fr-vivid-${hue}-text`, `var(--fr-vivid-${hue})`]),
+  );
+});
+
+test("status, identity, chart and gradient colours point at the vivid set in both themes", () => {
+  const families = {
+    success: "green",
+    warning: "yellow",
+    danger: "coral",
+    info: "blue",
+    agent: "purple",
+  };
+  for (const [family, hue] of Object.entries(families)) {
+    expect([
+      ROOT[`--cs-color-${family}-graphic`],
+      ROOT[`--cs-color-${family}-solid`],
+      ROOT[`--cs-color-${family}-on`],
+    ]).toEqual([
+      `var(--fr-vivid-${hue})`,
+      `var(--fr-vivid-${hue}-solid)`,
+      `var(--fr-vivid-${hue}-on)`,
+    ]);
+  }
+  expect([
+    ROOT["--cs-color-identity-coral"],
+    ROOT["--cs-color-identity-mint"],
+    ROOT["--cs-color-chart-4"],
+    ROOT["--cs-color-agent-stop-2"],
+    ROOT["--fr-color-cobalt-face"],
+  ]).toEqual([
+    "var(--fr-vivid-coral)",
+    "var(--fr-vivid-green)",
+    "var(--fr-vivid-yellow)",
+    "var(--fr-vivid-cobalt)",
+    "var(--fr-vivid-cobalt-face)",
+  ]);
+});
+
+test("large faces stay each theme's own: no tint, soft or border is overridden", () => {
+  const overridden = [ROOT, LIGHT_ATTR, LIGHT_MEDIA, DARK_ATTR]
+    .flatMap((block) => Object.keys(block))
+    .filter((name) => /-(tint|soft|soft-hover|soft-pressed|border|border-strong)$/.test(name));
+  expect(overridden).toEqual([]);
+});
+
+test("system light and app light carry the same page text", () => {
+  expect(LIGHT_MEDIA).toEqual(LIGHT_ATTR);
+  expect(Object.keys(LIGHT_ATTR).every(ON_PAGE)).toBe(true);
+});
+
+test("light page text keeps the dark hue, never gains chroma, and reaches 4.5 against oklch(0.93 0 0)", () => {
+  const rows = Object.entries(LIGHT_ATTR).map(([name, value]) => {
+    const now = oklchOf(value);
+    const dark = oklchOf(darkOf(name) ?? "");
+    return {
+      name,
+      sameHue: now !== null && dark !== null && now.h === dark.h,
+      chromaKept: now !== null && dark !== null && now.c <= dark.c && inGamut(now),
+      readable: now !== null && contrast(now, LIGHT_PAGE) >= 4.5,
+    };
+  });
   expect(rows.length).toBe(34);
   expect(rows.filter((row) => !row.sameHue || !row.chromaKept || !row.readable)).toEqual([]);
-});
-
-test("the theme-free dark pairs equal the dark tokens", () => {
-  expect(
-    ["success", "warning", "danger", "info", "agent"].map((f) => [
-      ROOT[`--fr-chroma-${f}-text`],
-      CAUSTIC_DARK[`--cs-color-${f}-text`],
-    ]),
-  ).toEqual(
-    ["success", "warning", "danger", "info", "agent"].map((f) => [
-      CAUSTIC_DARK[`--cs-color-${f}-text`],
-      CAUSTIC_DARK[`--cs-color-${f}-text`],
-    ]),
-  );
-  expect([ROOT["--fr-chroma-cobalt-text"], ROOT["--fr-chroma-face-base"]]).toEqual([
-    COBALT_DARK["--fr-color-cobalt-text"],
-    "transparent",
-  ]);
-  expect(LIGHT_ATTR["--fr-chroma-face-base"]).toBe("oklch(0.18 0 0)");
-});
-
-test("on a chromatic face the text goes back to the dark pair, for every family and face class", () => {
-  const start = CSS.indexOf(":is(");
-  const selectors = new Set(
-    [...CSS.slice(start, CSS.indexOf("{", start)).matchAll(/\[class~="([^"]+)"\]/g)].map(
-      (m) => m[1] ?? "",
-    ),
-  );
-  const body = declarationsOf(
-    CSS.slice(start).replace(/^:is\([\s\S]*?\)\s*\{/, "ISLAND {"),
-    "ISLAND",
-  );
-  const families = ["success", "warning", "danger", "info", "agent"];
-  expect(
-    families.map(
-      (f) =>
-        ["bg", "hover:bg", "active:bg"].every((p) => selectors.has(`${p}-${f}-soft`)) &&
-        selectors.has(`bg-${f}-tint`),
-    ),
-  ).toEqual(families.map(() => true));
-  expect(families.map((f) => [body[`--cs-color-${f}-text`], body[`--color-${f}-text`]])).toEqual(
-    families.map((f) => [`var(--fr-chroma-${f}-text)`, `var(--fr-chroma-${f}-text)`]),
-  );
-  expect(body["--color-text-primary"]).toBe("var(--fr-chroma-ink-primary)");
-});
-
-test("styles.css imports the layer right after the cobalt set", () => {
-  expect(
-    read(join(SRC, "styles.css")).includes('@import "./color-sets.css";\n@import "./chroma.css";'),
-  ).toBe(true);
 });

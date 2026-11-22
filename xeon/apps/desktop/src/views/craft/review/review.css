@@ -4,16 +4,11 @@
   /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
      오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
   --rv-end: var(--cs-space-5);
-  /* 종류 색은 두 테마가 같다(AGE-31 라이트=다크 유채색, `src/chroma.css`): 다크의 유채색 토큰을 다크의 보조 글 밝기(--fr-chroma-ink-secondary)와 섞는다.
-     Inject는 앱의 cobalt 셋을 섞지 않고 그대로 쓴다 */
-  --rv-inject: var(--fr-color-cobalt-graphic);
-  --rv-hook: color-mix(
-    in oklch,
-    var(--cs-color-identity-amber) 80%,
-    var(--fr-chroma-ink-secondary)
-  );
-  --rv-drive: color-mix(in oklch, var(--cs-color-agent-stop-1) 84%, var(--fr-chroma-ink-secondary));
-  --rv-tool: color-mix(in oklch, var(--cs-color-identity-mint) 74%, var(--fr-chroma-ink-secondary));
+  /* 종류 색은 선명한 유채색 층(`src/chroma.css` `--fr-vivid-*`, AGE-31 다시)의 표지 값이고 두 테마가 같다. 바탕 위 종류 글은 같은 색상의 읽히는 진하기다 */
+  --rv-inject: var(--fr-vivid-cobalt);
+  --rv-hook: var(--fr-vivid-yellow);
+  --rv-drive: var(--fr-vivid-purple);
+  --rv-tool: var(--fr-vivid-green);
 }
 
 /* 막대와 겹치는 줄(m6R5): 그 줄만 끝 바깥 여백으로 막대 왼쪽 12px 앞에서 끝난다. 폭은 훅이 잰다(`--rail-cut`). 선과 면은 그대로 끝까지 간다 */
@@ -23,25 +18,37 @@
 
 .rv-kind-inject {
   --rv-kind: var(--rv-inject);
+  --rv-kind-face: var(--fr-vivid-cobalt-face);
+  --rv-kind-ink: var(--fr-vivid-cobalt-ink);
+  --rv-kind-text: var(--fr-vivid-cobalt-text);
 }
 .rv-kind-hook {
   --rv-kind: var(--rv-hook);
+  --rv-kind-face: var(--fr-vivid-yellow-face);
+  --rv-kind-ink: var(--fr-vivid-yellow-ink);
+  --rv-kind-text: var(--fr-vivid-yellow-text);
 }
 .rv-kind-drive {
   --rv-kind: var(--rv-drive);
+  --rv-kind-face: var(--fr-vivid-purple-face);
+  --rv-kind-ink: var(--fr-vivid-purple-ink);
+  --rv-kind-text: var(--fr-vivid-purple-text);
 }
 .rv-kind-tool {
   --rv-kind: var(--rv-tool);
+  --rv-kind-face: var(--fr-vivid-green-face);
+  --rv-kind-ink: var(--fr-vivid-green-ink);
+  --rv-kind-text: var(--fr-vivid-green-text);
 }
 
-/* 종류 타일: 옅은 종류 색 바탕 + 종류 색 그림(받은 요청 카드의 아이콘 타일 28과 같은 자리).
-   밑색은 다크에서 투명, 라이트에서 다크 카드 면이라(`--fr-chroma-face-base`) 라이트도 다크와 같은 진한 타일이다 */
+/* 종류 타일: 선명한 밝은 면 + 같은 색상의 진한 먹(메트릭 인사이트 카드의 아이콘 타일과 같다, AGE-31 다시). 두 테마가 같다 */
 .rv-tile {
-  color: var(--rv-kind);
-  background: color-mix(in oklab, var(--rv-kind) 15%, var(--fr-chroma-face-base));
+  color: var(--rv-kind-ink);
+  background: var(--rv-kind-face);
 }
+/* 바탕 위 종류 글: 라이트는 읽히는 진하기, 다크는 표지 값 */
 .rv-kind-text {
-  color: var(--rv-kind);
+  color: var(--rv-kind-text);
 }
 
 /* 알림 한 줄(m6R4): 토스트와 같은 문법. 세기 색의 맨 그림(16) + 무채색 글, 그림 칸은 글 첫 줄 높이(18)다 */
