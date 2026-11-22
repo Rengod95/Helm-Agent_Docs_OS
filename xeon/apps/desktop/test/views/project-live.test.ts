@@ -64,7 +64,17 @@ function summariesOf(state: EngineMirror): readonly ThreadSummary[] {
 }
 
 function project(id: string, root: string): ProjectListItem {
-  return { projectId: id, name: id, root, createdAt: AT, rev: 1, threadCount: 0, runningCount: 0 };
+  return {
+    projectId: id,
+    name: id,
+    root,
+    createdAt: AT,
+    rev: 1,
+    threadCount: 0,
+    runningCount: 0,
+    rootMissing: false,
+    pendingReviewCount: 0,
+  };
 }
 
 describe("live thread.started without a project", () => {

@@ -58,7 +58,15 @@ test("project.create makes a project named after the folder, and project.list sh
   const created = await connection.request("project.create", { root: folder });
   expect(created.project).toMatchObject({ name: "billing", root: realpathSync(folder), rev: 1 });
   const listed = await connection.request("project.list", {});
-  expect(listed.projects).toEqual([{ ...created.project, threadCount: 0, runningCount: 0 }]);
+  expect(listed.projects).toEqual([
+    {
+      ...created.project,
+      threadCount: 0,
+      runningCount: 0,
+      rootMissing: false,
+      pendingReviewCount: 0,
+    },
+  ]);
 });
 
 test("project.create refuses a relative or missing root with project.rootInvalid, and a duplicate with project.exists", async () => {
@@ -127,6 +135,29 @@ test("project.instructions lists the AGENTS.md files from the root to the workin
   );
 });
 
+// AGE-34: 루트 폴더가 사라지거나 폴더가 아니게 되면 `rootMissing`이다(`project.instructions`의 `project.rootInvalid`와 같은 판정)
+test("project.list says rootMissing for a project whose root folder is gone or is now a file, and not for a folder that is there", async () => {
+  const { host } = rig();
+  const connection = await connect(host);
+  const here = tempDir();
+  const gone = join(tempDir(), "gone");
+  const replaced = join(tempDir(), "replaced");
+  mkdirSync(gone);
+  mkdirSync(replaced);
+  await connection.request("project.create", { root: here, name: "here" });
+  await connection.request("project.create", { root: gone, name: "gone" });
+  await connection.request("project.create", { root: replaced, name: "replaced" });
+  rmSync(gone, { recursive: true, force: true });
+  rmSync(replaced, { recursive: true, force: true });
+  writeFileSync(replaced, "no longer a folder");
+  const listed = await connection.request("project.list", {});
+  expect(listed.projects.map((item) => [item.name, item.rootMissing])).toEqual([
+    ["here", false],
+    ["gone", true],
+    ["replaced", true],
+  ]);
+});
+
 // ── thread.create와 thread.list의 프로젝트 소속 ─────────────────────────
 
 test("thread.create in a project folder reports that project, and thread.list shows it on the thread", async () => {
@@ -138,6 +169,10 @@ test("thread.create in a project folder reports that project, and thread.list sh
   const project = await connection.request("project.create", { root: folder, name: "shop" });
   const created = await connection.request("thread.create", { workspace: sub });
   expect(created.project).toEqual({ projectId: project.project.projectId, name: "shop" });
+  // 하위 폴더는 새 프로젝트를 만들지 않는다(§4.4.2): 프로젝트는 그대로 하나다
+  expect(
+    (await connection.request("project.list", {})).projects.map((item) => item.projectId),
+  ).toEqual([project.project.projectId]);
   const listed = await connection.request("thread.list", {});
   const summary = listed.threads.find(
     (thread: ThreadSummary) => thread.threadId === created.threadId,
@@ -152,8 +187,11 @@ test("thread.create in a folder that is in no project makes a project rooted the
   mkdirSync(folder);
   const created = await connection.request("thread.create", { workspace: folder });
   expect(created.project).toMatchObject({ name: "loose" });
+  // 루트는 대화 폴더 자체다(§4.4.3)
   const listed = await connection.request("project.list", {});
-  expect(listed.projects.map((project: { name: string }) => project.name)).toEqual(["loose"]);
+  expect(listed.projects.map((project) => [project.name, project.root])).toEqual([
+    ["loose", folder],
+  ]);
 });
 
 test("thread.create without a workspace asks for the default folder and reports no project", async () => {

@@ -36,6 +36,7 @@ import {
   scriptEnvNamesOf,
   type DependencyNode,
 } from "@fresnel/ext-host";
+import { REQUIRED_BY_CORE_USERS } from "../m4/profile-defaults.ts";
 import { compareUtf8 } from "./content-hash.ts";
 import { declaredCostOf } from "./declared-cost.ts";
 import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
@@ -504,6 +505,15 @@ export function withInstalledDependencies(
       ),
     },
   };
+}
+
+/**
+ * 엔진이 필요로 하는 단위의 표시(AGE-33 enDep 10, M5c §4.1.17). 이름이 `REQUIRED_BY_CORE_USERS`에 있을 때만 `requiredByCore`를 싣고
+ * 그 밖의 카드는 그대로 준다. 응답 값만 만든다(저장된 카드는 바꾸지 않는다)
+ */
+export function withRequiredByCore(card: PluginCard): PluginCard {
+  const users = REQUIRED_BY_CORE_USERS.get(card.name);
+  return users === undefined ? card : { ...card, requiredByCore: [...users] };
 }
 
 /** 카드 한 장을 만든다. 코드는 실행하지 않는다 */

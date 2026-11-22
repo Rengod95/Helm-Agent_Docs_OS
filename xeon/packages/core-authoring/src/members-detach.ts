@@ -1,6 +1,6 @@
-import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
-import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { readFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import {
   EXTENSION_NAME_PATTERN,
   validateManifest,
@@ -12,8 +12,9 @@ import type {
   MembersDetachInput,
   MembersDetachResult,
 } from "@fresnel/contracts/services";
-import { arrayOf, invalid, io, mapAll } from "./errors.ts";
+import { arrayOf, invalid, io, mapAll, refusal } from "./errors.ts";
 import { ENTRY_PATH, MEMBERS_DIR } from "./members-plan.ts";
+import { checkOutDir, writeOutDir, type PlannedFile } from "./out-dir-write.ts";
 import { isRecord } from "./shared.ts";
 import type { TemplateDirs } from "./templates-dir.ts";
 import { MANIFEST_PATH } from "./validate.ts";
@@ -83,7 +84,7 @@ export async function detachMember(
     );
   if (options.installedNames.includes(name))
     return err(refusal("name_conflict", "name", `name "${name}" is already installed`));
-  const target = await checkOutDir(input.dir, input.outDir);
+  const target = await checkOutDir(input.outDir, [input.dir]);
   if (!target.ok) return target;
 
   const codeRelative = `${MEMBERS_DIR}/${input.member}.ts`;
@@ -111,6 +112,7 @@ export async function detachMember(
     keepDependency: input.keepDependency === true,
     dependencyKind: input.dependencyKind ?? "soft",
     entry: wirable ? "./src/index.ts" : undefined,
+    purpose: input.purpose ?? raw["purpose"],
   });
   const checked = validateManifest(manifest);
   if (checked.manifest === undefined) return err(refusedOf(checked.issues));
@@ -141,7 +143,7 @@ export async function detachMember(
       message: `공용 항목(${shared.join(", ")})은 옮기지 않았다. 새 폴더에 필요하면 손으로 옮긴다`,
     });
 
-  const written = await writeFiles(input.outDir, files);
+  const written = await writeOutDir(input.outDir, files);
   if (!written.ok) return written;
   return ok({
     outDir: input.outDir,
@@ -152,16 +154,6 @@ export async function detachMember(
   });
 }
 
-interface PlannedFile {
-  /** 새 폴더 기준 상대 경로 */
-  readonly path: string;
-  readonly bytes: Uint8Array;
-}
-
-function refusal(code: string, field: string, message: string): DevkitError {
-  return { kind: "invalid_input", message, reasons: [{ code, field, message }] };
-}
-
 /** 구성원 선언(뿌리가 아니고 id가 같은 것) */
 function memberDeclOf(
   raw: Readonly<Record<string, unknown>>,
@@ -170,30 +162,6 @@ function memberDeclOf(
   return arrayOf(raw["plugins"]).find(
     (decl): decl is Record<string, unknown> => isRecord(decl) && decl["id"] === member,
   );
-}
-
-/**
- * 새 출력 폴더 검사. 설치본이나 저장소 폴더 거절은 포트가 한다. 여기서는 원본 안이면 거절하고, 있으면 빈 폴더여야 한다.
- * 없는 폴더는 괜찮다(쓸 때 만든다)
- */
-async function checkOutDir(dir: string, outDir: string): Promise<Result<void, DevkitError>> {
-  if (isInside(dir, outDir))
-    return err(refusal("out_dir_inside_source", "outDir", "outDir is inside the source folder"));
-  const found = await io(outDir, () => stat(outDir));
-  if (!found.ok) return found.error.kind === "not_found" ? ok(undefined) : found;
-  if (!found.value.isDirectory())
-    return err(refusal("out_dir_not_folder", "outDir", `${outDir} is not a folder`));
-  const children = await io(outDir, () => readdir(outDir));
-  if (!children.ok) return children;
-  return children.value.length === 0
-    ? ok(undefined)
-    : err(refusal("out_dir_not_empty", "outDir", `${outDir} is not empty`));
-}
-
-/** `inner`이 `outer`와 같거나 그 안에 있는가. 이름만 접두로 같은 형제 폴더는 안이 아니다 */
-function isInside(outer: string, inner: string): boolean {
-  const rel = relative(outer, inner);
-  return rel === "" || (rel.split(sep)[0] !== ".." && !isAbsolute(rel));
 }
 
 /** 파일을 읽는다. 없으면 undefined다(이 파일이 없는 것은 오류가 아니다) */
@@ -246,11 +214,13 @@ interface NewManifestInput {
   readonly dependencyKind: "hard" | "soft";
   /** 엔트리 경로. 코드를 엔트리로 연결했을 때만 준다 */
   readonly entry: string | undefined;
+  /** 목적 한 문장. 입력이 있으면 입력이, 없으면 원본의 `purpose`가 온다. 둘 다 없으면 undefined다 */
+  readonly purpose: unknown;
 }
 
 /**
- * 새 매니페스트. 원본의 `schemaVersion`과 `version`, 새 `name`, 구성원 선언(뿌리가 되도록 `id`와 `defaultEnabled`를 뗀 것 하나),
- * 그 구성원의 구성 블록(`plugin`을 뗀 것)을 싣는다. `keepDependency`면 원래 이름에 거는 의존 한 줄을 더한다.
+ * 새 매니페스트. 원본의 `schemaVersion`과 `version`, 목적 한 문장(`purpose`), 새 `name`, 구성원 선언(뿌리가 되도록 `id`와
+ * `defaultEnabled`를 뗀 것 하나), 그 구성원의 구성 블록(`plugin`을 뗀 것)을 싣는다. `keepDependency`면 원래 이름에 거는 의존 한 줄을 더한다.
  */
 function newManifest(input: NewManifestInput): Record<string, unknown> {
   const root = Object.fromEntries(
@@ -272,6 +242,7 @@ function newManifest(input: NewManifestInput): Record<string, unknown> {
     schemaVersion: input.raw["schemaVersion"],
     name: input.name,
     version: input.raw["version"],
+    ...(input.purpose === undefined ? {} : { purpose: input.purpose }),
     ...(input.entry === undefined ? {} : { entry: input.entry }),
     plugins: [{ ...root, ...(dependsOn === undefined ? {} : { dependsOn }) }],
     ...(blocks.length === 0 ? {} : { orchestration: { composition: { blocks } } }),
@@ -307,112 +278,6 @@ function rootEntryText(member: string): string {
     "export default entry;",
     "",
   ].join("\n");
-}
-
-/**
- * 계획한 파일을 쓴다. 폴더는 얕은 것부터 만들고(이미 있던 폴더는 건드리지 않는다), 매니페스트는 마지막에 쓴다.
- * 중간에 실패하면 우리가 쓴 파일과 만든 폴더만 지운다. 지우지 못한 것은 오류 글에 남긴다
- */
-async function writeFiles(
-  outDir: string,
-  files: readonly PlannedFile[],
-): Promise<Result<void, DevkitError>> {
-  const fresh = await freshDirs(outDir, files);
-  if (!fresh.ok) return fresh;
-  const ordered = [
-    ...files.filter((file) => file.path !== MANIFEST_PATH),
-    ...files.filter((file) => file.path === MANIFEST_PATH),
-  ];
-  const made: string[] = [];
-  const wrote: string[] = [];
-  const failure = await writeSteps(outDir, fresh.value, ordered, made, wrote);
-  if (failure === undefined) return ok(undefined);
-  return err(await failedWith(failure, outDir, wrote, made));
-}
-
-/** 폴더를 만들고 파일을 쓴다. 처음 실패에서 멈추고 그 오류를 돌려준다. 만든 것과 쓴 것은 `made`와 `wrote`에 남긴다 */
-async function writeSteps(
-  outDir: string,
-  dirs: readonly string[],
-  files: readonly PlannedFile[],
-  made: string[],
-  wrote: string[],
-): Promise<DevkitError | undefined> {
-  for (const dir of dirs) {
-    // oxlint-disable-next-line no-await-in-loop -- 폴더는 얕은 것부터 차례로 만든다 (eng.typescript.guide TY-22)
-    const done = await io(dir, () => mkdir(dir));
-    if (!done.ok) return done.error;
-    made.push(dir);
-  }
-  for (const file of files) {
-    const target = join(outDir, file.path);
-    // oxlint-disable-next-line no-await-in-loop -- 파일은 계획한 순서대로 쓴다 (eng.typescript.guide TY-22)
-    const done = await io(file.path, () => writeFile(target, file.bytes));
-    if (!done.ok) return done.error;
-    wrote.push(target);
-  }
-  return undefined;
-}
-
-/**
- * 만들어야 할 폴더 가운데 아직 없는 것. `outDir`과 그 위의 없는 상위 폴더, 파일이 들어갈 하위 폴더를 낸다.
- * 얕은 것부터 돌려주므로 차례로 만들면 된다. 있던 폴더는 목록에 없다
- */
-async function freshDirs(
-  outDir: string,
-  files: readonly PlannedFile[],
-): Promise<Result<string[], DevkitError>> {
-  const dirs = new Set<string>([outDir, ...ancestorsOf(outDir)]);
-  for (const file of files) {
-    const parts = file.path.split("/");
-    for (let depth = 1; depth < parts.length; depth += 1)
-      dirs.add(join(outDir, ...parts.slice(0, depth)));
-  }
-  const ordered = [...dirs].toSorted((left, right) => left.length - right.length);
-  const existing = await mapAll(ordered, async (dir) => {
-    const found = await io(dir, () => stat(dir));
-    if (found.ok) return ok(true);
-    return found.error.kind === "not_found" ? ok(false) : found;
-  });
-  if (!existing.ok) return existing;
-  return ok(ordered.filter((_, index) => existing.value[index] !== true));
-}
-
-/** 경로의 위쪽 폴더들(가까운 것부터). 루트는 넣지 않는다 */
-function ancestorsOf(path: string): string[] {
-  const up: string[] = [];
-  for (let at = dirname(path); at !== dirname(at); at = dirname(at)) up.push(at);
-  return up;
-}
-
-/** 실패 오류 글. 지우지 못한 파일과 폴더를 새 폴더 기준으로 알린다 */
-async function failedWith(
-  error: DevkitError,
-  outDir: string,
-  wrote: readonly string[],
-  made: readonly string[],
-): Promise<DevkitError> {
-  const leftovers = await undo(wrote, made);
-  if (leftovers.length === 0) return error;
-  const kept = leftovers.map((path) => relative(outDir, path) || ".");
-  return {
-    ...error,
-    message: `${error.message}; kept because they could not be removed: ${kept.join(", ")}`,
-  };
-}
-
-/** 우리가 쓴 파일을 지우고, 우리가 만든 폴더를 안쪽부터 비울 때만 지운다. 지우지 못한 경로를 돌려준다 */
-async function undo(wrote: readonly string[], made: readonly string[]): Promise<string[]> {
-  const removedFiles = await Promise.all(
-    wrote.map(async (path) => ((await attemptAsync(() => rm(path))).ok ? undefined : path)),
-  );
-  const leftovers = removedFiles.filter((path): path is string => path !== undefined);
-  for (const dir of made.toReversed()) {
-    // oxlint-disable-next-line no-await-in-loop -- 폴더는 안쪽부터 지워야 한다 (eng.typescript.guide TY-22)
-    const removed = await attemptAsync(() => rmdir(dir));
-    if (!removed.ok) leftovers.push(dir);
-  }
-  return leftovers;
 }
 
 /** 매니페스트 검사 오류로 거절한다. 사유마다 코드와 매니페스트 안 경로를 싣는다(`members.ts`와 같은 모양) */

@@ -18,7 +18,17 @@ function frozen<T>(state: T): ReadonlyStore<T> {
 }
 
 function project(id: string, root: string, name: string): ProjectListItem {
-  return { projectId: id, name, root, createdAt: "t", rev: 1, threadCount: 0, runningCount: 0 };
+  return {
+    projectId: id,
+    name,
+    root,
+    createdAt: "t",
+    rev: 1,
+    threadCount: 0,
+    runningCount: 0,
+    rootMissing: false,
+    pendingReviewCount: 0,
+  };
 }
 
 function mirror(threads: readonly ThreadSummary[]): EngineMirror {

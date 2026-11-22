@@ -898,7 +898,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | 4 | 신뢰 판정 | 설치 위치, `trust.level`, 작업 폴더 신뢰 → `TrustLevel` | `rejected` | `trust_exceeds_source`, `trust_denied`, `trust_undecided`, `trust_store_corrupt` |
 | 5 | 설정 연결 | `settingsFromManifest` + 예약 키 → 설정 그룹 | `rejected` | `settings_rejected`, `settings_reserved_key` |
 | 5a | 켜짐 확인 | `ext.<name>.enabled`, 필수 userConfig, `LoadOptions.startup`(`policy.startupFilter`, 2차) | `disabled` | `disabled_by_setting`, `config_required`, `safe_mode`, `disabled_flag` |
-| 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없으면 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다("기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다) | `disabled` | `lazy_deferred` |
+| 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없으면 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다("기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다). 기본 집합의 플러그인이 hard로 기대는 대상(그 대상의 hard 대상까지)은 미루지 않고 기본 집합에 더해 싣는다(AGE-33 enDep: 미루면 기대는 쪽이 `dependency_missing`으로 멈춘다). soft로만 기대는 대상은 그대로 미룬다 | `disabled` | `lazy_deferred` |
 | 5b | 화면 검사 | `checkUiDecl`(§4.3.4): 거부되지 않은 확장의 `ui`를 파일과 정책으로 본다 | 확장 상태는 그대로다. 항목만 `invalid`나 `disabled`가 된다 | `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported` |
 | 6 | 기능 요구 충족 | `requires` × 집합의 `provides`·코어 기능 | `error` | `capability_missing` |
 | 6 | 의존 확인 | `dependsOn` × 집합의 살아 있는 확장(대상 확장, 구성원, `range`)(AGE-33) | `hard`면 `error`, `soft`면 `warning`(확장은 실패하지 않음) | `dependency_missing` |

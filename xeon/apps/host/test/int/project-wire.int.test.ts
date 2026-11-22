@@ -8,7 +8,7 @@ import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
-import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M5c §3.4, §4.4 (int, 실제 엔진): 프로젝트 목록과 한 건 읽기, 이름 바꾸기, 기록만 지우기, 지침 파일 목록.
 // 프로젝트 소속은 대화 폴더가 속한 가장 깊은 루트로 정해지고, 대화를 만들 때 루트가 없으면 그 폴더로 프로젝트가 생긴다(§4.4.3).
@@ -79,6 +79,8 @@ realTest(
         ...created.project,
         threadCount: 2,
         runningCount: 0,
+        rootMissing: false,
+        pendingReviewCount: 0,
       });
 
       // 지운 대화는 세지 않는다
@@ -95,6 +97,49 @@ realTest(
       expect(
         (await connection.request("thread.list", {})).threads.map((thread) => thread.threadId),
       ).toContain(onRoot.threadId);
+    } finally {
+      await engine.close();
+      rmSync(base, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+realTest(
+  "thread.started carries the thread's project: a thread in a project folder names it, a default-folder thread carries null, and a folder outside every project gets its project before the thread is written",
+  async () => {
+    const engine = await openEngine();
+    const { connection } = engine;
+    const base = tempBase();
+    try {
+      const main = join(base, "main");
+      const other = join(base, "other");
+      for (const folder of [main, other]) mkdirSync(folder, { recursive: true });
+      const collector = collectEvents(connection);
+      await connection.request("events.subscribe", { from: "head" });
+      const created = await connection.request("project.create", { root: main, name: "Main" });
+      const inMain = await connection.request("thread.create", { workspace: main });
+      const plain = await connection.request("thread.create", {});
+      const auto = await connection.request("thread.create", { workspace: other });
+
+      // 이벤트의 값은 thread.create 결과의 프로젝트와 같다(id가 projectId다)
+      const startedOf = async (threadId: string) =>
+        (
+          await collector.waitFor(
+            (event) => event.kind === "thread.started" && event.threadId === threadId,
+          )
+        ).payload;
+      expect(await startedOf(inMain.threadId)).toMatchObject({
+        project: { id: created.project.projectId, root: main },
+      });
+      expect(inMain.project?.projectId).toBe(created.project.projectId);
+      expect(await startedOf(plain.threadId)).toMatchObject({ project: null });
+      expect(plain.project).toBeNull();
+      const autoStarted = await startedOf(auto.threadId);
+      expect(auto.project).not.toBeNull();
+      expect(autoStarted).toMatchObject({
+        project: { id: auto.project?.projectId, root: other },
+      });
     } finally {
       await engine.close();
       rmSync(base, { recursive: true, force: true });

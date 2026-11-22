@@ -96,9 +96,17 @@ export type MemberOp =
       readonly mode?: PluginMode;
     }
   | { readonly kind: "rename"; readonly id: string; readonly to: string }
+  /** 보이는 이름(매니페스트 `title`)만 바꾼다. id와 파일은 그대로다. 빈 문자열이면 제목을 지운다. 64자 이하 */
+  | { readonly kind: "retitle"; readonly id: string; readonly title: string }
   | { readonly kind: "remove"; readonly id: string }
   /** 구성원끼리의 순서를 바꾼다(0부터, 구성원 목록 기준). 이 순서가 `plugins[]` 순서이고 등록·훅 순서가 된다 */
   | { readonly kind: "move"; readonly id: string; readonly toIndex: number };
+
+/** 구성원의 지침 또는 스킬 한 항목. `id`는 `components`에 적힌 경로의 이름이다 */
+export interface MemberInject {
+  readonly id: string;
+  readonly kind: "instruction" | "skill";
+}
 
 /** 구성원 하나(뿌리 제외)의 요약. `members`는 매니페스트 `plugins[]` 순서다 */
 export interface MemberInfo {
@@ -111,6 +119,15 @@ export interface MemberInfo {
   readonly defaultEnabled: boolean;
   /** `orchestration.composition.blocks` 가운데 `plugin`이 이 구성원인 블록 id */
   readonly blockIds: readonly string[];
+  /**
+   * 이 구성원에 귀속되는 지침과 스킬. 지금 매니페스트는 `components`를 최상위에만 적으므로(구성원별 자리가 없다)
+   * 귀속할 근거가 없어 항상 빈 배열이다. 구성원별 선언이 생기면 그때 채운다
+   */
+  readonly injects: readonly MemberInject[];
+  /**
+   * 이 구성원에 귀속되는 도구 이름. 매니페스트 `tools`도 최상위에만 적혀 있어서 지금은 항상 빈 배열이다(`injects`와 같은 이유)
+   */
+  readonly tools: readonly string[];
 }
 
 export interface MembersEditInput {
@@ -188,6 +205,8 @@ export interface MembersDetachInput {
   readonly keepDependency?: boolean;
   /** `keepDependency`일 때 의존의 종류. 생략하면 soft다 */
   readonly dependencyKind?: DependencyKind;
+  /** 새 매니페스트의 목적 한 문장(200자 이하). 생략하면 원본의 `purpose`를 그대로 옮기고, 원본에도 없으면 만들지 않는다 */
+  readonly purpose?: string;
 }
 
 /** 떼기의 결과. `changedFiles`는 새 폴더 안의 파일(`outDir` 기준 상대 경로)이다 */
@@ -219,6 +238,11 @@ export interface MembersMergeInput {
   readonly name: string;
   /** 뿌리 플러그인의 제목. 생략하면 없다 */
   readonly title?: string;
+  /**
+   * 새 매니페스트의 목적 한 문장(200자 이하). 생략하면 원본들의 `purpose`를 선언 순서대로 `; `로 이어 붙인다.
+   * 원본에 하나도 없으면 만들지 않는다
+   */
+  readonly purpose?: string;
 }
 
 /**

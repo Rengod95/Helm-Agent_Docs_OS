@@ -490,6 +490,12 @@ export interface ThreadStartedPayload {
    * 선택 필드라 version은 1 그대로다(F.records.spec §3.2 규칙 5). 투영 `p_threads.profile_id`(core 투영 규칙 버전 9)가 활성 가지의 마지막 값을 든다. 값이 없으면 대화 요약의 `profileId`도 없고 읽는 쪽이 `default`로 본다.
    */
   profileId?: string;
+  /**
+   * 대화가 속한 프로젝트(M5c §4.4.2, AGE-34). 속하면 프로젝트 id와 루트 정규 경로, 속하지 않으면 null이다.
+   * 선택 필드라 version은 1 그대로다. 옛 이벤트에는 없고, 없는 값은 `thread.list`의 `project`(소속 계산 결과)가 준다.
+   * [구현 상태, AGE-33] `thread.create`가 대화를 만들 때 싣는다. 호스트가 대화를 쓰기 전에 소속을 정해 넘긴다(`apps/host/src/assembly/ports.ts`의 `threads.create`, 값은 `projects.attach`와 같다). 예약과 제작 같은 다른 경로는 싣지 않는다. 열기 훅이 작업 폴더를 바꾸면 이 값과 `thread.create` 결과의 소속이 다를 수 있다 [미결] [근거: apps/host/src/handlers/thread.ts].
+   */
+  project?: { id: string; root: string } | null;
 }
 /**
  * `profileId`는 프로필 전환(`thread.setProfile`)이다. `model`과 같은 규칙으로 활성 가지의 마지막 값이 현재 값이다.

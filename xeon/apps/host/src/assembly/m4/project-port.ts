@@ -1,4 +1,4 @@
-import { mkdir, realpath } from "node:fs/promises";
+import { mkdir, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { attemptAsync, Bug, detach, err, ok, type Clock, type Result } from "@fresnel/contracts";
 import {
@@ -18,14 +18,13 @@ import {
   type Project,
   type ProjectCreateParams,
   type ProjectInstructionsResult,
-  type ProjectListItem,
-  type ProjectListResult,
   type ProjectRenameParams,
   type ThreadProjectRef,
   type Unsubscribe,
 } from "@fresnel/contracts/wire";
 import type { FileLock } from "@fresnel/platform-os";
 import type {
+  ProjectListRow,
   ProjectPort,
   ProjectPortFailure,
   ProjectRuleFailure,
@@ -99,6 +98,17 @@ function errorCode(caught: unknown): string {
 function nameOf(name: string | undefined, root: string): string {
   const text = name ?? (basename(root) || root);
   return text.slice(0, 128);
+}
+
+/**
+ * 루트 폴더의 정규 경로. 폴더가 없거나 폴더가 아니면 null이다. `project.list`의 `rootMissing`과 `project.instructions`의
+ * `project.rootInvalid`가 이 같은 판정을 쓴다
+ */
+async function rootFolderOf(root: string): Promise<string | null> {
+  const real = await attemptAsync(() => realpath(root));
+  if (!real.ok) return null;
+  const info = await attemptAsync(() => stat(real.value));
+  return info.ok && info.value.isDirectory() ? real.value : null;
 }
 
 /** 정규 경로면 실제 경로, 없으면 절대 경로로 정리한 값. 기본 폴더가 아직 없을 때 소속을 계산하려고 쓴다 */
@@ -251,7 +261,9 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
   refreshKnown();
 
   return {
-    async list(): Promise<Result<ProjectListResult, ProjectPortFailure>> {
+    async list(): Promise<
+      Result<{ readonly projects: readonly ProjectListRow[] }, ProjectPortFailure>
+    > {
       const snapshot = await store.read();
       if (!snapshot.ok) return err({ kind: "store", failure: snapshot.error });
       const all = await rootsOf(snapshot.value.projects);
@@ -269,13 +281,20 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
         if (row.status === "running") count.running += 1;
         counts.set(deepest.projectId, count);
       }
-      const items: ProjectListItem[] = [];
-      for (const project of snapshot.value.projects) {
+      const folders = await Promise.all(
+        snapshot.value.projects.map(async (project) => ({
+          project,
+          folder: await rootFolderOf(project.root),
+        })),
+      );
+      const items: ProjectListRow[] = [];
+      for (const { project, folder } of folders) {
         const count = counts.get(project.projectId);
         items.push({
           ...project,
           threadCount: count?.threads ?? 0,
           runningCount: count?.running ?? 0,
+          rootMissing: folder === null,
         });
       }
       return ok({ projects: items });
@@ -352,17 +371,17 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
       const deepest = deepestRoot(folder.value, all.value);
       // 루트가 없으면 지침을 모을 곳이 없다. 루트 폴더가 사라졌으면 그것도 루트가 없는 것이다
       if (deepest === undefined) return err({ kind: "root_invalid" });
-      const rootReal = await attemptAsync(() => realpath(deepest.root));
-      if (!rootReal.ok) return err({ kind: "root_invalid" });
+      const rootReal = await rootFolderOf(deepest.root);
+      if (rootReal === null) return err({ kind: "root_invalid" });
       // 읽기, 상한, 루트 밖 링크 판정은 core-context의 지침 절 원천이 한다(M5c §4.4.7)
       const read = createInstructionSections({
         workspaceOf: () => folder.value,
-        projectRootOf: () => rootReal.value,
+        projectRootOf: () => rootReal,
         maxBytes: () => maxInstructionBytes(),
         fs: nodeInstructionFs,
       });
       const result = await read(PROBE_THREAD_ID);
-      return ok({ files: instructionFilesOf(rootReal.value, result) });
+      return ok({ files: instructionFilesOf(rootReal, result) });
     },
 
     async roots(): Promise<Result<readonly ScopeRoot[], ProjectPortFailure>> {

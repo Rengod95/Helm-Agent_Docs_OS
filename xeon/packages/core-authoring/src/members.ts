@@ -173,6 +173,9 @@ function membersInfo(manifest: ExtensionManifest): MemberInfo[] {
         drives: entry.decl.drives === true,
         defaultEnabled: pluginDefaultEnabled(manifest, entry),
         blockIds: blocks.filter((block) => block.plugin === id).map((block) => block.id),
+        // 지침·스킬과 도구는 매니페스트 최상위에만 적히므로 구성원에 귀속할 근거가 없다(빈 배열)
+        injects: [],
+        tools: [],
       },
     ];
   });

@@ -20,7 +20,11 @@ import type {
   JsonValue,
   TextContent,
 } from "@fresnel/contracts/conversation";
-import type { RegistrationId, ToolResourceDef } from "@fresnel/contracts/extensions";
+import {
+  CARD_MCP_LAUNCH_LIMITS,
+  type RegistrationId,
+  type ToolResourceDef,
+} from "@fresnel/contracts/extensions";
 import type {
   CallerId,
   CapabilityToolsRegistration,
@@ -353,6 +357,12 @@ const SCRIPT_CARD_SCHEMA = Type.Object({
   stdinBytes: Type.Integer({ minimum: 0 }),
   stdinPreview: Type.String(),
   uses: Type.Array(Type.String()),
+  /** 선언했지만 넘기지 않는 환경 변수 이름(`ScriptCard.envNotPassed`). 카드의 `envNotPassed`와 같은 상한이다 */
+  envNotPassed: Type.Optional(
+    Type.Array(Type.String({ maxLength: CARD_MCP_LAUNCH_LIMITS.envName }), {
+      maxItems: CARD_MCP_LAUNCH_LIMITS.envNames,
+    }),
+  ),
 });
 
 /**

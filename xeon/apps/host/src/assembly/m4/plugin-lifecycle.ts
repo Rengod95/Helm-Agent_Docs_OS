@@ -20,19 +20,34 @@ export interface PluginLifecycleDeps {
   readonly signal: AbortSignal;
 }
 
+/**
+ * 로더마다 진행 중인 적재의 장부. 대화의 참조 적재와 덧씌우기의 적재가 같은 로더에서 같은 이름을 두 번 싣지 않게, 장부는 로더에 붙인다
+ * (AGE-33 enDep 5b: 덧씌우기가 쓰는 수명도 같은 장부를 본다)
+ */
+const runningByLoader = new WeakMap<ExtensionLoader, Map<string, Promise<unknown>>>();
+
+function runningOf(loader: ExtensionLoader): Map<string, Promise<unknown>> {
+  const known = runningByLoader.get(loader);
+  if (known !== undefined) return known;
+  const created = new Map<string, Promise<unknown>>();
+  runningByLoader.set(loader, created);
+  return created;
+}
+
 export function pluginLifecycleOf(deps: PluginLifecycleDeps): PluginLifecycle {
   // 진행 중인 적재. 대화의 참조 적재와 기대는 쪽이 부른 대상 적재가 겹칠 수 있다. 로더의 `ensureLoaded`는 동시 호출을 가리지 않으므로
-  // 같은 이름의 진행 중인 적재는 한 번만 부르고 그 결과를 함께 기다린다
-  const running = new Map<string, Promise<unknown>>();
+  // 같은 이름의 진행 중인 적재는 한 번만 부르고 그 결과를 함께 기다린다. 진행 중인 적재는 처음 부른 호출의 신호를 쓴다
 
   function ensureOne(
     loader: ExtensionLoader,
     name: string,
     visited: Set<string>,
+    signal: AbortSignal,
   ): Promise<unknown> {
+    const running = runningOf(loader);
     const pending = running.get(name);
     if (pending !== undefined) return pending;
-    const work = loadAfterTargets(loader, name, visited).finally(() => {
+    const work = loadAfterTargets(loader, name, visited, signal).finally(() => {
       running.delete(name);
     });
     running.set(name, work);
@@ -44,6 +59,7 @@ export function pluginLifecycleOf(deps: PluginLifecycleDeps): PluginLifecycle {
     loader: ExtensionLoader,
     name: string,
     visited: Set<string>,
+    signal: AbortSignal,
   ): Promise<unknown> {
     const info = loader.list().find((candidate) => candidate.name === name);
     const manifest = info?.manifest;
@@ -59,21 +75,21 @@ export function pluginLifecycleOf(deps: PluginLifecycleDeps): PluginLifecycle {
         if (!hasRecord) continue;
         // 대상이 실패해도 던지지 않는다. 대상의 진단은 로더에 남는다
         // oxlint-disable-next-line no-await-in-loop -- 대상은 차례로 싣는다(앞 대상이 방문 표를 바꾸고, 뒤 대상은 그 뒤에 켜야 한다) (AGE-33)
-        await attemptAsync(() => ensureOne(loader, target, visited));
+        await attemptAsync(() => ensureOne(loader, target, visited, signal));
       }
     }
-    if (info !== undefined) return await loader.ensureLoaded(name, deps.signal);
+    if (info !== undefined) return await loader.ensureLoaded(name, signal);
     // 기록이 없는 이름: 승인만 하고 아직 어느 대화도 쓰지 않은 검토본이다. 처음 들어올 때 검토본에서 싣는다(§4.1.11).
     // 검토본이 없는 이름(내장 단위, 설치하지 않은 이름)은 `not_found`로 건너뛴다
-    const installed = await loader.loadInstalled(name, deps.signal);
+    const installed = await loader.loadInstalled(name, signal);
     return installed.ok ? installed.value.info : undefined;
   }
 
   return {
-    async ensureLoaded(name) {
+    async ensureLoaded(name, signal = deps.signal) {
       const loader = deps.loader();
       if (loader === undefined) return undefined;
-      return await ensureOne(loader, name, new Set([name]));
+      return await ensureOne(loader, name, new Set([name]), signal);
     },
     async unload(name) {
       const loader = deps.loader();

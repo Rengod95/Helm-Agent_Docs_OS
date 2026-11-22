@@ -1289,7 +1289,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **처리기.** `project.list·get·create·rename·delete·instructions`는 `handlers/m4/project.ts`가 맡고 포트(`assembly/m4/project-port.ts`)가 일한다. 루트는 `canonicalWorkspace`로 심볼릭 링크를 푼 정규 경로로 저장한다. 같은 정규 경로가 있으면 `project.exists`, 상대 경로·없는 폴더·폴더가 아닌 것이면 `project.rootInvalid`다. 중첩 루트는 허용한다. `project.get`의 `pendingReview`는 검토함 트랙이 채울 때까지 0이다. `project.delete`는 프로젝트 기록만 지운다. `project.changed`는 목록이 바뀔 때마다 연결 전체에 `{rev, ids}`로 보낸다. `project.get`의 `pendingReview`는 검토함의 대기 항목 가운데 카드 출처가 그 프로젝트 id인 것의 수다(`pluginReview.list { state: "pending" }`로 센다, enB5).
 
-**`project.list`의 수.** `threadCount`는 닫히지 않은 대화 가운데 Test run이 아니고 작업 폴더가 그 프로젝트의 루트 안(가장 깊은 루트)에 있는 것의 수다. `runningCount`는 그 가운데 `running`인 것의 수다. 기본 폴더 대화는 명시 프로젝트의 수에 들지 않는다.
+**`project.list`의 수.** `threadCount`는 닫히지 않은 대화 가운데 Test run이 아니고 작업 폴더가 그 프로젝트의 루트 안(가장 깊은 루트)에 있는 것의 수다. `runningCount`는 그 가운데 `running`인 것의 수다. 기본 폴더 대화는 명시 프로젝트의 수에 들지 않는다. `rootMissing`은 루트 폴더가 지금 없거나 폴더가 아니면 참이다. `project.instructions`가 `project.rootInvalid`를 내는 것과 같은 판정(`rootFolderOf`, 정규 경로를 풀고 디렉터리인지 본다)을 쓴다. `pendingReviewCount`는 `project.get`의 `pendingReview`와 같은 계산(`pendingReviewOf`)을 프로젝트마다 부른 값이다(AGE-34). 이 두 값은 목록을 읽을 때마다 새로 계산하고 저장하지 않는다.
 
 **소속과 기본 폴더(§4.4.2, §4.4.5).** 소속은 저장하지 않고 계산한다(`assembly/m4/project-scope.ts`의 순수 함수). 작업 폴더를 포함하는 루트 가운데 가장 깊은 것이다. 루트 목록은 명시 프로젝트 다음에 암묵 기본 폴더 루트(`prj_default`)를 둔다. 깊이가 같으면 명시 프로젝트가 이긴다. wire의 `project`(`ThreadProjectRef`)는 명시 프로젝트만 싣는다. 기본 폴더 대화, Test run 대화, 어느 루트에도 없는 대화는 `null`이다. `thread.list`의 각 요약에 이 값을 싣는다. 루트 목록을 읽지 못하면 로그를 남기고 `project`를 비운다.
 

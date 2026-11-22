@@ -34,10 +34,13 @@ const NOT_APPROVED: Result<ScriptRunResult, ScriptRunFailure> = err({
 });
 
 function cardInput(call: ScriptDraftCall): JsonObject {
+  const notPassed = call.card.envNotPassed;
   return {
     command: call.card.command,
     args: [...call.card.args],
     envNames: [...call.card.envNames],
+    // 선언했지만 넘기지 않은 이름은 값이 있을 때만 싣는다(AGE-33 enDep 11)
+    ...(notPassed === undefined ? {} : { envNotPassed: [...notPassed] }),
     stdinBytes: call.card.stdinBytes,
     stdinPreview: call.card.stdinPreview,
     uses: [...call.card.uses],

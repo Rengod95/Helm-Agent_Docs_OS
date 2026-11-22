@@ -167,6 +167,42 @@ test("detaching a member makes a one-plugin folder with the new name, the member
   expect(snapshotOf(source)).toEqual(frozen);
 });
 
+test("the source's purpose moves to the new folder; a source without one gets none; an input purpose wins", async () => {
+  const kept = await sourceFolder("purpose-kept");
+  editManifest(kept, (raw) => ({ ...raw, purpose: "동기화를 맡는다" }));
+  must(
+    await detachMember(
+      { dir: kept, member: "sync", outDir: join(root, "purpose-kept-out") },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "purpose-kept-out"))["purpose"]).toBe("동기화를 맡는다");
+
+  const bare = await sourceFolder("purpose-none");
+  must(
+    await detachMember(
+      { dir: bare, member: "sync", outDir: join(root, "purpose-none-out") },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "purpose-none-out"))).not.toHaveProperty("purpose");
+
+  const typed = must(
+    await detachMember(
+      {
+        dir: kept,
+        member: "sync",
+        outDir: join(root, "purpose-typed-out"),
+        purpose: "직접 쓴 목적",
+      },
+      OPTIONS,
+    ),
+  );
+  expect(typed.changedFiles).toContain(".fresnel-plugin/plugin.json");
+  expect(rawOf(join(root, "purpose-typed-out"))["purpose"]).toBe("직접 쓴 목적");
+  expect(manifestOf(join(root, "purpose-typed-out")).purpose).toBe("직접 쓴 목적");
+});
+
 test("the member's code goes to src/root.ts and the new entry registers the root with that setup", async () => {
   const source = await sourceFolder("code-wiring");
   const outDir = join(root, "code-wiring-out");
