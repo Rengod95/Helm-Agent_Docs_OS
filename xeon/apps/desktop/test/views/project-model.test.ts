@@ -139,13 +139,13 @@ describe("capRows", () => {
 });
 
 describe("pathSplitOf", () => {
-  test("the last folder name is kept whole and the rest is the part that gets cut", () => {
+  test("the separator and the last folder name are kept whole and the rest is the part that gets cut", () => {
     expect(pathSplitOf("services/billing-worker/src")).toEqual({
-      head: "services/billing-worker/",
-      tail: "src",
+      head: "services/billing-worker",
+      tail: "/src",
     });
     expect(pathSplitOf("drafts")).toEqual({ head: "", tail: "drafts" });
-    expect(pathSplitOf("apps\\desktop")).toEqual({ head: "apps\\", tail: "desktop" });
+    expect(pathSplitOf("apps\\desktop")).toEqual({ head: "apps", tail: "\\desktop" });
   });
 });
 

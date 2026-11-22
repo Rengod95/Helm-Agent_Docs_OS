@@ -368,6 +368,17 @@ function ProjectGroup(props: {
   );
 }
 
+/** 하위 폴더 경로의 가운데 줄임: 앞 경로는 끝을 줄이고 구분자와 마지막 폴더 이름은 남긴다. 부르는 쪽이 칸 폭과 글 모양을 정한다 */
+export function FolderPath(props: { readonly rel: string }): ReactNode {
+  const split = pathSplitOf(props.rel);
+  return (
+    <>
+      {split.head === "" ? null : <span className="min-w-0 truncate">{split.head}</span>}
+      <span className="max-w-full shrink-0 truncate">{split.tail}</span>
+    </>
+  );
+}
+
 /** 묶음 끝의 "n개 더 보기" 또는 펼친 뒤 "줄이기". 둘 다 아니면 비운다 */
 function MoreRow(props: {
   readonly hidden: number;
@@ -415,7 +426,6 @@ function FolderBlockRows(props: {
   readonly onStart: (path: string | null) => void;
 }): ReactNode {
   const { block } = props;
-  const split = pathSplitOf(block.rel);
   return (
     <>
       <li data-project-folder={block.rel} className="flex h-control-sm items-center ps-2 pe-2">
@@ -424,8 +434,7 @@ function FolderBlockRows(props: {
           className="flex min-w-0 flex-1 text-footnote text-text-tertiary contain-inline-size"
           title={block.path}
         >
-          {split.head === "" ? null : <span className="min-w-0 truncate">{split.head}</span>}
-          <span className="max-w-full shrink-0 truncate">{split.tail}</span>
+          <FolderPath rel={block.rel} />
         </span>
         <IconButton
           size="xs"

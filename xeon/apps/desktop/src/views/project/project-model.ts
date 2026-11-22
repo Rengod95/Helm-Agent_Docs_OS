@@ -158,14 +158,12 @@ export function folderBlocksOf(rows: readonly FolderRow[], root: string): readon
 }
 
 /**
- * 긴 하위 폴더 경로를 가운데에서 줄이려고 나눈다: 앞(마지막 구분자까지)은 끝을 줄이고 마지막 폴더 이름은 그대로 둔다.
+ * 긴 하위 폴더 경로를 가운데에서 줄이려고 나눈다: 앞은 끝을 줄이고 구분자와 마지막 폴더 이름(`/src`)은 그대로 둔다.
  * 그래서 왼쪽 끝은 열에 맞고 가장 깊은 폴더 이름이 보인다. 구분자가 없으면 앞이 빈 글이다
  */
 export function pathSplitOf(rel: string): { readonly head: string; readonly tail: string } {
   const cut = Math.max(rel.lastIndexOf("/"), rel.lastIndexOf("\\"));
-  return cut === -1
-    ? { head: "", tail: rel }
-    : { head: rel.slice(0, cut + 1), tail: rel.slice(cut + 1) };
+  return cut === -1 ? { head: "", tail: rel } : { head: rel.slice(0, cut), tail: rel.slice(cut) };
 }
 
 /** 처음 펼쳐 두는 프로젝트 수(최근 활동 차례). 나머지는 머리 한 줄로 접혀 시작한다 [제안: 프로젝트 스무 개에서 머리가 한두 화면에 들게] */

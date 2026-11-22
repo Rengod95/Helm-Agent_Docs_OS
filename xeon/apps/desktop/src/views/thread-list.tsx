@@ -36,7 +36,12 @@ import { SIDE_ROW } from "./side-row.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
-import { NESTED_CHILD_ROW, NESTED_ROW, ProjectPanel } from "./project/project-panel.tsx";
+import {
+  FolderPath,
+  NESTED_CHILD_ROW,
+  NESTED_ROW,
+  ProjectPanel,
+} from "./project/project-panel.tsx";
 import { useProjects } from "./project/project-source.tsx";
 import {
   folderLabel,
@@ -118,7 +123,13 @@ function metaOf(
       return t("desktop.threads.forkedBadge");
     case null:
       // 프로젝트 패널의 최근 목록 꼴은 하위 폴더를 꼬리에 둔다(C10, m6Pj)
-      if (folder !== null) return <span data-row-folder="">{folder}</span>;
+      // 칸은 24 단계로 막아 제목이 먼저 보이고, 긴 경로는 가운데를 줄인다(마지막 폴더 이름은 남는다)
+      if (folder !== null)
+        return (
+          <span data-row-folder="" title={folder} className="flex max-w-24 min-w-0">
+            <FolderPath rel={folder} />
+          </span>
+        );
       // 제목 없는 대화는 서로 구분되도록 언제 만들었는지를 꼬리에 둔다
       return rowLabelOf(thread).dim
         ? relativeTimeText(relativeTimeOf(thread.createdAt, now))
