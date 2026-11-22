@@ -355,13 +355,9 @@ function ExtRow(props: { readonly row: RuntimeExtRowVM }): ReactNode {
           <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
         </span>
       </div>
-      <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-footnote text-text-tertiary">
-        <span className="font-mono">{row.name}</span>
-        <span aria-hidden>·</span>
-        <span>{row.layer}</span>
-        <span aria-hidden>·</span>
-        <span>{kindText(row.kind)}</span>
-        <span aria-hidden>·</span>
+      <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-x-2 text-footnote text-text-tertiary">
+        <span className="font-mono">{row.name}</span> <span>{row.layer}</span>{" "}
+        <span>{kindText(row.kind)}</span>{" "}
         <span>{t("desktop.runtime.exts.hooks", { count: row.hookCount })}</span>
       </p>
     </li>

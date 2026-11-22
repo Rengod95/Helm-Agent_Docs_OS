@@ -397,7 +397,7 @@ export interface PluginCard {
     readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
   };
   readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
-  readonly runs: { readonly code: boolean; readonly isolated: boolean | null; readonly narrowBeforeApproval?: true };  // isolated: 코드가 샌드박스 안에서 도는가. true는 Fresnel의 샌드박스 하나(열린 정책, 막는 것은 보호 셋뿐), 엔진 안의 내장만 false, 코드 없음은 null [결정: 2026-11-21, 사용자, AGE-63] // narrowBeforeApproval: 설정 `l0.sandbox.narrowDrafts`가 켜져 있어 승인 전(드래프트)에는 좁은 샌드박스에서 돈다. 켠 때만 있다(코드가 있는 격리 플러그인) [결정: 2026-11-22, 사용자, AGE-63]
+  readonly runs: { readonly code: boolean; readonly isolated: boolean | null; readonly narrowBeforeApproval?: true };  // isolated: 코드가 샌드박스 안에서 도는가. true는 Fresnel의 샌드박스 하나(열린 정책, 막는 것은 보호 셋뿐), 엔진 안의 내장만 false, 코드 없음은 null [결정: 2026-11-21, 사용자, AGE-63] // narrowBeforeApproval: 설정 `l0.sandbox.narrowDrafts`가 켜져 있어 승인 전(드래프트)에는 좁은 샌드박스에서 돈다. 켠 때만 있고, 코드가 격리 프로세스로 도는 플러그인과 환경 모드가 아닌 스크립트가 있는 플러그인(코드 없이 스크립트만 있어도)에 싣는다 [결정: 2026-11-22, 사용자, AGE-63]
   readonly cost: CostFigures;                                     // basis는 declared 또는 unknown. 숫자는 어림 토큰이다(아래 CostFigures)
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
@@ -416,7 +416,7 @@ export interface InjectInventory {
   readonly commands: readonly string[];
   readonly ui: readonly PluginUiDecl[];                           // 읽기 전용 계산값이라 저장 문자열 더하기 규칙에 걸리지 않는다
   readonly replaces: readonly string[];
-  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것이고 승인 카드(`ScriptCard.uses`)와 같은 값이다. 열린 정책의 스크립트(승인된 플러그인, 설정을 끈 승인 전 드래프트)는 `SCRIPT_USES` = `sandbox_full_access`·`user_environment`·`network`이다. 좁은 길(설정 `narrowDrafts`를 켠 승인 전 드래프트)은 `SCRIPT_NARROW_USES` = `system_tools`·`network`이다 [결정: 2026-11-21, 사용자, AGE-63; 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
+  readonly scripts?: readonly { readonly name: string; readonly launch: CardLaunch; readonly timeoutMs: number; readonly uses?: readonly ScriptUse[] }[]; // 이름(`scripts`, `ScriptUse`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"], 모양은 [제안, 설계 B] 선택 필드. 옛 카드도 파싱된다. `uses`는 승인하면 쓸 수 있는 것이고 승인 카드(`ScriptCard.uses`)와 같은 값이다. 열린 정책의 스크립트(승인된 플러그인, 설정을 끈 승인 전 드래프트)는 `SCRIPT_USES` = `sandbox_full_access`·`network`이다(자식 env가 허용 목록뿐이라 `user_environment`는 싣지 않는다. `user_environment`는 가져온 훅의 환경 모드에만 남는다) [결정: 2026-11-22, 사용자, AGE-63]. 좁은 길(설정 `narrowDrafts`를 켠 승인 전 드래프트)은 `SCRIPT_NARROW_USES` = `system_tools`·`network`이다 [결정: 2026-11-21, 사용자, AGE-63; 2026-11-19, 사용자, AGE-58 "1-다 2-가"]
 }
 export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
@@ -439,7 +439,7 @@ export type EvidenceRef =
 
 - 이름 [결정: 구현 중]: `UiDecl`은 `ui.ts`의 매니페스트 화면 블록과 겹치고 `SettingDef`는 설정 카탈로그와 겹쳐서 카드의 것은 `PluginUiDecl`, `PluginSettingDef`로 쓴다. Fold는 새 이름 없이 `hooks.ts`의 `Fold`(`"tap" | "first" | "chain" | "collect"`)를 쓴다(`HookFold`를 따로 두지 않는다).
 - `HookPosition`, `HookPower` [미결]: 코드에도 이 문서에도 정의가 없다. 이 문서가 참조하는 `F §4.1 HOOK_POSITIONS`는 이 문서에 없다. M5e 제안(`review/m5/hooks-core-boundary.md` 훅 위치 절)이 두 타입과 표를 낸다. 구현은 문자열 자리로 두고, 정의가 확정되면 같은 자리에서 바꾼다.
-- 스크립트 칸 [제안, 설계 B]: `InjectInventory.scripts`는 매니페스트 `scripts`마다 `{name, launch, timeoutMs}` 하나다(최대 64개). `launch`는 `CardLaunch`(= `CardMcpLaunch`, 같은 모양)다: `command`는 실행기 이름이나 절대 경로, `args`는 상대 `file`을 포함하고, `envNames`는 이름만, `cwd`는 null이다. `timeoutMs`는 정수 1~60000이고 선언이 없으면 10000이다. 검토 카드는 이 칸을 "승인하면 실행될 명령"으로 보인다(`review/m5/profile-project-loader.md` §3.1). 옛 카드는 `scripts`가 없어도 파싱된다.
+- 스크립트 칸 [제안, 설계 B]: `InjectInventory.scripts`는 매니페스트 `scripts`마다 `{name, launch, timeoutMs}` 하나다(최대 64개). `launch`는 `CardLaunch`(= `CardMcpLaunch`, 같은 모양)다: `command`는 실행기 이름이나 절대 경로, `args`는 상대 `file`을 포함하고, `envNames`는 이름만(환경 모드가 아닌 스크립트는 실제로 넘어가는 이름, 곧 허용 목록에 있고 토큰·키 이름이 아닌 것만), `cwd`는 null이다. 선언했지만 받지 못하는 이름은 `CardScript.envNotPassed`가 따로 싣는다(없으면 필드 없음) [결정: 2026-11-22, 사용자, AGE-63]. `timeoutMs`는 정수 1~60000이고 선언이 없으면 10000이다. 검토 카드는 이 칸을 "승인하면 실행될 명령"으로 보인다(`review/m5/profile-project-loader.md` §3.1). 옛 카드는 `scripts`가 없어도 파싱된다.
 - 카드 `review.state`(`approved | pending | draft | none`)는 검토 항목 상태(`pending | approved | sent_back | discarded | superseded | withdrawn`, wire `plugin-review.ts`)와 다른 집합이다.
 
 #### 3.1.4 플러그인 스크립트 (`plugin-script.ts`) [제안: 설계 B, `review/m5/drive-isolation.md` §3.2·§3.4]

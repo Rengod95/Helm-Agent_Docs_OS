@@ -157,7 +157,7 @@ describe("third round", () => {
   const DEV: ReviewDevSlot = {
     menu: (
       <button type="button" data-review-switcher="">
-        표본 · 실제 엔진
+        실제 엔진 표본
       </button>
     ),
     showSample: () => undefined,

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, realpath, stat } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { assertNever, attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import {
   isId,
@@ -30,10 +30,12 @@ import type {
 } from "@fresnel/contracts/services";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import {
+  editMembers,
   KIND_CATALOG,
   locateTemplateDirs,
   MANIFEST_PATH,
   packExtension,
+  readMembers,
   scaffoldExtension,
   validateCompositionReport,
   validateExtensionDir,
@@ -230,6 +232,35 @@ function findingBundleOf(read: M4PortDeps["findingsBundle"], ref: ContextRef): J
   const found = read(ref.findingId);
   if (!found.ok) return null;
   return toJsonValue(found.value.bundle) ?? null;
+}
+
+/** 실제 경로(심볼릭 링크를 푼 값). 폴더가 없으면 풀지 않은 절대 경로다 */
+async function realPathOf(path: string): Promise<string> {
+  const real = await realpath(path).then(
+    (value) => value,
+    () => null,
+  );
+  return real ?? resolve(path);
+}
+
+/** `inner`가 `outer`와 같거나 그 안에 있는가. 이름이 접두로만 같은 형제 폴더(`/a/bc`와 `/a/b`)는 안이 아니다 */
+function isInside(outer: string, inner: string): boolean {
+  const rel = relative(outer, inner);
+  return rel === "" || (rel.split(sep)[0] !== ".." && !isAbsolute(rel));
+}
+
+/**
+ * 설치본이나 저장소 안의 폴더인가. 구성원 편집은 원본 폴더에서만 한다(M5c §4.9.3). 설치본은 `<설정>/extensions/<이름>`,
+ * 검토본·후보·초안은 `<데이터>/plugin-store`(`reviewed/`, `candidates/`, `drafts/<id>/tree`) 아래에 있다
+ */
+async function storedCopyOf(deps: M4PortDeps, dir: string): Promise<boolean> {
+  const target = await realPathOf(dir);
+  const roots = [
+    deps.env.pluginStoreDir,
+    ...(deps.extUi === undefined ? [] : [deps.extUi.extensionsDir]),
+  ];
+  const resolved = await Promise.all(roots.map((root) => realPathOf(root)));
+  return resolved.some((root) => isInside(root, target));
 }
 
 const CRAFT_CONTEXT_MISSING: DevkitError = {
@@ -467,6 +498,19 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       const listed = await recordStore().list();
       return listed.ok ? ok({ tests: listed.value }) : err(storeFailureOf(listed.error));
     },
+    // 구성원 편집은 원본 폴더만 고친다. 설치본과 저장소 안의 폴더는 `denied`로 거절하고, 아무것도 쓰지 않는다.
+    // 설치도 승인도 `plugin.draft.create`도 부르지 않는다: 고친 폴더는 호출자가 다시 초안으로 만들어 검토를 다시 지난다
+    editMembers: async (input) => {
+      if (isAbsolute(input.dir) && (await storedCopyOf(deps, input.dir))) {
+        return err({
+          kind: "denied",
+          message:
+            "the folder is an installed or stored copy, not a source folder; edit the source folder instead",
+        });
+      }
+      return editMembers(input);
+    },
+    readMembers: (dir) => readMembers(dir),
     // 원본 폴더의 자리는 플러그인 서비스가 안다(`get`의 `source`: 없으면 null). 서비스의 `matchesReviewed`는 마지막 훑기의
     // 캐시라서 원본을 고친 뒤에는 낡는다. 그래서 다른지는 지금 폴더의 내용 해시와 검토본 해시(카드)를 대조해 정한다.
     // 번들이고 원본이 없으면 고칠 수 없다(`bundled_not_editable`)

@@ -80,7 +80,7 @@ describe("the chip tip names what is off and the cause", () => {
 
   test("a user-started safe mode gives the off list and the user cause", () => {
     expect(safeModeTipOf(SAFE)).toBe(
-      "꺼진 것: Drive 플러그인, 사용자·프로젝트 확장, X 훅. 원인: 설정에서 기본으로 켜 뒀어요",
+      "꺼진 것: Drive 플러그인, 사용자 확장과 프로젝트 확장, X 훅. 원인: 설정에서 기본으로 켜 뒀어요",
     );
   });
 
@@ -95,7 +95,7 @@ describe("the chip tip names what is off and the cause", () => {
 
   test("without a cause only the off list remains", () => {
     expect(safeModeTipOf({ ...SAFE, cause: null })).toBe(
-      "꺼진 것: Drive 플러그인, 사용자·프로젝트 확장, X 훅",
+      "꺼진 것: Drive 플러그인, 사용자 확장과 프로젝트 확장, X 훅",
     );
   });
 });

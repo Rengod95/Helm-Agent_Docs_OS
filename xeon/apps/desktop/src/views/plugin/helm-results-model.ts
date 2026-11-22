@@ -181,9 +181,15 @@ export function sourceTextOf(source: HelmSourceView, labels: HelmResultsLabels):
 }
 
 /** 목록 줄의 결과 글. 끝난 탐구는 결과와 발견 수를, 아직 끝나지 않은 탐구는 발견 수만 보인다 */
-export function captionOf(inquiry: InquirySummary, labels: HelmResultsLabels): string {
+export function captionOf(
+  inquiry: InquirySummary,
+  labels: HelmResultsLabels,
+): { readonly outcome: string | null; readonly count: string } {
   const count = labels.findingCount(inquiry.findingCount);
-  return inquiry.outcome === null ? count : `${labels.outcomes[inquiry.outcome]} · ${count}`;
+  return {
+    outcome: inquiry.outcome === null ? null : labels.outcomes[inquiry.outcome],
+    count,
+  };
 }
 
 /**

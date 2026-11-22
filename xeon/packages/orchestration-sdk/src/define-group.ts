@@ -3,28 +3,35 @@ import { checkOrchestrationName, ORCHESTRATION_NAME_PATTERN } from "@fresnel/con
 import { orchestrationOf } from "./util.ts";
 import {
   isOrchestrationExtension,
+  pluginsOf,
+  registrationIdOf,
   type CompositionDecl,
   validateManifest,
   type ExtensionEntry,
   type ExtensionManifest,
   type ManifestIssue,
+  type PluginDecl,
   type RegistrationDef,
+  type StateDecl,
 } from "@fresnel/contracts/extensions";
 import type { SettingDef, SettingGroup } from "@fresnel/contracts/settings";
-import { stateUpcasters } from "./state.ts";
+import { stateUpcasters, type StateMigrations } from "./state.ts";
 import type {
   OrchestrationDef,
   OrchestrationDefIssue,
   OrchestrationDefIssueCode,
   OrchestrationDefShape,
   OrchestrationManifest,
+  OrchestrationMember,
+  OrchestrationMemberDef,
+  OrchestrationMemberShape,
   OrchestrationModule,
   OrchestrationModuleSettings,
   OrchestrationSettingDefs,
   OrchestrationSettingNamespace,
   NoSettings,
 } from "./types.ts";
-import { realHostAccess, wrap } from "./wrap.ts";
+import { realHostAccess, wrap, type WrapDef } from "./wrap.ts";
 
 export type {
   OrchestrationApi,
@@ -33,12 +40,15 @@ export type {
   OrchestrationDefIssueCode,
   OrchestrationDefShape,
   OrchestrationManifest,
+  OrchestrationMember,
+  OrchestrationMemberDef,
+  OrchestrationMemberShape,
   OrchestrationModule,
   OrchestrationModuleSettings,
+  OrchestrationStartDriveResult,
   OrchestrationSettingDefs,
   OrchestrationSettingNamespace,
   OrchestrationSettingValues,
-  OrchestrationStartDriveResult,
   NoSettings,
   RunScriptOptions,
 } from "./types.ts";
@@ -56,8 +66,8 @@ function isOrchestrationManifest(manifest: ExtensionManifest): manifest is Orche
 }
 
 /**
- * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .fresnel-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
- * F validateManifest 오류, `group` 선언이나 L3 플러그인이 없으면 Bug를 던진다. 순수 함수
+ * 매니페스트 값을 검증해 OrchestrationManifest로 좁힌다. .fresnel-plugin/plugin.json을 JSON import로 읽은 외부 플러그인이 쓴다.
+ * F validateManifest 오류, `orchestration` 선언이나 L3 루트 플러그인이 없으면 Bug를 던진다. 순수 함수
  */
 export function orchestrationManifest(value: unknown): OrchestrationManifest {
   const result = validateManifest(value);
@@ -69,7 +79,7 @@ export function orchestrationManifest(value: unknown): OrchestrationManifest {
   }
   if (!isOrchestrationManifest(result.manifest)) {
     throw new Bug(
-      `orchestrationManifest: ${result.manifest.name} needs a group declaration and a root plugin with layer L3 (orchestration_missing)`,
+      `orchestrationManifest: ${result.manifest.name} needs an orchestration declaration and a root plugin with layer L3 (orchestration_missing)`,
     );
   }
   return result.manifest;
@@ -85,7 +95,110 @@ function issue(
   return { severity: "error", code, path, message };
 }
 
-/** 순수 함수. validateManifest(F) 결과와 그룹 규칙을 함께 돌려준다 */
+/**
+ * 구성원 플러그인 목록(plugins[] 순서). id가 있는 플러그인이고, `orchestration.members`가 있으면 그 안에 든 것만이다.
+ * 뿌리 플러그인(id 없음)은 구성원이 아니다
+ */
+function membersOf(
+  manifest: ExtensionManifest,
+): readonly { readonly id: string; readonly decl: PluginDecl }[] {
+  return pluginsOf(manifest).flatMap((entry) =>
+    entry.decl.id === undefined || !entry.inOrchestration
+      ? []
+      : [{ id: entry.decl.id, decl: entry.decl }],
+  );
+}
+
+/**
+ * 상태 선언 검사. 뿌리는 prefix가 ""이고 구성원은 "/members/<id>"다. 두 자리가 같은 규칙을 쓴다.
+ * state가 없는데 migrations가 있으면 `state_version`이다
+ */
+function stateIssuesOf(
+  prefix: string,
+  state: StateDecl<unknown> | undefined,
+  migrations: StateMigrations | undefined,
+): OrchestrationDefIssue[] {
+  if (state === undefined) {
+    return migrations === undefined
+      ? []
+      : [
+          issue(
+            "state_version",
+            `${prefix}/migrations`,
+            "migrations need a state declaration to migrate",
+          ),
+        ];
+  }
+  const found: OrchestrationDefIssue[] = [];
+  if (!Number.isInteger(state.version) || state.version < 1) {
+    found.push(
+      issue(
+        "state_version",
+        `${prefix}/state/version`,
+        "state.version must be an integer of 1 or more",
+      ),
+    );
+  } else {
+    for (let from = 1; from < state.version; from += 1) {
+      if (migrations?.[from] === undefined) {
+        found.push(
+          issue(
+            "state_migration_missing",
+            `${prefix}/migrations/${from}`,
+            `state.version is ${state.version} but migrations[${from}] is missing`,
+          ),
+        );
+      }
+    }
+  }
+  if (!parse(state.schema, state.initial).ok) {
+    found.push(
+      issue(
+        "state_initial_invalid",
+        `${prefix}/state/initial`,
+        "state.initial does not match state.schema",
+      ),
+    );
+  }
+  return found;
+}
+
+/**
+ * 구성원 검사. 정의의 키는 구성원 id여야 하고(member_unknown), 매니페스트가 선언한 구성원마다 정의가 있어야 한다(member_missing).
+ * 정의가 있는 구성원은 뿌리와 같은 상태 규칙을 받는다(경로 `/members/<id>/...`)
+ */
+function memberIssuesOf(
+  manifest: ExtensionManifest,
+  members: Readonly<Record<string, OrchestrationMemberShape>> | undefined,
+): OrchestrationDefIssue[] {
+  const declared = membersOf(manifest).map((member) => member.id);
+  const defined: Readonly<Record<string, OrchestrationMemberShape>> = members ?? {};
+  const found: OrchestrationDefIssue[] = [];
+  for (const [id, member] of Object.entries(defined)) {
+    const path = `/members/${id}`;
+    if (!declared.includes(id)) {
+      found.push(
+        issue("member_unknown", path, `member ${id} is not a member plugin of the manifest`),
+      );
+      continue;
+    }
+    found.push(...stateIssuesOf(path, member.state, member.migrations));
+  }
+  for (const id of declared) {
+    if (defined[id] === undefined) {
+      found.push(
+        issue(
+          "member_missing",
+          `/members/${id}`,
+          `member ${id} is declared in the manifest but has no definition in members`,
+        ),
+      );
+    }
+  }
+  return found;
+}
+
+/** 순수 함수. validateManifest(F) 결과와 플러그인 규칙을 함께 돌려준다 */
 export function validateOrchestrationDef(
   def: OrchestrationDefShape,
 ): readonly (OrchestrationDefIssue | ManifestIssue)[] {
@@ -111,7 +224,7 @@ export function validateOrchestrationDef(
       issue(
         "orchestration_missing",
         "/manifest/orchestration",
-        'a group manifest needs a group declaration and a root plugin (no id) with layer "L3"',
+        'an orchestration manifest needs an orchestration declaration and a root plugin (no id) with layer "L3"',
       ),
     );
   }
@@ -120,7 +233,7 @@ export function validateOrchestrationDef(
       issue(
         "orchestration_name",
         "/manifest/name",
-        `group name "${manifest.name}" must match ${ORCHESTRATION_NAME_PATTERN} and cannot be a reserved name`,
+        `plugin name "${manifest.name}" must match ${ORCHESTRATION_NAME_PATTERN} and cannot be a reserved name`,
       ),
     );
   }
@@ -138,41 +251,12 @@ export function validateOrchestrationDef(
     }
   }
 
-  const { state, migrations } = def;
-  if (state === undefined) {
-    if (migrations !== undefined) {
-      found.push(
-        issue("state_version", "/migrations", "migrations need a state declaration to migrate"),
-      );
-    }
-    return found;
-  }
-  if (!Number.isInteger(state.version) || state.version < 1) {
-    found.push(
-      issue("state_version", "/state/version", "state.version must be an integer of 1 or more"),
-    );
-  } else {
-    for (let from = 1; from < state.version; from += 1) {
-      if (migrations?.[from] === undefined) {
-        found.push(
-          issue(
-            "state_migration_missing",
-            `/migrations/${from}`,
-            `state.version is ${state.version} but migrations[${from}] is missing`,
-          ),
-        );
-      }
-    }
-  }
-  if (!parse(state.schema, state.initial).ok) {
-    found.push(
-      issue("state_initial_invalid", "/state/initial", "state.initial does not match state.schema"),
-    );
-  }
+  found.push(...stateIssuesOf("", def.state, def.migrations));
+  found.push(...memberIssuesOf(manifest, def.members));
   return found;
 }
 
-/** `def.composition`을 매니페스트 `group.composition`에 채운 사본. 선언이 없거나 `group`이 없으면 그대로다 */
+/** `def.composition`을 매니페스트 `orchestration.composition`에 채운 사본. 선언이 없거나 `orchestration`이 없으면 그대로다 */
 function withComposition(
   manifest: ExtensionManifest,
   composition: CompositionDecl | undefined,
@@ -181,15 +265,46 @@ function withComposition(
   return { ...manifest, orchestration: { ...manifest.orchestration, composition } };
 }
 
-/** defineOrchestration이 돌려준 객체. isGroupModule이 이 집합으로 판별한다 */
+/** defineOrchestration이 돌려준 객체. isOrchestrationModule이 이 집합으로 판별한다 */
 const builtGroups = new WeakSet<object>();
 
-/** value가 이 모듈 인스턴스의 defineOrchestration이 만든 GroupModule이면 참이다. 같은 모양의 손으로 쓴 객체는 거짓이다 */
+/** defineOrchestrationMember가 돌려준 값. defineOrchestration이 손으로 쓴 구성원을 가려낸다 */
+const builtMembers = new WeakSet<object>();
+
+/** value가 이 모듈 인스턴스의 defineOrchestration이 만든 OrchestrationModule이면 참이다. 같은 모양의 손으로 쓴 객체는 거짓이다 */
 export function isOrchestrationModule(value: unknown): value is OrchestrationModule {
   return typeof value === "object" && value !== null && builtGroups.has(value);
 }
 
-/** 정의를 검증하고 GroupModule을 만든다. 오류가 있으면 Bug를 던진다(§3.3). setup은 실행하지 않는다 */
+/**
+ * 구성원 정의를 만든다. 상태 선언과 setup을 감싸며 setup은 실행하지 않는다. 검사는 뿌리와 함께 `defineOrchestration`이 한다.
+ * 구성원의 상태는 자기 Registration에만 속하고, setup은 뿌리와 같은 OrchestrationApi를 받는다
+ */
+export function defineOrchestrationMember<S = never>(
+  def: OrchestrationMemberDef<S>,
+): OrchestrationMember {
+  const member: OrchestrationMember = {
+    ...(def.state === undefined ? {} : { state: def.state }),
+    ...(def.migrations === undefined ? {} : { migrations: def.migrations }),
+    mount: (register, registrationId, manifest, plugin) => {
+      const registrationDef: RegistrationDef<S> =
+        def.state === undefined ? {} : { state: def.state };
+      const wrapDef: WrapDef<S, NoSettings> = {
+        manifest,
+        plugin,
+        ...(def.state === undefined ? {} : { state: def.state }),
+        ...(def.migrations === undefined ? {} : { migrations: def.migrations }),
+      };
+      register(registrationId, registrationDef, (api) =>
+        def.setup(wrap(api, wrapDef, realHostAccess)),
+      );
+    },
+  };
+  builtMembers.add(member);
+  return member;
+}
+
+/** 정의를 검증하고 OrchestrationModule을 만든다. 오류가 있으면 Bug를 던진다(§3.3). setup은 실행하지 않는다 */
 export function defineOrchestration<
   S = never,
   const D extends OrchestrationSettingDefs = NoSettings,
@@ -200,16 +315,34 @@ export function defineOrchestration<
       `defineOrchestration(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
     );
   }
+  const members: Readonly<Record<string, OrchestrationMember>> = def.members ?? {};
+  if (!Object.values(members).every((member) => builtMembers.has(member))) {
+    throw new Bug(
+      `defineOrchestration(${def.manifest.name}): members must be made by defineOrchestrationMember`,
+    );
+  }
   // 구성 선언은 매니페스트 사본에 채운다(X-16). 매니페스트 상수 자체는 바꾸지 않는다
   const filled = withComposition(def.manifest, def.composition);
   if (!isOrchestrationManifest(filled)) {
-    throw new Bug(`defineOrchestration(${def.manifest.name}): manifest is not a group manifest`);
+    throw new Bug(
+      `defineOrchestration(${def.manifest.name}): manifest is not an orchestration manifest`,
+    );
   }
   const entry: ExtensionEntry = ({ register }) => {
     const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
     register(def.manifest.name, registrationDef, (api) =>
       def.setup(wrap(api, def, realHostAccess)),
     );
+    // 구성원은 뿌리 뒤에 plugins[] 순서로 등록한다. 정의가 없는 구성원은 검사가 막았다
+    for (const member of membersOf(filled)) {
+      const defined = members[member.id];
+      if (defined === undefined) {
+        throw new Bug(
+          `defineOrchestration(${def.manifest.name}): member ${member.id} has no definition`,
+        );
+      }
+      defined.mount(register, registrationIdOf(filled, member.id), filled, member.decl);
+    }
   };
   const version = def.state?.version ?? 0;
   const group: OrchestrationModule = {

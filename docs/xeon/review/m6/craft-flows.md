@@ -782,7 +782,7 @@ P1은 처음부터 보인다. P2는 보이지만 작다. P3은 선택(펼침, �
 | 맥락 칸(전체, 프로필 두 값, desktop-ux §4.9.3)과 검사기 설정 바인딩의 "이긴 범위" 표지(session, user, 프로필, 기본값, "<맥락>에서 덮어쓰기", §6.22.4 `settings.explain`) | 삭제. 프로필 하나가 답이고 값의 출처는 "프로필 값 / 플러그인 기본값 / 공통 묶음 / 관리자 잠금"으로 말한다(`enabledSource`, `blocks.applied.settings[].source`). 불만 N5. 맥락 칸 규칙이 desktop-ux 안에서 서로 어긋나 있다(§4.9.3 657행과 665행, §6.21의 옛 4값)는 이 대체로 함께 정리된다 | M5c §3.4 |
 | 플레이그라운드의 플러그인 켜기·끄기 스위치(`views/plugin/addons-screen.tsx` 상세, `plugin-card.tsx` 카드)와 Craft의 `ext-row.tsx` `ExtSwitch`, `selection-panel.tsx` | 삭제. 플러그인 화면을 보는 곳(P-18, 대화 영역 "플레이그라운드")은 남는다. 상세의 "플러그인 만들기"는 C1의 "새 플러그인"으로 간다 [제안, 사용자 결정 2026-11-04] | |
 | Test run 목록과 화면(`views/tests/`) | 테스트(C6)로 바꾼다. 일시정지·재개·한 단계 실행(`testRun.pause/resume/step`)과 목록은 남는다 | craft-flow §3.2 |
-| 구성기의 "새 그룹"과 구성 캔버스 | 폐기(플러그인 그룹 개념 없음). 만들기는 C7 | 용어 |
+| 구성기의 "새 그룹"과 구성 캔버스 | 폐기('그룹'이라는 이름만 없앴고 한 플러그인 안의 구성원은 남는다). 만들기는 C7 | 용어 |
 | 설치 확인과 제거 확인 대화 상자(`install-dialog`, `remove-dialog`) | 검토함으로 대체(`ext.install`, `ext.remove` 제거) | M5c §3.4 |
 | 옛 용어 | 2.2, 2.3 | |
 

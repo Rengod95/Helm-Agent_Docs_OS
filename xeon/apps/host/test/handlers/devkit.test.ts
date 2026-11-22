@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import type { KindEntry } from "@fresnel/contracts/services";
+import type {
+  KindEntry,
+  MemberInfo,
+  MemberOp,
+  MembersEditResult,
+} from "@fresnel/contracts/services";
 import { WireError } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
@@ -168,6 +173,8 @@ test("host.hello lists the authoring methods, the test run pair included, as fea
     "ext.validateComposition",
     "ext.test.run",
     "ext.test.list",
+    "ext.members.edit",
+    "ext.members.read",
   ])
     expect(names).toContain(name);
   // 설치와 지우기는 검토 흐름으로 대체되어 처리기가 없다(M5c §7.7)
@@ -278,5 +285,132 @@ test("ext.test.run maps the dev gate, an unknown target and a busy replay to inv
   });
   const io = await wireErrorOf(connection.request("ext.test.list", {}));
   expect(io.data).toMatchObject({ kind: "store.io" });
+  await connection.close();
+});
+
+const MEMBER: MemberInfo = {
+  id: "sync",
+  registrationId: "demo/sync",
+  title: null,
+  layer: "L3",
+  hooks: ["boundary.settle.after"],
+  drives: false,
+  defaultEnabled: false,
+  blockIds: [],
+};
+
+test("ext.members.edit and ext.members.read hand their params to the port and return its value", async () => {
+  const seen: unknown[] = [];
+  const edited: MembersEditResult = {
+    members: [MEMBER],
+    issues: [],
+    changedFiles: ["src/members/sync.ts", ".fresnel-plugin/plugin.json"],
+    entryWiring: "manual",
+  };
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        editMembers: (input) => {
+          seen.push(["edit", input]);
+          return Promise.resolve(ok(edited));
+        },
+        readMembers: (dir) => {
+          seen.push(["read", dir]);
+          return Promise.resolve(ok([MEMBER]));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const ops: MemberOp[] = [{ kind: "add", id: "sync", mode: "hook" }];
+  expect(await connection.request("ext.members.edit", { dir: "/d", ops })).toEqual(edited);
+  expect(await connection.request("ext.members.read", { dir: "/d" })).toEqual({
+    members: [MEMBER],
+  });
+  expect(seen).toEqual([
+    ["edit", { dir: "/d", ops }],
+    ["read", "/d"],
+  ]);
+  await connection.close();
+});
+
+test("ext.members.edit maps a refusal to invalidParams at /dir with its reasons, and an unknown error to store.io", async () => {
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        editMembers: (input) =>
+          Promise.resolve(
+            input.dir === "/installed"
+              ? err({ kind: "denied", message: "installed copy" })
+              : err({
+                  kind: "invalid_input",
+                  message: "plugins.json would not validate: plugin_id_invalid",
+                  reasons: [{ code: "plugin_id_invalid", field: "plugins/1/id" }],
+                }),
+          ),
+        readMembers: () => Promise.resolve(err({ kind: "io", message: "disk" })),
+      },
+    },
+  });
+  const connection = await open(host);
+  const denied = await wireErrorOf(
+    connection.request("ext.members.edit", {
+      dir: "/installed",
+      ops: [{ kind: "remove", id: "sync" }],
+    }),
+  );
+  expect(denied.data).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: { issues: [{ path: "/dir", message: "denied: installed copy" }] },
+  });
+  const invalid = await wireErrorOf(
+    connection.request("ext.members.edit", { dir: "/d", ops: [{ kind: "add", id: "sync" }] }),
+  );
+  expect(invalid.data).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: {
+      issues: [
+        {
+          path: "/dir",
+          message: "invalid_input: plugins.json would not validate: plugin_id_invalid",
+        },
+      ],
+      reasons: [{ code: "plugin_id_invalid", field: "plugins/1/id" }],
+    },
+  });
+  const io = await wireErrorOf(connection.request("ext.members.read", { dir: "/d" }));
+  expect(io.data).toMatchObject({ kind: "store.io" });
+  await connection.close();
+});
+
+test("ext.members.edit rejects an empty or oversized op list and an unknown op kind before the port runs", async () => {
+  const seen: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        editMembers: (input) => {
+          seen.push(input);
+          return Promise.resolve(err({ kind: "io", message: "not reached" }));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const remove: MemberOp = { kind: "remove", id: "aa" };
+  const empty: MemberOp[] = [];
+  const oversized: MemberOp[] = Array.from({ length: 33 }, () => remove);
+  // @ts-expect-error -- 알 수 없는 종류는 타입이 거절한다. 실행해도 스키마가 거절하는지 함께 본다(시험, TY-08)
+  const unknownKind: MemberOp[] = [{ kind: "replace", id: "aa" }];
+  const refusals = await Promise.all(
+    [empty, oversized, unknownKind].map((ops) =>
+      wireErrorOf(connection.request("ext.members.edit", { dir: "/d", ops })),
+    ),
+  );
+  expect(refusals.map((refused) => refused.data.kind)).toEqual([
+    "jsonrpc.invalidParams",
+    "jsonrpc.invalidParams",
+    "jsonrpc.invalidParams",
+  ]);
+  expect(seen).toEqual([]);
   await connection.close();
 });

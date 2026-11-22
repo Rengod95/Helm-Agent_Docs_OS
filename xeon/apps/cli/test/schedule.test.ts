@@ -206,7 +206,7 @@ const CREATE_ERRORS: readonly {
     kind: "invalid_trigger (watch path outside the app folders)",
     error: { kind: "invalid_trigger", reason: "watch_path_outside_roots" },
     stderr:
-      "fresnel: 감시 경로가 앱이 허용한 폴더(설정·데이터·상태 폴더) 밖에 있다\n  해결: --watch에는 설정·데이터·상태 폴더 안의 경로만 쓴다\n",
+      "fresnel: 감시 경로가 앱이 허용한 폴더(설정, 데이터, 상태 폴더) 밖에 있다\n  해결: --watch에는 설정, 데이터, 상태 폴더 안의 경로만 쓴다\n",
     code: EXIT.error,
   },
   {
@@ -420,7 +420,7 @@ test("run prints the run id and status of a remote entry; other kinds are refuse
   expect(await h.run(["schedule", "run", "sch_a1"])).toBe(EXIT.error);
   expect(h.stdoutText()).toBe("");
   expect(h.stderrText()).toBe(
-    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
+    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격 예약과 시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
   );
 
   h.stderr.length = 0;

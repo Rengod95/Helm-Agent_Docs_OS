@@ -115,11 +115,11 @@ function firstMatch(table: readonly (readonly [RegExp, string])[], text: string)
   return null;
 }
 
-/** 기본 기기 이름: "iPhone · Safari" 꼴(기기 · 브라우저). 사용자가 고칠 수 있다(64글자 이내) */
+/** 기본 기기 이름: "Safari on iPhone" 꼴(브라우저 on 기기). 사용자가 고칠 수 있다(64글자 이내) */
 export function defaultDeviceName(userAgent: string): string {
   const browser = firstMatch(BROWSERS, userAgent) ?? "Browser";
   const platform = firstMatch(PLATFORMS, userAgent);
-  const name = platform === null ? browser : `${platform} · ${browser}`;
+  const name = platform === null ? browser : `${browser} on ${platform}`;
   return name.slice(0, 64);
 }
 

@@ -1761,6 +1761,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         },
         configDir: deps.configDir,
         stateDir: deps.stateDir,
+        // 검토본·초안 저장소(`assemble.ts`의 `pluginStoreRoot`와 같다). 제작 포트가 이 폴더 안을 편집하지 않게 막는다
+        pluginStoreDir: join(deps.dataDir, "plugin-store"),
         secretNames: async () => {
           const listed = await deps.secrets.admin.ls({ usage: false });
           if (!listed.ok) return null;

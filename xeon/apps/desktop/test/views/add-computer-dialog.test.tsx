@@ -289,9 +289,8 @@ describe("check step over SSH", () => {
     );
     const markup = body(state);
     expect(markup).toContain('data-slot="version-mismatch"');
-    expect(markup).toContain(
-      t("desktop.connection.add.version.values", { local: "0.4.1", remote: "0.3.9" }),
-    );
+    expect(markup).toContain(t("desktop.connection.add.version.local", { local: "0.4.1" }));
+    expect(markup).toContain(t("desktop.connection.add.version.remote", { remote: "0.3.9" }));
     expect(markup).toContain(t("desktop.connection.add.version.fixRemote"));
   });
 

@@ -203,8 +203,9 @@ function Header(props: {
       meta={
         back === undefined ? (
           <>
-            <span className="min-w-0 truncate text-ui text-text-tertiary">
-              {entry.extension} · v{entry.version}
+            <span className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
+              <span className="min-w-0 truncate">{entry.extension}</span>{" "}
+              <span className="flex-none">{`v${entry.version}`}</span>
             </span>
             <span className="min-w-0 text-ui text-text-tertiary">
               {t(`client.view.confirm.trust.${trust}`)}

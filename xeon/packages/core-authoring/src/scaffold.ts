@@ -5,6 +5,7 @@ import type { ExtensionLayer } from "@fresnel/contracts/extensions";
 import type {
   DevkitError,
   KindEntry,
+  MemberOp,
   PluginMode,
   ScaffoldInput,
   ScaffoldResult,
@@ -12,10 +13,18 @@ import type {
 import { checkOrchestrationName } from "@fresnel/contracts/services";
 import { KIND_CATALOG } from "./catalog.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
+import {
+  ENTRY_PATH,
+  MEMBERS_GENERATED_PATH,
+  membersGeneratedText,
+  planMembers,
+} from "./members-plan.ts";
+import { isRecord, isSafeRelative } from "./shared.ts";
 import type { TemplateDirs } from "./templates-dir.ts";
 
 // L3.authoring.spec §3.3 `scaffold`. 템플릿을 복사하고 자리(`__ID__`, `__TITLE__`, `__VERSION__`)를 채운 뒤
-// 구성 초안(composition), Plugin UI 초안, 층을 매니페스트에 패치한다. 대상 폴더 밖에는 쓰지 않는다.
+// 구성 초안(composition), Plugin UI 초안, 층, 구성원을 매니페스트에 패치한다. 대상 폴더 밖에는 쓰지 않는다.
+// 구성원은 `editMembers`와 같은 계획 함수(members-plan.ts)로 더하므로 새 폴더가 곧바로 로드된다.
 
 export const DEFAULT_VERSION = "0.1.0";
 
@@ -34,11 +43,6 @@ function fill(text: string, values: { id: string; title: string; version: string
     .replaceAll("__ID__", values.id)
     .replaceAll("__TITLE__", values.title)
     .replaceAll("__VERSION__", values.version);
-}
-
-function isSafeRelative(path: string): boolean {
-  if (path === "" || path.startsWith("/") || path.includes("\\")) return false;
-  return path.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 }
 
 interface PlannedFile {
@@ -112,18 +116,22 @@ async function plannedTemplate(
   return readTemplateTree(root, names.value, (path) => path);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** 패치한 매니페스트 글, 구성원 코드 파일 목록(plugins[] 순서), 새 구성원의 기본 코드 파일 */
+interface Patched {
+  readonly text: string;
+  readonly coded: readonly string[];
+  readonly stubs: readonly PlannedFile[];
 }
 
-function patchManifest(text: string, input: ScaffoldInput): Result<string, DevkitError> {
+function patchManifest(text: string, input: ScaffoldInput): Result<Patched, DevkitError> {
+  const members = input.orchestration?.members ?? [];
   const wantsPatch =
     input.orchestration?.composition !== undefined ||
-    (input.orchestration?.members?.length ?? 0) > 0 ||
+    members.length > 0 ||
     input.ui !== undefined ||
     input.layer !== undefined;
   // 패치할 것이 없으면 템플릿 글자 그대로 둔다(`fresnel group new`와 같은 파일, spec §9 A-2)
-  if (!wantsPatch) return ok(text);
+  if (!wantsPatch) return ok({ text, coded: [], stubs: [] });
   const json = parseJson(text);
   if (!json.ok || !isRecord(json.value)) return err(invalid("template manifest is not an object"));
   const manifest: Record<string, unknown> = { ...json.value };
@@ -147,17 +155,31 @@ function patchManifest(text: string, input: ScaffoldInput): Result<string, Devki
     manifest["orchestration"] = { composition };
   }
   plugins[0] = patchedRoot;
-  for (const member of input.orchestration?.members ?? []) {
-    plugins.push({
-      id: member,
-      layer: "L3",
-      hooks: ["boundary.settle.after"],
-      defaultEnabled: false,
-    });
-  }
   manifest["plugins"] = plugins;
   if (input.ui !== undefined) manifest["ui"] = input.ui;
-  return ok(`${JSON.stringify(manifest, null, 2)}\n`);
+
+  // 구성원은 편집 명령(add)으로 더한다. 목록이 있어야 하므로 `members: []`로 시작해 차례로 밀어 넣는다
+  const existing = manifest["orchestration"];
+  const seeded: Record<string, unknown> =
+    members.length === 0
+      ? manifest
+      : { ...manifest, orchestration: { ...(isRecord(existing) ? existing : {}), members: [] } };
+  const planned = planMembers(
+    seeded,
+    new Set(),
+    members.map((id): MemberOp => ({ kind: "add", id })),
+  );
+  if (!planned.ok) return planned;
+  const stubs = planned.value.actions.flatMap((action): PlannedFile[] =>
+    action.kind === "write"
+      ? [{ path: action.path, bytes: new TextEncoder().encode(action.text) }]
+      : [],
+  );
+  return ok({
+    text: `${JSON.stringify(planned.value.manifest, null, 2)}\n`,
+    coded: planned.value.coded,
+    stubs,
+  });
 }
 
 const LAYERS_OF_SINGLE: ReadonlySet<ExtensionLayer> = new Set<ExtensionLayer>([
@@ -205,12 +227,16 @@ export async function scaffoldExtension(
     version: DEFAULT_VERSION,
   };
   const out: PlannedFile[] = [];
+  let coded: readonly string[] = [];
+  let stubs: readonly PlannedFile[] = [];
   for (const file of planned.value) {
     const path = fill(file.path, values);
     if (path === ".fresnel-plugin/plugin.json") {
       const patched = patchManifest(fill(new TextDecoder().decode(file.bytes), values), input);
       if (!patched.ok) return patched;
-      out.push({ path, bytes: new TextEncoder().encode(patched.value) });
+      out.push({ path, bytes: new TextEncoder().encode(patched.value.text) });
+      coded = patched.value.coded;
+      stubs = patched.value.stubs;
     } else if (/\.(json|ts|md)$/.test(path)) {
       out.push({
         path,
@@ -218,6 +244,13 @@ export async function scaffoldExtension(
       });
     } else out.push({ path, bytes: file.bytes });
   }
+  // 엔트리가 있는 뼈대나 코드 구성원이 있으면 생성 파일을 낸다. 엔트리 `src/index.ts`가 이 파일을 가져온다
+  if (out.some((file) => file.path === ENTRY_PATH) || coded.length > 0)
+    out.push({
+      path: MEMBERS_GENERATED_PATH,
+      bytes: new TextEncoder().encode(membersGeneratedText(coded)),
+    });
+  out.push(...stubs);
   const written = await mapAll(out, (file) => {
     const target = join(input.dir, file.path);
     return io(target, async () => {

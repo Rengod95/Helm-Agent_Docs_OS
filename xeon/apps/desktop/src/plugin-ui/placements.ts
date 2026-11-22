@@ -1,4 +1,4 @@
-import { activeLocale } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
 import { stripUnsafeText } from "@fresnel/client/views/app";
 import { extMessageOf } from "@fresnel/client/views/native";
 import type { Placement } from "@fresnel/contracts/extensions";
@@ -97,7 +97,10 @@ export function originTitleOf(entry: ExtUiEntry): string {
     extMessageOf(entry.messages, activeLocale(), entry.title),
     false,
   ).trim();
-  return `${entry.extension} · ${title === "" ? entry.id : title}`;
+  return t("desktop.plugin.originTitle", {
+    extension: entry.extension,
+    title: title === "" ? entry.id : title,
+  });
 }
 
 /**

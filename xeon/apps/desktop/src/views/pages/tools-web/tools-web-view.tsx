@@ -307,9 +307,9 @@ function Recommendations(props: { readonly items: readonly WebRecommendation[] }
     >
       <span>{t("desktop.tools.recommend.line")}</span>
       {pending.map((item) => (
-        <span key={item.providerId} className="inline-flex items-center gap-1">
-          <span className="font-medium text-text-secondary">{item.label}</span>
-          <span>· {t(recommendationStateIdOf(item.state))}</span>
+        <span key={item.providerId} className="inline-flex items-center gap-2">
+          <span className="font-medium text-text-secondary">{item.label}</span>{" "}
+          <span>{t(recommendationStateIdOf(item.state))}</span>
           {item.hint === "" ? null : <InfoTip text={item.hint} />}
         </span>
       ))}

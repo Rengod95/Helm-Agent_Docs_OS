@@ -186,15 +186,21 @@ export function ContextSection(props: {
                   <span className="text-title-1 leading-8 font-semibold text-text-primary">
                     {tokensText(focused === null ? breakdown.total : focused.total)}
                   </span>
-                  <span className="text-ui text-text-secondary">
-                    {focused === null
-                      ? t("desktop.craft.metrics.context.perTurnLong")
-                      : t("desktop.craft.metrics.context.perTurnFocus", {
-                          plugin: focused.plugin,
-                          share: percentText(
-                            breakdown.total === 0 ? 0 : focused.total / breakdown.total,
-                          ),
-                        })}
+                  <span className="inline-flex flex-wrap items-baseline gap-2 text-ui text-text-secondary">
+                    {focused === null ? (
+                      t("desktop.craft.metrics.context.perTurnLong")
+                    ) : (
+                      <>
+                        <span>{focused.plugin}</span>{" "}
+                        <span>
+                          {t("desktop.craft.metrics.context.perTurnFocus", {
+                            share: percentText(
+                              breakdown.total === 0 ? 0 : focused.total / breakdown.total,
+                            ),
+                          })}
+                        </span>
+                      </>
+                    )}
                   </span>
                   <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-ui-sm text-text-secondary">
                     {CONTEXT_PARTS.map((part) => (
@@ -365,7 +371,10 @@ export function TimeSection(props: { readonly data: MetricsData }): ReactNode {
                   {missing.map((b) => (
                     <li key={b.block} className="flex items-center gap-1.5">
                       <Swatch color="" hatch />
-                      {t(BLOCK_WORD[b.block])} · {cellText(b.cell, msText)}
+                      <span className="inline-flex items-baseline gap-2">
+                        <span>{t(BLOCK_WORD[b.block])}</span>{" "}
+                        <span>{cellText(b.cell, msText)}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>

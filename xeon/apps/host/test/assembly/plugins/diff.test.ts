@@ -182,9 +182,9 @@ const LINT = {
   runner: "sh",
   file: "scripts/lint.sh",
   args: ["--strict"],
-  envNames: ["ALPHA"],
+  envNames: ["TZ"],
 };
-const LINT_DETAIL = 'sh ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 10000ms]';
+const LINT_DETAIL = 'sh ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 10000ms]';
 
 test("a script the plugin adds or removes is an added or removed row with its command line and time limit", () => {
   const without = cardOf(PLAIN);
@@ -212,7 +212,7 @@ test("a script whose runner, file arguments, env names or time limit changed is 
     {
       row: "inject",
       what: "script:lint",
-      detail: `${LINT_DETAIL} → bash ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 10000ms]`,
+      detail: `${LINT_DETAIL} → bash ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 10000ms]`,
     },
   ]);
 
@@ -224,7 +224,7 @@ test("a script whose runner, file arguments, env names or time limit changed is 
 
   const envChanged = diffCards(
     prev,
-    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["ALPHA", "BETA"] }] }),
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["TZ", "LANG"] }] }),
   );
   expect(envChanged.changed.map((entry) => entry.what)).toEqual(["script:lint"]);
 
@@ -233,6 +233,6 @@ test("a script whose runner, file arguments, env names or time limit changed is 
     cardOf({ ...PLAIN, scripts: [{ ...LINT, timeoutMs: 60000 }] }),
   );
   expect(timeChanged.changed[0]?.detail).toBe(
-    `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 60000ms]`,
+    `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 60000ms]`,
   );
 });

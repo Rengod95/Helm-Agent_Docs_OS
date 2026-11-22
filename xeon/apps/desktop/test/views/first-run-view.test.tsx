@@ -78,7 +78,8 @@ function propsOf(over: Partial<FirstRunViewProps> = {}): FirstRunViewProps {
     modelChoices: [],
     keyEntry,
     notice: null,
-    engineState: "엔진 실행 중 · 연결됨",
+    engineState: "엔진 실행 중",
+    linkState: "연결됨",
     settingsProblem: null,
     handlers,
     ...over,
@@ -218,9 +219,10 @@ describe("first-run screen server render", () => {
     expect(page).toContain(t("desktop.firstRun.key.valueLabel"));
   });
 
-  test("the footer shows the engine line as given", () => {
-    const page = html(propsOf({ engineState: "엔진 실행 중 · 연결됨" }));
-    expect(page).toContain("엔진 실행 중 · 연결됨");
+  test("the footer shows the engine and link parts as given", () => {
+    const page = html(propsOf({ engineState: "엔진 실행 중", linkState: "연결됨" }));
+    expect(page).toContain("엔진 실행 중");
+    expect(page).toContain("연결됨");
   });
 
   test("a recommendation that is not installed or has no key offers the install help link, and a ready one offers nothing", () => {

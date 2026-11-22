@@ -10,16 +10,18 @@ import {
 
 describe("agentHeadOf", () => {
   test("joins the definition name and the first line of the task", () => {
-    expect(agentHeadOf({ agent: "explore", task: "폴더를 조사해\n둘째 줄" })).toBe(
-      "explore · 폴더를 조사해",
-    );
+    expect(agentHeadOf({ agent: "explore", task: "폴더를 조사해\n둘째 줄" })).toEqual([
+      "explore",
+      "폴더를 조사해",
+    ]);
   });
   test("a long task is clipped and a missing task leaves the name alone", () => {
-    expect(agentHeadOf({ agent: "general", task: "가".repeat(100) })).toBe(
-      `general · ${"가".repeat(80)}…`,
-    );
-    expect(agentHeadOf({ agent: "general" })).toBe("general");
-    expect(agentHeadOf(null)).toBe("");
+    expect(agentHeadOf({ agent: "general", task: "가".repeat(100) })).toEqual([
+      "general",
+      `${"가".repeat(80)}…`,
+    ]);
+    expect(agentHeadOf({ agent: "general" })).toEqual(["general"]);
+    expect(agentHeadOf(null)).toEqual([]);
   });
 });
 

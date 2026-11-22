@@ -18,7 +18,7 @@ import { MUTED, TabBody } from "../workbench/tab-body.tsx";
 import { SectionTitle } from "./measure-parts.tsx";
 import {
   cacheCodeText,
-  cacheDetailText,
+  cacheDetailPartsOf,
   cacheOwnerText,
   outcomeText,
   partText,
@@ -69,18 +69,20 @@ function PluginRows(props: {
               onClick={() => props.onFocus(active ? null : share.owner)}
             >
               <span className="font-mono text-text-primary">{share.owner}</span>
-              <span className="ms-auto text-text-tertiary tabular-nums">
-                {t(
-                  share.tokensEstimated
-                    ? "desktop.measure.turn.pluginRowEstimated"
-                    : "desktop.measure.turn.pluginRow",
-                  {
-                    ms: share.hookMs,
-                    tokens: share.tokens,
-                    problems: share.problems,
-                    cache: share.cacheEvents,
-                  },
-                )}
+              <span className="ms-auto flex flex-wrap items-baseline justify-end gap-2 text-text-tertiary tabular-nums">
+                <span>{t("desktop.measure.turn.pluginHooks", { ms: share.hookMs })}</span>{" "}
+                <span>
+                  {t(
+                    share.tokensEstimated
+                      ? "desktop.measure.turn.pluginSectionsEstimated"
+                      : "desktop.measure.turn.pluginSections",
+                    { tokens: share.tokens },
+                  )}
+                </span>{" "}
+                <span>
+                  {t("desktop.measure.turn.pluginFailures", { problems: share.problems })}
+                </span>{" "}
+                <span>{t("desktop.measure.turn.pluginCache", { cache: share.cacheEvents })}</span>
               </span>
             </Button>
           </li>
@@ -103,10 +105,13 @@ function PhaseRows(props: { readonly phases: readonly PhaseVM[] }): ReactNode {
             <span className="text-text-primary">
               {phase.kind === "wait"
                 ? t("desktop.measure.turn.phaseWait")
-                : t("desktop.measure.turn.phaseModel", { role: phase.role })}
+                : t("desktop.measure.turn.phaseModel")}
             </span>
             {phase.kind === "model" && (
-              <span className="font-mono text-text-secondary">{phase.model}</span>
+              <>
+                <span className="text-text-secondary">{phase.role}</span>{" "}
+                <span className="font-mono text-text-secondary">{phase.model}</span>
+              </>
             )}
             {phase.firstTokenMs !== null && (
               <span className="text-text-tertiary">
@@ -184,11 +189,11 @@ function Bar(props: { readonly bar: CompositionBarVM; readonly focus: string | n
         <span className="text-text-tertiary">
           {t("desktop.measure.turn.stepOf", { step: bar.step })}
         </span>
-        <span className="ms-auto tabular-nums text-text-primary">
-          {t("desktop.measure.turn.barTotal", {
-            total: numberText(bar.total),
-            tools: numberText(bar.tools),
-          })}
+        <span className="ms-auto flex flex-wrap items-baseline gap-2 tabular-nums text-text-primary">
+          <span>{t("desktop.measure.turn.barTotal", { total: numberText(bar.total) })}</span>{" "}
+          <span className="text-text-secondary">
+            {t("desktop.measure.turn.barTools", { tools: numberText(bar.tools) })}
+          </span>
         </span>
       </div>
       <div
@@ -227,12 +232,14 @@ function ReadyView(props: { readonly view: TurnViewVM }): ReactNode {
     <div className="grid gap-4 text-ui">
       {view.summary !== null && (
         <p className="m-0 flex flex-wrap gap-x-4 text-text-primary">
-          <span>
-            {t("desktop.measure.turn.summary", {
-              status: view.summary.status,
-              steps: view.summary.steps,
-              tokens: numberText(view.summary.totalTokens),
-            })}
+          <span className="flex flex-wrap items-baseline gap-2">
+            <span>{t("desktop.measure.turn.summaryStatus", { status: view.summary.status })}</span>{" "}
+            <span>{t("desktop.measure.turn.summarySteps", { steps: view.summary.steps })}</span>{" "}
+            <span>
+              {t("desktop.measure.turn.summaryTokens", {
+                tokens: numberText(view.summary.totalTokens),
+              })}
+            </span>
           </span>
           <span>{t("desktop.measure.turn.hookTotal", { ms: view.hookTotalMs })}</span>
         </p>
@@ -277,7 +284,11 @@ function ReadyView(props: { readonly view: TurnViewVM }): ReactNode {
                 </span>
                 <span className="text-text-primary">{cacheCodeText(event.code)}</span>
                 <span className="font-mono text-text-secondary">{cacheOwnerText(event.owner)}</span>
-                <span className="ms-auto text-text-tertiary">{cacheDetailText(event)}</span>
+                <span className="ms-auto flex flex-wrap items-baseline justify-end gap-2 text-text-tertiary">
+                  {cacheDetailPartsOf(event).map((part) => (
+                    <span key={part}>{part}</span>
+                  ))}
+                </span>
               </li>
             ))}
           </ul>

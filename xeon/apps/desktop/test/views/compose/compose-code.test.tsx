@@ -131,16 +131,17 @@ describe("ForwardStrip", () => {
 describe("CodeBlocks", () => {
   test("블록 줄은 id, 연산, 단계, 훅 이름으로 적는다", () => {
     expect(blockRowsOf(COMPOSITION).map(codeLineOf)).toEqual([
-      "detect · on · detect [tool.call.before]",
-      "drive · drive · machine",
+      ["detect", "on", "detect [tool.call.before]"],
+      ["drive", "drive", "machine"],
     ]);
   });
 
   test("블록마다 줄을 그리고 제목이 있으면 함께 보인다", () => {
     const html = renderToString(<CodeBlocks composition={COMPOSITION} />);
     expect(html).toContain('aria-label="블록"');
-    expect(html).toContain("detect · on · detect [tool.call.before]");
-    expect(html).toContain("drive · drive · machine");
+    expect(html).toContain("<span>on</span>");
+    expect(html).toContain("<span>detect [tool.call.before]</span>");
+    expect(html).toContain("<span>machine</span>");
     expect(html).toContain("신호 감지");
   });
 });

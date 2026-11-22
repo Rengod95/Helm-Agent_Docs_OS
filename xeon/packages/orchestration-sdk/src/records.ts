@@ -1,6 +1,7 @@
 import {
   RECORD_KIND_PATTERN,
   type ExtensionManifest,
+  type PluginDecl,
   type PostItem,
   type RecordKind,
 } from "@fresnel/contracts/extensions";
@@ -25,11 +26,13 @@ function ownPrefix(manifest: KindOwner): string {
 
 /**
  * `g.record`의 kind 검사(L3.group-sdk.spec §3.7). 순수 함수.
- * 다른 그룹 접두나 kind 형식 위반은 `record_invalid`, 자기 접두인데 매니페스트 recordKinds에 없으면 `record_kind_undeclared`다.
+ * `plugin`은 이 Registration의 플러그인 선언이다(구성원이면 그 구성원의 선언). 생략하면 뿌리 플러그인이다.
+ * 다른 플러그인 접두나 kind 형식 위반은 `record_invalid`, 자기 접두인데 그 선언의 recordKinds에 없으면 `record_kind_undeclared`다.
  */
 export function checkRecordKind(
   manifest: Pick<ExtensionManifest, "name" | "plugins">,
   kind: RecordKind,
+  plugin: Pick<PluginDecl, "recordKinds"> | undefined = orchestrationOf(manifest),
 ): RecordCheck {
   if (!kind.startsWith(ownPrefix(manifest)) || !KIND_REGEX.test(kind)) {
     return {
@@ -38,7 +41,7 @@ export function checkRecordKind(
       message: `record kind ${kind} is not under ${ownPrefix(manifest)}`,
     };
   }
-  if (orchestrationOf(manifest)?.recordKinds?.some((decl) => decl.kind === kind) !== true) {
+  if (plugin?.recordKinds?.some((decl) => decl.kind === kind) !== true) {
     return {
       ok: false,
       code: "record_kind_undeclared",
@@ -62,17 +65,18 @@ export function checkPostItem(manifest: KindOwner, item: PostItem): RecordCheck 
 }
 
 /**
- * 이 그룹에게 보여도 되는 kind인가(L3.group-sdk.spec §3.7 이벤트 격리 정책). 순수 함수.
- * 확장 kind(`grp.*`, `x.*`)는 자기 접두이거나 매니페스트 `readsRecordKinds`(끝의 `*`는 접두 일치)가 덮을 때만 참이다.
- * 코어 kind는 지점 페이로드로 넘어가는 것이라 항상 참이다.
+ * 이 Registration에게 보여도 되는 kind인가(L3.group-sdk.spec §3.7 이벤트 격리 정책). 순수 함수.
+ * 확장 kind(`grp.*`, `x.*`)는 자기 접두이거나 `plugin`의 `readsRecordKinds`(끝의 `*`는 접두 일치)가 덮을 때만 참이다.
+ * `plugin`을 생략하면 뿌리 플러그인이다. 코어 kind는 지점 페이로드로 넘어가는 것이라 항상 참이다.
  */
 export function kindVisibleTo(
   manifest: Pick<ExtensionManifest, "name" | "plugins">,
   kind: string,
+  plugin: Pick<PluginDecl, "readsRecordKinds"> | undefined = orchestrationOf(manifest),
 ): boolean {
   if (!kind.startsWith("grp.") && !kind.startsWith("x.")) return true;
   if (kind.startsWith(ownPrefix(manifest))) return true;
-  return (orchestrationOf(manifest)?.readsRecordKinds ?? []).some((declared) =>
+  return (plugin?.readsRecordKinds ?? []).some((declared) =>
     declared.endsWith("*") ? kind.startsWith(declared.slice(0, -1)) : declared === kind,
   );
 }

@@ -301,8 +301,10 @@ describe("question approval card", () => {
     expect(out).not.toContain(">답하기<");
     expect(out).toContain("거부");
     expect(out).toContain('data-slot="question-pager"');
-    expect(out).toContain('aria-label="질문 1 / 2 · Scope, 아직 답하지 않음"');
+    expect(out).toContain('aria-label="질문 1 / 2, Scope, 아직 답하지 않음"');
     expect(out).toContain('aria-label="질문 2 / 2, 아직 답하지 않음"');
+    // 보이는 툴팁은 쉼표나 가운뎃점이 아니라 줄로 나눈다(DP-226)
+    expect(out).toContain('title="질문 1 / 2\nScope\n아직 답하지 않음"');
     expect(out.match(/aria-current="step"/g)?.length).toBe(1);
   });
 
@@ -463,7 +465,7 @@ describe("review approval card", () => {
   test("shows the round, the file totals, each file's change and hunks, and the approve-all and deny buttons", () => {
     const out = html(reviewRequest);
     expect(out).toContain("라운드 1");
-    expect(out).toContain("파일 2 · hunk 6");
+    expect(out).toContain("파일 2개와 hunk 6개");
     expect(out).toContain("src/cache.ts");
     expect(out).toContain("hunk 4");
     expect(out).toContain("추가");

@@ -48,10 +48,18 @@ describe("설치 확인의 훅 목록", () => {
         ]}
       />,
     );
-    expect(html).toContain("도구 실행 전 · 막을 수 있어요");
-    expect(html).toContain("도구 결과를 받을 때 · 고칠 수 있어요");
-    expect(html).toContain("턴이 마무리된 뒤 · 보기만 해요");
-    expect(html).toContain("weird.hook · 알 수 없는 훅이에요");
+    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain(
+      "도구 실행 전 막을 수 있어요",
+    );
+    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain(
+      "도구 결과를 받을 때 고칠 수 있어요",
+    );
+    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain(
+      "턴이 마무리된 뒤 보기만 해요",
+    );
+    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain(
+      "weird.hook 알 수 없는 훅이에요",
+    );
     expect(html.match(/data-blocks-tools="true"/g)).toHaveLength(1);
   });
 });

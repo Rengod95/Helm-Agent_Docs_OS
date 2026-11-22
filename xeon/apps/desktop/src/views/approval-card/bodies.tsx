@@ -359,8 +359,15 @@ function QuestionField(props: {
   const { question, draft, disabled, onChange } = props;
   const pick = draft[question.id];
   const selected = pick?.selected ?? [];
-  const questionText =
-    question.header === undefined ? question.text : `${question.header} · ${question.text}`;
+  // 제목(header)과 질문 글은 따로 둔다. 제목은 흐린 글색으로 앞에 놓고 간격으로 가른다
+  const questionText: ReactNode =
+    question.header === undefined ? (
+      question.text
+    ) : (
+      <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
+        <span className="text-text-secondary">{question.header}</span> <span>{question.text}</span>
+      </span>
+    );
   const choose = (optionId: string): void => {
     onChange((prev) => togglePick(prev, question, optionId));
   };

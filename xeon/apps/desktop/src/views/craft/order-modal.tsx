@@ -4,7 +4,7 @@ import { t } from "@fresnel/client/i18n";
 import type { OrderWarning } from "@fresnel/client/workbench/canvas";
 import { assertNever } from "@fresnel/contracts";
 import { Alert, Button, Dialog } from "@caustic/react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { ReorderConfirm } from "./strata-flow.ts";
 
 type SkipReason = OrderWarning["skipped"][number]["reason"];
@@ -82,8 +82,14 @@ function WarningBody({ warning }: { readonly warning: OrderWarning }): ReactNode
                   })}
                 </span>
                 {s.by.length > 0 && (
-                  <span className="text-ui text-text-tertiary">
-                    {t("desktop.craft.strata.modal.skippedBy", { by: s.by.join(" · ") })}
+                  <span className="inline-flex flex-wrap items-baseline gap-2 text-ui text-text-tertiary">
+                    <span>{t("desktop.craft.strata.modal.skippedBy")}</span>
+                    {s.by.map((name) => (
+                      <Fragment key={name}>
+                        {" "}
+                        <span>{name}</span>
+                      </Fragment>
+                    ))}
                   </span>
                 )}
               </li>
@@ -114,7 +120,14 @@ function NameList(props: {
   return (
     <section className="grid gap-1.5">
       <h3 className="m-0 text-ui text-text-tertiary">{props.heading}</h3>
-      <p className="m-0 text-body text-text-primary">{props.names.join(" · ")}</p>
+      <p className="m-0 flex flex-wrap items-baseline gap-2 text-body text-text-primary">
+        {props.names.map((name, i) => (
+          <Fragment key={name}>
+            {i === 0 ? null : " "}
+            <span>{name}</span>
+          </Fragment>
+        ))}
+      </p>
     </section>
   );
 }

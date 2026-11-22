@@ -410,7 +410,7 @@ function BodyPane(props: { readonly view: ReviewOpenView }): ReactNode {
                   const tally = tallyOf(hunkIdsOf([file]), view.state.draft);
                   return (
                     <SelectOption key={file.path} value={file.path}>
-                      {`${CHANGE_LETTER[file.change]} ${file.path} · ${countOf(file, tally)}`}
+                      {fileOptionLabelOf(file, tally)}
                     </SelectOption>
                   );
                 })}
@@ -428,6 +428,27 @@ function BodyPane(props: { readonly view: ReviewOpenView }): ReactNode {
 function countOf(file: ReviewFile, tally: ReviewTally): string {
   if (file.hunks.length === 0) return "";
   return `${String(tally.approved + tally.rejected)}/${String(tally.total)}`;
+}
+
+/** 파일 고르기 줄: 변경 글자와 경로, 뒤에 결정 수를 괄호로 곁들인다(hunk가 없으면 경로만) */
+function fileOptionLabelOf(file: ReviewFile, tally: ReviewTally): string {
+  const label = `${CHANGE_LETTER[file.change]} ${file.path}`;
+  const count = countOf(file, tally);
+  return count === "" ? label : `${label} (${count})`;
+}
+
+/** 키 안내 줄. 말풍선에서 줄마다 하나씩 놓는다(키 글자 뒤에 뜻) */
+function keyHintsOf(): readonly string[] {
+  return [
+    t("desktop.review.key.file"),
+    t("desktop.review.key.hunk"),
+    t("desktop.review.key.approve"),
+    t("desktop.review.key.reject"),
+    t("desktop.review.key.comment"),
+    t("desktop.review.key.approveFile"),
+    t("desktop.review.key.submit"),
+    t("desktop.review.key.cancel"),
+  ];
 }
 
 function FileList(props: {
@@ -912,12 +933,10 @@ function Footer(props: {
   return (
     <footer className="flex min-h-11 flex-none flex-wrap items-center gap-x-3 gap-y-1 py-1">
       {ready ? (
-        <span className="text-ui tabular-nums text-text-primary">
-          {t("desktop.review.summary", {
-            approved: tally.approved,
-            rejected: tally.rejected,
-            pending: tally.pending,
-          })}
+        <span className="flex min-w-0 flex-wrap items-baseline gap-3 text-ui tabular-nums text-text-primary">
+          <span>{t("desktop.review.summary.pending", { pending: tally.pending })}</span>{" "}
+          <span>{t("desktop.review.summary.approved", { approved: tally.approved })}</span>{" "}
+          <span>{t("desktop.review.summary.rejected", { rejected: tally.rejected })}</span>
         </span>
       ) : null}
       {block === "pending" ? (
@@ -925,7 +944,7 @@ function Footer(props: {
           {t("desktop.review.submit.pending", { count: tally.pending })}
         </span>
       ) : null}
-      <InfoTip text={t("desktop.review.keys")} />
+      <InfoTip text={keyHintsOf()} />
       <span aria-hidden className="flex-1" />
       <label className="flex items-center gap-2 text-ui text-text-primary">
         <Checkbox

@@ -103,7 +103,7 @@ describe("osNoticeOf window, switches, and text", () => {
     ).toBeNull();
   });
 
-  test("the title is 'what · thread title' and the body is one fixed line per kind", () => {
+  test("the title is 'what (thread title)' and the body is one fixed line per kind", () => {
     expect(planOf({ notice: notice("approval_waiting") })).toEqual({
       category: "approval",
       title: t("desktop.osNotice.title", {

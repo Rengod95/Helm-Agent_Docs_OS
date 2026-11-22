@@ -101,10 +101,18 @@ function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): 
           <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
         </ListDescriptionRow>
         <ListDescriptionRow term={t("desktop.workbench.detail.grade")}>
-          {t("desktop.workbench.detail.grade.value", {
-            requested: entry.requestedGrade,
-            effective: entry.effectiveGrade,
-          })}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+            <span>
+              {t("desktop.workbench.detail.grade.requested", {
+                requested: entry.requestedGrade,
+              })}
+            </span>{" "}
+            <span className="text-text-tertiary">
+              {t("desktop.workbench.detail.grade.effective", {
+                effective: entry.effectiveGrade,
+              })}
+            </span>
+          </span>
         </ListDescriptionRow>
         {/* 기능 줄은 첫 줄에만 "Capabilities" 글을 단다. 나머지 줄은 글 없이 이어진다 */}
         {bindings.map((b, index) => (
@@ -434,8 +442,6 @@ export function ExtDetail(props: {
       rethrow,
     );
   }, [commands, entry.name, threadId]);
-  const statusText =
-    scope === null ? stateText(row.state) : `${stateText(row.state)} · ${scopeText(scope)}`;
   return (
     <article className="grid min-h-0 content-start gap-3 p-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -447,10 +453,20 @@ export function ExtDetail(props: {
           <DetailName row={row} />
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
             <span>{row.layer}</span>
-            <span>
-              {`${kindText(row.kind)}${entry.origin === undefined ? "" : ` · ${originText(entry.origin)}`} · ${row.version}`}
-            </span>
-            <StatusDot tone={stateTone(row.state)} label={statusText} />
+            <span>{kindText(row.kind)}</span>{" "}
+            {entry.origin === undefined ? null : (
+              <>
+                <span>{originText(entry.origin)}</span>{" "}
+              </>
+            )}
+            <span>{row.version}</span>
+            <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
+            {scope === null ? null : (
+              <>
+                {" "}
+                <span>{scopeText(scope)}</span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-none items-center gap-2">

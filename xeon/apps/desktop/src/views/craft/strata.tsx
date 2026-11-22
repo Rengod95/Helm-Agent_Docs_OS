@@ -491,16 +491,19 @@ function RowWarningLine({ line }: { readonly line: RowWarning }): ReactNode {
       className="inline-flex min-w-0 items-center gap-1.5 text-ui text-warning-text"
     >
       <TriangleAlert aria-hidden className="size-3.5 flex-none" />
-      {rowWarningText(line)}
+      <span className="inline-flex min-w-0 items-baseline gap-2">
+        <span>{firstWarningText(line)}</span>
+        {line.more > 0 ? (
+          <>
+            {" "}
+            <span className="flex-none">
+              {t("desktop.craft.strata.rowWarning.more", { count: line.more })}
+            </span>
+          </>
+        ) : null}
+      </span>
     </span>
   );
-}
-
-function rowWarningText(line: RowWarning): string {
-  const first = firstWarningText(line);
-  return line.more > 0
-    ? t("desktop.craft.strata.rowWarning.more", { line: first, count: line.more })
-    : first;
 }
 
 function firstWarningText(line: RowWarning): string {

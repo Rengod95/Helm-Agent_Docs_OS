@@ -276,7 +276,12 @@ function Empty(props: { readonly dev: ReviewDevSlot | null }): ReactNode {
 function KeysTip(): ReactNode {
   return (
     <InfoTip
-      text={t("desktop.craft.review.keys.hint")}
+      text={[
+        t("desktop.craft.review.keys.move"),
+        t("desktop.craft.review.keys.approve"),
+        t("desktop.craft.review.keys.reject"),
+        t("desktop.craft.review.keys.files"),
+      ]}
       label={t("desktop.craft.review.keys.label")}
     />
   );

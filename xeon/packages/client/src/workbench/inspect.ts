@@ -134,6 +134,8 @@ export interface InspectBlockVM {
   readonly stage: string;
   readonly op: string;
   readonly title: string | null;
+  /** 블록이 속한 구성원 id. 뿌리 플러그인의 블록이면 null */
+  readonly plugin: string | null;
 }
 
 /**
@@ -150,6 +152,7 @@ export function inspectCompositionOf(
     stage: block.stage,
     op: block.op,
     title: block.title ?? null,
+    plugin: block.plugin ?? null,
   }));
 }
 

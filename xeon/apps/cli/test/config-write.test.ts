@@ -116,7 +116,7 @@ test("a refused project write names the reason instead of listing allowed scopes
   });
   const failure = failureOfWire(caught);
   expect(failure.message).toBe(
-    "작업 폴더를 신뢰하지 않아 l4.cli.theme를 project·local 범위에 쓰거나 읽을 수 없다",
+    "작업 폴더를 신뢰하지 않아 l4.cli.theme를 project나 local 범위에 쓰거나 읽을 수 없다",
   );
   expect(failure.fix).toBe("`fresnel trust allow`로 이 작업 폴더를 신뢰한 뒤 다시 한다");
 });
