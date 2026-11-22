@@ -70,7 +70,8 @@ export type Decided =
 
 /**
  * 코드 실행 안내. 경고라 아이콘 뒤에 숨기지 않고 늘 보인다 [결정: AGE-14]. 세기는 토스트의 문법으로 가른다:
- * 가져온 훅이 사용자 권한으로 돌면 주의(warning), 샌드박스 안의 가져온 훅과 Fresnel에서 만든 스크립트는 정보(info)다
+ * 가져온 훅이 사용자 권한으로 돌면 주의(warning), 샌드박스 안의 가져온 훅과 Fresnel에서 만든 코드(열린 정책, 드래프트의 좁은 길)는 정보(info)다.
+ * 열린 정책의 문장은 엔진의 사실(AGE-63, `sandbox_full_access`)을 그대로 말한다: 셸 도구처럼 읽고 쓰고, 막는 것은 Fresnel 자신의 것과 막아 둔 경로와 도메인뿐이다
  */
 function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
   const notice = codeNoticeOf(props.card);
@@ -95,9 +96,16 @@ function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
       />
     );
   }
-  const extra: string[] = [t("desktop.craft.review.code.notice")];
-  if (notice.network) extra.push(t("desktop.craft.review.code.network"));
-  if (notice.systemTools) extra.push(t("desktop.craft.review.code.systemTools"));
+  const extra: string[] = [];
+  if (notice.mode === "open") {
+    // 격리되지 않은 내장 코드는 샌드박스 문장을 말하지 않는다(막는 것이 없다)
+    if (notice.isolated !== false) extra.push(t("desktop.craft.review.code.open"));
+    if (notice.userEnvironment) extra.push(t("desktop.craft.review.code.userEnv"));
+  } else {
+    extra.push(t("desktop.craft.review.code.narrow"));
+    if (notice.network) extra.push(t("desktop.craft.review.code.network"));
+    if (notice.systemTools) extra.push(t("desktop.craft.review.code.systemTools"));
+  }
   if (notice.usesUnknown) extra.push(t("desktop.craft.review.code.usesUnknown"));
   if (notice.isolated === false) extra.push(t("desktop.craft.review.code.notIsolated"));
   return (

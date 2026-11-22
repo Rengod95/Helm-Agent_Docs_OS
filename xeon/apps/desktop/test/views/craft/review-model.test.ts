@@ -106,7 +106,7 @@ describe("what runs when approved", () => {
         kind: "script",
         name: "check",
         command: "bash hooks/check.sh",
-        uses: ["system_tools"],
+        uses: ["sandbox_full_access", "user_environment", "network"],
         timeoutMs: 10_000,
         envNames: [],
         env: null,
@@ -114,14 +114,25 @@ describe("what runs when approved", () => {
     ]);
   });
 
-  test("the code notice adds system tools and network from the scripts' uses", () => {
+  test("the code notice reads the open policy from an approved script, and the narrow draft path with its uses", () => {
     expect(codeNoticeOf(LINT.card)).toEqual({
-      mode: "narrow",
+      mode: "open",
       isolated: true,
-      systemTools: true,
-      network: false,
+      systemTools: false,
+      network: true,
+      userEnvironment: true,
       usesUnknown: false,
     });
+    expect(codeNoticeOf(NOTES.card)).toEqual({
+      mode: "narrow",
+      isolated: null,
+      systemTools: true,
+      network: true,
+      userEnvironment: false,
+      usesUnknown: false,
+    });
+    // 드래프트 스크립트가 좁아도 플러그인 코드(entry)는 열린 정책이라 가장 넓은 쪽을 말한다
+    expect(codeNoticeOf(DRIVE.card)?.mode).toBe("open");
     expect(codeNoticeOf(RULE.card)).toBeNull();
   });
 
@@ -401,7 +412,7 @@ describe("fourth round (m6R4)", () => {
   test("the code notice tells your-permissions apart from the sandbox setting and from Fresnel-made scripts", () => {
     expect(
       [LINT, FETCH, IMPORTED, IMPORTED_BOX].map((item) => codeNoticeOf(item.card)?.mode),
-    ).toEqual(["narrow", "narrow", "userFull", "sandboxed"]);
+    ).toEqual(["open", "open", "userFull", "sandboxed"]);
   });
 
   test("who keeps it: engine-enforced, an observe-only hook the engine runs, or the model's call", () => {

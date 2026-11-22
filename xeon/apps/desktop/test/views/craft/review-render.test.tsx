@@ -316,7 +316,23 @@ describe("fourth round (m6R4)", () => {
     for (const chip of [">넓은 읽기<", ">프로젝트에 쓰기<"]) expect(BOXED).toContain(chip);
     expect(BOXED).toContain("어떤 파일을 읽는지 알 수 없어요");
     expect(BOXED).toContain("이 기기에서 찾지 못한 실행 파일이에요: ruff.");
-    expect(LINT_HTML).toContain("자기 폴더 밖의 파일은 읽거나 쓸 수 없어요.");
+  });
+
+  test("the code notice says what the engine does (AGE-63): an approved script reads and writes like the shell tool, a draft runs narrow", () => {
+    expect(LINT_HTML).toContain(
+      "셸 도구처럼 파일을 읽고 쓰고, 시스템 도구와 네트워크를 써요. 막히는 것은 Fresnel 자신의 데이터, 당신이 막아 둔 경로와 도메인뿐이에요. 당신의 환경 변수도 받아요. Fresnel 내부 값만 빠져요.",
+    );
+    expect(LINT_HTML).not.toContain("자기 폴더 밖의 파일은");
+    for (const chip of [">파일 읽고 쓰기<", ">환경 변수<", ">네트워크<"])
+      expect(LINT_HTML).toContain(chip);
+    expect(LINT_HTML).not.toContain(">넓은 읽기<");
+    const notes = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_notes")));
+    expect(notes).toContain(
+      "승인 전 드래프트라 좁게 돌아요. 자기 폴더만 읽고, 파일을 쓰지 못해요. 네트워크를 쓸 수 있어요. 시스템 도구(/bin, /usr/bin)를 실행할 수 있어요.",
+    );
+    expect(notes).not.toContain("셸 도구처럼");
+    expect(notes).not.toContain(">파일 읽고 쓰기<");
+    expect(HELPER).toContain("셸 도구처럼 파일을 읽고 쓰고");
   });
 
   test("an observe-only hook is not the model's call: the chip says the engine watches", () => {

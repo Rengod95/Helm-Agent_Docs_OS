@@ -2,6 +2,8 @@ import { ok } from "@fresnel/contracts";
 import {
   SCRIPT_ENV_SANDBOXED_USES,
   SCRIPT_ENV_USES,
+  SCRIPT_NARROW_USES,
+  SCRIPT_USES,
   type InjectInventory,
   type PluginCard,
 } from "@fresnel/contracts/extensions";
@@ -401,7 +403,8 @@ export function sampleItems(): readonly ReviewItem[] {
                 name: "check",
                 launch: { command: "bash", args: ["hooks/check.sh"], envNames: [], cwd: null },
                 timeoutMs: 10_000,
-                uses: ["system_tools"],
+                // 승인된 플러그인의 스크립트: 열린 정책(AGE-63)
+                uses: SCRIPT_USES,
               },
             ],
           }),
@@ -458,7 +461,7 @@ export function sampleItems(): readonly ReviewItem[] {
                 name: "warm-cache",
                 launch: { command: "bun", args: ["scripts/warm.ts"], envNames: [], cwd: null },
                 timeoutMs: 30_000,
-                uses: ["network"],
+                uses: SCRIPT_USES,
               },
             ],
           }),
@@ -514,7 +517,8 @@ export function sampleItems(): readonly ReviewItem[] {
                   cwd: null,
                 },
                 timeoutMs: 15_000,
-                uses: ["system_tools", "network"],
+                // 승인 전 드래프트의 스크립트, 설정 `l0.sandbox.narrowDrafts`를 켠 때의 좁은 길(AGE-63). 플러그인 코드(drive.ts)는 그래도 열린 정책이라 안내는 열린 쪽을 말한다
+                uses: SCRIPT_NARROW_USES,
               },
             ],
           }),
@@ -540,6 +544,20 @@ export function sampleItems(): readonly ReviewItem[] {
               always: [],
               skills: [{ name: "release-notes", path: "SKILL.md", descriptionChars: 28 }],
             },
+            scripts: [
+              {
+                name: "commits-since-tag",
+                launch: {
+                  command: "sh",
+                  args: ["-c", "git log --oneline $(git describe --tags --abbrev=0)..HEAD"],
+                  envNames: [],
+                  cwd: null,
+                },
+                timeoutMs: 10_000,
+                // 플러그인 코드 없이 스크립트만 있는 승인 전 드래프트: 설정 `l0.sandbox.narrowDrafts`를 켜면 좁은 길로 돈다(AGE-63)
+                uses: SCRIPT_NARROW_USES,
+              },
+            ],
           }),
           hook: null,
           drive: null,

@@ -479,8 +479,8 @@ function AboutSection(props: { readonly card: PluginCard }): ReactNode {
 // ── 승인하면 실행될 것 ────────────────────────────────────────────────
 
 const USE_WORD: Readonly<Record<ScriptUse, MessageId>> = {
-  // [임시, AGE-63 엔진 값] 열린 정책의 새 값. 화면 담당이 전용 문구로 바꾼다. 지금은 가장 가까운 기존 문구다
-  sandbox_full_access: "desktop.craft.review.run.usesReadWide",
+  // 열린 정책(AGE-63): 셸 도구처럼 파일을 읽고 쓴다. "넓은 읽기"(가져온 훅의 샌드박스 설정, 쓰기는 프로젝트만)와 다른 값이다
+  sandbox_full_access: "desktop.craft.review.run.usesFullAccess",
   system_tools: "desktop.craft.review.run.usesSystemTools",
   network: "desktop.craft.review.run.usesNetwork",
   user_full_access: "desktop.craft.review.run.usesUserFull",
