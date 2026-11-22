@@ -4231,6 +4231,7 @@
   "desktop.craft.review.run.httpServer": "원격 서버라 이 컴퓨터에서 실행하는 것은 없어요",
   "desktop.craft.review.run.timeout": "{seconds}초 제한",
   "desktop.craft.review.run.env": "환경 변수 {names}",
+  "desktop.craft.review.run.envNotPassed": "선언했지만 받지 못하는 환경 변수 {names}",
   "desktop.craft.review.run.usesNetwork": "네트워크",
   "desktop.craft.review.run.usesSystemTools": "시스템 도구",
   "desktop.craft.review.run.none": "코드는 실행하지 않아요. 지침과 설명만 모델에 실려요.",
