@@ -11,7 +11,7 @@ import {
   ListDescriptionRow,
   MessageCode,
 } from "@caustic/react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   QUESTION_TEXT_MAX,
   REVIEW_CHANGE_ID,
@@ -36,6 +36,7 @@ import {
   type ToolReplaceView,
 } from "../approval-form.ts";
 import { reviewTotalsOf, ruleTextIdOf } from "./card-model.ts";
+import { questionPagedOf } from "./question-pages.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
 import { Collapse } from "../../lib/motion-presets.tsx";
 import { InfoTip } from "../craft/info-tip.tsx";
@@ -352,12 +353,21 @@ function QuestionField(props: {
   readonly draft: QuestionDraft;
   readonly disabled: boolean;
   readonly onChange: (next: (prev: QuestionDraft) => QuestionDraft) => void;
+  /** 포인터로 눌러 선택을 새로 만들었을 때(해제가 아니고, 화살표 키로 옮긴 것이 아님). 저절로 넘김을 정한다 */
+  readonly onPointerPick: () => void;
 }): ReactNode {
   const { question, draft, disabled, onChange } = props;
   const pick = draft[question.id];
   const selected = pick?.selected ?? [];
-  const questionText =
-    question.header === undefined ? question.text : `${question.header} · ${question.text}`;
+  // 제목(header)과 질문 글은 따로 둔다. 제목은 흐린 글색으로 앞에 놓고 간격으로 가른다
+  const questionText: ReactNode =
+    question.header === undefined ? (
+      question.text
+    ) : (
+      <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
+        <span className="text-text-secondary">{question.header}</span> <span>{question.text}</span>
+      </span>
+    );
   const choose = (optionId: string): void => {
     onChange((prev) => togglePick(prev, question, optionId));
   };
@@ -396,7 +406,10 @@ function QuestionField(props: {
               onClick={(event) => {
                 // 선택 상태는 draft가 정한다. 그래서 기본 선택 동작을 막고 토글만 한다
                 event.preventDefault();
+                const was = selected.includes(option.id);
                 choose(option.id);
+                // detail 0은 글쇠(Space·Enter)로 누른 것이다. 포인터 누름만 저절로 넘김의 대상이다
+                if (!was && event.detail > 0) props.onPointerPick();
               }}
             />
           ))}
@@ -421,24 +434,91 @@ function QuestionField(props: {
   );
 }
 
+/** 새로 보인 질문에서 초점을 둘 곳: 고른 선택지, 없으면 첫 선택지, 선택지가 없으면 입력 칸 */
+function firstFieldOf(page: HTMLElement): HTMLElement | null {
+  const chosen = page.querySelector<HTMLElement>(
+    '[role="radio"][aria-checked="true"], [role="checkbox"][aria-checked="true"]',
+  );
+  if (chosen !== null) return chosen;
+  return page.querySelector<HTMLElement>('[role="radio"], [role="checkbox"], input');
+}
+
+/**
+ * 질문 본문(DP-224). 질문이 둘 이상이면 모든 질문을 한 칸에 겹쳐 두고 지금 질문만 보인다: 카드 높이는 가장 긴 질문의 높이로 고정되어
+ * 넘길 때 출렁이지 않는다. 보이지 않는 질문은 `inert`라 초점과 화면 낭독에서 빠진다. 넘김은 150ms 옆으로 8px 미끄러지는 교차 전환이고(들어오는 질문은 바로 보이게 되어 초점을 받을 수 있고, 나가는 질문만 전환이 끝난 뒤 숨는다)
+ * 움직임 줄이기(앱 설정·운영체제)면 바로 바뀐다. `focusTick`이 바뀌면(사용자가 넘김) 새 질문의 첫 선택지로 초점을 옮긴다
+ */
 export function QuestionBody(props: {
   readonly questions: readonly QuestionItem[];
   readonly draft: QuestionDraft;
   readonly disabled: boolean;
   readonly onChange: (next: (prev: QuestionDraft) => QuestionDraft) => void;
+  /** 지금 보이는 질문(범위 안으로 맞춘 값) */
+  readonly page: number;
+  /** 사용자가 넘길 때마다 오르는 수. 처음 그릴 때는 초점을 옮기지 않는다 */
+  readonly focusTick: number;
+  readonly onPointerPick: (index: number) => void;
 }): ReactNode {
+  const { questions, page } = props;
+  const paged = questionPagedOf(questions.length);
+  const pages = useRef<HTMLDivElement | null>(null);
+  const tick = useRef(props.focusTick);
+  useEffect(() => {
+    if (tick.current === props.focusTick) return;
+    tick.current = props.focusTick;
+    const current = pages.current?.querySelector<HTMLElement>('[data-question-page="current"]');
+    if (current === null || current === undefined) return;
+    firstFieldOf(current)?.focus({ preventScroll: true });
+  }, [props.focusTick]);
+  if (!paged) {
+    return (
+      <>
+        {questions.map((question, index) => (
+          <QuestionField
+            key={question.id}
+            question={question}
+            draft={props.draft}
+            disabled={props.disabled}
+            onChange={props.onChange}
+            onPointerPick={() => {
+              props.onPointerPick(index);
+            }}
+          />
+        ))}
+      </>
+    );
+  }
   return (
-    <>
-      {props.questions.map((question) => (
-        <QuestionField
-          key={question.id}
-          question={question}
-          draft={props.draft}
-          disabled={props.disabled}
-          onChange={props.onChange}
-        />
-      ))}
-    </>
+    <div ref={pages} data-slot="question-pages" className="grid min-w-0">
+      {questions.map((question, index) => {
+        const side = index < page ? "before" : index > page ? "after" : "current";
+        const shown = side === "current";
+        return (
+          <div
+            key={question.id}
+            role="group"
+            aria-label={t("desktop.approvals.question.position", {
+              n: index + 1,
+              total: questions.length,
+            })}
+            aria-hidden={shown ? undefined : true}
+            inert={!shown}
+            data-question-page={side}
+            className="min-w-0 transition-[opacity,translate,visibility] duration-150 ease-out [grid-area:1/1] motion-reduce:transition-none data-[question-page=current]:transition-[opacity,translate] data-[question-page=after]:invisible data-[question-page=after]:translate-x-2 data-[question-page=after]:opacity-0 data-[question-page=before]:invisible data-[question-page=before]:-translate-x-2 data-[question-page=before]:opacity-0"
+          >
+            <QuestionField
+              question={question}
+              draft={props.draft}
+              disabled={props.disabled}
+              onChange={props.onChange}
+              onPointerPick={() => {
+                props.onPointerPick(index);
+              }}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

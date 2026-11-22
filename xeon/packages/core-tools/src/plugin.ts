@@ -84,6 +84,8 @@ export interface ToolsPluginOptions {
   readonly draftOf?: (scopeId: RegistrationId) => DraftMark | undefined;
   /** 호출한 대화가 드래프트 승인 `auto`인가(`ToolsDeps.draftAutoApproved`). 생략하면 모든 대화가 `ask`다 */
   readonly draftAutoApproved?: (threadId: ThreadId) => boolean;
+  /** 대화가 보는 도구 이름 규칙(`ToolsDeps.exposureOf`). 생략하면 `perThread` 도구가 모두 요청한 이름으로 보인다 */
+  readonly exposureOf?: ToolsDeps["exposureOf"];
   readonly loadIndex?: number;
 }
 
@@ -181,6 +183,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         ...(options.draftAutoApproved === undefined
           ? {}
           : { draftAutoApproved: options.draftAutoApproved }),
+        ...(options.exposureOf === undefined ? {} : { exposureOf: options.exposureOf }),
         capabilityDefs: [
           ...BUILTIN_CAPABILITIES,
           ...(options.capabilities ?? []),

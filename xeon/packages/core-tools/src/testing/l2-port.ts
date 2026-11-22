@@ -142,10 +142,6 @@ export function l2ApprovalsPort(
     cancel(_threadId: ThreadId, approvalId: ApprovalId, reason: string) {
       return approvals.cancel(approvalId, reason);
     },
-    async remembered(threadId, ruleId) {
-      const found = await approvals.remembered?.(threadId, ruleId);
-      return found?.ok === true && found.value;
-    },
     async wait(_threadId: ThreadId, approvalId: ApprovalId, signal: AbortSignal) {
       const waited = await approvals.wait(approvalId, signal);
       if (!waited.ok) return err({ kind: "cancelled" as const });

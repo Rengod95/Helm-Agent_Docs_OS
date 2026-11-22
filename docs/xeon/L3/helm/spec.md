@@ -5,14 +5,14 @@ domain: helm
 kind: spec
 status: draft
 depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.conversation.spec, X.primitives.spec, L3.group-sdk.spec, L3.slots.spec, L2.web.spec, L2.knowledge.spec, L2.work.spec, L1.agents.spec, L1.tools.spec, adr.0013, adr.0015, adr.0017, X.loading-trust.spec, eng.typescript.guide, product.usecases.spec, review.m3-design-inputs]
-binds: [xeon/packages/group-helm/**]
+binds: [xeon/packages/plugin-helm/**]
 ---
 
-# L3 Helm 그룹 (helm)
+# L3 Helm 플러그인 (helm)
 
-패키지: `@fresnel/group-helm`(`xeon/packages/group-helm`). 플러그인 그룹 이름(`ExtensionName`, 루트 플러그인의 Registration id): `helm`.
+패키지: `@fresnel/plugin-helm`(`xeon/packages/plugin-helm`). 플러그인 이름(`ExtensionName`, 루트 플러그인의 Registration id): `helm`.
 
-M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 이 판은 M3 설계 단계 입력(`review.m3-design-inputs` §4.1 H-IN-01~17)에 답하고, ADR-0015(효과 목록 C안)와 도구 메타(G1-05, `review.m3-plan` M3-02)를 반영한다. 2026-10-26 사용자 결정(`review.m3-design-inputs` §3 D-M3-01·05·06·07·11·17)을 반영했다. Helm은 L3 기본 플러그인 그룹이다 [결정: review.m3-design-inputs D-M3-01].
+M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 이 판은 M3 설계 단계 입력(`review.m3-design-inputs` §4.1 H-IN-01~17)에 답하고, ADR-0015(효과 목록 C안)와 도구 메타(G1-05, `review.m3-plan` M3-02)를 반영한다. 2026-10-26 사용자 결정(`review.m3-design-inputs` §3 D-M3-01·05·06·07·11·17)을 반영했다. Helm은 L3 기본 플러그인이다 [결정: review.m3-design-inputs D-M3-01].
 
 ## 1. 목적과 범위
 
@@ -48,27 +48,27 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 - 쓰기 판정 입력(도구 메타 `risk`, `hints`, `caller`, §4.6)
 - Helm이 내는 효과마다 ADR-0015 효과 등급과 멱등 키(§4.11)
 - 실패 값(`HelmFailure`)의 kind와 처리 규칙(§3.12, §4.12)
-- group-sdk과 slots 위의 그룹 구조(§3.11)
+- orchestration-sdk과 slots 위의 플러그인 구조(§3.11)
 - 실패 처리와 수용 기준
 
 다루지 않는 것(2차 이후):
 
-- 모델이 렌즈를 제안하는 경로(그룹 전용 도구), 다회 라운드와 종료 판정 모델(§10 미결 6, 7)
+- 모델이 렌즈를 제안하는 경로(플러그인 전용 도구), 다회 라운드와 종료 판정 모델(§10 미결 6, 7)
 - 신호 임계의 설정 노출(§10 미결 8)
 - 단계별 프롬프트 문구 본문(§4.4는 구조만 정한다. 문구는 구현 작업 H-07에서 쓰고 테스트는 문구에 기대지 않는다)
 - explorer 서브에이전트의 정의 본문(프롬프트). 도구 목록의 상한은 §4.6에 둔다. 형식은 L1.agents.spec
 
 다루지 않는 것(다른 문서 소유):
 
-- drive 락 주도 시작과 상한 집행: `X.primitives.spec`(주도 시작 계기 셋, drive-isolation.md 2.2). 그룹 전환 명령 `/group …`: `L3.group-sdk.spec`
+- drive 락 주도 시작과 상한 집행: `X.primitives.spec`(주도 시작 계기 셋, drive-isolation.md 2.2). 플러그인 전환 명령 `/group …`: `L3.group-sdk.spec`
 - 서브에이전트 실행: `L1.agents.spec`. 웹·지식·작업 기능의 구현: `L2.web.spec`, `L2.knowledge.spec`, `L2.work.spec`
-- 학습 그룹의 정책: `L3.learning.spec`
+- 학습 플러그인의 정책: `L3.learning.spec`
 
 ### 1.1 M3 세부 설계에서 바꾼 것
 
 | 항목 | 이전 판 | 이 판 | 근거 |
 |---|---|---|---|
-| 마일스톤 | M2 | M3. M2는 `group-helm` 설정(`driveLimits`)만 둔다 | `review.m2-plan` §9 D-a |
+| 마일스톤 | M2 | M3. M2는 `plugin-helm` 설정(`driveLimits`)만 둔다 | `review.m2-plan` §9 D-a |
 | drive 안 기능 호출 | F 효과 목록 밖(미결 C2) | `gatherContext`는 읽기(`readOnly`), `linkWork`는 멱등 쓰기(`idempotent`)로 허용(§4.11) | [결정: adr.0015] |
 | 쓰기 판정 입력 | `ToolHints.readOnly`, 출처 미결(미결 8) | `ToolCallPayload.risk`가 `read`가 아니면 쓰기. `hints`는 보조, `caller`로 대상 대화를 고른다(§4.6) | M3-02, REQ-F-04, `L1.tools.spec` §2 위험 등급 |
 | 서비스 키 | 미결 C1 | F `ServiceKey`만 쓰고 X 래퍼가 타입을 복원한다 | `review.m3-design-inputs` §3.8 A-01 |
@@ -76,7 +76,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 | 렌즈 | 자리표시 3개 | 내장 렌즈 6개와 신호별 우선순위(§3.6) | H-IN-03 |
 | 종료·부분 결과·식별자 | 미결 2, 3, 16 | M3는 적용 1회로 끝내고 부분 결과를 허용한다. 단계·신호 식별자를 이 판으로 고정한다 [제안] | H-IN-02, 04, 05 |
 | drive 형태 | 옛 `DriveFn(loop, state)`와 `wants`, 렌즈 `Promise.all` 병렬 spawn, 턴 전 표지 없음 | 단계 함수 `DriveStep`(명령 하나씩, 엔진이 되풀이 호출). `wants` 삭제, 할 일 없음은 `done`. 렌즈 순차 spawn과 `lensFinished`, 턴 표지 `awaitingTurn`(상태 version 2), 사용자 메시지는 `turn` 명령(§4.5) | [결정: drive-isolation.md §1.1, 2.4; 단계 함수 전환 작업] |
-| 형태와 사용자 결정 | 내장 그룹(조립 루트 등록), 미결 4 | 기본 플러그인 그룹(D-M3-01 c), drive 락 충돌 대기(05 a), 유휴 자율 turn 허용(06 a), 안전 모드에서 적재 안 함(07 a), 자체 확장 API만(11 c) | [결정: review.m3-design-inputs D-M3-01, 05, 06, 07, 11] |
+| 형태와 사용자 결정 | 내장 플러그인(조립 루트 등록), 미결 4 | 기본 플러그인(D-M3-01 c), drive 락 충돌 대기(05 a), 유휴 자율 turn 허용(06 a), 안전 모드에서 적재 안 함(07 a), 자체 확장 API만(11 c) | [결정: review.m3-design-inputs D-M3-01, 05, 06, 07, 11] |
 
 ### 1.2 UC-2 대응
 
@@ -85,7 +85,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 | UC-2 흐름 | 이 문서 | 수용 기준 |
 |---|---|---|
 | 사전 조건: Helm이 설치되어 켜져 있음 | §3.1 플러그인 설치와 `defaultEnabled`, §6 `ext.helm.enabled` | 13 |
-| 사전 조건: drive 락을 다른 그룹이 갖지 않음 | §4.10, §4.13 대기 규칙 [결정: review.m3-design-inputs D-M3-05] | 5, 19 |
+| 사전 조건: drive 락을 다른 플러그인이 갖지 않음 | §4.10, §4.13 대기 규칙 [결정: review.m3-design-inputs D-M3-05] | 5, 19 |
 | 주 1. tap 핸들러가 탐구 신호를 기록 | §3.5, §4.3 | 8 |
 | 주 2. 탐구 시작과 drive 락·상한 | §3.3, §4.5, §6 `driveLimits` | 11 |
 | 주 3. `input.agent.before` collect가 렌즈를 주입 | §3.6, §4.4 | 18(plan `inject.*`) |
@@ -117,7 +117,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 | 발견(finding) | 렌즈 하나에서 나온 주장과 출처. 수렴 단계가 만든다 |
 | 탐구 신호 | 탐구가 필요할 수 있다는 관찰. `stuck`, `repeat`, `newDomain` 셋 |
 | 대기 요청(pending) | 시작이 요청되지 않아 아직 주도하지 않는 탐구. 신호가 만들면 `/helm start`가 시작할 때까지 머문다. 상태 필드 `pending`에 둔다 |
-| 단계 경계 | F.conversation.spec §2의 정의. step이 끝나고 다음 step이 시작되기 전. 그룹 켜기·끄기와 drive 락 교체 시점이다 |
+| 단계 경계 | F.conversation.spec §2의 정의. step이 끝나고 다음 step이 시작되기 전. 플러그인 켜기·끄기와 drive 락 교체 시점이다 |
 | turn, step | F.conversation.spec §2. 훅 `boundary.step.after`는 Fresnel step 끝, `boundary.settle.after`는 Fresnel turn 끝에서 발화한다(F.extensions.spec §2) |
 | 효과 등급 | ADR-0015 §3.2의 분류. 코어 멱등(`loop.turn`, `loop.spawn`), 멱등 쓰기(`MethodDef.idempotent`), 읽기(`MethodDef.readOnly`), 선언 없음 |
 | 위험 등급(risk) | L1.tools.spec §2의 `read` < `write` < `exec`. 미선언은 `exec` |
@@ -125,18 +125,18 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 
 ## 3. 인터페이스
 
-모든 공개 이름은 `@fresnel/group-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 플러그인 엔트리(§3.1 플러그인 산출물의 `entry`)와 테스트용이다. 설정 정의 `helmSettings`는 호스트 설정 카탈로그도 가져간다(§6) [제안].
+모든 공개 이름은 `@fresnel/plugin-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 플러그인 엔트리(§3.1 플러그인 산출물의 `entry`)와 테스트용이다. 설정 정의 `helmSettings`는 호스트 설정 카탈로그도 가져간다(§6) [제안].
 
 외부 이름의 출처:
 
 | 이름 | 출처 |
 |---|---|
-| `ExtensionManifest`, `defineManifest`, `RegistrationApi`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLockBudget`, `DriveOptions`, `DriveLimits`, `SpawnOutcome`, `TurnOutcome`, `PostItem`, `PostOptions`, `ToolCallPayload`, `ToolCallDecision`, `AgentSettledPayload`, `SessionStartPayload`, `HandlerContext`, `RecordKindDecl`, `RecordSubject`, `GroupRecord` | F.extensions.spec §3.1~§3.6 |
+| `ExtensionManifest`, `defineManifest`, `RegistrationApi`, `DriveStep`, `DriveCommand`, `StepResult`, `DriveLockBudget`, `DriveOptions`, `DriveLimits`, `SpawnOutcome`, `TurnOutcome`, `PostItem`, `PostOptions`, `ToolCallPayload`, `ToolCallDecision`, `AgentSettledPayload`, `SessionStartPayload`, `HandlerContext`, `RecordKindDecl`, `RecordSubject`, `OrchestrationRecord` | F.extensions.spec §3.1~§3.6 |
 | `ServiceKey`, `CapabilityError`, `ToolHints`, `WebSearchKey` | F.capabilities.spec §3.3, §3.5, §3.6, §3.9 |
 | `WebFetchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey` | L2.web.spec §3.3, L2.knowledge.spec §3, L2.work.spec §3.2(정의 위치는 F `capabilities/defs/<domain>.ts`) |
 | `ThreadId`, `TurnId`, `JsonValue` | F.conversation.spec §3.1, §3.2 |
 | `defineSettings`, `SettingGroup` | F.wire-settings.spec §3.8.3 |
-| `defineGroup`, `GroupDef<S>`, `GroupApi<S>`(`registerCommand` 포함), `GroupModule` | L3.group-sdk.spec §3.2 |
+| `defineOrchestration`, `OrchestrationDef<S>`, `OrchestrationApi<S>`(`registerCommand` 포함), `OrchestrationModule` | L3.group-sdk.spec §3.2 |
 
 ### 3.1 매니페스트 (`src/manifest.ts`)
 
@@ -149,14 +149,14 @@ export const helmManifest = defineManifest({
   name: "helm",
   version: "0.1.0",
   displayName: "Helm",
-  description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 플러그인 그룹",
+  description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 플러그인",
   entry: "./dist/index.js",                    // 번들 산출물(H-22). 소스 진입점은 src/index.ts
-  defaultEnabled: true,                        // [결정: D-M3-01] 기본 플러그인 그룹. 설치되어 있으면 켠다
+  defaultEnabled: true,                        // [결정: D-M3-01] 기본 플러그인. 설치되어 있으면 켠다
   components: { agents: ["./agents/explorer.md"] },        // [가정] L1.agents.spec 정의 파일 형식
   trust: { level: "user" },                   // 설치 위치 user의 상한과 같다(§3.1 패키징)
   plugins: [{                                  // 루트 플러그인(id 없음). Registration id는 "helm"
     layer: "L3",
-    drives: true,                              // drive를 등록한다. 허용 여부는 정책 x.primitives.driveRequiresGroup이 정한다(F.extensions.spec §4.6)
+    drives: true,                              // drive를 등록한다. 허용 여부는 정책 x.primitives.driveRequiresOrchestration이 정한다(F.extensions.spec §4.6)
     usesPost: true,
     hooks: [
       "input.agent.before",                    // collect: 관점 주입(§4.4)
@@ -175,9 +175,9 @@ export const helmManifest = defineManifest({
       { id: "work.tasks", range: "^1.0.0" },   // L2.work.spec §3.2
     ],
     recordKinds: HELM_RECORD_KINDS,            // §3.4
-    readsRecordKinds: [],                      // 다른 그룹의 레코드를 읽지 않는다 [결정: review.decisions-2 D-10]
+    readsRecordKinds: [],                      // 다른 플러그인의 레코드를 읽지 않는다 [결정: review.decisions-2 D-10]
   }],
-  group: { composition: helmComposition },     // 플러그인 그룹 선언. 구성원은 루트 플러그인 하나다. 구성 선언은 §3.9a
+  group: { composition: helmComposition },     // 플러그인 선언. 구성원은 루트 플러그인 하나다. 구성 선언은 §3.9a
   methods: helmMethodDecls,                    // 확장 메서드 세 개(§3.9a)
   ui: helmUi,                                  // Plugin UI 기여 일곱(§3.9a)
 }) satisfies ExtensionManifest;
@@ -186,15 +186,15 @@ export const helmManifest = defineManifest({
 - 기능 ID: L2 spec이 정한 이름을 쓴다. `web.search`, `web.fetch`(L2.web.spec §3.2, §3.3), `knowledge.search`, `knowledge.skills`, `knowledge.memory`(L2.knowledge.spec §1, §3.9 대응표), `work.tasks`(L2.work.spec §3.2, §3.6의 `work.task.create` 대응 문장).
 - 모든 기능을 `optional`에 둔다 [제안]. `requires`의 기능은 Cordis `inject`에 들어가므로 provider가 없으면 그 Registration이 켜지지 않는다(X.primitives.spec §3.7 규칙 5). Helm은 웹·지식·작업 기능이 없어도 §4.7 저하 동작으로 탐구를 끝내야 하므로(수용 기준 4, 14) `optional`이 맞다. `optional` 기능은 `g.capability(key)` 호출 때 찾고, 없으면 `capability_unavailable`을 저하 동작으로 바꾼다.
 - `web.fetch`는 Helm 코드가 부르지 않는다. explorer가 모델 도구 `web_fetch`로 쓴다(§4.7). 매니페스트에 두는 것은 provider 유무를 저하 판정(explorer 과제의 고지)에 쓰기 위해서다.
-- `explorer` 정의 파일은 그룹 패키지 안에 둔다 [가정]. L1.agents.spec이 그룹 제공 정의를 받지 않으면 정의를 L1 기본 정의로 옮긴다.
+- `explorer` 정의 파일은 플러그인 패키지 안에 둔다 [가정]. L1.agents.spec이 플러그인 제공 정의를 받지 않으면 정의를 L1 기본 정의로 옮긴다.
 - `drive_conflict` 경고: `drives`가 참인 다른 Registration이 기본 켜짐이면 `validateManifestSet`이 경고한다. 실행 중에는 drive 락을 하나만 준다(F.extensions.spec §4.7).
-- drive 등록 [결정: 2026-11-01 사용자]: Helm은 플러그인 그룹의 구성원이라 정책 `x.primitives.driveRequiresGroup`이 참이어도 drive를 등록할 수 있다. 정책을 거짓으로 풀면 그룹이 아닌 플러그인도 drive를 등록할 수 있다(F.extensions.spec §4.6). Helm의 동작은 어느 쪽이든 같다.
-- 형태와 기본 켬 [결정: review.m3-design-inputs D-M3-01]: Helm은 기본 플러그인 그룹이다. 별도 패키지(`@fresnel/group-helm`)로 설치하고, 설치되어 있으면 켠다(`defaultEnabled: true`). 소스 패키지의 층과 선언은 그대로다(`plugins[0].layer: "L3"`, `group` 선언, `group-sdk`의 `defineGroup` 사용). 조립 루트(`apps/host`)는 Helm을 내장 확장으로 등록하지 않는다.
-- 패키징 [제안]: `bun run build:plugin`(`packages/group-helm/scripts/build-plugin.ts`)이 플러그인 산출물 하나를 만든다. 번들이 남긴 외부 지정자 목록을 시험(`test/int/plugin.int.test.ts`)이 호스트 등록 목록과 대조한다. 산출물은 `.fresnel-plugin/plugin.json`(이 매니페스트를 JSON으로 옮긴 것)과 엔트리 번들(`entry`), `agents/explorer.md`다. 릴리즈는 이 산출물을 앱 자원 디렉터리(`OsDirs.resource`)에 넣고, 첫 실행이 사용자 확장 위치 `<userDir>/extensions/helm/`에 설치한다. 교체 규칙은 X 로더의 `installDefaultPlugin`을 따른다(번들 `version`이 설치본보다 높을 때만 디렉터리째 바꾼다). 사용자가 지운 설치본은 호스트 상태 표지로 다시 설치하지 않는다(X.loading-trust.spec §4.4.7).
-- 적재와 신뢰: X.loading-trust의 외부 확장 로더가 설치 위치 `user`의 후보로 찾는다. 신뢰 상한은 `user`이고 매니페스트도 `trust.level: "user"`를 요청한다. `user` 등급은 `on`, `post`, `drive`, 리소스 등록, 접두 테이블 저장을 쓸 수 있다(X.loading-trust.spec §4.6.2). Helm은 자체 확장 API(`RegistrationApi`, `group-sdk`)만 쓴다. pi 확장 어댑터는 두지 않는다 [결정: review.m3-design-inputs D-M3-11].
-- 의존 해석 [제안]: 엔트리 번들은 `@fresnel/contracts`(하위 경로 포함), `@fresnel/group-sdk`, `typebox`를 넣지 않고 외부 import로 남긴다. X가 `@fresnel/contracts`와 하위 경로, `typebox`를 가상 모듈로 직접 등록하고(`SDK_MODULE_SPECIFIERS`), `@fresnel/group-sdk`은 L3라 조립 루트가 넘긴다(X.loading-trust.spec §4.4.6). 그래야 F 스키마 객체와 `group-sdk` 상태가 호스트와 하나다.
+- drive 등록 [결정: 2026-11-01 사용자]: Helm은 플러그인의 구성원이라 정책 `x.primitives.driveRequiresOrchestration`이 참이어도 drive를 등록할 수 있다. 정책을 거짓으로 풀면 Drive를 맡도록 선언하지 않은 플러그인도 drive를 등록할 수 있다(F.extensions.spec §4.6). Helm의 동작은 어느 쪽이든 같다.
+- 형태와 기본 켬 [결정: review.m3-design-inputs D-M3-01]: Helm은 기본 플러그인이다. 별도 패키지(`@fresnel/plugin-helm`)로 설치하고, 설치되어 있으면 켠다(`defaultEnabled: true`). 소스 패키지의 층과 선언은 그대로다(`plugins[0].layer: "L3"`, `orchestration` 선언, `orchestration-sdk`의 `defineOrchestration` 사용). 조립 루트(`apps/host`)는 Helm을 내장 확장으로 등록하지 않는다.
+- 패키징 [제안]: `bun run build:plugin`(`packages/plugin-helm/scripts/build-plugin.ts`)이 플러그인 산출물 하나를 만든다. 번들이 남긴 외부 지정자 목록을 시험(`test/int/plugin.int.test.ts`)이 호스트 등록 목록과 대조한다. 산출물은 `.fresnel-plugin/plugin.json`(이 매니페스트를 JSON으로 옮긴 것)과 엔트리 번들(`entry`), `agents/explorer.md`다. 릴리즈는 이 산출물을 앱 자원 디렉터리(`OsDirs.resource`)에 넣고, 첫 실행이 사용자 확장 위치 `<userDir>/extensions/helm/`에 설치한다. 교체 규칙은 X 로더의 `installDefaultPlugin`을 따른다(번들 `version`이 설치본보다 높을 때만 디렉터리째 바꾼다). 사용자가 지운 설치본은 호스트 상태 표지로 다시 설치하지 않는다(X.loading-trust.spec §4.4.7).
+- 적재와 신뢰: X.loading-trust의 외부 확장 로더가 설치 위치 `user`의 후보로 찾는다. 신뢰 상한은 `user`이고 매니페스트도 `trust.level: "user"`를 요청한다. `user` 등급은 `on`, `post`, `drive`, 리소스 등록, 접두 테이블 저장을 쓸 수 있다(X.loading-trust.spec §4.6.2). Helm은 자체 확장 API(`RegistrationApi`, `orchestration-sdk`)만 쓴다. pi 확장 어댑터는 두지 않는다 [결정: review.m3-design-inputs D-M3-11].
+- 의존 해석 [제안]: 엔트리 번들은 `@fresnel/contracts`(하위 경로 포함), `@fresnel/orchestration-sdk`, `typebox`를 넣지 않고 외부 import로 남긴다. X가 `@fresnel/contracts`와 하위 경로, `typebox`를 가상 모듈로 직접 등록하고(`SDK_MODULE_SPECIFIERS`), `@fresnel/orchestration-sdk`은 L3라 조립 루트가 넘긴다(X.loading-trust.spec §4.4.6). 그래야 F 스키마 객체와 `orchestration-sdk` 상태가 호스트와 하나다.
 - 끄기와 지우기: 끄기는 `ext.helm.enabled`(§6)다. 지우기는 설치 디렉터리를 지우는 것이고, 지운 뒤에는 Helm 훅 핸들러와 명령이 없다. 커밋된 상태(`x_helm_state`)와 기록은 남아 다시 설치하면 이어 쓴다.
-- 안전 모드 [결정: review.m3-design-inputs D-M3-07]: 안전 모드는 L3 그룹과 `user` 등급 외부 확장을 싣지 않으므로(X.operations.spec §4.6.2) Helm은 적재되지 않는다. Helm 쪽 코드 변경은 없다(REQ-X-08).
+- 안전 모드 [결정: review.m3-design-inputs D-M3-07]: 안전 모드는 L3 플러그인과 `user` 등급 외부 확장을 싣지 않으므로(X.operations.spec §4.6.2) Helm은 적재되지 않는다. Helm 쪽 코드 변경은 없다(REQ-X-08).
 
 ### 3.2 상태 (`src/state.ts`)
 
@@ -348,8 +348,8 @@ export const helmStateDecl: { readonly schema: typeof HelmStateSchema; readonly 
   schema: HelmStateSchema, initial: INITIAL_HELM_STATE, version: HELM_STATE_VERSION,
 };
 
-/** 상태 문서 직렬화 예산. group-sdk STATE_DOC_MAX_BYTES(64 KiB)에서 4 KiB를 남긴다 */
-/** GroupDef.migrations. v1 문서는 턴을 내기 전 상태였으므로 `awaitingTurn`을 `false`로 옮긴다 */
+/** 상태 문서 직렬화 예산. orchestration-sdk STATE_DOC_MAX_BYTES(64 KiB)에서 4 KiB를 남긴다 */
+/** OrchestrationDef.migrations. v1 문서는 턴을 내기 전 상태였으므로 `awaitingTurn`을 `false`로 옮긴다 */
 export const helmStateMigrations = { 1: (previous: unknown): unknown => (typeof previous === "object" && previous !== null ? { ...previous, awaitingTurn: false } : previous) };
 
 export const HELM_STATE_BUDGET_BYTES = 61_440;
@@ -372,9 +372,9 @@ export function updateState(
 - [E3 맡기기] `pluginNeed`는 선택 필드라 version을 올리지 않았다. 옛 문서에는 필드가 없고 `pluginNeedOf`가 `null`로 읽는다(시험 `plugin.old-document`). `id`는 `purpose`만 두면 같은 목적을 한 스레드에서 두 번 맡길 때 알림 requestId가 겹치기 때문에 더했다. 엔진의 `post` requestId는 스레드 안에서 멱등이라 겹치면 두 번째 알림이 중복으로 버려진다(`packages/core-tasks/src/input-queue.ts`).
 - [이 판] `awaitingTurn`을 더해 version을 2로 올렸다. v1 문서는 `helmStateMigrations`(§3.2 아래 코드)가 `awaitingTurn: false`로 옮긴다. 로그에 남은 v1 상태 이벤트는 같은 업캐스터가 읽는다.
 - [제안] 단계 식별자 `diverge`, `explore`, `converge`, `apply`와 `idle`은 이 문서의 설계다. `diverge`는 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")의 이름을 따랐다. M3 판에서 이 식별자와 §4.2 전이표를 고정한다(H-IN-02). 식별자는 상태 문서, 레코드 payload, requestId에 들어가므로 바꾸려면 상태 `version`을 올리고 마이그레이션을 둔다.
-- 상태 저장: Registration 상태 문서는 X가 `grp.helm.state.committed` 이벤트와 `x_helm_state` 투영 테이블에 둔다(X.primitives.spec §4.6.1, [결정: review.decisions-2 T-21]). 투영 열과 활성 가지 규칙은 X 정의를 따른다 [결정: review.decisions-2 §3 T-20](L3.group-sdk.spec §3.6, §4.5 6번 멱등 reducer). 비공개 상태이고 다른 그룹은 읽지 않는다(F.extensions.spec §3.6).
+- 상태 저장: Registration 상태 문서는 X가 `grp.helm.state.committed` 이벤트와 `x_helm_state` 투영 테이블에 둔다(X.primitives.spec §4.6.1, [결정: review.decisions-2 T-21]). 투영 열과 활성 가지 규칙은 X 정의를 따른다 [결정: review.decisions-2 §3 T-20](L3.group-sdk.spec §3.6, §4.5 6번 멱등 reducer). 비공개 상태이고 다른 플러그인은 읽지 않는다(F.extensions.spec §3.6).
 - 크기 상한 [제안]: 개수는 `lenses` 8개, `findings` 24개, `context` 8개, 발견 하나의 `sources` 4개다. 상한을 넘는 입력은 앞에서부터 자른다. 문자열은 스키마 길이(`claim` 1000자, `ref` 512자, `title` 80자)까지 자른다.
-- 바이트 상한 [제안]: 개수 상한만으로는 group-sdk 상태 문서 상한(직렬화 UTF-8 64 KiB, L3.group-sdk.spec §3.6, §4.5)을 지키지 못한다. 한국어 `claim` 1000자는 약 3 KB이고 발견 24개면 그것만으로 64 KiB를 넘는다. 그래서 `updateState`는 커밋 전 `fitState`로 직렬화 크기를 `HELM_STATE_BUDGET_BYTES`(60 KiB) 이하로 줄인다. 빈 탐구 필드의 상태는 예산 안이므로 이 절차는 항상 끝난다. 버린 발견은 `grp.helm.discovery.recorded`에도 쓰지 않는다. 초과 커밋은 group-sdk이 거부하고(L3.group-sdk.spec §5 9번) drive 예외와 drive 락 `error` 반납으로 이어지므로 이 검사는 커밋 앞에서 한다.
+- 바이트 상한 [제안]: 개수 상한만으로는 orchestration-sdk 상태 문서 상한(직렬화 UTF-8 64 KiB, L3.group-sdk.spec §3.6, §4.5)을 지키지 못한다. 한국어 `claim` 1000자는 약 3 KB이고 발견 24개면 그것만으로 64 KiB를 넘는다. 그래서 `updateState`는 커밋 전 `fitState`로 직렬화 크기를 `HELM_STATE_BUDGET_BYTES`(60 KiB) 이하로 줄인다. 빈 탐구 필드의 상태는 예산 안이므로 이 절차는 항상 끝난다. 버린 발견은 `grp.helm.discovery.recorded`에도 쓰지 않는다. 초과 커밋은 orchestration-sdk이 거부하고(L3.group-sdk.spec §5 9번) drive 예외와 drive 락 `error` 반납으로 이어지므로 이 검사는 커밋 앞에서 한다.
 - 긴 본문은 상태에 두지 않는다. explorer 답 원문은 상태에 넣지 않고(§4.5), 발견은 요약 주장과 출처 참조만 싣는다(L3.group-sdk.spec §4.5 규칙 5).
 
 ### 3.3 단계 전이 (`src/phase.ts`)
@@ -416,7 +416,7 @@ export const TRANSITIONS: readonly {
 ```
 
 - drive 락 필요 판정 훅은 두지 않는다 [제안]. 주도는 시작 요청으로만 받는다(사용자 `/helm start`, drive-isolation.md 2.2). `pending`을 커밋하는 것만으로는 주도하지 않는다. Helm은 주도 중이 아니면 `done`으로 물러나고(§4.5), 다음 `/helm start`의 시작 요청이 다시 스택에 올린다. 중재가 없으므로 X가 후보를 고르지 않는다(L3.group-sdk.spec §3.5).
-- 비용: 시작 요청이 없으면 Helm은 주도 스택에 오르지 않으므로 경계마다 드는 부여·반납이 없다(E3, 중재 제거 뒤). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+- 비용: 시작 요청이 없으면 Helm은 주도 스택에 오르지 않으므로 경계마다 드는 부여·반납이 없다(E3, 중재 제거 뒤). [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 
 ### 3.4 레코드 (`src/records.ts`)
 
@@ -498,7 +498,7 @@ export const HELM_RECORD_KINDS: readonly RecordKindDecl[] = [
 | kind | subject | 쓰는 시점 | 읽는 쪽 |
 |---|---|---|---|
 | `grp.helm.signal.detected` | `{ type: "turn", id: turnId }` | 신호 판정 시(§4.3) | L4 상태 표시 |
-| `grp.helm.discovery.recorded` | `{ type: "turn", id: appliedTurnId }`. 적용 turn이 없으면 `{ type: "external", id: inquiryId }`(drive에는 thread id가 없다) | 적용 단계 끝(§4.8) | L4 상태 표시. 다른 그룹은 읽지 않는다 |
+| `grp.helm.discovery.recorded` | `{ type: "turn", id: appliedTurnId }`. 적용 turn이 없으면 `{ type: "external", id: inquiryId }`(drive에는 thread id가 없다) | 적용 단계 끝(§4.8) | L4 상태 표시. 다른 플러그인은 읽지 않는다 |
 | `grp.helm.inquiry.finished` | `{ type: "external", id: inquiryId }`(drive에는 thread id가 없다. 기록은 thread에 저장되므로 읽는 쪽은 thread로 거른다) | 탐구 종료 전이(§4.2). 재시작 뒤 두 건이 될 수 있다(§4.8) | L4 상태 표시와 알림. 읽을 때 `dedupeInquiryFinished`로 중복을 지운다 |
 
 - [결정: review.decisions-2 T-21] 공개 레코드와 비공개 상태 모두 `grp.helm.` 접두를 쓴다. 공개 레코드는 `g.record`, 비공개 상태는 상태 문서(`grp.helm.state.committed`, 투영 `x_helm_state`)다. 상한을 넘는 비공개 기록이 필요하면 `RegistrationApi.recordPrivate`(kind `grp.helm.*`, X.primitives.spec §4.6.5)를 쓴다. 그 kind는 매니페스트 `recordKinds`(`HELM_RECORD_KINDS`)에 넣지 않고 공개 kind와 이름이 겹치지 않게 한다.
@@ -630,13 +630,13 @@ M3 내장 렌즈 [제안] (H-IN-03):
 | `command`(`/helm start`) | `analogy`, `prior-art`, `first-principles`, `inversion`, `failure-modes`, `constraints` |
 
 - `selectLenses`는 `pending.signal`(없으면 `command`)의 우선순위 앞에서부터 `maxLenses`개를 고른다. 무작위나 모델 호출을 쓰지 않는다. 같은 `pending`이면 같은 렌즈다.
-- 렌즈 제안 경로(모델이 발산 turn에서 렌즈를 고르는 그룹 전용 도구)는 M3에 두지 않는다(§10 미결 6). 렌즈 내용과 표는 `lenses.ts` 한 파일에만 있으므로 2차에서 파일 단위로 바꾼다.
-- 렌즈별 모델: 그룹 전용 모델 역할을 새로 두지 않는다(`review.m3-design-inputs` §3.8 MD-04). explorer는 정의의 `model`(기존 역할 이름)을 쓴다. F `SpawnSpec`에 모델 필드가 없으므로 Helm 설정으로 모델을 바꾸는 키는 두지 않는다. 사용자는 같은 이름의 사용자 범위 에이전트 정의로 덮어써 모델을 바꾼다 [가정: L1.agents.spec 정의 우선순위].
+- 렌즈 제안 경로(모델이 발산 turn에서 렌즈를 고르는 플러그인 전용 도구)는 M3에 두지 않는다(§10 미결 6). 렌즈 내용과 표는 `lenses.ts` 한 파일에만 있으므로 2차에서 파일 단위로 바꾼다.
+- 렌즈별 모델: 플러그인 전용 모델 역할을 새로 두지 않는다(`review.m3-design-inputs` §3.8 MD-04). explorer는 정의의 `model`(기존 역할 이름)을 쓴다. F `SpawnSpec`에 모델 필드가 없으므로 Helm 설정으로 모델을 바꾸는 키는 두지 않는다. 사용자는 같은 이름의 사용자 범위 에이전트 정의로 덮어써 모델을 바꾼다 [가정: L1.agents.spec 정의 우선순위].
 
 ### 3.7 drive (`src/drive.ts`)
 
 ```ts
-/** g.drive에 넘기는 단계 함수(§4.5). 엔진이 단계마다 부른다. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09). marker는 그룹 전역 표지(§4.6)다 */
+/** g.drive에 넘기는 단계 함수(§4.5). 엔진이 단계마다 부른다. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09). marker는 플러그인 전역 표지(§4.6)다 */
 export function helmDrive(g: DriveApi, settings: () => HelmSettings, marker: ExplorationMarker): DriveStep<HelmState>;
 
 /** 필드별 작은 값. undefined는 상한 없음 */
@@ -699,7 +699,7 @@ export interface KnowledgeDigest {
 
 /** drive 안에서만 부른다. 각 호출은 읽기 메서드다. 실패는 출처별로 저하 동작으로 바꾸고 이 함수는 실패하지 않는다 */
 export function gatherContext(
-  g: GroupApi<HelmState>,
+  g: OrchestrationApi<HelmState>,
   state: Readonly<HelmState>,
   inquiry: ActiveInquiry,
 ): Promise<KnowledgeDigest>;
@@ -734,9 +734,9 @@ export interface HelmStatusView {
   readonly topic: string | null;
   readonly lenses: readonly HelmLens[];
   readonly findings: number;
-  /** drive lock 상태. group-sdk GroupStatus에서 온다 [가정] */
+  /** drive lock 상태. orchestration-sdk GroupStatus에서 온다 [가정] */
   readonly lease: "held" | "waiting" | "none";
-  /** 대기 중이면 drive lock을 가진 그룹 이름 */
+  /** 대기 중이면 drive lock을 가진 플러그인 이름 */
   readonly leaseHolder?: string;
   readonly budget?: DriveLockBudget;
 }
@@ -746,21 +746,21 @@ export type HelmCommandError =
   | { readonly kind: "already_running"; readonly inquiryId: InquiryId | null }   // 탐구 중이거나 pending 있음
   | { readonly kind: "no_topic" }                                    // 주제 생략, 신호·입력 용어도 없음
   | { readonly kind: "plugin_pending" }                              // E3: 플러그인 맡기기 요청이 이미 대기 중
-  | { readonly kind: "disabled" }                                    // 그룹이 꺼져 있음(registration_inactive)
+  | { readonly kind: "disabled" }                                    // 플러그인이 꺼져 있음(registration_inactive)
   | { readonly kind: "state_write"; readonly failure: Extract<HelmFailure, { kind: "state_conflict" | "state_too_large" | "storage" }> };
 
 /** 순수 함수. "/helm start 주제" 같은 인자 문자열을 해석한다 */
 export function parseHelmCommand(args: string): Result<HelmCommand, Extract<HelmCommandError, { kind: "usage" }>>;
 
 /** 명령 실행. 효과는 updateState와 post뿐이다. 명령 처리기는 재실행되지 않으므로 ADR-0015 대상이 아니다(§4.11) */
-export function runHelmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit">, cmd: HelmCommand, ctx: { readonly nonce: string /* invocationId */; readonly terms: readonly string[] }): Promise<Result<HelmStatusView, HelmCommandError>>;
+export function runHelmCommand(g: Pick<OrchestrationApi<HelmState>, "state" | "commit">, cmd: HelmCommand, ctx: { readonly nonce: string /* invocationId */; readonly terms: readonly string[] }): Promise<Result<HelmStatusView, HelmCommandError>>;
 
 /** g.registerCommand에 넘기는 정의. parseHelmCommand와 runHelmCommand를 묶는다. 타입은 GroupApi에서 유도해 ext-host를 import하지 않는다 */
-export function helmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit" | "post">, tallies: TallyStore, missingMeta: ReadonlySet<string>): Parameters<GroupApi<HelmState>["registerCommand"]>[1];
+export function helmCommand(g: Pick<OrchestrationApi<HelmState>, "state" | "commit" | "post">, tallies: TallyStore, missingMeta: ReadonlySet<string>): Parameters<OrchestrationApi<HelmState>["registerCommand"]>[1];
 ```
 
-- 명령 처리기는 X의 명령 문맥(X.primitives §4.6.6) 안에서 실행된다. `threadId`가 있으면 `state()`·`commit`·`post`가 되고 문맥에 호출 id `invocationId`가 있다(같은 호출을 다시 실행하면 같은 값). `helmCommand`의 처리기는 `runHelmCommand`로 상태를 바로 바꾸고 결과 글을 명령 결과(`command.run`의 `message`)로 돌려주므로 `/helm start`·`/helm stop`은 즉시 반영되고, 결과 글은 모델 입력 대기열(`post`)에 쌓이지 않는다. 탐구 끝·거절·제안 알림만 `post`의 `when: next`로 남는다. `threadId`가 없는 호출은 아무것도 하지 않는다. 인자 없는 `/helm`은 `status`다. 외부 플러그인은 `GroupService`에 닿지 못하므로 `HelmStatusView.lease`는 커밋된 상태에서 얻는다(탐구 중이면 `held`, `pending`만 있으면 `waiting`). 결과 글은 저장 값을 그대로 쓰지 않고 `src/texts.ts`의 표로 사람 말을 쓴다: `held`는 "탐구하는 중이에요", `waiting`은 "시작을 기다리는 중이에요", `none`은 "쉬는 중이에요", 렌즈 상태 `pending·running·done·failed·skipped`는 "대기·진행 중·끝남·실패·건너뜀", 결과 `applied·empty·stopped·limit·failed`는 "적용됨·발견 없음·멈춤·상한에 걸림·실패". 상태 줄은 `[helm] 쉬는 중이에요, 단계: 대기, 주제: …` 모양이다. 저장 값과 `HelmStatusView`는 그대로다. 단계 이름(`PHASE_TEXT`)은 사용자 결정 대기라 바꾸지 않는다.
-- 명령 등록은 group-sdk `g.registerCommand("helm", …)`로 한다(L3.group-sdk.spec §3.2). group-sdk은 X `hostOf(g).registerCommand`(X.primitives.spec §4.8)로 넘긴다. 이름은 `helm`이고 하위 명령을 인자로 받는다.
+- 명령 처리기는 X의 명령 문맥(X.primitives §4.6.6) 안에서 실행된다. `threadId`가 있으면 `state()`·`commit`·`post`가 되고 문맥에 호출 id `invocationId`가 있다(같은 호출을 다시 실행하면 같은 값). `helmCommand`의 처리기는 `runHelmCommand`로 상태를 바로 바꾸고 결과 글을 명령 결과(`command.run`의 `message`)로 돌려주므로 `/helm start`·`/helm stop`은 즉시 반영되고, 결과 글은 모델 입력 대기열(`post`)에 쌓이지 않는다. 탐구 끝·거절·제안 알림만 `post`의 `when: next`로 남는다. `threadId`가 없는 호출은 아무것도 하지 않는다. 인자 없는 `/helm`은 `status`다. 외부 플러그인은 `OrchestrationService`에 닿지 못하므로 `HelmStatusView.lease`는 커밋된 상태에서 얻는다(탐구 중이면 `held`, `pending`만 있으면 `waiting`). 결과 글은 저장 값을 그대로 쓰지 않고 `src/texts.ts`의 표로 사람 말을 쓴다: `held`는 "탐구하는 중이에요", `waiting`은 "시작을 기다리는 중이에요", `none`은 "쉬는 중이에요", 렌즈 상태 `pending·running·done·failed·skipped`는 "대기·진행 중·끝남·실패·건너뜀", 결과 `applied·empty·stopped·limit·failed`는 "적용됨·발견 없음·멈춤·상한에 걸림·실패". 상태 줄은 `[helm] 쉬는 중이에요, 단계: 대기, 주제: …` 모양이다. 저장 값과 `HelmStatusView`는 그대로다. 단계 이름(`PHASE_TEXT`)은 사용자 결정 대기라 바꾸지 않는다.
+- 명령 등록은 orchestration-sdk `g.registerCommand("helm", …)`로 한다(L3.group-sdk.spec §3.2). orchestration-sdk은 X `hostOf(g).registerCommand`(X.primitives.spec §4.8)로 넘긴다. 이름은 `helm`이고 하위 명령을 인자로 받는다.
 - `/helm start [주제]`: `idle`이고 `pending`이 없을 때 `pending`(`source: "command"`)을 커밋한 뒤 주도 시작 요청(`g.startDrive()`)을 낸다(E3). 탐구가 있으면(도는 중이거나 `pending`) 같은 주제나 주제 생략은 이어 가기다. 상태를 바꾸지 않고 시작 요청만 낸다(엔진이 살아 있는 주도를 버린다). 다른 주제는 `already_running`이다. 시작 요청이 거부되면 상태는 커밋된 채 남고 결과 글에 이유를 붙인다(`startFailureText`). 주제를 생략하면 마지막 신호 기록의 근거나 현재 turn 입력 용어 후보를 쓴다. `inquiryId`는 `inquiryIdFrom("command:" + (turnId ?? "none") + ":" + topic)`다 [제안].
 - `/helm stop`: §5 4번. E3 맡기기 요청이 대기 중이면 그것도 취소한다(`pluginNeed`를 비운다). 이미 맡겨졌다면 돌아온 결과는 요청이 없어 알림 없이 지나간다.
 - `/helm plugin <설명>` [E3 맡기기, drive-isolation.md 2.2]: `idle`이고 `pending`이 없을 때 `pluginNeed`(`{ purpose, id }`, `id`는 호출 id에서 `needIdFrom`으로 만든다)를 커밋한 뒤 주도 시작 요청(`g.startDrive()`)을 낸다. 탐구가 있으면 `already_running`이고, 맡기기 요청이 이미 대기 중이면 `plugin_pending`이다. 설명을 생략하면 사용법 오류다. 결과 글은 `pluginRequestText`다. 실제 맡기기는 단계 함수가 한다(§4.5).
@@ -769,7 +769,7 @@ export function helmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit" | "p
 
 ### 3.9a 확장 메서드, Plugin UI 기여, 구성 선언 (`src/methods.ts`, `src/ui-decl.ts`, `src/composition.ts`, `ui/`)
 
-[제안] M4 T-GK에서 Helm이 여는 면이다(ADR-0021 §3.10, `L4.desktop-ux.spec` X-9, X-16). 확장 메서드 셋은 `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`이고 모두 읽기 전용이다. Plugin UI 기여는 일곱이고 모두 선언형(`native`)이다. 구성 선언은 `group.composition`에 두는 읽기용 설계 모델이다(F.extensions.spec §3.1.2). 셋 다 매니페스트 상수 `helmManifest`에 실린다. `defineGroup`은 같은 객체를 `composition`으로 받으므로 구성 충돌이 없다.
+[제안] M4 T-GK에서 Helm이 여는 면이다(ADR-0021 §3.10, `L4.desktop-ux.spec` X-9, X-16). 확장 메서드 셋은 `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`이고 모두 읽기 전용이다. Plugin UI 기여는 일곱이고 모두 선언형(`native`)이다. 구성 선언은 `orchestration.composition`에 두는 읽기용 설계 모델이다(F.extensions.spec §3.1.2). 셋 다 매니페스트 상수 `helmManifest`에 실린다. `defineOrchestration`은 같은 객체를 `composition`으로 받으므로 구성 충돌이 없다.
 
 #### 메서드 세 개
 
@@ -793,7 +793,7 @@ export interface FindingsParams { readonly inquiryId: string; }
 export interface FindingsView { readonly inquiryId: string; readonly findings: readonly HelmFinding[]; }
 
 /** setup 안에서 부른다. 처리기 세 개를 등록한다 */
-export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "readRecords" | "registerMethod">): void;
+export function registerHelmMethods(g: Pick<OrchestrationApi<HelmState>, "state" | "readRecords" | "registerMethod">): void;
 ```
 
 - 스레드 문맥: 처리기는 `ctx.threadId`를 받는다. 값이 있으면 `g.state()`와 `g.readRecords`를 쓴다(명령 처리기와 같은 문맥). `null`이면 상태에 닿지 않고 위 빈 값을 준다. 메서드는 상태를 만들거나 바꾸지 않는다.
@@ -844,11 +844,11 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 | `drive` | `drive` | `drive` | | 기록 `grp.helm.discovery.recorded`, 기록 `grp.helm.inquiry.finished`, post, state | `knowledge.search`, `knowledge.memory`, `web.search`, `work.tasks` |
 
 - 단계 머신(`phases`): 시작 노드는 `idle`이고 노드는 다섯이다(`idle`, `diverge`, `explore`, `converge`, `apply`, 모두 `phase`). 전이는 `TRANSITIONS`(§3.3)에서 만들므로 표와 선언이 어긋나지 않는다. 행 하나가 전이 하나이고 `event`는 표의 `on`이다. 스무 행이다. 턴, 렌즈 호출, 지식 수집은 전이 사이의 작업이므로 노드로 두지 않고 drive 블록이 맡는다 [제안].
-- 검사: `validateManifest(helmManifest)`와 `validateComposition(helmComposition, { manifest: helmManifest })`에 오류가 없다. `defineGroup`은 `composition`을 매니페스트 사본에 채우는데 이것이 매니페스트의 `group.composition`과 같은 객체이므로 `composition_conflict`가 없다. 매니페스트에도 두는 까닭은 `plugin.json`에 실리게 하려는 것이다.
+- 검사: `validateManifest(helmManifest)`와 `validateComposition(helmComposition, { manifest: helmManifest })`에 오류가 없다. `defineOrchestration`은 `composition`을 매니페스트 사본에 채우는데 이것이 매니페스트의 `orchestration.composition`과 같은 객체이므로 `composition_conflict`가 없다. 매니페스트에도 두는 까닭은 `plugin.json`에 실리게 하려는 것이다.
 
 #### 산출물
 
-- `scripts/build-plugin.ts`는 `ui/`를 `<outDir>/ui/`로 복사한다. `plugin.json`은 `methods`, `ui`, `group.composition`을 싣는다. 로더는 화면 파일이 없으면 `ui_file_missing`을 낸다. 시험(`test/int/plugin.int.test.ts`)은 화면 파일이 산출물에 있는지 본다.
+- `scripts/build-plugin.ts`는 `ui/`를 `<outDir>/ui/`로 복사한다. `plugin.json`은 `methods`, `ui`, `orchestration.composition`을 싣는다. 로더는 화면 파일이 없으면 `ui_file_missing`을 낸다. 시험(`test/int/plugin.int.test.ts`)은 화면 파일이 산출물에 있는지 본다.
 
 #### 시험 행
 
@@ -867,7 +867,7 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 | methods.threadless | 같은 파일 | 스레드 없는 호출은 대기 기본 보기와 빈 목록 |
 | methods.closed-thread | 같은 파일 | 열려 있지 않은 스레드(끝난 하위 대화, 재시작 뒤 아직 열지 않은 대화)에 묶인 호출은 던지지 않는다. 읽기 전용 메서드는 `ctx.threadOpen === false`로 받아 상태는 초기값(대기)으로 보고 기록만 읽는다: `inquiries`와 `findings`는 끝난 탐구와 발견을 재시작 뒤에도 준다. 한 번도 열린 적 없는 스레드는 기록이 없어 빈 목록이다 |
 | methods.result | 같은 파일 | 세 메서드 모두 대기, 진행, 끝난 뒤에 `ok`다(결과 검사 통과) |
-| composition.defined | `test/unit/composition.test.ts` | `helmGroup.manifest.group.composition`이 정의되고 두 매니페스트와 `validateGroupDef`에 오류가 없다 |
+| composition.defined | `test/unit/composition.test.ts` | `helmOrchestration.manifest.group.composition`이 정의되고 두 매니페스트와 `validateOrchestrationDef`에 오류가 없다 |
 | composition.phases | 같은 파일 | 선언된 전이 스무 행이 `TRANSITIONS` 표와 행마다 같다 |
 | composition.blocks | 같은 파일 | 블록 훅은 루트 플러그인 훅의 부분집합이고, 내는 기록 kind는 `HELM_RECORD_KINDS`다 |
 | composition.negative | 같은 파일 | 플러그인에 없는 훅과 없는 시작 노드는 거부된다 |
@@ -878,16 +878,16 @@ export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "read
 | ui.text | 같은 파일 | 실제 결과로 그린 글자가 화면 순서대로 같다(패널 9개, 페이지 21개) |
 | ui.bind.card | 같은 파일 | 끝난 탐구 기록과 제안 payload로 카드가 풀리고, `recorded`면 제안 카드는 그리지 않는다 |
 | ui.bind.negative | 같은 파일 | 결과에 없는 경로는 보고된다(검사가 비어 있지 않다는 확인) |
-| plugin.int | `test/int/plugin.int.test.ts` | `plugin.json`에 `methods`, `ui`, `group.composition`이 실리고 화면 파일이 산출물에 있다 |
+| plugin.int | `test/int/plugin.int.test.ts` | `plugin.json`에 `methods`, `ui`, `orchestration.composition`이 실리고 화면 파일이 산출물에 있다 |
 | host.manifest | `test/unit/host.test.ts` | `helmManifest.group`이 구성 선언을 가진다 |
 | docs.methods, docs.ui | `test/unit/docs-contrast.test.ts` | 이 절의 메서드 표와 Plugin UI 표가 코드의 동사와 기여 id와 같다 |
 
-### 3.10 그룹 모듈 (`src/index.ts`)
+### 3.10 오케스트레이션 모듈 (`src/index.ts`)
 
 ```ts
-import { defineGroup, type GroupModule } from "@fresnel/group-sdk";
+import { defineOrchestration, type OrchestrationModule } from "@fresnel/orchestration-sdk";
 
-export const helmGroup: GroupModule = defineGroup<HelmState>({
+export const helmOrchestration: OrchestrationModule = defineOrchestration<HelmState>({
   manifest: helmManifest,
   state: helmStateDecl,
   settings: helmSettings,          // §6
@@ -905,35 +905,35 @@ export const helmGroup: GroupModule = defineGroup<HelmState>({
 export { helmManifest, HelmStateSchema, INITIAL_HELM_STATE, HELM_RECORD_KINDS, helmSettings, transition, TRANSITIONS };
 ```
 
-- 구현 메모: `helmGroup`은 신뢰 등급 user, 설정 네임스페이스 `ext.helm`으로 `defineGroup`을 부른다. `g.settings()`는 X의 `settingValue`로 자기 `ext.helm.*` 키를 읽는다. drive 상한은 `DriveOptions.limits`를 getter로 넘겨 drive 락을 받을 때마다 다시 읽는다(변경은 다음 탐구부터). 내장 신뢰판은 두지 않는다. 외부 로더는 named export `extension`을 부른다.
+- 구현 메모: `helmOrchestration`은 신뢰 등급 user, 설정 네임스페이스 `ext.helm`으로 `defineOrchestration`을 부른다. `g.settings()`는 X의 `settingValue`로 자기 `ext.helm.*` 키를 읽는다. drive 상한은 `DriveOptions.limits`를 getter로 넘겨 drive 락을 받을 때마다 다시 읽는다(변경은 다음 탐구부터). 내장 신뢰판은 두지 않는다. 외부 로더는 named export `extension`을 부른다.
 
-- `defineGroup`의 필드는 L3.group-sdk.spec §3.2 `GroupDef`(`manifest`, `state`, `migrations`, `settings`, `setup`)다. Helm은 `migrations`로 상태 v1→v2를 옮긴다(§3.2). `/helm` 명령은 `GroupApi.registerCommand`로 등록한다. drive 락 필요 여부를 알리는 별도 필드는 두지 않는다(§3.3).
+- `defineOrchestration`의 필드는 L3.group-sdk.spec §3.2 `OrchestrationDef`(`manifest`, `state`, `migrations`, `settings`, `setup`)다. Helm은 `migrations`로 상태 v1→v2를 옮긴다(§3.2). `/helm` 명령은 `OrchestrationApi.registerCommand`로 등록한다. drive 락 필요 여부를 알리는 별도 필드는 두지 않는다(§3.3).
 
-### 3.11 그룹 구조: group-sdk과 slots 위의 배치
+### 3.11 플러그인 구조: orchestration-sdk과 slots 위의 배치
 
-Helm은 L3.slots.spec §3.1의 판정과 체크리스트를 따르는 첫 drive 플러그인 그룹이다. 같은 구조로 제2의 플러그인 그룹(L3.slots.spec §3.1.5)을 만들 수 있게, Helm 고유 코드와 group-sdk이 주는 부분을 나눈다.
+Helm은 L3.slots.spec §3.1의 판정과 체크리스트를 따르는 첫 drive 플러그인이다. 같은 구조로 제2의 플러그인(L3.slots.spec §3.1.5)을 만들 수 있게, Helm 고유 코드와 orchestration-sdk이 주는 부분을 나눈다.
 
-판정(L3.slots.spec §3.1.1): 1~3번(스킬, 기능, 정책 플러그인)으로는 부족하다. 여러 turn에 걸친 단계 진행, 병렬 서브에이전트, 결과 커밋 뒤 적용 turn을 런타임이 구동해야 하므로 4번 drive 플러그인 그룹이다. 템플릿은 drive 템플릿(L3.slots.spec §3.3)과 같은 파일 배치를 쓴다.
+판정(L3.slots.spec §3.1.1): 1~3번(스킬, 기능, 정책 플러그인)으로는 부족하다. 여러 turn에 걸친 단계 진행, 병렬 서브에이전트, 결과 커밋 뒤 적용 turn을 런타임이 구동해야 하므로 4번 drive 플러그인이다. 템플릿은 drive 템플릿(L3.slots.spec §3.3)과 같은 파일 배치를 쓴다.
 
 | 체크리스트(L3.slots.spec §3.1.2) | Helm의 대응 | 확인 |
 |---|---|---|
-| C1 매니페스트 | §3.1 `group` 선언, `plugins[0].layer: "L3"`, `drives: true`, `usesPost: true` | plan 테스트 1 |
+| C1 매니페스트 | §3.1 `orchestration` 선언, `plugins[0].layer: "L3"`, `drives: true`, `usesPost: true` | plan 테스트 1 |
 | C2 상태 스키마 | §3.2 `helmStateDecl`(version 2, 마이그레이션 1→2) | plan 테스트 4, 4a |
 | C3 drive와 상한 | §4.5, `DriveOptions.limits`는 `ext.helm.driveLimits` | plan 테스트 23 |
 | C4 레코드 kind | §3.4 `HELM_RECORD_KINDS` 3개, `readsRecordKinds: []` | plan 테스트 2, 3 |
-| C5 설정 네임스페이스 | `ext.helm.*`다 [결정: 조정자 2026-10-28, `l3.helm.*`에서 바꿈]. 신뢰 등급 user 그룹의 네임스페이스 규칙(`validateGroupDef`)을 따른다. `enabled`는 X 예약 키 `ext.helm.enabled`(`reservedExtensionSettings`)이고 호스트 카탈로그가 `helmSettings`와 함께 싣는다(§6, §10 미결 13) | plan 테스트 6 |
+| C5 설정 네임스페이스 | `ext.helm.*`다 [결정: 조정자 2026-10-28, `l3.helm.*`에서 바꿈]. 신뢰 등급 user 플러그인의 네임스페이스 규칙(`validateOrchestrationDef`)을 따른다. `enabled`는 X 예약 키 `ext.helm.enabled`(`reservedExtensionSettings`)이고 호스트 카탈로그가 `helmSettings`와 함께 싣는다(§6, §10 미결 13) | plan 테스트 6 |
 | C6 단위 테스트 | plan §5.1 | |
 | C7 재생 테스트 | `replayDrive` 효과 계수(§4.11, ADR-0015 §3.6) | plan 테스트 21, 35 |
-| C8 다른 그룹 import 없음 | 소스 import는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`뿐 | check-layers DR-02 |
-| C9 코어 diff 0 | Helm 본체 변경에서 `contracts`, `ext-host`, `group-sdk`, `core-*`, `platform-*` diff 0 | plan §6 3번 |
+| C8 다른 플러그인 import 없음 | 소스 import는 `@fresnel/contracts`, `@fresnel/orchestration-sdk`, `typebox`뿐 | check-layers DR-02 |
+| C9 코어 diff 0 | Helm 본체 변경에서 `contracts`, `ext-host`, `orchestration-sdk`, `core-*`, `platform-*` diff 0 | plan §6 3번 |
 
-group-sdk이 주는 것과 Helm이 쓰는 방식:
+orchestration-sdk이 주는 것과 Helm이 쓰는 방식:
 
-| group-sdk(L3.group-sdk.spec) | Helm의 쓰임 |
+| orchestration-sdk(L3.group-sdk.spec) | Helm의 쓰임 |
 |---|---|
-| `defineGroup`, `GroupApi`(§3.2) | `helmGroup` 정의, `g.settings()`, `g.registerCommand("helm", …)` |
+| `defineOrchestration`, `OrchestrationApi`(§3.2) | `helmOrchestration` 정의, `g.settings()`, `g.registerCommand("helm", …)` |
 | `commit` 래퍼의 `checkStateCommit`(§3.2) | `updateState`가 그 앞에서 `fitState`로 예산을 맞춘다(§3.2) |
-| `GroupStatus.drive`(§3.5, §3.8) | `/helm status`의 `lease`(탐구 중과 시작 대기는 Helm 상태로 판정한다) |
+| `OrchestrationStatus.drive`(§3.5, §3.8) | `/helm status`의 `lease`(탐구 중과 시작 대기는 Helm 상태로 판정한다) |
 | `replayDrive`(§3.10)와 G-20 효과 계수 | 재생 2회, 효과 1회 시험(§4.11) |
 | `scanDriveSource`(§3.11) | `drive.ts` 정적 결정성 검사(plan H-18) |
 | `g.delegate`(§3.4) | 쓰지 않는다. explorer는 drive 락 안의 `loop.spawn`으로 띄운다. 백그라운드 위임은 drive 락 상한 밖이라 탐구 비용을 묶지 못한다 |
@@ -954,11 +954,11 @@ export type HelmFailure =
   | { readonly kind: "budget"; readonly limit: "turns" | "spawns" | "tokens" }
   /** 상태 커밋 판 충돌(PrimitiveError state_conflict, REQ-X-02) */
   | { readonly kind: "state_conflict" }
-  /** fitState 뒤에도 64 KiB 초과(PrimitiveError state_too_large). fitState 규칙상 일어나면 안 되지만 group-sdk 검사와 예산이 어긋날 때를 받는다 */
+  /** fitState 뒤에도 64 KiB 초과(PrimitiveError state_too_large). fitState 규칙상 일어나면 안 되지만 orchestration-sdk 검사와 예산이 어긋날 때를 받는다 */
   | { readonly kind: "state_too_large" }
   /** 저장소 실패(PrimitiveError storage_unavailable) */
   | { readonly kind: "storage" }
-  /** 그룹이 꺼짐(PrimitiveError registration_inactive) */
+  /** 플러그인이 꺼짐(PrimitiveError registration_inactive) */
   | { readonly kind: "disabled" }
   /**
    * 기능 호출 실패. CapabilityError의 code를 싣는다. PrimitiveError capability_unavailable(provider 없음)은 "unavailable"로 싣는다.
@@ -995,7 +995,7 @@ export type HelmReaction =
 `HelmReaction`과 `reactionOf`는 순환을 피하려고 `src/reaction.ts`에 둔다. `reactionOf(failure, phase, source?)`의 `source`는 같은 기능(`knowledge.search`)이 두 출처(스킬, 대화)를 맡을 때 호출한 쪽이 알린다. `failureOf`의 `at`에는 `limit`(`lease_budget`이 어느 상한인지)를 더한다. ext-host를 import하지 않으므로 `PrimitiveError`는 이름과 `code`로 알아본다.
 
 - kind 이름은 X `PrimitiveErrorCode`(X.primitives.spec §3.10)와 F `CapabilityErrorCode`를 그대로 옮기지 않고 Helm의 처리 단위로 묶는다. 처리가 같은 코드는 한 kind로 모은다.
-- `failureOf`가 `undefined`를 돌려준 예외(설계 위반, `Bug`, 알 수 없는 오류)는 다시 던진다. drive에서 던지면 X가 drive 락을 반납하고 drive 등록을 오류로 표시한다(F.extensions.spec §5 6번, `GroupStatus.lastError` `group.driveThrew`).
+- `failureOf`가 `undefined`를 돌려준 예외(설계 위반, `Bug`, 알 수 없는 오류)는 다시 던진다. drive에서 던지면 X가 drive 락을 반납하고 drive 등록을 오류로 표시한다(F.extensions.spec §5 6번, `OrchestrationStatus.lastError` `orchestration.driveThrew`).
 - `PrimitiveError`의 그 밖의 코드(`record_invalid`, `record_kind_undeclared`, `post_undeclared`, `hook_undeclared`, `state_schema`, `capability_undeclared`)는 Helm 매니페스트나 스키마의 잘못이다. 정상 운영에서 일어나지 않으므로 `failureOf`가 바꾸지 않고 다시 던진다(TY-24 판정 질문).
 
 ## 4. 동작 규칙
@@ -1044,7 +1044,7 @@ export type HelmReaction =
 - 같은 페이로드로 다시 실행되면 `HelmTurnTally.seenToolCallIds`에 그 `toolCallId`가 있으므로 누적값을 다시 올리지 않는다. 신호 기록은 `boundary.settle.after`에서만 쓰고, 그 커밋의 멱등 키(X.primitives.spec §4.6.4 `rec:<scope 해시>:<dispatchKey>:<n>`)로 재실행 때 두 번째 기록이 `replayed`가 된다.
 - 다이제스트는 `fnv1a64`(순수 함수)로 만든다. 인자·오류 원문은 상태와 레코드에 남기지 않는다.
 
-커밋 빈도 [제안]: 상태 커밋은 turn당 1회(`boundary.settle.after`)다. group-sdk 규칙(L3.group-sdk.spec §4.5 4번, 카운터 틱은 상태 문서에 커밋하지 않는다)을 따르고, 학습 그룹과 같은 방식이다(L3.learning.spec §4.2 커밋 빈도).
+커밋 빈도 [제안]: 상태 커밋은 turn당 1회(`boundary.settle.after`)다. orchestration-sdk 규칙(L3.group-sdk.spec §4.5 4번, 카운터 틱은 상태 문서에 커밋하지 않는다)을 따르고, 학습 플러그인과 같은 방식이다(L3.learning.spec §4.2 커밋 빈도).
 
 - `input.agent.before`와 `tool.execution.after`는 프로세스 메모리의 `HelmTurnTally`(§3.2)만 갱신한다. 집계표는 (threadId, turnId)로 구분하고, 그 turn의 첫 시점에서 커밋된 `watch`로 연다(`openTally`).
 - `boundary.settle.after`는 `settleTurn`으로 커밋할 `watch`(turn을 넘어 이어지는 연속 횟수)와 넘은 신호를 얻고, 신호 기록과 상태 커밋을 한 번씩 한 뒤 집계표를 버린다.
@@ -1082,7 +1082,7 @@ export type HelmReaction =
 | 단계 안내 | `post` | 단계 전이(`diverge→explore→converge→apply`) | `phaseNotice(from, to)`: "탐구 단계: X → Y (이유)" 한 줄, `kind: "context"`, `customType: "grp.helm.notice.status"`, `display: true`, `when: "next"`. 이유는 전이마다 정해진 문장이다 [결정: 오케스트레이터 기본값, scH] |
 | 입력 큐 | `post` | 제안, 상한 도달·부분 실패·종료 알림 | `kind: "context"`, `display: true`, `when: "next"`(adr.0013). 단계 중간에 방법 힌트를 넣을 때만 `when: "steer"`이고, drive 락을 가진 탐구 turn이 실행 중일 때로 한정한다 |
 
-- collect 패치 [결정: ADR-0017]: `input.agent.before`는 collect 훅이다. 모든 핸들러가 원본 `payload`(`prompt`, `systemPrompt`)를 받고 반환값(`BeforeAgentStartPatch`의 `systemPrompt`, `message`)이 등록 순서로 모인다. 시스템 프롬프트 교체값은 마지막으로 정의한 핸들러가 이긴다. Helm 핸들러는 `{ systemPrompt: payload.systemPrompt + "\n\n" + block }`을 돌려준다. 다른 그룹이 같은 훅에서 교체값을 내면 순서에 따라 한쪽이 이긴다 [미결: 병합 규칙이 바뀌면 이 문장을 고친다].
+- collect 패치 [결정: ADR-0017]: `input.agent.before`는 collect 훅이다. 모든 핸들러가 원본 `payload`(`prompt`, `systemPrompt`)를 받고 반환값(`BeforeAgentStartPatch`의 `systemPrompt`, `message`)이 등록 순서로 모인다. 시스템 프롬프트 교체값은 마지막으로 정의한 핸들러가 이긴다. Helm 핸들러는 `{ systemPrompt: payload.systemPrompt + "\n\n" + block }`을 돌려준다. 다른 플러그인이 같은 훅에서 교체값을 내면 순서에 따라 한쪽이 이긴다 [미결: 병합 규칙이 바뀌면 이 문장을 고친다].
 - 한 시점에 렌즈 하나만 주입한다 [제안]. `explore` 단계에서 부모 대화의 블록에는 렌즈 목록 제목만 넣고, 렌즈별 지시는 각 explorer 과제에만 넣는다. `diverge`, `converge`, `apply`의 블록에는 렌즈 본문을 넣지 않는다.
 - 블록 구조(`LensBlock`): 머리줄(`[helm] inquiry <id> round <n> phase <phase>`), 단계 규칙 목록(예: 확산 단계 쓰기 금지 고지), 현재 렌즈 제목. 문구 본문은 다음 단계에서 정한다.
 - 대상 thread: 핸들러는 `ctx.threadId`가 Helm 상태를 가진 대화일 때만 패치를 낸다 [가정]. explorer 자식 대화에서 같은 훅이 발화하는지는 L1.agents.spec이 정한다.
@@ -1139,7 +1139,7 @@ export function helmDrive(g: DriveApi, settings: () => HelmSettings, marker: Exp
 
 ```
 
-- 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다. `parseExplorerAnswer`는 하위 에이전트 보고 표지(`<subagent_report …>`)를 뗀 글에서 JSON 코드 블록을 뒤에서부터 찾아 발견마다 `claim`(주장), `sources`(근거와 출처), `confidence`(신뢰도)로 나눈다. 글이 상한을 넘으면(출처 `title` 80자 등) 그 발견을 거절하지 않고 상한에서 자르고, 모양이 틀린 출처(`origin`을 모르는 것, 빈 `ref`)와 `claim`이 빈 발견만 버리며, 모르는 `confidence`는 `low`다. 모양이 맞는 발견이 하나도 없을 때만 표지를 뗀 답 전체를 `low` 신뢰 발견 1건의 `claim`으로 둔다 [근거: `packages/group-helm/src/findings.ts`, `packages/group-helm/test/unit/pure.test.ts`의 실제 보고 모양 시험].
+- 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다. `parseExplorerAnswer`는 하위 에이전트 보고 표지(`<subagent_report …>`)를 뗀 글에서 JSON 코드 블록을 뒤에서부터 찾아 발견마다 `claim`(주장), `sources`(근거와 출처), `confidence`(신뢰도)로 나눈다. 글이 상한을 넘으면(출처 `title` 80자 등) 그 발견을 거절하지 않고 상한에서 자르고, 모양이 틀린 출처(`origin`을 모르는 것, 빈 `ref`)와 `claim`이 빈 발견만 버리며, 모르는 `confidence`는 `low`다. 모양이 맞는 발견이 하나도 없을 때만 표지를 뗀 답 전체를 `low` 신뢰 발견 1건의 `claim`으로 둔다 [근거: `packages/plugin-helm/src/findings.ts`, `packages/plugin-helm/test/unit/pure.test.ts`의 실제 보고 모양 시험].
 - 엔진이 명령을 실행하고 그 결과를 다음 호출의 `last`로 준 뒤 단계 함수를 되풀이해 부른다. 한 호출은 효과 명령을 하나만 낸다. 그 앞뒤의 상태 커밋은 `commit` 명령으로 묶는다(엔진이 실행한다). 사용자 의사코드의 `while` 반복은 엔진의 되풀이 호출이 대신한다.
 - 할 일이 없을 때 `yield`를 쓰지 않는다. Helm의 단계는 모두 효과나 `done`으로 이어진다. `yield`는 판 충돌과 저장소 거부(`refused`)와 drive 락 중단 뒤의 반환에만 쓴다(§4.12).
 - 플러그인 맡기기(E3, drive-isolation.md 2.2·2.6, `src/drive.ts`의 `handoffOf`·`pluginSettle`): `pluginNeed`가 있고 `idle`이면 단계 함수가 `{ do: "handoff", to: "authoring", input: { purpose, id } }`를 낸다. 이 명령은 `pending`보다 먼저 본다(맡기기가 끝난 뒤에야 대기 중인 탐구가 시작된다). 맡은 쪽이 끝나면 `last`가 `handoff`로 온다. 결과마다 알림 한 줄과 함께 요청을 비운다(`pluginSettle`: 알림 `post` → `pluginNeed: null` 커밋 → 이어 할 일, 없으면 `done`).
@@ -1149,7 +1149,7 @@ export function helmDrive(g: DriveApi, settings: () => HelmSettings, marker: Exp
   - 맡기기 명령 자체는 상태를 바꾸지 않는다. 재시작 뒤 같은 단계가 다시 와도 같은 `handoff`를 낸다. 맡은 쪽이 이미 프레임으로 떠 있었다면 기록에서 이어진다. 큐에만 있던 맡기기 요청은 재시작에서 사라지지만 `pluginNeed`는 상태에 남아, 다음 주도 시작(`/helm start` 등)에서 다시 맡긴다(§10 미결 23).
 - 사용자 메시지(drive-isolation 2.4): `last`가 `user`이면 그 메시지를 맨 위 `turn` 명령으로 낸다. 턴이 끝나면 같은 단계로 이어 간다. 이 턴은 `turns`에서 차감된다.
 - 렌즈는 한 번에 하나씩 spawn한다. 옛 판의 `Promise.all` 병렬 spawn을 대신한다(단계 함수 전환). 실행 중인 렌즈는 순서상 첫 `running`이다(`lensesStarted`가 시작 표시를 한꺼번에 하고 결과는 순서대로 받는다). 결과를 받으면 그 렌즈만 `lensFinished`로 커밋하고 다음 렌즈를 낸다. 렌즈 하나의 실패가 다른 렌즈의 결과를 지우지 않는다. `Promise.allSettled`로 알 수 없는 예외를 삼키지 않는 규칙은 그대로다.
-- 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, ext.helm.driveLimits)`를 넘지 않는다. Helm은 `ext.helm.driveLimits`를 넘겨 X 일반 기본값 `x.primitives.driveDefaultLimits`를 덮어쓰고, X가 천장 `x.primitives.driveLimits`로 다시 자른다(review.decisions-2 U-12)(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] group-sdk은 drive 락을 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.
+- 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, ext.helm.driveLimits)`를 넘지 않는다. Helm은 `ext.helm.driveLimits`를 넘겨 X 일반 기본값 `x.primitives.driveDefaultLimits`를 덮어쓰고, X가 천장 `x.primitives.driveLimits`로 다시 자른다(review.decisions-2 U-12)(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] orchestration-sdk은 drive 락을 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.
 - 상한 도달: 단계 입력의 `budget`에서 turns·tokens가 0이면 턴을, spawns·tokens가 0이면 spawn을 내지 않고 `budget` 실패로 끝낸다. 한 호출이 효과를 하나만 내므로 호출 때 본 한도가 그 명령에 맞는다. 엔진이 먼저 거부하면(`lease_budget`) drive 락은 `budget`으로 반납되고 단계는 더 불리지 않는다(F.extensions.spec §4.6). 어느 경우든 `inquiry.finished`에 `outcome: "limit"`과 `limit`을 남기고 알림을 `post`한다(`display: true`). drive 락은 X가 `releasing`으로 바꾼다.
 - requestId: Helm은 `loop.turn`, `loop.spawn`, 멱등 기능 호출에 탐구 id에서 만든 결정적 키를 직접 넘긴다(ADR-0015 §3.4). X 기본 키(`${lineageId}:${순번}`)는 `loop.ask` 답 뒤 재부여에서는 유지되지만 `idle`·`budget`·재활성화 뒤 부여는 새 계통이라 달라질 수 있는데(REQ-X-04), 명시 키는 커밋된 상태 값(`inquiryId`, `round`, `lensId`, `findingId`)만 재료로 쓰므로 drive 락이 바뀌어도 같다. 그래서 Helm은 REQ-X-04의 답에 기대지 않는다(이전 판 미결 7을 Helm 쪽에서는 닫는다).
 - 표지 `awaitingTurn`(§3.2): 발산·적용 턴을 내기 전에 커밋한다. 턴 결과가 `last`로 오면 그 단계의 결과로 읽는다. 표지가 꺼져 있으면 `last`의 턴 결과는 사용자 메시지의 턴 결과다(§4.5 사용자 메시지). 엔진은 사용자 메시지가 끼어든 턴 결과를 `last`로 주지 않으므로 표지가 켜진 턴은 완료로 본다(§10 미결 20).
@@ -1180,7 +1180,7 @@ export function isWriteCall(meta: Readonly<ToolCallMetaView>): boolean;
 /** 순수 함수. 이 호출이 Helm 쓰기 거부의 대상 대화에서 왔는지 */
 export function isGuardedCaller(caller: CallerId | undefined): boolean;
 
-/** 그룹 전역 표지(프로세스 메모리) [제안]. 구동 중인 탐구의 단계다. drive 호출 밖에서는 idle이다 */
+/** 플러그인 전역 표지(프로세스 메모리) [제안]. 구동 중인 탐구의 단계다. drive 호출 밖에서는 idle이다 */
 export interface ExplorationMarker {
   phase: HelmPhase;
 }
@@ -1188,7 +1188,7 @@ export interface ExplorationMarker {
 /** 순수 함수 [제안]. 이 호출이 본 탐구 단계. `subagent:explorer`는 표지를, 그 밖의 호출은 호출한 대화의 커밋 상태를 본다 */
 export function phaseSeenBy(caller: CallerId | undefined, state: Pick<HelmState, "phase">, marker: ExplorationMarker): HelmPhase;
 
-export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): Handler<"tool.call.before", HelmState>;
+export function guardWrite(g: OrchestrationApi<HelmState>, marker: ExplorationMarker): Handler<"tool.call.before", HelmState>;
 // (call, ctx) => g.settings().writeGuard
 //   && isGuardedCaller(call.caller) && isWriteCall(call)
 //   && (phaseSeenBy(call.caller, ctx.state, marker) === "diverge"
@@ -1197,7 +1197,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 ```
 
 - 조건: `ext.helm.writeGuard`가 참이고, 쓰기 호출이며, 대상 대화에서 왔고, 단계가 `diverge` 또는 `explore`일 때만 거부한다. 단계는 호출자에 따라 고른다. `main`(또는 caller 없음)은 핸들러가 받은 커밋 상태(`ctx.state`)의 `phase`를 본다. `subagent:explorer`는 아래 구동 중인 탐구 표지(`marker.phase`)를 본다. `idle`(대기 요청 포함), `converge`, `apply`에서는 거부하지 않는다.
-- 구동 중인 탐구 표지 [제안]: explorer 자식 대화의 커밋 상태는 그 대화 자신의 상태라 `idle`이므로(그룹 상태는 대화 가지마다 따로다. L3.group-sdk.spec §4.6) `ctx.state`로는 explorer 호출을 판정할 수 없다. 그래서 그룹 전역 표지를 둔다. `helmDrive`는 호출 처음에 커밋된 `st.phase`를 표지에 넣고, 명령이 효과를 내는 단계(commit 뒤 명령이면 커밋된 단계)로 둔다. `done`·`yield`로 끝나거나 예외가 나면 `idle`로 되돌린다. 엔진은 명령을 이 함수 밖에서 실행하므로 drive 락이 명령 중에 회수되면 표지가 탐구 단계로 남을 수 있다. 회수를 알리는 훅이 없어서다(§10 미결 22). explorer는 렌즈 spawn 중에만 떠 있으므로 표지가 덮어야 할 기간은 그 명령의 기간이다. 재시작 뒤에는 다음 drive 호출이 커밋 상태로 표지를 다시 채운다. drive 락은 한 번에 하나라서 표지도 하나다.
+- 구동 중인 탐구 표지 [제안]: explorer 자식 대화의 커밋 상태는 그 대화 자신의 상태라 `idle`이므로(플러그인 상태는 대화 가지마다 따로다. L3.group-sdk.spec §4.6) `ctx.state`로는 explorer 호출을 판정할 수 없다. 그래서 플러그인 전역 표지를 둔다. `helmDrive`는 호출 처음에 커밋된 `st.phase`를 표지에 넣고, 명령이 효과를 내는 단계(commit 뒤 명령이면 커밋된 단계)로 둔다. `done`·`yield`로 끝나거나 예외가 나면 `idle`로 되돌린다. 엔진은 명령을 이 함수 밖에서 실행하므로 drive 락이 명령 중에 회수되면 표지가 탐구 단계로 남을 수 있다. 회수를 알리는 훅이 없어서다(§10 미결 22). explorer는 렌즈 spawn 중에만 떠 있으므로 표지가 덮어야 할 기간은 그 명령의 기간이다. 재시작 뒤에는 다음 drive 호출이 커밋 상태로 표지를 다시 채운다. drive 락은 한 번에 하나라서 표지도 하나다.
 - 결정 형태: F.extensions.spec §3.5의 `ToolCallDecision`(`{ block: true, reason }`)을 쓴다. 사용자 의사코드의 `{ deny: "…" }`는 이 형태에 대응한다. `terminate`는 두지 않는다.
 - 쓰기 판정 입력 [제안] (G1-05, M3-02, H-IN-07):
 
@@ -1208,7 +1208,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | `risk` 없음 | L1.tools 규칙(미선언은 `exec`)과 같이 쓰기로 본다 |
 | `hints.readOnly === true`인데 `risk`가 `write`·`exec` | `risk`를 따른다. `hints`는 작성자 힌트이고 MCP annotation도 `hints`로 들어오므로 등급을 낮추지 않는다(L1.tools.spec 등급 유도 규칙) |
 
-- 대상 대화(`caller`) [제안]: `main`과 `subagent:explorer`를 거부 대상으로 본다. 그 밖의 서브에이전트(다른 그룹의 위임, 학습 검토 포크)는 Helm 탐구와 관계가 없으므로 거부하지 않는다. `caller`가 없으면 `main`으로 본다. 핸들러는 그 밖에 `ctx.threadId`가 Helm 상태를 가진 대화이거나 그 자식인지에 기대지 않는다. 자식 대화에서 그룹 핸들러가 발화하는 범위는 L1.agents가 정한다(REQ-L1-04). 자식 대화에서 발화하지 않으면 explorer의 쓰기 차단은 아래 정의 상한 하나가 맡는다.
+- 대상 대화(`caller`) [제안]: `main`과 `subagent:explorer`를 거부 대상으로 본다. 그 밖의 서브에이전트(다른 플러그인의 위임, 학습 검토 포크)는 Helm 탐구와 관계가 없으므로 거부하지 않는다. `caller`가 없으면 `main`으로 본다. 핸들러는 그 밖에 `ctx.threadId`가 Helm 상태를 가진 대화이거나 그 자식인지에 기대지 않는다. 자식 대화에서 플러그인 핸들러가 발화하는 범위는 L1.agents가 정한다(REQ-L1-04). 자식 대화에서 발화하지 않으면 explorer의 쓰기 차단은 아래 정의 상한 하나가 맡는다.
 - explorer 도구 상한 [제안]: explorer 정의의 도구 목록은 `risk: read` 도구(`read`, `grep`, `web_search`, `web_fetch`, 지식 검색 도구)와 읽기 전용 샌드박스 bash(`bash`, `permissions.sandbox: read-only`, 샌드박스 밖에서는 exec라 묻는다 [결정: 2026-11-13 사용자])만 둔다. 이 상한은 L1.agents 권한 상한(§4.3)으로 집행되고 Helm 핸들러 발화와 상관없이 적용된다.
 - 처리 순서 [가정] (H-IN-16, REQ-X-11): `tool.call.before` 훅 디스패치는 인자 검증 뒤, 정책 판정·승인 요청 앞에서 실행된다. 그래서 Helm이 거부한 호출은 사용자 승인 창을 띄우지 않는다. 샌드박스는 실행 경로(L0)에서 따로 걸리므로 Helm 거부와 겹치지 않는다. 순서가 다르게 정해지면 이 절의 "승인 창을 띄우지 않는다" 문장만 고친다.
 - 핸들러 예외는 `FIRST_DENY["tool.call.before"]`로 바뀌어 호출이 거부된다(F.extensions.spec §4.1 first fail-closed). 이 거부는 Helm 단계와 상관없이 일어나므로 핸들러는 상태 읽기와 순수 판정만 하고 I/O를 하지 않는다.
@@ -1217,11 +1217,11 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 
 ### 4.7 지식 소비
 
-- 읽기 경로는 F 정의뿐이다. `g.capability(key)`만 쓴다. `group-learning`과 `cap-*` 패키지를 import하지 않는다(CM-06, F.extensions.spec §4.8, 층 사이 규칙 2).
+- 읽기 경로는 F 정의뿐이다. `g.capability(key)`만 쓴다. `plugin-learning`과 `cap-*` 패키지를 import하지 않는다(CM-06, F.extensions.spec §4.8, 층 사이 규칙 2).
 - `gatherContext` 순서 [제안]: 스킬 검색(`knowledge.search.query`, `kinds: ["skill"]`) → 메모리 읽기(`knowledge.memory.read`) → 과거 대화 검색(`knowledge.search.query`, `kinds: ["session"]`) → 웹 검색(`topic`, `limit: 5`, `content: "highlights"`). 본문 읽기(`web.fetch`)는 explorer가 도구로 하고 drive는 부르지 않는다.
 - 호출은 `CallOptions`에 `signal`을 넘기지 않는다. 중단 신호는 drive 호출 문맥이 따라 준다(`packages/ext-host/src/primitives/host-api.ts:508`의 `drive` 문맥이 drive 락의 신호를 준다). 읽기 메서드라 멱등 키가 필요 없으므로 requestId를 넘기지 않는다(ADR-0015 §3.2 읽기 행). 결과는 `converged` 커밋의 `context`에 요약으로 고정한다. `converged` 커밋 전에 재호출되면 읽기를 다시 하고, 비용은 재생 횟수만큼 든다(ADR-0015 §4.2).
 - 각 출처 호출은 `callSource`로 감싼다. 실패는 `degradeOf`로 `skip`(그 출처만 건너뜀)이나 `abort`(drive 락 회수, 나머지 호출을 멈추고 지금까지 모은 요약으로 반환)가 된다.
-- 다른 그룹 레코드 [결정: review.decisions-2 D-10]: 그룹 사이 레코드는 F에 스키마가 없으므로 Helm은 학습 그룹을 비롯한 다른 그룹의 레코드(`g.readRecords`)를 읽지 않는다. 학습 그룹이 승인해 적용한 스킬과 메모리는 L2 지식 저장소에 있으므로 위 스킬 검색·메모리 읽기로 얻는다. 승인 전 후보는 L2에 없으므로 섞이지 않는다.
+- 다른 플러그인 레코드 [결정: review.decisions-2 D-10]: 플러그인 사이 레코드는 F에 스키마가 없으므로 Helm은 학습 플러그인을 비롯한 다른 플러그인의 레코드(`g.readRecords`)를 읽지 않는다. 학습 플러그인이 승인해 적용한 스킬과 메모리는 L2 지식 저장소에 있으므로 위 스킬 검색·메모리 읽기로 얻는다. 승인 전 후보는 L2에 없으므로 섞이지 않는다.
 
 저하 동작 [제안]:
 
@@ -1230,7 +1230,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | `web.search` 없음 또는 `unavailable`·`rate_limited`·`timeout` | 웹 출처 없이 진행. `degraded`에 `web`. explorer 과제에 "웹 검색 불가" 고지를 넣는다 |
 | `web.fetch` 없음 | drive는 영향이 없다(부르지 않는다). explorer 과제에 "본문 읽기 불가" 고지를 넣고 검색 요약만으로 주장을 만들게 한다 |
 | `knowledge.search`, `knowledge.skills`, `knowledge.memory` 없음(optional 미제공) | 해당 출처 건너뜀. `degraded`에 `knowledge`·`session` |
-| 학습 그룹 꺼짐, 미설치 | 영향 없음. Helm은 학습 그룹 레코드를 읽지 않는다 |
+| 학습 플러그인 꺼짐, 미설치 | 영향 없음. Helm은 학습 플러그인 레코드를 읽지 않는다 |
 | `aborted` | 호출을 멈추고 drive를 반환한다. drive 락 회수 중이다 |
 | 모든 출처 실패 | 지식 요약 없이 수렴한다. 탐구는 계속한다 |
 
@@ -1253,16 +1253,16 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 ### 4.9 대화 시작과 재개
 
 - `thread.start`(tap)는 상태 복원을 확인만 한다. 스키마를 어기는 저장 상태는 X가 Registration을 켜지 못하게 하므로(`state_schema`) 이 핸들러까지 오지 않는다 [미결 → X: 복구 경로]. 이 핸들러는 스키마는 맞지만 탐구 단계에 `inquiryId`·`topic`이 없는 상태를 본다.
-  - 통과하면 아무것도 하지 않는다. 열린 drive 락이 있으면 X가 drive를 재호출하고, 없으면 프로필의 시작 설정(`openThread`의 `startDrive`)이 시작 요청을 넣어 다시 주도한다(E3, drive-isolation.md 2.2) [미결: 호스트가 Helm에 프로필 시작 설정을 넣는지는 조립 트랙이 정한다]. 탐구가 없으면 drive는 효과 없이 반환해 drive 락이 `idle`로 반납된다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+  - 통과하면 아무것도 하지 않는다. 열린 drive 락이 있으면 X가 drive를 재호출하고, 없으면 프로필의 시작 설정(`openThread`의 `startDrive`)이 시작 요청을 넣어 다시 주도한다(E3, drive-isolation.md 2.2) [미결: 호스트가 Helm에 프로필 시작 설정을 넣는지는 조립 트랙이 정한다]. 탐구가 없으면 drive는 효과 없이 반환해 drive 락이 `idle`로 반납된다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
   - 일관되지 않으면 초기 상태로 커밋하고 `inquiry.finished`(`failed`, `reason: "state inconsistent: …"`)를 쓴다.
 - 상태 `version`이 다르면 X가 마이그레이션 훅을 요구한다(F.extensions.spec §3.2 `StateDecl`). 1차는 버전 1뿐이다.
 - `reason: "fork"`로 시작한 대화는 원 대화의 상태를 이어받는다 [가정: 분기 시 Registration 상태 복사는 X.primitives.spec].
 
-### 4.10 다른 그룹과의 공존
+### 4.10 다른 플러그인과의 공존
 
-- 다른 그룹이 주도하는 동안 Helm의 시작 요청은 큐에서 기다린다. 사용자 명령은 전환 정책(X.primitives.spec §4.4.1a)에 따라 돌고 있는 단계가 끝난 뒤 주도를 가져온다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. 대기 상한과 `lease.rejected` 거부는 없다(E3). Helm의 처리는 §4.13이다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
-- 학습 그룹은 drive를 쓰지 않으므로 Helm drive 락 중에도 on, post, 백그라운드 위임으로 동작한다(F.extensions.spec §4.6 [결정]). Helm은 학습 그룹이 꺼져 있어도 같은 동작을 한다(§4.7 저하 동작).
-- 두 그룹의 chain 패치는 X의 디스패치 순서대로 합성되고, first 결정은 먼저 거부한 쪽이 정한다(F.extensions.spec §4.2).
+- 다른 플러그인이 주도하는 동안 Helm의 시작 요청은 큐에서 기다린다. 사용자 명령은 전환 정책(X.primitives.spec §4.4.1a)에 따라 돌고 있는 단계가 끝난 뒤 주도를 가져온다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. 대기 상한과 `lease.rejected` 거부는 없다(E3). Helm의 처리는 §4.13이다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
+- 학습 플러그인은 drive를 쓰지 않으므로 Helm drive 락 중에도 on, post, 백그라운드 위임으로 동작한다(F.extensions.spec §4.6 [결정]). Helm은 학습 플러그인이 꺼져 있어도 같은 동작을 한다(§4.7 저하 동작).
+- 두 플러그인의 chain 패치는 X의 디스패치 순서대로 합성되고, first 결정은 먼저 거부한 쪽이 정한다(F.extensions.spec §4.2).
 
 ### 4.11 효과 목록 적용 (ADR-0015)
 
@@ -1325,14 +1325,14 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 
 | 결정 | 동작 |
 |---|---|
-| D-M3-01 c 형태와 기본 켬 | 기본 플러그인 그룹. 설치되어 있으면 켜고(`defaultEnabled: true`), 외부 확장 로더가 `user` 등급으로 싣는다(§3.1) |
-| D-M3-05 a drive 락 충돌 | 대기 요청으로 남는다. 중재가 없어(E3) 거부와 `lease.rejected` 구독은 없다. 다른 그룹이 주도 중이면 Helm의 시작 요청은 전환 정책을 기다린다. 시작 요청이 거부된 탐구는 `pending`을 남긴 채 결과 글에 이유를 붙인다. `/helm stop`으로 지운다 [결정: drive-isolation.md 2.2] | [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+| D-M3-01 c 형태와 기본 켬 | 기본 플러그인. 설치되어 있으면 켜고(`defaultEnabled: true`), 외부 확장 로더가 `user` 등급으로 싣는다(§3.1) |
+| D-M3-05 a drive 락 충돌 | 대기 요청으로 남는다. 중재가 없어(E3) 거부와 `lease.rejected` 구독은 없다. 다른 플러그인이 주도 중이면 Helm의 시작 요청은 전환 정책을 기다린다. 시작 요청이 거부된 탐구는 `pending`을 남긴 채 결과 글에 이유를 붙인다. `/helm stop`으로 지운다 [결정: drive-isolation.md 2.2] | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 | D-M3-06 a 유휴 자율 turn | 허용. 사용자 turn 뒤에도 탐구가 drive 락 상한 안에서 이어진다(§4.5) |
 | D-M3-07 a 안전 모드 | Helm을 적재하지 않는다(§3.1). 상태는 남는다 |
-| D-M3-04 b 그룹 끄기 때 진행 중 위임 | Helm은 `g.delegate`를 쓰지 않으므로 취소할 위임이 없다. drive 락 안의 `loop.turn`·`loop.spawn`은 UC-2 대안 흐름대로 정착까지 진행한다 |
+| D-M3-04 b 플러그인 끄기 때 진행 중 위임 | Helm은 `g.delegate`를 쓰지 않으므로 취소할 위임이 없다. drive 락 안의 `loop.turn`·`loop.spawn`은 UC-2 대안 흐름대로 정착까지 진행한다 |
 | D-M3-17 알림 | 탐구 종료·상한 알림은 `post`(`display: true`)로 대화에 남긴다. 연결된 클라이언트 알림과 OS 알림은 L4 알림 경로가 `grp.helm.inquiry.finished` 기록을 보고 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고 설정으로 끈다. 웹·모바일 푸시는 후순위이고 들어와도 Helm 코드는 같다 |
 
-- [닫힘, E3] 대기 거부 알림(`lease.rejected` 구독 핸들러, `requestId ...:rejected`)은 없어졌다. 거부 값과 구독 수단은 엔진과 group-sdk에서 함께 걷혔다(L3.group-sdk.spec §3.5). 계약의 `lease.rejected` 이벤트 종류는 옛 기록 읽기용으로 스키마에만 남는다(계약 정리 단계 [미결]). [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
+- [닫힘, E3] 대기 거부 알림(`lease.rejected` 구독 핸들러, `requestId ...:rejected`)은 없어졌다. 거부 값과 구독 수단은 엔진과 orchestration-sdk에서 함께 걷혔다(L3.group-sdk.spec §3.5). 계약의 `lease.rejected` 이벤트 종류는 옛 기록 읽기용으로 스키마에만 남는다(계약 정리 단계 [미결]). [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 
 ## 5. 실패와 경계 사례
 
@@ -1343,7 +1343,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 3 | drive 락 상한 도달 | §4.5. `inquiry.finished`(`limit`)와 알림 `post`(`requestId: helm:<inquiryId>:<phase>:<round>:limit`). 상한 이름과 남은 단계를 표시한다 |
 | 4 | 사용자 `/helm stop` | `stopRequested`를 커밋한다. 실행 중인 턴·spawn은 끊지 않는다. 다음 단계가 `stopRequested`를 읽어 `idle`(`stopped`)로 간다. 남은 렌즈는 돌지 않는다. drive 락이 없으면(대기 중) `pending`을 지운다 |
 | 5 | 단계 경계에서 disable(`/group off helm`, `ext.helm.enabled` 거짓) | X 순서: on 핸들러 제외 → drive 락 반납 → 정리(F.extensions.spec §4.5). 상태는 그대로 남는다. 다시 켜도 주도는 자동으로 돌아오지 않는다. 같은 주제의 `/helm start`가 커밋된 단계에서 이어 간다(E3, §4.9). 꺼진 동안 쓰기 거부는 걸리지 않는다 |
-| 6 | 다른 그룹이 주도 중 | §4.10. 시작 요청은 전환 정책을 기다린다. on 핸들러는 계속 동작한다. `/helm status`가 `lease: "waiting"`을 보여 준다 |
+| 6 | 다른 플러그인이 주도 중 | §4.10. 시작 요청은 전환 정책을 기다린다. on 핸들러는 계속 동작한다. `/helm status`가 `lease: "waiting"`을 보여 준다 |
 | 7 | 프로세스 강제 종료 뒤 재개 | §4.5 재개. drive는 마지막 커밋 상태로 재호출된다. 커밋 전 spawn 결과는 같은 requestId로 다시 수집한다. 적용 turn은 같은 requestId라 다시 실행되지 않는다. 재실행된 명령의 결과 기록이 drive 락마다 다른 계통 id를 담으면 재개가 `error`로 끝난다(§10 미결 19) |
 | 8 | drive 함수 예외 | X가 drive 락을 반납하고 drive 등록을 오류로 표시한다(F.extensions.spec §5 6번). 상태는 남는다. `/helm status`가 오류를 보여 준다. 재시도는 X.primitives.spec |
 | 9 | `tool.call.before` 핸들러 예외 | 거부로 환산(F.extensions.spec §4.1). 단계와 상관없이 그 호출은 실행되지 않는다 |
@@ -1355,7 +1355,7 @@ export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): H
 | 14 | 탐구 중 `/helm start` | 같은 주제(또는 주제 생략)면 이어 가기 요청이다. 상태를 바꾸지 않고 시작 요청만 낸다. 다른 주제면 오류 응답("이미 탐구 중")이고 상태를 바꾸지 않는다 |
 | 15 | `idle`이고 `pending`이 없음 | `{ do: "done" }`으로 주도권을 내려놓는다. 다음 `/helm start`의 시작 요청으로 다시 주도한다(§3.3). drive 락 필요 판정 훅은 두지 않는다(§3.3) |
 | 16 | 상태 검증 실패 | §4.9. `state_inconsistent`(§4.12) |
-| 17 | X 기능 래퍼가 읽기 호출을 `effect_not_allowed`로 거부(L2 정의에 `readOnly` 선언이 아직 없음) | `capability` 실패로 그 출처를 건너뛴다(§4.12). 탐구는 끝난다. 시험 `knowledge.undeclared-method-degrades`가 이 경로를 확인한다 |
+| 17 | X 기능 래퍼가 읽기 호출을 `effect_not_allowed`로 거부(그 L2 메서드 정의에 `readOnly` 선언이 없음. `knowledge.*` 읽기 메서드는 `readOnly: true`를 선언한다: `contracts/src/capabilities/defs/knowledge.ts`) | `capability` 실패로 그 출처를 건너뛴다(§4.12). 탐구는 끝난다. 시험 `knowledge.undeclared-method-degrades`가 이 경로를 확인한다 |
 | 18 | `work.tasks.create`에 `idempotent` 선언이 없음 | X가 `effect_not_allowed`로 거부한다. 작업 연결만 빠지고 발견 기록은 남는다 |
 | 19 | 상태 커밋 판 충돌(`state_conflict`) | 엔진이 commit 명령을 거부해 `refused`로 돌아온다. `yield`한다. 다음 호출이 커밋된 판을 다시 읽는다(§4.12) |
 | 23 | 주도 중 사용자 메시지 | `last`가 `user`이면 맨 위 `turn` 명령으로 처리하고 같은 단계로 이어 간다. 턴 한도가 없으면 단계를 그대로 진행한다(§4.5). 메시지를 3단계 안에 처리하지 못하면 엔진이 코어 루프로 돌려보낸다(drive-isolation 2.4) |
@@ -1398,10 +1398,10 @@ export interface HelmSettings {
 
 - `driveLimits.maxTurns` 기본 4는 발산 1, 적용 1에 여유 2를 둔 값이다. `maxSpawns` 기본 8은 `maxLenses` 상한과 같다. 이 기본값은 pi 방식(기본 상한 없음)의 예외다 [결정: review.decisions-2 U-12]. drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 끝나지 않을 수 있다. 사용자는 설정 화면 `plugins` 탭에서 이 값을 조정한다. 이 키가 X 일반 기본값 `x.primitives.driveDefaultLimits`를 Helm에 한해 덮어쓴다. 일반 대화 턴에는 상한을 두지 않는다.
 - `maxLenses`가 `driveLimits.maxSpawns`보다 크면 설정 저장 때 경고하고, 실행 때는 §4.2 explore 행 규칙으로 처리한다.
-- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 플러그인과 L3 그룹이 모두 이 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
-- L4 노출: 설정 화면 "플러그인과 그룹" 탭의 Helm 항목, 설정 파일, `/helm` 명령(§3.9). `/group on|off|status`는 group-sdk 소유다.
+- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 플러그인과 L3 플러그인이 모두 이 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
+- L4 노출: 설정 화면 "플러그인" 탭의 Helm 항목, 설정 파일, `/helm` 명령(§3.9). `/group on|off|status`는 orchestration-sdk 소유다.
 - 시크릿 설정은 없다.
-- 마일스톤: M2 코드(`xeon/packages/group-helm/src/settings.ts`)는 `driveLimits` 하나만 선언한다. 나머지 세 키는 M3-04로 더한다.
+- 마일스톤: M2 코드(`xeon/packages/plugin-helm/src/settings.ts`)는 `driveLimits` 하나만 선언한다. 나머지 세 키는 M3-04로 더한다.
 
 ## 7. 훅
 
@@ -1429,7 +1429,7 @@ export interface HelmSettings {
 | 명령 `/helm start\|stop\|status`, `HelmStatusView` | L4.cli.spec, L4.desktop.spec |
 | `customType` `grp.helm.notice.suggested`, `grp.helm.notice.status` | L4(표시), F.conversation.spec `FresnelCustomMessage` |
 | 서브에이전트 정의 이름 `explorer` | L1.agents.spec |
-| `helmGroup`(GroupModule), 플러그인 산출물(`.fresnel-plugin/plugin.json`, 엔트리 번들) | X.loading-trust.spec 외부 확장 로더, L4 릴리즈(첫 실행 설치) |
+| `helmOrchestration`(OrchestrationModule), 플러그인 산출물(`.fresnel-plugin/plugin.json`, 엔트리 번들) | X.loading-trust.spec 외부 확장 로더, L4 릴리즈(첫 실행 설치) |
 
 요구:
 
@@ -1445,15 +1445,15 @@ export interface HelmSettings {
 | `RegistrationApi.commit`의 같은 프로세스 직렬화(`expectStateRev` CAS와 `state_conflict`는 이미 있다) | X.primitives.spec §4.6.1 | 요구. 정해지면 `updateState` 큐를 지운다(§4.1) | REQ-X-02 |
 | `record`와 `commit` 원자 묶음 | X.primitives.spec, F.extensions.spec | 요구. 없는 동안 `findingId` 중복 제거(§4.8) | REQ-X-03 |
 | 재시작 뒤 `leaseId` 유지 | X.primitives.spec | Helm은 명시 키로 기대지 않는다(§4.5) | REQ-X-04 |
-| 유휴 자율 turn, 안전 모드의 L3 그룹(D-M3-06·07 결정 반영). 대기 상한과 거부 통지는 E3에서 없어졌다 | X.primitives.spec §4.5.5, X.operations.spec, L3.group-sdk.spec §3.5 | 요구. 주도 시작 계기(사용자 명령, 프로필 시작, 맡기기)만 쓴다(drive-isolation.md 2.2) | REQ-X-08(E3에서 닫힘), G-IN-04 |
+| 유휴 자율 turn, 안전 모드의 L3 플러그인(D-M3-06·07 결정 반영). 대기 상한과 거부 통지는 E3에서 없어졌다 | X.primitives.spec §4.5.5, X.operations.spec, L3.group-sdk.spec §3.5 | 요구. 주도 시작 계기(사용자 명령, 프로필 시작, 맡기기)만 쓴다(drive-isolation.md 2.2) | REQ-X-08(E3에서 닫힘), G-IN-04 |
 | 서비스 키 A안 래퍼 | X.primitives.spec, F.extensions.spec | 요구. Helm은 `g.capability(key)`만 쓴다 | REQ-X-09 |
 | `tool.call.before` 훅과 정책·승인·샌드박스의 처리 순서 | X.operations.spec, L1.tools.spec | 요구. §4.6 처리 순서 [가정] | REQ-X-11 |
-| 외부 확장 로더(자체 API), 기본 플러그인 그룹의 첫 실행 설치, `@fresnel/contracts`·`@fresnel/group-sdk`·`typebox` 가상 모듈 등록 | X.loading-trust.spec §4.2, §4.10.6, `review.m3-plan` M3-15 | 요구 [제안]. 없으면 Helm을 적재할 수 없다(§3.1) | M3-15 |
-| `defineGroup`, `GroupApi.settings()`·`registerCommand`·`startDrive`, `replayDrive`(G-20 효과 계수), `scanDriveSource`, `GroupStatus` | L3.group-sdk.spec §3.2, §3.5, §3.8, §3.10, §3.11 | 문서 있음. G-20 효과 계수는 ADR-0015 §4.3 반영 대기 | G-IN-02 |
+| 외부 확장 로더(자체 API), 기본 플러그인의 첫 실행 설치, `@fresnel/contracts`·`@fresnel/orchestration-sdk`·`typebox` 가상 모듈 등록 | X.loading-trust.spec §4.2, §4.10.6, `review.m3-plan` M3-15 | 요구 [제안]. 없으면 Helm을 적재할 수 없다(§3.1) | M3-15 |
+| `defineOrchestration`, `OrchestrationApi.settings()`·`registerCommand`·`startDrive`, `replayDrive`(G-20 효과 계수), `scanDriveSource`, `OrchestrationStatus` | L3.group-sdk.spec §3.2, §3.5, §3.8, §3.10, §3.11 | 문서 있음. G-20 효과 계수는 ADR-0015 §4.3 반영 대기 | G-IN-02 |
 | `loop.spawn`의 (thread, `requestId`) 멱등을 대화 DB에 남겨 재시작 뒤에도 유지 | L1.agents.spec, L1.loop.spec §4.8 | 요구. 지금은 프로세스 메모리 64개 | REQ-L1-01 |
-| 자식 대화의 훅 발화와 그룹 핸들러 적용 범위 | L1.agents.spec | 요구. Helm은 `caller`로 대상을 고르고 explorer 도구 상한으로 보강한다(§4.6) | REQ-L1-04 |
+| 자식 대화의 훅 발화와 플러그인 핸들러 적용 범위 | L1.agents.spec | 요구. Helm은 `caller`로 대상을 고르고 explorer 도구 상한으로 보강한다(§4.6) | REQ-L1-04 |
 | `explorer` 정의 형식과 확장 경로 적재, 권한 상한 | L1.agents.spec §4.3, §4.9 | 문서 있음 | — |
-| 그룹 정의 모델 역할을 두지 않음 | L1.models.spec | 요구(문서 표기) | REQ-L1-06 |
+| 오케스트레이션 정의 모델 역할을 두지 않음 | L1.models.spec | 요구(문서 표기) | REQ-L1-06 |
 | `web.search`(읽기), `knowledge.search`·`knowledge.skills.view`·`knowledge.memory.read`(읽기), `work.tasks.create`(멱등 쓰기)의 효과 등급 선언과 내구 멱등 근거 | L2.web.spec, L2.knowledge.spec, L2.work.spec | 요구 | REQ-L2-01 |
 | 비공개 상태 저장(`grp.helm.state.committed`, `x_helm_state`), 비공개 기록(`recordPrivate`) | X.primitives.spec §4.6.1, §4.6.5, review.decisions-2 T-20, T-21 | 확정. Helm은 `recordPrivate`를 쓰지 않는다 | REQ-X-06 |
 
@@ -1464,8 +1464,8 @@ export interface HelmSettings {
 1. (UC-2) Helm이 확산 단계(`diverge`, `explore`)일 때 `risk`가 `read`가 아닌 도구 호출(`bash` 포함)은 실행되지 않고 거부 사유가 모델에 돌아간다. 같은 호출은 Helm을 끈 다음 turn에서 실행된다.
 2. (UC-2) 렌즈 N개로 탐구하면 서브에이전트 N개가 시작되고, 결과 커밋 이벤트 뒤에 적용 turn이 정확히 한 번 실행된다.
 3. drive 함수를 같은 커밋 상태로 두 번 호출하거나 `explore` 단계에서 프로세스를 끊고 재호출해도 렌즈마다 `loop.spawn`은 한 번만 실행되고 적용 turn도 한 번만 실행된다.
-4. 학습 그룹이 꺼져 있거나 설치되지 않아도 탐구가 `applied`로 끝난다. Helm은 학습 그룹 레코드를 읽지 않으므로 `gatherContext` 결과는 학습 그룹 유무와 상관없이 같다.
-5. 다른 그룹이 drive 락을 가진 동안 Helm은 `phase: "idle"`, `pending`을 유지하고, 같은 기간에 `stuck` 신호를 만드는 도구 오류 열이 들어오면 `grp.helm.signal.detected`가 기록된다. 쓰기 도구 호출은 거부되지 않는다.
+4. 학습 플러그인이 꺼져 있거나 설치되지 않아도 탐구가 `applied`로 끝난다. Helm은 학습 플러그인 레코드를 읽지 않으므로 `gatherContext` 결과는 학습 플러그인 유무와 상관없이 같다.
+5. 다른 플러그인이 drive 락을 가진 동안 Helm은 `phase: "idle"`, `pending`을 유지하고, 같은 기간에 `stuck` 신호를 만드는 도구 오류 열이 들어오면 `grp.helm.signal.detected`가 기록된다. 쓰기 도구 호출은 거부되지 않는다.
 6. `ext.helm.writeGuard`가 거짓이면 확산 단계에서도 쓰기 도구 호출이 거부되지 않는다.
 7. `tool.call.before` 핸들러가 예외를 내면 그 호출은 거부된다.
 8. 신호 핸들러를 같은 페이로드로 두 번 실행해도 `watch` 카운터와 `signal.detected` 기록 수가 한 번 실행한 것과 같다.
@@ -1473,14 +1473,14 @@ export interface HelmSettings {
 10. 렌즈 3개 중 1개의 spawn이 `error`면 렌즈 상태는 `done` 2, `failed` 1이고 적용 turn이 실행되며 `inquiry.finished.failedLenses`는 1이다.
 11. `maxSpawns`가 2이고 렌즈가 3개면 spawn은 2번, 렌즈 하나는 `skipped`이고 상한 알림이 1번 `post`된다. `maxTurns` 소진 시 `inquiry.finished.outcome`은 `limit`이다.
 12. 단계 경계에서 disable하면 `lease.released`(`disabled`)가 한 번 기록되고, 다시 켜면 같은 `inquiryId`와 단계에서 이어진다.
-13. `grp.helm.discovery.recorded` payload가 `DiscoveryRecordedPayloadSchema`와 F `validateGroupRecord`를 통과한다. `helmManifest`가 `validateManifest`와 `validateUsage`를 통과한다.
+13. `grp.helm.discovery.recorded` payload가 `DiscoveryRecordedPayloadSchema`와 F `validateOrchestrationRecord`를 통과한다. `helmManifest`가 `validateManifest`와 `validateUsage`를 통과한다.
 14. `web.search` provider가 없어도 탐구가 끝나고 `degraded`에 `web`이 들어간다.
-15. `group-helm` 패키지의 import 대상은 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`뿐이다(check-layers). Helm 그룹 코드를 추가하는 변경에서 `contracts`, `ext-host`, `group-sdk` 경로의 diff가 0이다(product.vision.spec S1). 이 항목은 하위 층 요구(§8 요구 표: REQ-F-01·04, X 기능 래퍼, group-sdk의 `rejected`·G-20)를 먼저 별도 작업으로 반영한 뒤에 확인한다. 요구 반영 작업의 diff는 이 기준의 대상이 아니다(`L3.helm.plan` §6 3번과 같은 조건).
+15. `plugin-helm` 패키지의 import 대상은 `@fresnel/contracts`, `@fresnel/orchestration-sdk`, `typebox`뿐이다(check-layers). Helm 플러그인 코드를 추가하는 변경에서 `contracts`, `ext-host`, `orchestration-sdk` 경로의 diff가 0이다(product.vision.spec S1). 이 항목은 하위 층 요구(§8 요구 표: REQ-F-01·04, X 기능 래퍼, orchestration-sdk의 `rejected`·G-20)를 먼저 별도 작업으로 반영한 뒤에 확인한다. 요구 반영 작업의 diff는 이 기준의 대상이 아니다(`L3.helm.plan` §6 3번과 같은 조건).
 16. (ADR-0015) UC-2 기준 실행의 모든 커밋 시점에서 끊고 drive와 on 핸들러를 두 번 실행한 뒤 재개해도 효과 계수가 §4.11 표의 기대값과 같다(새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1).
 17. 쓰기 판정은 §4.6 표를 따른다. `risk: read`는 허용, `write`·`exec`·없음은 거부, `hints.readOnly: true`이고 `risk: exec`이면 거부, `caller`가 `subagent:explorer`가 아닌 서브에이전트면 허용이다.
 18. 탐구 단계의 `input.agent.before` 패치는 `payload.systemPrompt`(collect라 핸들러는 원본을 본다) 뒤에 Helm 블록 하나를 붙이고, 렌즈 본문을 둘 이상 넣지 않는다.
-19. [E3, 2026-11-18] 대기 상한 거부가 없어 `lease.rejected`는 발행되지 않고 구독 핸들러도 없다. 시작 요청이 없는 신호 대기 요청은 `/helm start`가 시작할 때까지 머문다(§4.3). `/helm start`가 같은 주제로 두 번 와도 상태는 한 번만 커밋된다. [근거: E3 구현(packages/group-sdk/src/service.ts), drive-isolation.md 2.2]
-20. `reactionOf`는 모든 `HelmFailure` kind와 단계 쌍에서 §4.12 표의 처리를 돌려준다. `failureOf`가 모르는 예외는 다시 던져지고 drive 등록이 `group.driveThrew`로 표시된다. 예상 가능한 실패로 drive가 예외를 내는 경로는 없다.
+19. [E3, 2026-11-18] 대기 상한 거부가 없어 `lease.rejected`는 발행되지 않고 구독 핸들러도 없다. 시작 요청이 없는 신호 대기 요청은 `/helm start`가 시작할 때까지 머문다(§4.3). `/helm start`가 같은 주제로 두 번 와도 상태는 한 번만 커밋된다. [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
+20. `reactionOf`는 모든 `HelmFailure` kind와 단계 쌍에서 §4.12 표의 처리를 돌려준다. `failureOf`가 모르는 예외는 다시 던져지고 drive 등록이 `orchestration.driveThrew`로 표시된다. 예상 가능한 실패로 drive가 예외를 내는 경로는 없다.
 21. on 핸들러 실행 중 기능 호출 수는 0이다. drive의 기능 호출은 `readOnly` 또는 `idempotent` 선언 메서드뿐이고, 선언 없는 메서드를 가진 가짜 provider로 바꾸면 X 래퍼가 `effect_not_allowed`로 거부하며 탐구는 저하 동작으로 끝난다.
 22. 탐구 단계인데 `inquiryId`가 `null`인 상태로 drive를 부르면 예외 없이 `inquiry.finished`(`failed`)가 기록되고 상태가 초기값이 된다.
 23. 단계 함수를 같은 `state`와 같은 `last`로 두 번 부르면 같은 명령이 나온다. 턴과 spawn의 요청 id는 명시 값이다(`test/unit/step.test.ts`).
@@ -1498,18 +1498,18 @@ M3 판에서 닫은 항목:
 - (닫힘) 이전 미결 3 부분 결과: 허용(§4.2) [제안].
 - (닫힘) 이전 미결 7 `leaseId` 유지: Helm은 명시 키를 쓰므로 기대지 않는다(§4.5). X 쪽 답은 REQ-X-04.
 - (닫힘) 이전 미결 8 쓰기 판정 메타 출처: `ToolCallPayload.risk`·`hints`·`caller`(§4.6, REQ-F-04, M3-02).
-- (닫힘) 이전 미결 9: [결정: review.decisions-2 D-10] 다른 그룹 레코드는 읽지 않는다(§4.7).
+- (닫힘) 이전 미결 9: [결정: review.decisions-2 D-10] 다른 플러그인 레코드는 읽지 않는다(§4.7).
 - (닫힘) 이전 미결 11 work 연결: `work.tasks.create` 멱등 쓰기(§4.8).
 - (닫힘) 이전 미결 12 켜기·끄기 키: `ext.helm.enabled`(§6).
 - (닫힘) 이전 미결 16 식별자와 전이표: 이 판으로 고정한다(§3.2) [제안]. 바꾸려면 상태 버전을 올린다.
 - (닫힘) C1 서비스 키: A안(§3.8, `review.m3-design-inputs` §3.8 A-01).
 - (닫힘) C2 효과 목록: [결정: adr.0015] C안. Helm의 효과 전부를 §4.11에 적었다.
-- (닫힘) C3 `fresnel.domain`: Helm은 `group-helm` → `helm`으로 두 규칙의 값이 같다. group-sdk 쪽 값은 M3-35에서 `group-sdk`으로 맞췄다(L3.group-sdk.spec §10 공통 모순 3).
+- (닫힘) C3 `fresnel.domain`: Helm은 `plugin-helm` → `helm`으로 두 규칙의 값이 같다. orchestration-sdk 쪽 값은 M3-35에서 `orchestration-sdk`으로 맞췄다(L3.group-sdk.spec §10 공통 모순 3).
 - [결정: review.decisions-2 T-21] 레코드 kind 접두: 공개·비공개 모두 `grp.<그룹>.<영역>.<이름>`이다.
 
 사용자 결정으로 닫은 항목(`review.m3-design-inputs` §3, 2026-10-26):
 
-1. (닫힘) [결정: review.m3-design-inputs D-M3-01] 형태: 기본 플러그인 그룹, 설치되어 있으면 켬(§3.1, §4.13).
+1. (닫힘) [결정: review.m3-design-inputs D-M3-01] 형태: 기본 플러그인, 설치되어 있으면 켬(§3.1, §4.13).
 2. (닫힘) [결정: review.m3-design-inputs D-M3-05] drive 락 충돌: 대기, 상한 뒤 거부(§4.13).
 3. (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 자율 turn: 상한 안에서 허용(§4.5, §4.13).
 4. (닫힘) [결정: review.m3-design-inputs D-M3-07] 안전 모드: 적재하지 않음(§3.1, §4.13).
@@ -1517,7 +1517,7 @@ M3 판에서 닫은 항목:
 
 남은 내부 설계:
 
-6. [미결] 렌즈 제안 경로(모델이 발산 turn에서 렌즈를 고르는 그룹 전용 도구)와 렌즈 내용 조정. M3는 `BUILTIN_LENSES` 6개와 신호별 우선순위로 고른다(§3.6). 2차.
+6. [미결] 렌즈 제안 경로(모델이 발산 turn에서 렌즈를 고르는 플러그인 전용 도구)와 렌즈 내용 조정. M3는 `BUILTIN_LENSES` 6개와 신호별 우선순위로 고른다(§3.6). 2차.
 7. [미결] 다회 라운드와 종료 판정 모델. M3는 적용 1회(§4.2). 2차.
 8. [미결] 신호 임계의 설정 노출. M3는 고정값(§3.5). 계측(M3-new-09) 뒤 정한다.
 9. [미결] 단계별 프롬프트 문구 본문과 explorer 정의 본문. 구현 작업 H-07에서 쓴다.
@@ -1537,4 +1537,4 @@ M3 판에서 닫은 항목:
 
 23. [닫힘, AGE-26] 맡기기 요청은 `lease.requested`로 기록되어 재시작 뒤 되살아난다(X.primitives.spec §4.4.1b 9번). 옛 설명: 맡기기 요청이 시작 요청 큐에만 있고 아직 부여되지 않았으면 재시작에서 사라진다. 맡긴 프레임이 기록되지 않아서다. `pluginNeed`는 상태에 남으므로 Helm은 다음 주도 시작에서 다시 맡긴다. 맡기기 요청을 기록에 싣는 방식은 정하지 않았다(drive-isolation.md §10). [근거: packages/ext-host/src/primitives/boundary.ts, packages/ext-host/src/primitives/lease.ts]
 
-하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02. `lease.rejected` 이벤트와 `GroupStatus.drive`의 `"rejected"`는 E3에서 더 쓰지 않는다(계약 정리 단계에서 지운다).
+하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02. `lease.rejected` 이벤트와 `OrchestrationStatus.drive`의 `"rejected"`는 E3에서 더 쓰지 않는다(계약 정리 단계에서 지운다).

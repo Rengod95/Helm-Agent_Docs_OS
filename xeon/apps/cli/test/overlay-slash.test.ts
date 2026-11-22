@@ -283,7 +283,7 @@ test("/profile remove of a driving plugin adds the Drive line", async () => {
   const { handlers } = removeHandlers(3, { threadsUsing: 1, dropsDrive: { threadCount: 1 } });
   const h = chat(["/profile remove helm"], { handlers });
   expect(await h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
-  expect(h.stdoutText()).toContain("Drive 중인 플러그인이라 실행 중인 Drive가 내려간다");
+  expect(h.stdoutText()).toContain("Driving 중인 플러그인이라 실행 중인 Drive가 내려간다");
 });
 
 test("/profile remove of a common plugin says it cannot be removed from this profile", async () => {

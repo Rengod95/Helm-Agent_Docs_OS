@@ -276,7 +276,8 @@ describe("secrets screen server render", () => {
       expect(markup).toContain("요청 헤더");
       expect(markup).toContain("허용하지 않은 호스트");
       expect(markup).toContain("거절");
-      expect(markup).toContain("환경 변수 · api.exa.ai");
+      expect(markup).toContain("환경 변수");
+      expect(markup).toContain("api.exa.ai");
       expect(markup).toContain("썼어요");
       expect(markup).toContain("대화 없음");
       expect(markup).not.toContain(SECRET_TEXT);

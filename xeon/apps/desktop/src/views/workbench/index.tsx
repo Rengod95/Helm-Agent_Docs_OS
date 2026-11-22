@@ -12,20 +12,29 @@ import { ExtensionsScreen } from "./extensions-screen.tsx";
 import type { EndTabDef, ShellRegistry, TabBadge } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
 import { MetricsScreen } from "../measure/metrics-screen.tsx";
+import { CraftMetricsScreen } from "../craft/metrics/metrics-screen.tsx";
+import { CraftTraceScreen } from "../craft/trace/trace-screen.tsx";
 import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
 import { RuntimeTab } from "../runtime/runtime-tab.tsx";
+import { RecordsJump } from "./records-jump.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
+import { ReviewBadge, ReviewMark } from "../craft/review/review-badge.tsx";
+import { ReviewScreen } from "../craft/review/review-screen.tsx";
+import { TestChatLayer } from "../craft/test-chat/test-chat-layer.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
 import {
   Eye,
   FlaskConical,
+  History,
   Layers,
   LayoutGrid,
+  ListChecks,
   Package,
   Plug,
+  Spline,
   SquareStack,
   Target,
 } from "@caustic/react/icons";
@@ -40,7 +49,20 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     area: "workbench",
     label: "desktop.shell.nav.overview",
     icon: <LayoutGrid />,
+    // 캔버스가 무대 가장자리까지 깔리고 막대와 겹치는 판은 캔버스가 스스로 비킨다
+    bleed: true,
     render: () => scoped(store, <CraftScreen />),
+  });
+  registry.registerScreen({
+    id: "craftReview",
+    area: "workbench",
+    label: "desktop.shell.nav.review",
+    icon: <ListChecks />,
+    Mark: ReviewMark,
+    Badge: ReviewBadge,
+    // 목록과 두 열이 창 끝까지 가고, 막대와 겹치는 줄만 화면이 비킨다(m6R5, `review-view.tsx`의 `useRailAvoid`)
+    bleed: true,
+    render: () => <ReviewScreen />,
   });
   registry.registerScreen({
     id: "extensions",
@@ -77,6 +99,21 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     icon: <Plug />,
     render: () => scoped(store, <EngineScreen />),
   });
+  registry.registerScreen({
+    id: "craft-metrics",
+    area: "workbench",
+    label: "desktop.shell.nav.craftMetrics",
+    icon: <Spline />,
+    render: () => <CraftMetricsScreen />,
+  });
+  // 트레이스(C8)는 목적 화면이다. 내비 줄 없이 메트릭의 근거 줄과 대화의 "이 턴 기록"이 연다(`craft/trace/target.ts`)
+  registry.registerScreen({
+    id: "trace",
+    area: "workbench",
+    label: "desktop.shell.screen.trace",
+    icon: <History />,
+    render: () => <CraftTraceScreen />,
+  });
 }
 
 /** 오른쪽 "검사" 탭(§6.22.4). 같은 스토어를 읽도록 워크벤치 스토어를 받는다. `desktop-registry.tsx`가 등록한다 */
@@ -86,6 +123,8 @@ export function inspectEndTab(store: WorkbenchStore): EndTabDef {
     area: "workbench",
     label: "desktop.shell.tab.inspect",
     icon: <Eye />,
+    // 테스트 챗 창(C7)은 Craft 어디서나 떠 있어야 해서 Craft 영역의 모든 화면에 서는 이 탭과 함께 그린다(`craft/test-chat/test-chat-layer.tsx`)
+    alwaysMounted: scoped(store, <TestChatLayer />),
     render: () => scoped(store, <InspectTab />),
   };
 }
@@ -129,7 +168,14 @@ export function runtimeEndTab(store: WorkbenchStore): EndTabDef {
     label: "desktop.shell.tab.runtime",
     icon: <Layers />,
     badge: hookBadgeOf(store),
-    render: () => scoped(store, <RuntimeTab />),
+    // Drive 카드의 "기록 보기"가 플러그인 상세로 간다(lcM6c)
+    render: () =>
+      scoped(
+        store,
+        <RecordsJump>
+          <RuntimeTab />
+        </RecordsJump>,
+      ),
   };
 }
 

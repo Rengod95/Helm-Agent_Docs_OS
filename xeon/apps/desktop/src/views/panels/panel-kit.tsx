@@ -24,7 +24,7 @@ export function PanelSection(props: {
           {props.info === undefined ? null : <InfoTip text={props.info} />}
         </h3>
         {props.count === undefined ? null : (
-          <span className="text-footnote text-text-tertiary tabular-nums">{props.count}</span>
+          <span className="text-footnote text-text-tertiary">{props.count}</span>
         )}
         <span className="flex-1" />
         {props.end}

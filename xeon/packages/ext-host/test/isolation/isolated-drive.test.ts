@@ -33,7 +33,7 @@ const DEADLINE_MS = 1000;
 
 /** 주도 픽스처의 매니페스트. 등록 이름은 `dr`이고 그룹 멤버이며 `drives`를 쓴다 */
 const DRIVE_MANIFEST = {
-  ...makeManifest({ name: "dr", hooks: [], group: {}, drives: true }),
+  ...makeManifest({ name: "dr", hooks: [], orchestration: {}, drives: true }),
   entry: "./drive-plugin.ts",
 };
 
@@ -310,6 +310,8 @@ test("a host restart while the isolated step waits after a recorded turn restore
 // 프레임 상한(16 MiB) 시험. 받는 쪽이 격리 플러그인이면 한 줄 상한(16 MiB에서 뼈대 몫 64 KiB를 뺀 값)을 넘는 입력은 기록하기 전에
 // 거절한다(X.loading-trust §4.9.3). 받아 기록한 뒤 단계가 `frame_too_large`로 실패해 등록이 `driveError`가 되는 길은 닫혔다.
 // 엔진 안의 등록은 같은 입력을 512 MiB까지 받는다(isolated가 아닌 시험: `lease.test.ts`).
+// 이 시험은 조각 칸이 없는 엔진(`transferMaxBytes` 없음)이라 옛 상한이 남는다. 협상된 상한(조각 전송이 켜진 격리 등록)은
+// `transfer-drive.test.ts`가 값으로 본다(AGE-59: 협상 상한 − 64 KiB, 옛 자식과 칸 없는 엔진은 옛 상한).
 
 /** 상한 바로 안쪽(받아진다)과 바로 바깥(거절된다) 글 길이. JSON 글자 따옴표 두 개가 더해진다 */
 const ISOLATED_LIMIT = PLUGIN_HOST_MAX_FRAME_BYTES - 64 * 1024;

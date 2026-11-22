@@ -1,3 +1,18 @@
+/* 직접 그린 아이콘의 바탕 선(line-glyph.ts, m6R7). 알림 그림과 종류 그림이 같은 값 하나를 화면 px로 받는다.
+   칸이 줄어도(칩의 12·14, 타일의 10) 선은 가늘어지지 않는다. 1px [결정: 2026-11-22 사용자 "더 가늘게", "다 1px기준으로"].
+   지난 판 1.15px(빈 상태 그림의 1.12px와 같아 보이는 값)와 원래의 1.5px는 그림으로 남겼다(m6R7-shots).
+   셋째 판부터 앱이 직접 그린 선은 모두 이 값이다: 그려지는 체크, 실행 중 고리, 자료 선(메트릭 추이, 성능 측정 곡선, 플러그인 작은 추이), 프로필 그림,
+   빈 상태 그림 [결정: 2026-11-22 사용자 "싹다 1px ㄱㄱ"]. 흐르는 빛(빈 상태, 요청 그림, 링크)은 선이 아니라 효과라 더 굵게 둔다 */
+:root {
+  --line-glyph-width: 1px;
+}
+.line-glyph {
+  stroke-width: var(--line-glyph-width);
+}
+.line-glyph :is(path, rect, circle, ellipse, line, polyline, polygon) {
+  vector-effect: non-scaling-stroke;
+}
+
 /* 빈 상태 그림의 느린 빛. Link의 craft-link-light와 같은 모양(점선 한 조각이 선을 따라 흐른다)이고 더 느리다.
    색은 caustic 토큰만 쓴다. 셸 CSP가 인라인 <style>을 막아 파일로 두고 styles.css가 가져온다. */
 .empty-art-light {

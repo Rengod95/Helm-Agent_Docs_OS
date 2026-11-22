@@ -27,7 +27,7 @@ const HELM_MANIFEST: Readonly<Record<string, unknown>> = {
   displayName: "Helm",
   description: "작업 흐름을 맡는 그룹",
   entry: "./src/index.ts",
-  group: {},
+  orchestration: {},
   components: { skills: ["./skills/plan/"], commands: ["./commands/ship.md"] },
   plugins: [
     {
@@ -100,7 +100,7 @@ function listEntry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -108,7 +108,7 @@ function listEntry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -118,7 +118,7 @@ function listEntry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry
 }
 
 function plugin(registrationId: string, over: Partial<ExtListPlugin> = {}): ExtListPlugin {
-  return { registrationId, layer: "L2", status: "enabled", inGroup: false, ...over };
+  return { registrationId, layer: "L2", status: "enabled", inOrchestration: false, ...over };
 }
 
 function getResult(
@@ -159,12 +159,12 @@ function stateOf(
 const helmEntry = listEntry("helm", {
   displayName: "Helm",
   layer: "L3",
-  isGroup: true,
+  isOrchestration: true,
   version: "0.4.0",
   origin: "builtin",
   plugins: [
-    plugin("helm", { layer: "L3", inGroup: true }),
-    plugin("helm/lens", { id: "lens", status: "disabled", inGroup: true }),
+    plugin("helm", { layer: "L3", inOrchestration: true }),
+    plugin("helm/lens", { id: "lens", status: "disabled", inOrchestration: true }),
   ],
   hookCount: 2,
 });
@@ -467,7 +467,7 @@ describe("대표 플러그인이 없는 확장: 구성 요소는 대표 자리(�
     displayName: "Docs pack",
     description: "사내 문서를 모아 준다",
     entry: "./src/index.ts",
-    group: {},
+    orchestration: {},
     components: { skills: ["./skills/write.md"], mcpServers: "./mcp/docs.json" },
     plugins: [
       { id: "search", layer: "L2", hooks: [], provides: [{ id: "docs.search", version: "1.0.0" }] },
@@ -476,10 +476,10 @@ describe("대표 플러그인이 없는 확장: 구성 요소는 대표 자리(�
   };
   const docsEntry = listEntry("docs-pack", {
     displayName: "Docs pack",
-    isGroup: true,
+    isOrchestration: true,
     plugins: [
-      plugin("docs-pack/search", { id: "search", layer: "L2", inGroup: true }),
-      plugin("docs-pack/notes", { id: "notes", layer: "L3", inGroup: true }),
+      plugin("docs-pack/search", { id: "search", layer: "L2", inOrchestration: true }),
+      plugin("docs-pack/notes", { id: "notes", layer: "L3", inOrchestration: true }),
     ],
     hookCount: 1,
   });
@@ -615,6 +615,6 @@ describe("개요 노드 이름", () => {
         listEntry("other-tool", { displayName: "Other Tool" }),
       ]),
     );
-    expect(snap.plugins.map((p) => p.name)).toEqual(["에이전트 실행기", "Other Tool"]);
+    expect(snap.plugins.map((p) => p.name)).toEqual(["에이전트 루프", "Other Tool"]);
   });
 });

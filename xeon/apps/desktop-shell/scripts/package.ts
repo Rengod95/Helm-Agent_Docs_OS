@@ -63,6 +63,22 @@ for (const file of requiredInputs) {
   }
 }
 
+// 글꼴 고지 원본(SIL OFL 1.1 본문). Geist(Geist Mono 포함)와 Pretendard는 src/fonts에 있고, SUIT는 caustic 서브모듈이
+// @caustic/tokens 패키지로 가져온 것을 쓴다(`just setup`이 서브모듈과 설치를 맞춘다). 빠지면 조용히 건너뛰지 않고 멈춘다
+const fontLicenses = {
+  geist: path.join(desktop, "src", "fonts", "geist", "OFL.txt"),
+  pretendard: path.join(desktop, "src", "fonts", "pretendard", "OFL.txt"),
+  suit: path.join(desktop, "node_modules", "@caustic", "tokens", "fonts", "suit", "OFL.txt"),
+};
+for (const file of Object.values(fontLicenses)) {
+  if (!existsSync(file)) {
+    process.stderr.write(
+      `package: missing font licence ${file} (SUIT's OFL.txt comes from the caustic submodule through @caustic/tokens; run just setup)\n`,
+    );
+    process.exit(2);
+  }
+}
+
 // 고지 모음: Electron과 Chromium 라이선스, 셸 npm 고지, 엔진 사이드카(Bun, host, cli) 고지
 const licenses = path.join(stage, "licenses");
 rmSync(stage, { recursive: true, force: true });
@@ -87,6 +103,10 @@ copyFileSync(
   path.join(shell, "dist", "engine-notices.txt"),
   path.join(licenses, "THIRD-PARTY-NOTICES.txt"),
 );
+// 글꼴 고지: Geist와 Geist Mono는 한 OFL 파일을 쓴다. 위에서 원본이 있는지 확인했다
+copyFileSync(fontLicenses.geist, path.join(licenses, "LICENSE.font-geist-OFL-1.1.txt"));
+copyFileSync(fontLicenses.pretendard, path.join(licenses, "LICENSE.font-pretendard-OFL-1.1.txt"));
+copyFileSync(fontLicenses.suit, path.join(licenses, "LICENSE.font-suit-OFL-1.1.txt"));
 
 // 외부 바이너리(sops, age): `just desktop-build-electron`이 scripts/bundled-binaries.ts로 먼저 dist/bundled-binaries/에 만든다
 // (binaries/, binaries.lock.json, licenses/). 여기서는 Resources로 옮기기만 한다(프로세스 실행은 L0 소유라 셸 소스가 아니라 그 스크립트가 한다).
@@ -143,7 +163,7 @@ const extraResource = [
   addonStage,
   // 기본 플러그인(Helm 등): `just desktop-build-electron`이 scripts/default-plugins.ts로 먼저 만든다. 엔진 사이드카가 Resources/default-plugins/를 설치 원본으로 읽는다
   path.join(shell, "dist", "default-plugins"),
-  // 가이드 스킬: 상위 폴더 dist/guide를 Resources/guide로 싣는다. 엔진의 locateGuideSkills(group-guide)가 Resources/guide/skills를 읽는다
+  // 가이드 스킬: 상위 폴더 dist/guide를 Resources/guide로 싣는다. 엔진의 locateGuideSkills(plugin-guide)가 Resources/guide/skills를 읽는다
   path.join(shell, "dist", "guide"),
   ...(existsSync(feed) ? [feed] : []),
   ...(appUpdateYml === null ? [] : [appUpdateYmlFile]),

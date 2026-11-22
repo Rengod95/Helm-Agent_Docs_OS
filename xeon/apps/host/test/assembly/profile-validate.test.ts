@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
+import { dependenciesOf, type DependencyDecl } from "@fresnel/contracts/extensions";
 import {
   hasBlockingIssue,
+  previousOf,
   restartKeysOf,
   validateProfile,
   type ProfileCatalog,
@@ -19,8 +21,16 @@ function entry(name: string, over: Partial<ProfileLibraryEntry> = {}): ProfileLi
     drives: false,
     unmet: false,
     requiredKeys: [],
+    version: "1.0.0",
+    dependencies: [],
+    members: [],
     ...over,
   };
+}
+
+/** `name`이 `dependsOn`으로 건 의존. 매니페스트를 `dependenciesOf`로 읽은 결과와 같다 */
+function dependsOn(name: string, decls: DependencyDecl[]): ProfileLibraryEntry["dependencies"] {
+  return dependenciesOf({ name, plugins: [{ layer: "plugin", hooks: [], dependsOn: decls }] });
 }
 
 function libraryOf(entries: readonly ProfileLibraryEntry[]): ProfileLibrary {
@@ -93,6 +103,64 @@ test("plugin_unknown: a plugin the library does not have is an error", () => {
     NO_COMMON,
     libraryOf([]),
     catalogOf([]),
+  );
+  expect(issues).toEqual([{ code: "plugin_unknown", severity: "error", plugin: "ghost" }]);
+});
+
+test("plugin_unknown is a warning for a plugin the profile already listed before this save, and an error for a plugin this save adds", () => {
+  const before = previousOf(
+    { plugins: [{ name: "ghost" }], settings: [] },
+    { plugins: [{ name: "gone-common" }], settings: [] },
+  );
+  const issues = validateProfile(
+    {
+      plugins: [{ name: "ghost" }, { name: "newghost" }],
+      settings: [],
+      startDrive: null,
+    },
+    { plugins: [{ name: "gone-common" }], settings: [] },
+    libraryOf([]),
+    catalogOf([]),
+    before,
+  );
+  expect(issues).toEqual([
+    { code: "plugin_unknown", severity: "warning", plugin: "gone-common" },
+    { code: "plugin_unknown", severity: "warning", plugin: "ghost" },
+    { code: "plugin_unknown", severity: "error", plugin: "newghost" },
+  ]);
+  expect(hasBlockingIssue(issues)).toBe(true);
+});
+
+test("a setting owned by a plugin that is gone stays a warning only when the key was stored before", () => {
+  const body = {
+    plugins: [{ name: "ghost" }],
+    settings: [
+      { key: "ext.ghost.old", value: 1 },
+      { key: "ext.ghost.fresh", value: 2 },
+    ],
+    startDrive: "ghost",
+  };
+  const issues = validateProfile(
+    body,
+    NO_COMMON,
+    libraryOf([]),
+    catalogOf([]),
+    previousOf({ plugins: [{ name: "ghost" }], settings: [{ key: "ext.ghost.old" }] }, NO_COMMON),
+  );
+  expect(issues).toEqual([
+    { code: "plugin_unknown", severity: "warning", plugin: "ghost" },
+    { code: "setting_unknown_key", severity: "warning", key: "ext.ghost.old" },
+    { code: "setting_unknown_key", severity: "error", key: "ext.ghost.fresh" },
+  ]);
+});
+
+test("without a previous profile every unknown plugin is an error (first save)", () => {
+  const issues = validateProfile(
+    { plugins: [{ name: "ghost" }], settings: [], startDrive: null },
+    NO_COMMON,
+    libraryOf([]),
+    catalogOf([]),
+    previousOf(undefined, NO_COMMON),
   );
   expect(issues).toEqual([{ code: "plugin_unknown", severity: "error", plugin: "ghost" }]);
 });
@@ -350,4 +418,133 @@ test("restartKeysOf leaves out keys the catalog does not define", () => {
   ]);
   expect(restartKeysOf([{ key: "ext.ghost.isolation", value: "none" }], catalog)).toEqual([]);
   expect(restartKeysOf([], catalog)).toEqual([]);
+});
+
+// AGE-33. 플러그인 의존(`dependsOn`)은 해소된 목록 안의 플러그인이 건 것만 본다(공통 묶음 포함).
+
+test("dependency_disabled: a hard dependency whose target is installed but not in the list is an error that names the dependent and the target", () => {
+  const library = libraryOf([
+    entry("app", { dependencies: dependsOn("app", [{ plugin: "core", kind: "hard" }]) }),
+    entry("core"),
+  ]);
+  const issues = validateProfile(
+    { plugins: [{ name: "app" }], settings: [], startDrive: null },
+    NO_COMMON,
+    library,
+    catalogOf([]),
+  );
+  expect(issues).toEqual([
+    { code: "dependency_disabled", severity: "error", plugin: "app", other: "core" },
+  ]);
+  expect(hasBlockingIssue(issues)).toBe(true);
+  // 대상이 목록에 들어 있으면 이슈가 없다
+  expect(
+    validateProfile(
+      { plugins: [{ name: "app" }, { name: "core" }], settings: [], startDrive: null },
+      NO_COMMON,
+      library,
+      catalogOf([]),
+    ),
+  ).toEqual([]);
+});
+
+test("dependency_missing: a target the library lacks, or one without a reviewed copy, is an error for a hard dependency", () => {
+  const profile = { plugins: [{ name: "app" }], settings: [], startDrive: null };
+  const app = entry("app", { dependencies: dependsOn("app", [{ plugin: "core", kind: "hard" }]) });
+  expect(validateProfile(profile, NO_COMMON, libraryOf([app]), catalogOf([]))).toEqual([
+    { code: "dependency_missing", severity: "error", plugin: "app", other: "core" },
+  ]);
+  expect(
+    validateProfile(
+      profile,
+      NO_COMMON,
+      libraryOf([app, entry("core", { reviewed: false })]),
+      catalogOf([]),
+    ),
+  ).toEqual([{ code: "dependency_missing", severity: "error", plugin: "app", other: "core" }]);
+});
+
+test("dependency_missing: a member the target does not have is an error, and a member it has is clean", () => {
+  const app = entry("app", {
+    dependencies: dependsOn("app", [{ plugin: "core/drive", kind: "hard" }]),
+  });
+  const profile = { plugins: [{ name: "app" }, { name: "core" }], settings: [], startDrive: null };
+  expect(
+    validateProfile(
+      profile,
+      NO_COMMON,
+      libraryOf([app, entry("core", { members: ["other"] })]),
+      catalogOf([]),
+    ),
+  ).toEqual([
+    { code: "dependency_missing", severity: "error", plugin: "app", other: "core/drive" },
+  ]);
+  expect(
+    validateProfile(
+      profile,
+      NO_COMMON,
+      libraryOf([app, entry("core", { members: ["drive"] })]),
+      catalogOf([]),
+    ),
+  ).toEqual([]);
+});
+
+test("the same dependency problems are warnings for a soft dependency, so the save goes through", () => {
+  const profile = { plugins: [{ name: "app" }], settings: [], startDrive: null };
+  const soft = entry("app", { dependencies: dependsOn("app", [{ plugin: "core", kind: "soft" }]) });
+  const disabled = validateProfile(
+    profile,
+    NO_COMMON,
+    libraryOf([soft, entry("core")]),
+    catalogOf([]),
+  );
+  expect(disabled).toEqual([
+    { code: "dependency_disabled", severity: "warning", plugin: "app", other: "core" },
+  ]);
+  expect(hasBlockingIssue(disabled)).toBe(false);
+  expect(validateProfile(profile, NO_COMMON, libraryOf([soft]), catalogOf([]))).toEqual([
+    { code: "dependency_missing", severity: "warning", plugin: "app", other: "core" },
+  ]);
+});
+
+test("a dependent in the common set is checked against the resolved list too", () => {
+  const library = libraryOf([
+    entry("app", { dependencies: dependsOn("app", [{ plugin: "core", kind: "hard" }]) }),
+    entry("core"),
+  ]);
+  expect(
+    validateProfile(
+      { plugins: [], settings: [], startDrive: null },
+      { plugins: [{ name: "app" }], settings: [] },
+      library,
+      catalogOf([]),
+    ),
+  ).toEqual([{ code: "dependency_disabled", severity: "error", plugin: "app", other: "core" }]);
+});
+
+test("dependency_range: a target version outside the range is an error for hard and a warning for soft", () => {
+  const library = libraryOf([
+    entry("app", {
+      dependencies: dependsOn("app", [
+        { plugin: "core", kind: "hard", range: "^2.0.0" },
+        { plugin: "notes", range: "^2.0.0" },
+      ]),
+    }),
+    entry("core", { version: "1.4.0" }),
+    entry("notes", { version: "1.0.0" }),
+  ]);
+  const issues = validateProfile(
+    {
+      plugins: [{ name: "app" }, { name: "core" }, { name: "notes" }],
+      settings: [],
+      startDrive: null,
+    },
+    NO_COMMON,
+    library,
+    catalogOf([]),
+  );
+  expect(issues).toEqual([
+    { code: "dependency_range", severity: "error", plugin: "app", other: "core" },
+    { code: "dependency_range", severity: "warning", plugin: "app", other: "notes" },
+  ]);
 });

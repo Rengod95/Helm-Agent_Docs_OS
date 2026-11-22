@@ -180,7 +180,7 @@ function Tab(props: {
       {props.dropBefore ? (
         <span
           aria-hidden
-          className="absolute inset-y-1 -start-[3px] w-0.5 rounded-full bg-accent-solid"
+          className="absolute inset-y-1 -start-0.75 w-0.5 rounded-full bg-accent-solid"
         />
       ) : null}
       {props.mode === "icon" ? (

@@ -25,6 +25,7 @@ export type ListStatus = "idle" | "loading" | "ready" | "error";
 /** 자세히 보기의 탭 이름. 확장 상세(`ext-detail.tsx`)의 탭 값과 같다 */
 export const DETAIL_TABS = [
   "overview",
+  "members",
   "hooks",
   "settings",
   "metrics",
@@ -352,7 +353,7 @@ function stateOf(e: ExtListEntry): ExtState {
 
 function kindOf(e: ExtListEntry): ExtKind {
   if (e.layer === "L1") return "core";
-  return e.isGroup ? "group" : "plugin";
+  return e.isOrchestration ? "group" : "plugin";
 }
 
 /** 켜기·끄기를 잠그는 이유(전역 스위치와 대화 범위 스위치가 같이 쓴다). 잠기지 않으면 null */

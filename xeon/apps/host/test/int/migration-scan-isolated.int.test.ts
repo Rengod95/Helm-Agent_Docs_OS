@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
-  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -43,6 +43,7 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 // 가져오기 훑기 자식의 실제 격리 시험(migration.md §7.4 [제안], host-service §4.25). 실제 샌드박스(srt)와 실제 띄우기 포트
 // (`createIsolationProcessPort`) 아래에서 자식 본체(`migration-scan --stdio`, 소스 실행)가 훑는다. 악의적 폴더를 시험이 임시 폴더에 만든다:
 // 밖을 가리키는 심볼릭 링크, 폴더 고리, 상한을 넘는 파일, 밖의 비밀 파일. 엔진은 자식의 응답 줄만 받는다.
+// 사용자 결정 2026-11-21(AGE-63): 훑기 자식도 열린 정책이다(셸 도구와 같이 읽고 쓴다). 막는 것은 Fresnel 자신의 데이터와 시크릿이다. 훑기 코드는 루트 밖을 보지 않는다(응답에 밖의 값이 없다).
 // 샌드박스를 쓸 수 없으면 건너뛰고 stderr에 한 줄 남긴다. FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2(환경 문제)로 끝난다
 // (mcp-sandbox.int.test.ts와 같다).
 
@@ -162,6 +163,8 @@ interface Box {
   readonly proj: string;
   readonly outside: string;
   readonly secretFile: string;
+  /** Fresnel 자신의 데이터 파일(읽기 거부). 샌드박스 서비스의 `data` 폴더 안이다 */
+  readonly protectedFile: string;
   readonly service: Service;
 }
 
@@ -170,7 +173,9 @@ function buildBox(root: string, service: Service): Box {
   const proj = join(root, "proj");
   const outside = join(root, "outside");
   const secretFile = join(outside, "secret.txt");
+  const protectedFile = join(root, "os-data", "fresnel.db");
   const files: readonly [string, string][] = [
+    [protectedFile, "fake data\n"],
     [join(home, ".claude", "CLAUDE.md"), "사용자 지침\n"],
     [join(proj, "CLAUDE.md"), "프로젝트 지침\n"],
     [
@@ -195,7 +200,7 @@ function buildBox(root: string, service: Service): Box {
   symlinkSync(join(proj, ".agents", "skills"), join(proj, ".agents", "skills", "loop"));
   // 밖을 가리키는 링크: 루트 밖의 폴더를 스킬로 보이게 한다
   symlinkSync(join(outside, "leak"), join(proj, ".agents", "skills", "leak"));
-  return { root, home, proj, outside, secretFile, service };
+  return { root, home, proj, outside, secretFile, protectedFile, service };
 }
 
 suite("the scan child under the real sandbox (srt) and the real isolation port", () => {
@@ -228,27 +233,48 @@ suite("the scan child under the real sandbox (srt) and the real isolation port",
     return { box, scheduler };
   }
 
-  test("the sandboxed probe cannot read the file outside its folder or write inside it, but can read inside (the policy is not deny-all)", async () => {
+  test("the sandboxed probe reads and writes outside its folder like the shell tool (the open policy), and Fresnel's own data is still denied", async () => {
     const current = boxOf();
     const writeTarget = join(current.box.home, "probe-written.txt");
     const outcome = await runProbe(
       portOf(current.box.service.service, current.scheduler),
       current.box.home,
-      [current.box.secretFile, join(current.box.home, ".claude", "CLAUDE.md"), writeTarget],
+      [
+        current.box.secretFile,
+        join(current.box.home, ".claude", "CLAUDE.md"),
+        writeTarget,
+        current.box.protectedFile,
+      ],
     );
-    expect(outcome).toEqual({ readOutside: "denied", readInside: "ok", writeInside: "denied" });
-    expect(existsSync(writeTarget)).toBe(false);
+    expect(outcome).toEqual({
+      readOutside: "ok",
+      readInside: "ok",
+      writeInside: "ok",
+      readProtected: "denied",
+    });
+    expect(readFileSync(writeTarget, "utf8")).toBe("written\n");
+    rmSync(writeTarget, { force: true });
   }, 60_000);
 
-  test("the same probe without the sandbox reads the outside file and writes inside (control: the probe can do it when nothing stops it)", async () => {
+  test("the same probe without the sandbox reads everything it is given and writes inside (control: nothing stops it without the sandbox)", async () => {
     const current = boxOf();
     const writeTarget = join(current.box.home, "probe-control.txt");
     const outcome = await runProbe(
       portOf(unsandboxedOf(current.box.service.service), current.scheduler),
       current.box.home,
-      [current.box.secretFile, join(current.box.home, ".claude", "CLAUDE.md"), writeTarget],
+      [
+        current.box.secretFile,
+        join(current.box.home, ".claude", "CLAUDE.md"),
+        writeTarget,
+        current.box.protectedFile,
+      ],
     );
-    expect(outcome).toEqual({ readOutside: "ok", readInside: "ok", writeInside: "ok" });
+    expect(outcome).toEqual({
+      readOutside: "ok",
+      readInside: "ok",
+      writeInside: "ok",
+      readProtected: "ok",
+    });
     rmSync(writeTarget, { force: true });
   }, 60_000);
 

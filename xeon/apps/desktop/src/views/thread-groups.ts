@@ -54,6 +54,18 @@ function isInternalThread(thread: Pick<ThreadSummary, "spawnedBy">): boolean {
   return thread.spawnedBy?.kind === "internal";
 }
 
+/**
+ * 보통 대화 목록(사이드바)에 둘 대화: 테스트 런 대화(`ThreadSummary.testRun` 표지, W-34)를 뺀다. 엔진의 `thread.list` 기본 목록은
+ * 테스트 챗만 빼고 테스트 런은 준다(enTr 2026-11-20). 테스트 런은 Craft의 테스트 화면에서 열고 사이드바에는 두지 않는다(lcM6e, AGE-32).
+ * 테스트 챗(`ThreadSummary.craftChat` 표지)도 뺀다. 엔진 기본 목록과 같은 기준이다(거울이 `thread.started`로 안 것도 포함).
+ * 대화는 지우지 않고, 진행 중 묶음(상태 줄)과 테스트 화면은 그대로 본다. 목록 순서는 지킨다
+ */
+export function listedThreadsOf<T extends Pick<ThreadSummary, "testRun" | "craftChat">>(
+  threads: readonly T[],
+): readonly T[] {
+  return threads.filter((thread) => thread.testRun === undefined && thread.craftChat === undefined);
+}
+
 /** 사이드바의 행 하나. `child`이면 부모 행 아래 들여 쓴 하위 행이다 */
 export interface SidebarRow {
   readonly thread: ThreadSummary;
@@ -61,12 +73,23 @@ export interface SidebarRow {
 }
 
 /**
- * 사이드바 묶음. 내부 대화는 뺀다. 하위 대화는 작업 폴더가 없으면 부모의 작업 폴더 묶음에 들고 부모 바로 아래에 온다.
+ * 사이드바 묶음. 내부 대화는 뺀다(테스트 런은 부르는 쪽이 `listedThreadsOf`로 먼저 뺀다).
+ * 하위 대화는 작업 폴더가 없으면 부모의 작업 폴더 묶음에 들고 부모 바로 아래에 온다.
  * 부모가 목록에 없으면 그 대화가 자기 자리에 보인다. 목록 순서(최근 활동 먼저)는 지킨다
  */
 export function sidebarGroupsOf(
   threads: readonly ThreadSummary[],
 ): readonly ThreadGroup<SidebarRow>[] {
+  return groupByWorkspace(sidebarRowsOf(threads)).map((group) => ({
+    workspace: group.workspace,
+    items: group.items.map((row) => ({ thread: row.thread, child: row.child })),
+  }));
+}
+
+/** 사이드바 줄을 묶기 전의 차례(하위 대화는 부모 바로 아래)와 각 줄이 묶일 작업 폴더. 프로젝트 패널도 이 차례를 쓴다 */
+export function sidebarRowsOf(
+  threads: readonly ThreadSummary[],
+): readonly (SidebarRow & { readonly workspace: string | null })[] {
   const visible = threads.filter((thread) => !isInternalThread(thread));
   const ids = new Set(visible.map((thread) => thread.threadId));
   const childrenOf = new Map<string, ThreadSummary[]>();
@@ -95,8 +118,5 @@ export function sidebarGroupsOf(
     };
     walk(top.threadId, new Set([top.threadId]));
   }
-  return groupByWorkspace(rows).map((group) => ({
-    workspace: group.workspace,
-    items: group.items.map((row) => ({ thread: row.thread, child: row.child })),
-  }));
+  return rows;
 }

@@ -1,6 +1,8 @@
 import type { ProfileIssue } from "@fresnel/contracts/wire";
 import { PROFILE_LIMITS } from "@fresnel/contracts/wire";
 import type { SettingScope } from "@fresnel/contracts/settings";
+import type { PluginDependency } from "@fresnel/contracts/extensions";
+import { satisfiesRange } from "@fresnel/ext-host";
 
 // 프로필 검증(M5c §4.2.7). 순수 함수다: 저장 상태와 카탈로그·라이브러리 조회만 받고 아무것도 쓰지 않는다.
 // 저장(`profile.put`·`profile.common.put`·`profile.removePlugin`)과 미리 보기(`profile.preview`)가 같은 함수를 쓴다.
@@ -19,6 +21,12 @@ export interface ProfileLibraryEntry {
   readonly unmet: boolean;
   /** 값이 없으면 대화에서 `config_required`로 멈추는 필수 설정 키 */
   readonly requiredKeys: readonly string[];
+  /** 설치된 버전(매니페스트 `version`). 검토 대기 항목은 "0.0.0"이다 */
+  readonly version: string;
+  /** 이 플러그인이 건 의존(`dependsOn`, `dependenciesOf`). 검토 대기 항목은 빈 목록이다 */
+  readonly dependencies: readonly PluginDependency[];
+  /** 이 매니페스트에서 `id`가 있는 플러그인의 id(구성원). 의존이 가리키는 구성원이 여기 있어야 한다 */
+  readonly members: readonly string[];
 }
 
 /** 설치된 플러그인 조회. 없는 이름은 `undefined`다 */
@@ -65,7 +73,42 @@ export interface CommonBody {
   readonly settings: readonly { readonly key: string; readonly value: unknown }[];
 }
 
+/**
+ * 저장 전에 이미 있던 항목(AGE-34). 이 안의 "지금 이 기기에 없는 플러그인"은 저장을 막지 않고 경고(`plugin_unknown`)로만 알린다.
+ * 첫 저장이면 넘기지 않는다(전부 새 항목이다)
+ */
+export interface ProfilePrevious {
+  /** 저장 전의 프로필과 공통 묶음에 든 플러그인 이름 */
+  readonly plugins: ReadonlySet<string>;
+  /** 저장 전의 프로필과 공통 묶음에 든 설정 키 */
+  readonly settingKeys: ReadonlySet<string>;
+}
+
+/** 저장 전 프로필(없으면 첫 저장)과 공통 묶음에서 "이미 있던 항목"을 모은다 */
+export function previousOf(
+  profile:
+    | {
+        readonly plugins: readonly { readonly name: string }[];
+        readonly settings: readonly { readonly key: string }[];
+      }
+    | undefined,
+  common: {
+    readonly plugins: readonly { readonly name: string }[];
+    readonly settings: readonly { readonly key: string }[];
+  },
+): ProfilePrevious {
+  const owners = [common, ...(profile === undefined ? [] : [profile])];
+  return {
+    plugins: new Set(owners.flatMap((owner) => owner.plugins.map((ref) => ref.name))),
+    settingKeys: new Set(owners.flatMap((owner) => owner.settings.map((setting) => setting.key))),
+  };
+}
+
 const SECRET_PREFIX = "secret://";
+
+function ownsKey(plugin: string, key: string): boolean {
+  return key.startsWith(`ext.${plugin}.`);
+}
 
 /** 공통 묶음과 프로필을 합친 플러그인 순서(§4.1.3): 공통이 먼저, 중복은 처음 것을 남긴다 */
 function resolvedPluginNames(profile: CommonBody, common: CommonBody): readonly string[] {
@@ -96,8 +139,11 @@ export function validateProfile(
   common: CommonBody,
   library: ProfileLibrary,
   catalog: ProfileCatalog,
+  previous?: ProfilePrevious,
 ): readonly ProfileIssue[] {
   const issues: ProfileIssue[] = [];
+  /** 저장 전에도 들어 있던, 지금은 없는 플러그인. 이 이름의 참조와 그 이름이 소유한 설정 키는 경고다 */
+  const gone = new Set<string>();
   const names = resolvedPluginNames(profile, common);
   const resolved = new Set(names);
   const settings = collapsedSettings([...common.settings, ...profile.settings]);
@@ -113,7 +159,9 @@ export function validateProfile(
   for (const name of names) {
     const entry = library.lookup(name);
     if (entry === undefined) {
-      issues.push({ code: "plugin_unknown", severity: "error", plugin: name });
+      const kept = previous?.plugins.has(name) === true;
+      if (kept) gone.add(name);
+      issues.push({ code: "plugin_unknown", severity: kept ? "warning" : "error", plugin: name });
       continue;
     }
     entries.set(name, entry);
@@ -165,7 +213,15 @@ export function validateProfile(
   for (const setting of settings) {
     const info = catalog.lookup(setting.key);
     if (info === undefined) {
-      issues.push({ code: "setting_unknown_key", severity: "error", key: setting.key });
+      // 없는 플러그인이 소유한 키가 저장 전에도 있었으면 그 플러그인과 함께 경고로 넘긴다
+      const keptKey =
+        previous?.settingKeys.has(setting.key) === true &&
+        [...gone].some((name) => ownsKey(name, setting.key));
+      issues.push({
+        code: "setting_unknown_key",
+        severity: keptKey ? "warning" : "error",
+        key: setting.key,
+      });
       continue;
     }
     if (info.owner !== null && !resolved.has(info.owner)) {
@@ -200,6 +256,45 @@ export function validateProfile(
     for (const key of entry.requiredKeys) {
       if (!settings.some((setting) => setting.key === key)) {
         issues.push({ code: "required_unset", severity: "warning", plugin: name, key });
+      }
+    }
+  }
+
+  // 플러그인 의존(AGE-33). 해소된 목록의 플러그인이 건 의존마다 대상을 본다. 한 의존은 이슈를 하나만 낸다(없음, 꺼짐 순)
+  for (const name of names) {
+    const entry = entries.get(name);
+    if (entry === undefined) continue;
+    for (const dependency of entry.dependencies) {
+      const severity = dependency.kind === "hard" ? "error" : "warning";
+      const target = library.lookup(dependency.targetExtension);
+      if (
+        target === undefined ||
+        !target.reviewed ||
+        (dependency.targetMember !== null && !target.members.includes(dependency.targetMember))
+      ) {
+        issues.push({
+          code: "dependency_missing",
+          severity,
+          plugin: name,
+          other: dependency.target,
+        });
+      } else {
+        if (dependency.range !== null && !satisfiesRange(target.version, dependency.range)) {
+          issues.push({
+            code: "dependency_range",
+            severity,
+            plugin: name,
+            other: dependency.target,
+          });
+        }
+        if (!resolved.has(dependency.targetExtension)) {
+          issues.push({
+            code: "dependency_disabled",
+            severity,
+            plugin: name,
+            other: dependency.target,
+          });
+        }
       }
     }
   }

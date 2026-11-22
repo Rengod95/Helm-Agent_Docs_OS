@@ -34,7 +34,13 @@ export type ToolIcon =
 export type ToolTarget =
   | { readonly kind: "path"; readonly path: string; readonly suffix: string | null }
   | { readonly kind: "command"; readonly text: string }
-  | { readonly kind: "text"; readonly text: string; readonly mono: boolean }
+  /** `suffix`는 글 뒤에 따로 서는 흐린 조각(검색의 경로)이다 */
+  | {
+      readonly kind: "text";
+      readonly text: string;
+      readonly mono: boolean;
+      readonly suffix?: string | undefined;
+    }
   | { readonly kind: "none" };
 
 export type ToolHead = {
@@ -212,12 +218,12 @@ export function toolHeadOf(name: string, args: JsonObject, server: string | null
         suffix: rangeOf(summary.range),
       });
     case "search": {
-      const where = summary.path === null ? "" : ` · ${summary.path}`;
       const glob = summary.glob === null ? "" : ` (${summary.glob})`;
       return head("search", "desktop.convo.tool.search", "desktop.convo.tool.search.running", {
         kind: "text",
-        text: `${summary.pattern}${glob}${where}`,
+        text: `${summary.pattern}${glob}`,
         mono: summary.target !== "knowledge",
+        suffix: summary.path ?? undefined,
       });
     }
     case "command":
@@ -532,10 +538,10 @@ export function durationText(ms: number): string {
   return t("desktop.convo.duration.m", { minutes, seconds: Math.round(seconds - minutes * 60) });
 }
 
-/** bash 끝 메타 "종료 0 · 3.2초". 값이 없으면 null */
-export function commandMetaOf(view: ToolResultView): string | null {
+/** bash 끝 메타의 조각: 종료 코드, 시간. 값이 없으면 빈 배열 */
+export function commandMetaOf(view: ToolResultView): readonly string[] {
   const parts: string[] = [];
   if (view.exitCode !== null) parts.push(t("desktop.convo.exitCode", { code: view.exitCode }));
   if (view.durationMs !== null) parts.push(durationText(view.durationMs));
-  return parts.length === 0 ? null : parts.join(" · ");
+  return parts;
 }

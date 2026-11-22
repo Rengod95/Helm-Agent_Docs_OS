@@ -194,12 +194,12 @@ describe("palette plugin group (server render)", () => {
       disabledViews: ["helm/helm-start"],
     });
     expect(html).not.toContain("탐구 시작…");
-    expect(html).toContain("helm · 다른 명령");
+    expect(html).toContain("helm의 다른 명령");
   });
 
   test("a plugin command's row names its extension before its title", async () => {
     const html = await render({ live: true, titles: [], selected: true, plugins: [START] });
-    expect(html).toContain("helm · 탐구 시작…");
+    expect(html).toContain("helm의 탐구 시작…");
   });
 
   test("a command whose state is not ok is left out", async () => {

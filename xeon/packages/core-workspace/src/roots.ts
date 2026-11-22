@@ -21,15 +21,24 @@ import {
 
 export type { AllowedRoots, PathAccess, ResolvedPath, RootsDeps };
 
-/** M1의 허용 root: 읽기·쓰기 모두 `env.cwd`의 정규 경로 하나 */
+/**
+ * 보통 대화의 쓰기 root에 더하는 루트. 쓰기 범위 제한이 없다는 뜻이다 [결정: 2026-11-20, 사용자, AGE-63 "쓰기도 풀기"].
+ * 거부는 보호 경로(Fresnel 자신의 항목과 사용자가 더한 곳)뿐이다. 작업 폴더를 앞에 둬서 `relativeToRoots`가 작업 폴더 기준 상대 경로를 돌려준다
+ */
+export const WRITE_ANYWHERE = "/";
+
+/** 보통 대화의 허용 root: 읽기는 `env.cwd`의 정규 경로(와 출력 사본), 쓰기는 그 경로와 `/`(제한 없음) */
 export async function defaultRoots(
   env: Pick<ExecutionEnv, "cwd" | "canonicalPath">,
   context: CancelScope,
   outputs?: ToolOutputFiles,
 ): Promise<AllowedRoots> {
   const root = getOrThrow(await env.canonicalPath(env.cwd, context));
-  if (outputs === undefined) return { read: [root], write: [root] };
-  return { read: [root, await spillReadRoot(env, outputs, context)], write: [root] };
+  if (outputs === undefined) return { read: [root], write: [root, WRITE_ANYWHERE] };
+  return {
+    read: [root, await spillReadRoot(env, outputs, context)],
+    write: [root, WRITE_ANYWHERE],
+  };
 }
 
 /**
@@ -149,11 +158,6 @@ export async function resolveWorkspacePath(
   context: CancelScope,
   options: {
     readonly variants?: boolean;
-    /**
-     * 쓰기 접근이 허용 root 밖일 때(보호 경로가 아닌 경우만) 사람에게 묻는다. 참이면 이 호출만 허용한다(spec §4.3.1).
-     * 없으면 지금처럼 `outside_root`로 거부한다
-     */
-    readonly askOutsideWrite?: (canonical: string) => Promise<boolean>;
   } = {},
 ): Promise<ResolvedPath> {
   const absolute =
@@ -189,12 +193,7 @@ export async function resolveWorkspacePath(
   const protectedEntries = deps.protectedPaths([...roots.read, ...roots.write]);
   const protectedEntry = matchProtectedPath(protectedEntries, canonical, access);
   if (!allowed.some((root) => isWithin(root, canonical))) {
-    // 보호 경로는 묻지 않고 막는다. 이 호출만 허용하는 승인이므로 root는 넓히지 않는다
-    const asked =
-      access === "write" && protectedEntry === undefined && options.askOutsideWrite !== undefined
-        ? await options.askOutsideWrite(canonical)
-        : false;
-    if (!asked) throw denied("outside_root", requested, canonical);
+    throw denied("outside_root", requested, canonical);
   }
   if (protectedEntry !== undefined) {
     throw denied("protected_path", requested, canonical, { protectedBy: protectedEntry.reason });

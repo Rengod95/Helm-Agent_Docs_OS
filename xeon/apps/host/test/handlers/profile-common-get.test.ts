@@ -1,3 +1,4 @@
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,6 +11,11 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M5c §3.4, §4.1.5: `profile.common.get`은 공통 묶음과, 지금 설치된 라이브러리에 비춘 검사 이슈 목록을 준다.
 // 저장된 묶음이 라이브러리와 맞지 않게 바뀌면(플러그인이 빠지면) 같은 묶음의 이슈가 달라진다. 가짜 엔진 위의 실제 처리기다.
+
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
 
 const roots: string[] = [];
 function tempDir(): string {
@@ -35,6 +41,8 @@ const DEMO: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [PERMISSION],
+  version: "1.0.0",
+  manifest: manifestStub("demo"),
   declared: NONE,
 };
 
@@ -58,7 +66,7 @@ test("profile.common.get on a store nothing was saved to is the empty common set
   await connection.close();
 });
 
-test("profile.common.get returns the stored set and the issues the library gives it now: an unset required key is a warning, a plugin that left the library is an error", async () => {
+test("profile.common.get returns the stored set and the issues the library gives it now: an unset required key is a warning, a plugin that left the library is a warning", async () => {
   const dir = tempDir();
   // 설치된 플러그인 목록을 시험 중에 바꾼다. 검사는 매번 지금 목록으로 한다
   let facts: readonly PluginFact[] = [DEMO];
@@ -103,7 +111,7 @@ test("profile.common.get returns the stored set and the issues the library gives
     issues: [],
   });
 
-  // `demo`가 라이브러리에서 빠지면 저장된 묶음은 그대로이고, 이슈는 오류 `plugin_unknown`으로 바뀐다
+  // `demo`가 라이브러리에서 빠지면 저장된 묶음은 그대로이고, 이미 든 이름이라 이슈는 경고 `plugin_unknown`으로 바뀐다(AGE-34)
   facts = [];
   expect(await connection.request("profile.common.get", {})).toEqual({
     common: {
@@ -112,7 +120,7 @@ test("profile.common.get returns the stored set and the issues the library gives
       updatedAt: filled.common.updatedAt,
       rev: 2,
     },
-    issues: [{ code: "plugin_unknown", severity: "error", plugin: "demo" }],
+    issues: [{ code: "plugin_unknown", severity: "warning", plugin: "demo" }],
   });
   await connection.close();
 });

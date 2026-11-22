@@ -30,6 +30,11 @@ interface FakeSandbox {
     /** 입력에 있을 때만 기록한다 */
     readonly profile?: SandboxProfile;
     readonly readRoots?: readonly string[];
+    readonly systemTools?: boolean;
+    readonly projectDir?: string;
+    readonly readCarveOuts?: readonly string[];
+    /** 입력에 있을 때만 기록한다. 참이면 열린 정책(쓰기 루트 `/`)이다 */
+    readonly writeEverywhere?: boolean;
   }[];
   /** wrapArgv에 들어온 정책과 요청 순서대로 */
   readonly wrapCalls: readonly {
@@ -46,6 +51,10 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
     tempDir: string;
     profile?: SandboxProfile;
     readRoots?: string[];
+    systemTools?: boolean;
+    projectDir?: string;
+    readCarveOuts?: string[];
+    writeEverywhere?: boolean;
   }[] = [];
   const wrapCalls: { policy: SandboxPolicy; request: SandboxArgvRequest }[] = [];
   let cleanupCount = 0;
@@ -57,6 +66,10 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
         tempDir: input.tempDir,
         ...(input.profile === undefined ? {} : { profile: input.profile }),
         ...(input.readRoots === undefined ? {} : { readRoots: [...input.readRoots] }),
+        ...(input.systemTools === undefined ? {} : { systemTools: input.systemTools }),
+        ...(input.projectDir === undefined ? {} : { projectDir: input.projectDir }),
+        ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
+        ...(input.writeEverywhere === undefined ? {} : { writeEverywhere: input.writeEverywhere }),
       });
       if (input.profile === "no-write") {
         return {
@@ -70,7 +83,9 @@ export function fakeSandbox(outcome: Result<WrapPlan, SandboxWrapError>): FakeSa
         };
       }
       return {
-        writeRoots: [...input.workspaceRoots, input.tempDir],
+        // 열린 정책은 쓰기 루트 `/`를 받고 임시 폴더는 쓰기 루트가 아니다(실제 서비스와 같다)
+        writeRoots:
+          input.writeEverywhere === true ? ["/"] : [...input.workspaceRoots, input.tempDir],
         readDeny: [],
         writeDeny: [],
         network: { allowedDomains: [], deniedDomains: [] },

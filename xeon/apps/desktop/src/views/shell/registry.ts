@@ -19,6 +19,11 @@ export interface ScreenDef {
   readonly Badge?: (props: {
     readonly render: (count: number | undefined) => ReactNode;
   }) => ReactNode;
+  /**
+   * 내비 줄 끝(수 앞)에 세우는 표시 부품(크리스탈 표시, DP-223). 확인이 필요한 것이 있을 때만 보이고, 한 영역의 내비에서 한 줄뿐이다:
+   * 대화 영역은 "제안", Craft 영역은 "리뷰"다. 리뷰 줄의 표시는 같은 줄의 `Badge`가 읽은 수를 문맥으로 받는다(`review-badge.tsx`)
+   */
+  readonly Mark?: () => ReactNode;
   /** 무대에 그릴 내용 */
   readonly render: () => ReactNode;
   /** 화면을 열 때 오른쪽 탭 기본값. 영역이 기억한 탭이 있으면 그것이 우선이다 */
@@ -27,6 +32,11 @@ export interface ScreenDef {
    * 참이면 한 번 연 뒤 다른 화면으로 가도 내리지 않고 숨긴다(상태 유지, DP-90 플레이그라운드 탭). 설정 화면이 열려도 숨긴 채 남는다
    */
   readonly keepAlive?: boolean;
+  /**
+   * 참이면 화면이 무대를 오른쪽 끝까지 쓴다(DP-68·DP-135의 막대 자리 여백 `--stage-rail`을 받지 않는다). 오른쪽 떠 있는 막대와
+   * 실제로 겹치는 칸은 화면이 스스로 비킨다(`rail-avoid.ts`의 `useRailAvoid`). 설정 화면이 열려 있으면 셸은 이 값을 보지 않는다
+   */
+  readonly bleed?: boolean;
 }
 
 /**

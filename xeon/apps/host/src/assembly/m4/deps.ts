@@ -20,6 +20,11 @@ import type { PluginLifecycle } from "./plugin-set.ts";
 
 /** 엔진 포트에서 오는 의존. `createEnginePorts`가 넘긴다. 소유 트랙마다 필요한 만큼만 더한다 */
 export interface M4EngineDeps {
+  /**
+   * 앱의 편집 통신이 폴더를 쓴 뒤 그 폴더의 내용 해시를 적는 장부(AGE-33). 검토 서비스가 같은 해시를 "앱에서 고친 변경"으로 본다.
+   * 생략하면 적지 않는다
+   */
+  readonly appEdits?: { markDir(dir: string): void };
   /** T-WC: 예약 서비스(`schedule.update`, `schedule.runs`) */
   readonly schedule: Pick<ScheduleService, "open" | "list" | "runs" | "update">;
   /** T-WC: thread 존재 확인(`goal.status`, `work.tasks.list`). `ext.test.run`의 testRun이 Test run 대화를 만들고 지우는 데도 쓴다 */
@@ -98,6 +103,11 @@ export interface M4HostEnv {
   readonly configDir: string;
   /** 호스트 상태 폴더(`OsDirs.state`). 옮김 기록 `migration.log`가 여기에 놓인다 */
   readonly stateDir: string;
+  /**
+   * 검토본·후보·초안 저장소 폴더(`<데이터>/plugin-store`). 제작 포트는 이 아래 폴더를 편집하지 않는다(`ext.members.edit`).
+   * `assemble.ts`의 `pluginStoreRoot`와 같은 폴더다
+   */
+  readonly pluginStoreDir: string;
   /** 시크릿 이름 목록. 읽지 못하면 null이고, 그때 검증은 `secret_missing` 경고를 내지 않는다 */
   readonly secretNames: () => Promise<ReadonlySet<string> | null>;
   /** 검토 대기 항목의 플러그인 이름(검토본이 없는 것 포함). 프로필 검증이 `plugin_not_reviewed`를 낼 때 쓴다(M5c §4.2.7) */

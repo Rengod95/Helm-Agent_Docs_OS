@@ -728,34 +728,6 @@
         }
       }
     },
-    "l0.sandbox.credentialFiles": {
-      "default": "allow",
-      "enum": [
-        "allow",
-        "deny"
-      ],
-      "maxLength": 8,
-      "type": "string",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "deny also blocks reading them from sandboxed shell commands.",
-          "helpKey": "settings.l0.sandbox.credentialFiles.help",
-          "label": "Credential files such as ~/.npmrc and ~/.config/gh",
-          "labelKey": "settings.l0.sandbox.credentialFiles.label",
-          "order": 106,
-          "tab": "permissions",
-          "widget": "select"
-        }
-      }
-    },
     "l0.sandbox.enabled": {
       "default": true,
       "type": "boolean",
@@ -779,7 +751,7 @@
         }
       }
     },
-    "l0.sandbox.escapeRetry": {
+    "l0.sandbox.narrowDrafts": {
       "default": false,
       "type": "boolean",
       "x-fresnel": {
@@ -792,11 +764,11 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and \"Extra writable directories\" keeps the answer.",
-          "helpKey": "settings.l0.sandbox.escapeRetry.help",
-          "label": "Allow retry outside the sandbox",
-          "labelKey": "settings.l0.sandbox.escapeRetry.label",
-          "order": 104,
+          "help": "On runs the scripts of plugin drafts you have not approved yet in a narrow sandbox: they can only read the plugin's own folder and cannot write. Off works like approved plugins.",
+          "helpKey": "settings.l0.sandbox.narrowDrafts.help",
+          "label": "Run unapproved plugin drafts in a narrow sandbox",
+          "labelKey": "settings.l0.sandbox.narrowDrafts.label",
+          "order": 109,
           "tab": "permissions",
           "widget": "toggle"
         }
@@ -903,13 +875,36 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
+          "help": "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing else is blocked for reading or writing by default.",
           "helpKey": "settings.l0.sandbox.protectedPaths.extra.help",
           "label": "Extra protected paths",
           "labelKey": "settings.l0.sandbox.protectedPaths.extra.label",
           "order": 102,
           "tab": "permissions",
           "widget": "list"
+        }
+      }
+    },
+    "l0.sandbox.sandboxImportedHooks": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Off by default: imported hooks run with your own permissions, like in the tool they came from. On blocks reading protected folders and writing outside the project.",
+          "helpKey": "settings.l0.sandbox.sandboxImportedHooks.help",
+          "label": "Run imported hooks inside the sandbox",
+          "labelKey": "settings.l0.sandbox.sandboxImportedHooks.label",
+          "order": 108,
+          "tab": "permissions",
+          "widget": "toggle"
         }
       }
     },
@@ -927,33 +922,6 @@
         "runtimeChange": "restart",
         "secret": false,
         "since": "0.1.0"
-      }
-    },
-    "l0.sandbox.writeRoots.extra": {
-      "default": [],
-      "items": {
-        "maxLength": 4096,
-        "minLength": 1,
-        "type": "string"
-      },
-      "maxItems": 256,
-      "type": "array",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "L0",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Extra writable directories",
-          "labelKey": "settings.l0.sandbox.writeRoots.extra.label",
-          "order": 103,
-          "tab": "permissions",
-          "widget": "list"
-        }
       }
     },
     "l0.secrets.ageKey.filePath": {
@@ -2200,7 +2168,7 @@
         "ui": {
           "help": "scope id → role → provider/modelId[:thinking level]",
           "helpKey": "settings.l1.models.groupRouting.help",
-          "label": "Models by group",
+          "label": "Models by plugin",
           "labelKey": "settings.l1.models.groupRouting.label",
           "order": 30,
           "tab": "models",
@@ -4734,7 +4702,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Covers direct calls from extensions and groups, not model tools. allow creates at once, ask requests approval, deny blocks.",
+          "help": "Covers direct calls from plugins, not model tools. allow creates at once, ask requests approval, deny blocks.",
           "helpKey": "settings.l2.schedule.entries.directCreate.help",
           "label": "Direct schedule creation by extensions",
           "labelKey": "settings.l2.schedule.entries.directCreate.label",
@@ -6242,7 +6210,7 @@
         }
       }
     },
-    "l3.group-sdk.instrumentation": {
+    "l3.orchestration.instrumentation": {
       "default": true,
       "type": "boolean",
       "x-fresnel": {
@@ -6258,36 +6226,11 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no /group status instrumentation values.",
-          "helpKey": "settings.l3.groupSdk.instrumentation.help",
-          "label": "Group instrumentation",
-          "labelKey": "settings.l3.groupSdk.instrumentation.label",
+          "help": "Records how much time a plugin that holds the Drive spends on rejections, publishing, delegation, and leases. When off, there are no records and no instrumentation values.",
+          "helpKey": "settings.l3.orchestration.instrumentation.help",
+          "label": "Drive instrumentation",
+          "labelKey": "settings.l3.orchestration.instrumentation.label",
           "order": 200,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "l3.group-sdk.statusLine": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Shows the enabled groups and the group that holds the drive in the status line.",
-          "helpKey": "settings.l3.groupSdk.statusLine.help",
-          "label": "Show groups in status line",
-          "labelKey": "settings.l3.groupSdk.statusLine.label",
-          "order": 201,
           "tab": "plugins",
           "widget": "toggle"
         }
@@ -7586,7 +7529,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Applies to drive leases that set no limits of their own. If a group sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
+          "help": "Applies to drive leases that set no limits of their own. If a plugin sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
           "helpKey": "settings.x.primitives.driveDefaultLimits.help",
           "label": "Default drive limits",
           "labelKey": "settings.x.primitives.driveDefaultLimits.label",
@@ -7663,7 +7606,7 @@
         }
       }
     },
-    "x.primitives.driveRequiresGroup": {
+    "x.primitives.driveRequiresOrchestration": {
       "default": true,
       "type": "boolean",
       "x-fresnel": {
@@ -7676,10 +7619,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When on, only members of a plugin group can register a drive. When off, plugins outside a group can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
-          "helpKey": "settings.x.primitives.driveRequiresGroup.help",
-          "label": "Drive only from plugin groups",
-          "labelKey": "settings.x.primitives.driveRequiresGroup.label",
+          "help": "When on, only plugins that declare a Drive can register a drive. When off, plugins that do not declare one can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
+          "helpKey": "settings.x.primitives.driveRequiresOrchestration.help",
+          "label": "Drive only from Drive plugins",
+          "labelKey": "settings.x.primitives.driveRequiresOrchestration.label",
           "order": 112,
           "tab": "plugins",
           "widget": "toggle"

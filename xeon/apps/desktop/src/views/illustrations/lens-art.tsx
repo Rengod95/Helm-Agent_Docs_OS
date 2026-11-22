@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 // 렌즈와 들어오는 빛은 currentColor(감싸개의 글자색), 나가는 빛과 초점만 caustic accent-graphic이다(라이트·다크 토큰이 바뀐다).
 
 const ACCENT = "var(--cs-color-accent-graphic)";
-const STROKE = 1.25;
 
 /** 렌즈 윤곽: 평평한 뒷면(x=34)과 광축에 나란한 계단으로 이어진 다섯 띠의 앞면 */
 const LENS =
@@ -24,6 +23,8 @@ const FOCUS = { x: 88, y: 48 } as const;
 
 export function LensArt(props: { readonly size?: number }): ReactNode {
   const size = props.size ?? 96;
+  // 96 좌표를 size px로 보인다. 선은 어느 크기에서도 화면 1px다(직접 그린 선의 한 벌과 같은 값, AGE-34)
+  const stroke = 96 / size;
   return (
     <svg
       aria-hidden="true"
@@ -34,7 +35,7 @@ export function LensArt(props: { readonly size?: number }): ReactNode {
       style={{ width: size, height: size, flex: "none" }}
       fill="none"
       stroke="currentColor"
-      strokeWidth={STROKE}
+      strokeWidth={stroke}
       strokeLinecap="round"
       strokeLinejoin="round"
     >

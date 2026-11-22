@@ -612,7 +612,7 @@
         "ui": {
           "help": "scope id → role → provider/modelId[:thinking level]",
           "helpKey": "settings.l1.models.groupRouting.help",
-          "label": "Models by group",
+          "label": "Models by plugin",
           "labelKey": "settings.l1.models.groupRouting.label",
           "order": 30,
           "tab": "models",
@@ -3704,7 +3704,7 @@
         }
       }
     },
-    "l3.group-sdk.instrumentation": {
+    "l3.orchestration.instrumentation": {
       "default": true,
       "type": "boolean",
       "x-fresnel": {
@@ -3720,36 +3720,11 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no /group status instrumentation values.",
-          "helpKey": "settings.l3.groupSdk.instrumentation.help",
-          "label": "Group instrumentation",
-          "labelKey": "settings.l3.groupSdk.instrumentation.label",
+          "help": "Records how much time a plugin that holds the Drive spends on rejections, publishing, delegation, and leases. When off, there are no records and no instrumentation values.",
+          "helpKey": "settings.l3.orchestration.instrumentation.help",
+          "label": "Drive instrumentation",
+          "labelKey": "settings.l3.orchestration.instrumentation.label",
           "order": 200,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
-    "l3.group-sdk.statusLine": {
-      "default": true,
-      "type": "boolean",
-      "x-fresnel": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "local",
-          "launch"
-        ],
-        "layer": "L3",
-        "runtimeChange": "live",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Shows the enabled groups and the group that holds the drive in the status line.",
-          "helpKey": "settings.l3.groupSdk.statusLine.help",
-          "label": "Show groups in status line",
-          "labelKey": "settings.l3.groupSdk.statusLine.label",
-          "order": 201,
           "tab": "plugins",
           "widget": "toggle"
         }

@@ -19,7 +19,7 @@ binds: [xeon/packages/contracts/src/records/**]
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
 | M0 | envelope(내구/휘발 판별), kind 이름 규칙과 `parseEventKind`, 코어 카탈로그 payload 스키마, 효과 3단과 재생 매핑·복구 결정 함수, `StepCheckpoint`, `BlobRef`·`DetachedField`·크기 검사, 업캐스터 타입과 `upcastEvent`, `ChunkMigration` 타입 | R1~R7 |
-| M1 | `EventKindRegistry` 타입(테스트용 그룹이 `grp.*` kind와 post·drive 기록을 쓴다), X.primitives.spec 확정으로 F.extensions.spec이 바뀌면 그에 맞춘 scope·lease·post payload 갱신, 스펙 §3.3.1 요청 kind 15종 payload, §3.9 저장·투영 포트 타입 | R9, R3 후속, R10, R12 |
+| M1 | `EventKindRegistry` 타입(테스트용 플러그인이 `grp.*` kind와 post·drive 기록을 쓴다), X.primitives.spec 확정으로 F.extensions.spec이 바뀌면 그에 맞춘 scope·lease·post payload 갱신, 스펙 §3.3.1 요청 kind 15종 payload, §3.9 저장·투영 포트 타입 | R9, R3 후속, R10, R12 |
 | M2 | 내장 L2 도메인 카탈로그 병합(스펙 §3.3.2) | R11 |
 | M2 이후 | `SessionStore` 인터페이스와 적합성 스위트, 열거형 확장 예약(`F.extensions.spec`) | R8 |
 

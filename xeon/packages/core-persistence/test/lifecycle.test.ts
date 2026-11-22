@@ -279,3 +279,52 @@ describe("thread summary lastTurnId", () => {
 function failRow(): never {
   throw new Bug("test: thread row missing");
 }
+
+/** thread.started의 payload를 봉투에서 읽는다 */
+function startedPayloadOf(h: Awaited<ReturnType<typeof openHarness>>, threadId: string): unknown {
+  const started = h.store.raw
+    .query<{ envelope: string }, [string]>(
+      "SELECT envelope FROM events WHERE thread_id = ? AND kind = 'thread.started'",
+    )
+    .get(threadId);
+  return JSON.parse(started?.envelope ?? "{}").payload;
+}
+
+describe("threads.create project", () => {
+  // AGE-33 항목 9: 소속(`thread.started.project`)은 호스트가 정해 넘긴 값을 그대로 싣는다. 없으면 이벤트에 싣지 않는다
+  test("a project given to create is carried into thread.started as its id and root", async () => {
+    const h = await openHarness();
+    const threadId = h.ids.next("thr");
+    expectOk(
+      h.service.threads.create({
+        threadId,
+        title: "in project",
+        workspace: "/home/me/proj/sub",
+        project: { id: "prj_alpha", root: "/home/me/proj" },
+      }),
+    );
+    expect(startedPayloadOf(h, threadId)).toEqual({
+      title: "in project",
+      forkedFrom: null,
+      workspace: "/home/me/proj/sub",
+      project: { id: "prj_alpha", root: "/home/me/proj" },
+    });
+  });
+
+  test("a thread outside every project carries project null, and a create without the field carries none", async () => {
+    const h = await openHarness();
+    const outside = h.ids.next("thr");
+    expectOk(h.service.threads.create({ threadId: outside, title: "default", project: null }));
+    expect(startedPayloadOf(h, outside)).toEqual({
+      title: "default",
+      forkedFrom: null,
+      project: null,
+    });
+
+    // 옛 호출(필드 없음)은 이벤트에 project 키가 없고, 대화는 그대로 읽힌다
+    const old = h.ids.next("thr");
+    expectOk(h.service.threads.create({ threadId: old, title: "old" }));
+    expect(startedPayloadOf(h, old)).toEqual({ title: "old", forkedFrom: null });
+    expect(expectOk(h.service.query.thread(old))?.title).toBe("old");
+  });
+});

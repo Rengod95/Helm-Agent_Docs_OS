@@ -16,11 +16,11 @@ export const ORIGIN_TEXT: Readonly<Record<ExtTrust, MessageId>> = {
   project: "desktop.addons.trust.project.title",
 };
 
-function countsTextOf(row: AddonRow): string {
+function countsPartsOf(row: AddonRow): readonly string[] {
   const parts: string[] = [];
   if (row.screens > 0) parts.push(t("desktop.addons.count.screens", { count: row.screens }));
   if (row.features > 0) parts.push(t("desktop.addons.count.features", { count: row.features }));
-  return parts.length === 0 ? t("desktop.addons.card.noScreens") : parts.join(" · ");
+  return parts.length === 0 ? [t("desktop.addons.card.noScreens")] : parts;
 }
 
 /** 상태 점과 글: 오류 > 확인 필요 > 꺼짐. 없으면 null */
@@ -82,8 +82,14 @@ export function PluginCard(props: {
             >
               {row.title}
             </span>
-            <span className="truncate text-ui-sm font-normal text-text-tertiary">
-              {row.version === "" ? row.name : `${row.name} · v${row.version}`}
+            <span className="flex min-w-0 items-baseline gap-2 text-ui-sm font-normal text-text-tertiary">
+              <span className="min-w-0 truncate">{row.name}</span>
+              {row.version === "" ? null : (
+                <>
+                  {" "}
+                  <span className="flex-none">{`v${row.version}`}</span>
+                </>
+              )}
             </span>
           </span>
         </span>
@@ -91,11 +97,12 @@ export function PluginCard(props: {
           {row.summary ?? t("desktop.addons.card.noSummary")}
         </span>
         <span className="flex min-w-0 items-center gap-2 text-ui-sm font-normal text-text-tertiary">
-          <span className="min-w-0 truncate">
-            {countsTextOf(row)}
-            <span aria-hidden> · </span>
-            {t(ORIGIN_TEXT[row.trust])}
-          </span>
+          {countsPartsOf(row).map((part) => (
+            <span key={part} className="min-w-0 truncate">
+              {part}
+            </span>
+          ))}
+          <span className="min-w-0 truncate">{t(ORIGIN_TEXT[row.trust])}</span>
           <span className="ms-auto flex flex-none items-center gap-2">
             <RowStatus row={row} />
             {props.pinned ? (

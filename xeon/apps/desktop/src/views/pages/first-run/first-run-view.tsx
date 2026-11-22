@@ -118,8 +118,10 @@ export interface FirstRunViewProps {
   readonly keyEntry: FirstRunKeyEntry;
   /** 화면 아래 한 줄 알림(저장됨, 저장 실패). 없으면 null */
   readonly notice: string | null;
-  /** 바닥글의 엔진 한 줄(상태·출처·연결)이다. 상태 표시줄과 같은 문장을 쓴다. 문장은 화면이 만든다 */
+  /** 바닥글의 엔진 칸(상태·출처)이다. 상태 표시줄과 같은 문장을 쓴다. 문장은 화면이 만든다 */
   readonly engineState: string;
+  /** 바닥글의 연결 칸이다(상태 표시줄의 연결 글과 같다) */
+  readonly linkState: string;
   /** 읽지 못한 설정 파일의 첫 문제(`host.status.settingsProblems`). 있으면 화면 맨 위에 경고 띠를 그린다 */
   readonly settingsProblem: SettingsFileProblem | null;
   readonly handlers: FirstRunViewHandlers;
@@ -205,7 +207,7 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
         titleId={headingId}
         meta={
           <span
-            className="text-ui-sm tabular-nums text-text-tertiary"
+            className="text-ui-sm text-text-tertiary"
             aria-label={t("desktop.firstRun.progress", {
               done: doneCount,
               total: STEP_ORDER.length,
@@ -268,7 +270,10 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
               {props.notice}
             </p>
           )}
-          <footer className="text-ui text-text-tertiary">{props.engineState}</footer>
+          <footer className="flex min-w-0 flex-wrap items-baseline gap-3 text-ui text-text-tertiary">
+            <span>{props.engineState}</span>
+            <span>{props.linkState}</span>
+          </footer>
         </div>
       </div>
     </section>
@@ -289,7 +294,8 @@ function indicatorOf(step: StepState): StepIndicator {
   return step.id === "tools" && !step.unknown ? "failed" : "todo";
 }
 
-/** 단계 머리의 원: 끝나면 체크, 필수 도구가 막히면 경고, 그 밖은 번호다(시안 Indicator) */
+/** 단계 머리의 원: 끝나면 체크, 필수 도구가 막히면 경고, 그 밖은 번호다(시안 Indicator).
+ *  번호 줄은 원 안쪽(14 - 선 2 = 12)과 같은 12다. 11px 글에 줄 11(leading-none)이면 기준선이 내림돼 숫자가 0.53px 떴다(AGE-32, DP-227) */
 function Indicator(props: { readonly n: number; readonly status: StepIndicator }): ReactNode {
   if (props.status === "done")
     return (
@@ -304,7 +310,7 @@ function Indicator(props: { readonly n: number; readonly status: StepIndicator }
       </span>
     );
   return (
-    <span className="grid size-full place-items-center rounded-full border border-border-default text-ui-xs leading-none text-text-secondary tabular-nums">
+    <span className="grid size-full place-items-center rounded-full border border-border-default text-ui-xs leading-3 text-text-secondary">
       {props.n}
     </span>
   );
@@ -520,18 +526,23 @@ function ToolStatus(props: { readonly row: BinaryView["rows"][number] }): ReactN
   const { row } = props;
   if (row.ok) {
     return (
-      <span className="text-text-secondary">
-        {t("desktop.settings.tools.status.available")} ·{" "}
-        <span className="font-mono text-mono-sm">{row.note}</span>
+      <span className="flex min-w-0 flex-wrap items-baseline gap-2 text-text-secondary">
+        <span className="flex-none">{t("desktop.settings.tools.status.available")}</span>{" "}
+        <span>{row.note}</span>
       </span>
     );
   }
   const tone = row.need === "required" ? "text-danger-text" : "text-warning-text";
   return (
-    <span className={tone}>
-      {t("desktop.settings.tools.status.unavailable")} ·{" "}
-      <span className="font-mono text-mono-sm">{row.note}</span>
-      {row.impact === "" ? null : ` · ${row.impact}`}
+    <span className={`flex min-w-0 flex-wrap items-baseline gap-2 ${tone}`}>
+      <span className="flex-none">{t("desktop.settings.tools.status.unavailable")}</span>{" "}
+      <span>{row.note}</span>
+      {row.impact === "" ? null : (
+        <>
+          {" "}
+          <span>{row.impact}</span>
+        </>
+      )}
     </span>
   );
 }

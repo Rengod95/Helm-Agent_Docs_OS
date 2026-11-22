@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { pluginDeclsOf } from "@fresnel/contracts/extensions";
 import type { PluginMode } from "@fresnel/contracts/services";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
 
@@ -55,7 +55,7 @@ for (const mode of ["hook", "inject", "drive"] as const) {
       hooks: root0?.hooks ?? [],
       drives: root0?.drives === true,
       instructions: readManifest(dir).components?.instructions ?? [],
-      group: readManifest(dir).group !== undefined,
+      group: readManifest(dir).orchestration !== undefined,
       entry: manifest["entry"] !== undefined,
     };
     expect(actual).toEqual(EXPECTED[mode]);

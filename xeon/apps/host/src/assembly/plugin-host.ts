@@ -1,6 +1,8 @@
 import { isAbsolute, join } from "node:path";
 import type { Logger, Scheduler } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
+  HookProcessPort,
   IsolationProcessPort,
   PortKey,
   ScriptDraftGate,
@@ -18,10 +20,12 @@ import type {
   LoaderIsolation,
   OperationsPolicy,
   PluginHostSupervisor,
+  ScriptRefReader,
 } from "@fresnel/ext-host";
 import { BASE_ENV_POLICY, isDeniedEnvName } from "@fresnel/platform-exec";
 import { readOsRuntime } from "@fresnel/platform-os";
 import { detectProcessPlatform } from "@fresnel/platform-process";
+import { probePython, type PythonRuntime, type RunCommandSync } from "./python-runtime.ts";
 import { pluginHostLaunch } from "../plugin-host/launch.ts";
 import type { SelfRunTarget } from "../self-command.ts";
 import {
@@ -40,6 +44,11 @@ import {
 const PLUGIN_HOST_INIT_TIMEOUT_MS = 5000;
 /** 마지막 호출 뒤 내리기까지(ms). 설정 키가 없어 상수로 둔다 */
 const PLUGIN_HOST_IDLE_MS = 60000;
+/**
+ * 조각 전송의 엔진 쪽 상한의 절대 최대(바이트, 1 GiB). 설정 `l0.store.maxBlobBytes`가 이보다 크면 이 값으로 자른다.
+ * 자식 쪽 상한(`PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`)은 감독이 협상에서 따로 자른다(X.loading-trust §4.9.3)
+ */
+const PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES: number = 1024 * 1024 * 1024;
 
 /** 재시작 한도 설정 키(X.loading-trust §4.9.7). 죽음을 셀 때마다 읽는다(live) */
 const MAX_RESTARTS_KEY = "x.loading-trust.isolation.maxRestarts";
@@ -66,6 +75,12 @@ function integerOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
 }
 
+/** 조각 전송 상한을 절대 최대로 자른다. 값이 없거나 1 미만이면 조각을 끈다(undefined) */
+function transferMaxOf(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isSafeInteger(value) || value < 1) return undefined;
+  return Math.min(value, PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES);
+}
+
 export interface PluginHostAssemblyDeps {
   readonly scheduler: Scheduler;
   readonly logger: Logger;
@@ -85,6 +100,11 @@ export interface PluginHostAssemblyDeps {
   readonly self?: SelfRunTarget;
   /** 세션을 열 때마다 부른다. 시험이 감독의 상태를 읽는다. 운영은 생략한다 */
   readonly onSupervisor?: (name: string, supervisor: PluginHostSupervisor) => void;
+  /**
+   * 조각 전송의 엔진 쪽 상한(live, 바이트). 운영은 `l0.store.maxBlobBytes`를 넘긴다(같은 값이 맡기기 입력 상한이다).
+   * 절대 최대(`PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES`)로 자른다. 없으면 조각 전송을 끈다
+   */
+  readonly transferMaxBytes?: () => number | undefined;
   /** 스크립트에 넘길 부모 환경 값과 실행기 PATH의 원천. 시험이 넣고, 운영은 생략해 `process.env`를 쓴다 */
   readonly parentEnv?: Readonly<Record<string, string | undefined>>;
   /** 실행기 이름을 절대 경로로 푼다. 시험이 넣고, 운영은 생략해 `parentEnv`의 PATH에서 찾는다. 없으면 undefined다 */
@@ -93,6 +113,19 @@ export interface PluginHostAssemblyDeps {
   readonly scriptGate?: ScriptDraftGate;
   /** 이 기기에서 격리를 쓸 수 있는가(지연 조회). 초안 스크립트가 카드를 열기 전에 묻는다 */
   readonly sandboxAvailable?: () => boolean;
+  /** 승인 전 드래프트의 스크립트를 좁은 길로 돌리는가(설정 `l0.sandbox.narrowDrafts`, 기본 끔, 호출마다 읽는다) [결정: 2026-11-21, 사용자, AGE-63]. 없으면 열린 정책이다 */
+  readonly narrowDrafts?: () => boolean;
+  /** 환경 모드 스크립트(가져온 훅)의 사용자 환경과 참조 파일, 읽기 예외, 프로젝트 폴더(AGE-58 [제안]). 없으면 환경 모드는 돌지 않는다(`script_env_not_granted` 이전에 `user_env_unavailable`) */
+  readonly scriptEnv?: {
+    readonly userEnv: () => Promise<Readonly<Record<string, string>>>;
+    /** 기본 길의 외부 훅 실행 포트(샌드박스 없음) */
+    readonly hookProcess: () => HookProcessPort | undefined;
+    /** 참이면 샌드박스 안에서 돌린다(설정 `l0.sandbox.sandboxImportedHooks`, 기본 끔) */
+    readonly envSandboxed: () => boolean;
+    readonly refs: ScriptRefReader;
+    readonly readCarveOutsFor: (refPaths: readonly string[]) => readonly string[];
+    readonly projectDirOf: (threadId: ThreadId | undefined) => string | undefined;
+  };
 }
 
 /**
@@ -118,12 +151,39 @@ export function allowedEnvOf(
  */
 export function runnerOnPath(
   parent: Readonly<Record<string, string | undefined>>,
+  runSync?: RunCommandSync,
 ): (name: ScriptRunner) => string | undefined {
-  return (name) => {
-    const path = parent["PATH"];
-    if (path === undefined) return undefined;
-    const found = Bun.which(name, { PATH: path });
-    return found === null || !isAbsolute(found) ? undefined : found;
+  return scriptRunnersOnPath(parent, runSync).runner;
+}
+
+/**
+ * 실행기 해석 한 벌. `python3`는 PATH의 shim이나 개발자 도구 껍데기를 그대로 쓰지 않고, 인터프리터에 물어 실제 실행 파일과
+ * 설치 접두 폴더로 푼다(`runSync`가 있을 때만. 없으면 PATH에서 찾은 값 그대로다). 물어도 답이 없으면 undefined다.
+ * `readRoots`는 그 실행기가 샌드박스 안에서 시작하는 데 읽어야 하는 경로(읽기 전용)다. `python3` 말고는 비어 있다.
+ */
+export function scriptRunnersOnPath(
+  parent: Readonly<Record<string, string | undefined>>,
+  runSync?: RunCommandSync,
+): {
+  readonly runner: (name: ScriptRunner) => string | undefined;
+  readonly readRoots: (name: ScriptRunner, command: string) => readonly string[];
+} {
+  const python = new Map<string, PythonRuntime | undefined>();
+  const resolved = new Map<string, PythonRuntime>();
+  return {
+    runner: (name) => {
+      const path = parent["PATH"];
+      if (path === undefined) return undefined;
+      const found = Bun.which(name, { PATH: path });
+      if (found === null || !isAbsolute(found)) return undefined;
+      if (name !== "python3" || runSync === undefined) return found;
+      if (!python.has(found)) python.set(found, probePython(found, runSync));
+      const runtime = python.get(found);
+      if (runtime !== undefined) resolved.set(runtime.command, runtime);
+      return runtime?.command;
+    },
+    readRoots: (name, command) =>
+      name === "python3" ? (resolved.get(command)?.readRoots ?? []) : [],
   };
 }
 
@@ -144,6 +204,7 @@ export interface PluginHostAssembly {
 export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHostAssembly {
   const supervisors = new Map<string, PluginHostSupervisor>();
   const parentEnv = deps.parentEnv ?? process.env;
+  const runners = scriptRunnersOnPath(parentEnv, readOsRuntime().runSync);
   const recordDir = join(deps.stateDir, PLUGIN_HOSTS_DIR);
   const enginePid = deps.enginePid ?? process.pid;
   const port = deps.processPort;
@@ -174,6 +235,10 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
       restartWindowSec: () =>
         integerOr(deps.settingValue(RESTART_WINDOW_KEY), RESTART_WINDOW_DEFAULT_SEC),
       maskSecrets: deps.maskSecrets,
+      // 조각 전송의 상한(live). 절대 최대로 자른다. 없거나 정수가 아니면 조각을 끈다
+      ...(deps.transferMaxBytes === undefined
+        ? {}
+        : { transferMaxBytes: () => transferMaxOf(deps.transferMaxBytes?.()) }),
       // 재시작 한도를 넘은 확장은 기준과 무관하게 바로 끈다(X.operations.spec §4.3.4). 다시 켜기는 설정으로 한다
       onRestartLimit: (name) => {
         deps.autoDisabler.disableNow(`ext:${name}`, "isolation_restart_limit");
@@ -183,10 +248,23 @@ export function createPluginHostAssembly(deps: PluginHostAssemblyDeps): PluginHo
         deps.onSupervisor?.(name, supervisor);
       },
       // 스크립트 실행기(설계 B [제안]). 실행기 이름은 부모 환경의 PATH에서 절대 경로로 풀고, 없으면 실행기가 `runner_unavailable`로 답한다
-      runner: deps.resolveRunner ?? runnerOnPath(parentEnv),
+      runner: deps.resolveRunner ?? runners.runner,
+      // 주입된 해석기는 읽기 경로를 정하지 않는다. 운영의 `python3`는 설치 접두 폴더를 읽기로 연다
+      ...(deps.resolveRunner === undefined ? { runnerReadRoots: runners.readRoots } : {}),
       allowedEnv: allowedEnvOf(parentEnv),
       ...(deps.scriptGate === undefined ? {} : { scriptGate: deps.scriptGate }),
       ...(deps.sandboxAvailable === undefined ? {} : { sandboxAvailable: deps.sandboxAvailable }),
+      ...(deps.narrowDrafts === undefined ? {} : { narrowDrafts: deps.narrowDrafts }),
+      ...(deps.scriptEnv === undefined
+        ? {}
+        : {
+            userEnv: deps.scriptEnv.userEnv,
+            hookProcess: deps.scriptEnv.hookProcess,
+            envSandboxed: deps.scriptEnv.envSandboxed,
+            scriptRefs: deps.scriptEnv.refs,
+            readCarveOutsFor: deps.scriptEnv.readCarveOutsFor,
+            projectDirOf: deps.scriptEnv.projectDirOf,
+          }),
     },
     process: tracked,
     sweepOrphans: async () => {

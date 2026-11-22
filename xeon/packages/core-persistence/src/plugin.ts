@@ -72,6 +72,7 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
         migrations: store.migrations,
         readBlob: (ref) => store.readBlob(ref),
         putBlob: (bytes, mediaType) => store.putBlob(bytes, mediaType),
+        putBlobStream: (source, mediaType) => store.putBlobStream(source, mediaType),
         clock: options.clock,
         ids: options.ids,
         points: createThreadHooks(host.port(ExtHostPortKey)),

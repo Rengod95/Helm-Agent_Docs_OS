@@ -24,13 +24,13 @@ import { MCP_SETTING_DEFS } from "@fresnel/cap-mcp";
 import { WEB_SETTING_DEFS } from "@fresnel/cap-web";
 import { WORK_SETTING_DEFS } from "@fresnel/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@fresnel/cap-workspace";
-import { accountRotationManifest, accountRotationSettings } from "@fresnel/group-account-rotation";
-import { helmManifest, helmSettings } from "@fresnel/group-helm";
+import { accountRotationManifest, accountRotationSettings } from "@fresnel/plugin-account-rotation";
+import { helmManifest, helmSettings } from "@fresnel/plugin-helm";
 import {
   providerAnthropicOauthManifest,
   providerAnthropicOauthSettings,
-} from "@fresnel/group-provider-anthropic-oauth";
-import { groupSdkSettings } from "@fresnel/group-sdk";
+} from "@fresnel/plugin-provider-anthropic-oauth";
+import { orchestrationSdkSettings } from "@fresnel/orchestration-sdk";
 import {
   loadingTrustSettings,
   operationsSettings,
@@ -44,7 +44,7 @@ import { PROCESS_SETTING_DEFS } from "@fresnel/platform-process";
 import { SANDBOX_SETTING_DEFS } from "@fresnel/platform-sandbox";
 import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
 import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
-import { guideManifest } from "@fresnel/group-guide";
+import { guideManifest } from "@fresnel/plugin-guide";
 import { authoringManifest, authoringSettings } from "@fresnel/plugin-builder";
 import { hostProjectSettings, hostSettings, remoteSettings } from "../settings.ts";
 
@@ -65,18 +65,20 @@ const BUILTIN_EXTENSIONS: readonly {
   { name: "core-context", displayName: "Context", layer: "L1" },
   { name: "core-tools", displayName: "Tool runtime", layer: "L1" },
   { name: "core-loop", displayName: "Agent loop", layer: "L1" },
-  { name: "host-groups", displayName: "Group service", layer: "plugin" },
   { name: "core-agents", displayName: "Subagents", layer: "L1" },
   { name: "cap-workspace", displayName: "Workspace tools", layer: "L2" },
-  { name: "cap-dialog", displayName: "Dialog", layer: "L2" },
+  { name: "cap-dialog", displayName: "Client Services", layer: "L2" },
   { name: "cap-artifacts", displayName: "Artifacts and reviews", layer: "L2" },
-  { name: "host-dialog-bridge", displayName: "Dialog bridge", layer: "L2" },
+  { name: "host-dialog-bridge", displayName: "Ask Service Bridge", layer: "L2" },
   { name: "cap-work", displayName: "Work management", layer: "L2" },
   { name: "cap-mcp", displayName: "MCP client", layer: "L2" },
   { name: "cap-web", displayName: "Web tools", layer: "L2" },
   { name: "cap-knowledge", displayName: "Knowledge and memory", layer: "L2" },
-  { name: "host-dialog-area-bridge", displayName: "Dialog area bridge", layer: "L2" },
-  { name: "host-proposals-bridge", displayName: "Proposals bridge", layer: "L2" },
+  { name: "host-goal-bridge", displayName: "Goal Service Bridge", layer: "L2" },
+  { name: "host-task-bridge", displayName: "Task Service Bridge", layer: "L2" },
+  { name: "host-skill-bridge", displayName: "Skill Service Bridge", layer: "L2" },
+  { name: "host-memory-bridge", displayName: "Memory Service Bridge", layer: "L2" },
+  { name: "host-proposals-bridge", displayName: "Proposal Service Bridge", layer: "L2" },
   { name: "cap-schedule", displayName: "Schedules", layer: "L2" },
 ];
 
@@ -148,20 +150,20 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-artifacts", "l2.artifacts", ARTIFACTS_SETTING_DEFS),
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
     ofDefs("cap-schedule", "l2.schedule", SCHEDULE_SETTING_DEFS),
-    ofGroup("group-sdk", groupSdkSettings),
-    ofGroup("group-helm", helmSettings),
-    ofDefs("group-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),
+    ofGroup("orchestration-sdk", orchestrationSdkSettings),
+    ofGroup("plugin-helm", helmSettings),
+    ofDefs("plugin-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),
     // 기본 꺼짐 계정 회전 플러그인(기본 플러그인 목록에 든다). 예약 키 enabled·isolation은 X.loading-trust §4.5.2가 정한 모양이다
-    ofGroup("group-account-rotation", accountRotationSettings),
+    ofGroup("plugin-account-rotation", accountRotationSettings),
     ofDefs(
-      "group-account-rotation",
+      "plugin-account-rotation",
       "ext.account-rotation",
       reservedExtensionSettings(accountRotationManifest, "user").defs,
     ),
     // 위장 provider 플러그인(기본 꺼짐, 기본 목록에 없다). 키가 카탈로그에 없으면 설정 쓰기가 settings.unknownKey로 거부된다
-    ofGroup("group-provider-anthropic-oauth", providerAnthropicOauthSettings),
+    ofGroup("plugin-provider-anthropic-oauth", providerAnthropicOauthSettings),
     ofDefs(
-      "group-provider-anthropic-oauth",
+      "plugin-provider-anthropic-oauth",
       "ext.provider-anthropic-oauth",
       reservedExtensionSettings(providerAnthropicOauthManifest, "user").defs,
     ),

@@ -13,7 +13,7 @@ import { optionLabelOf } from "../src/views/pages/settings/settings-model.ts";
 // 한국어 항목은 자기 이름(`한국어`)이라 제외 목록에 둔다.
 
 const HANGUL = /[가-힣]/u;
-const HELM_DIR = join(import.meta.dir, "../../../packages/group-helm");
+const HELM_DIR = join(import.meta.dir, "../../../packages/plugin-helm");
 
 let previous: Locale = "ko";
 beforeAll(() => {
@@ -75,7 +75,7 @@ describe("en locale: no Hangul on the main screen models", () => {
     });
     expect([...turns, usage].filter((text) => HANGUL.test(text))).toEqual([]);
     expect(turns).toEqual(["Idle", "Running", "Waiting for approval", "Waiting for an answer"]);
-    expect(usage).toBe("Turn total 1.5K tokens · $0.03");
+    expect(usage).toBe("Turn total 1.5K tokens ($0.03)");
   });
 
   test("slash command list: the engine's Korean descriptions and hints are replaced", () => {

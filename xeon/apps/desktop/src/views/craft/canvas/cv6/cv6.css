@@ -263,7 +263,7 @@
   /* 루프 오른쪽이 넘칠 때: 오른쪽 가장자리 가운데의 "루프 계속" */
   .cv6-more {
     position: absolute;
-    right: 64px;
+    right: var(--cs-space-16);
     z-index: 10;
     transform: translateY(-50%);
   }
@@ -271,9 +271,9 @@
   .cv6-more-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--cs-space-1);
     height: 28px;
-    padding: 0 8px 0 10px;
+    padding: 0 var(--cs-space-2) 0 var(--cs-space-2_5);
     border-radius: 999px;
     font-size: 12px;
     color: var(--cs-color-text-secondary);
@@ -499,12 +499,12 @@
   .cv6-tab {
     position: absolute;
     left: 0;
-    bottom: calc(100% - 12px);
+    bottom: calc(100% - var(--cs-space-3));
     display: inline-flex;
     align-items: flex-start;
-    gap: 5px;
+    gap: var(--cs-space-1_25);
     height: 32px;
-    padding: 4px 8px 0;
+    padding: var(--cs-space-1) var(--cs-space-2) 0;
     border-radius: 6px 6px 0 0;
     background: var(--cv6-k-tab);
     color: var(--cv6-k-text);
@@ -517,14 +517,10 @@
     flex: none;
   }
 
-  .cv6-tab > span {
-    margin-top: 0.5px;
-  }
-
   .cv6-tab[data-lod="mid"] {
-    gap: 7px;
+    gap: var(--cs-space-1_75);
     height: 40px;
-    padding: 6px 11px 0;
+    padding: var(--cs-space-1_5) var(--cs-space-3) 0;
     border-radius: 8px 8px 0 0;
     font-size: 16px;
     line-height: 16px;
@@ -532,7 +528,7 @@
 
   .cv6-tab[data-lod="far"] {
     height: 48px;
-    padding: 6px 12px 0;
+    padding: var(--cs-space-1_5) var(--cs-space-3) 0;
     border-radius: 9px 9px 0 0;
   }
 
@@ -541,7 +537,7 @@
   .cv6-pile-top > .cv6-tab {
     bottom: 100%;
     height: 20px;
-    padding-top: 4px;
+    padding-top: var(--cs-space-1);
     color: var(--cs-color-text-secondary);
     background: var(--cv6-bundle-tab);
   }
@@ -549,7 +545,7 @@
   .cv6-pedestal > .cv6-tab[data-lod="mid"],
   .cv6-pile-top > .cv6-tab[data-lod="mid"] {
     height: 28px;
-    padding-top: 6px;
+    padding-top: var(--cs-space-1_5);
   }
 
   .cv6-pedestal > .cv6-tab[data-lod="far"],
@@ -610,7 +606,7 @@
     width: auto;
     min-width: 20px;
     height: 20px;
-    padding: 0 5px;
+    padding: 0 var(--cs-space-1_25);
     font: 600 11px/20px var(--cs-font-ui);
     font-variant-numeric: tabular-nums;
     color: var(--cs-color-text-secondary);
@@ -638,7 +634,7 @@
   .cv6-edge-marks {
     position: absolute;
     top: 0;
-    right: 12px;
+    right: var(--cs-space-3);
     transform: translateY(-50%);
     z-index: 1;
     pointer-events: none;
@@ -655,7 +651,7 @@
     inset: 0;
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    padding: var(--cs-space-3);
     pointer-events: none;
   }
 
@@ -663,7 +659,7 @@
     display: flex;
     flex: none;
     align-items: center;
-    gap: 8px;
+    gap: var(--cs-space-2);
     height: 20px;
     min-width: 0;
     color: var(--cs-color-text-primary);
@@ -688,7 +684,7 @@
     place-items: center;
     width: 18px;
     height: 20px;
-    margin-right: -3px;
+    margin-right: calc(var(--cs-space-0_75) * -1);
     color: var(--cv6-menu);
     pointer-events: auto;
     position: relative;
@@ -710,7 +706,7 @@
 
   .cv6-desc {
     flex: none;
-    margin: 12px 0 0;
+    margin: var(--cs-space-3) 0 0;
     min-height: 40px;
     font-size: 14px;
     line-height: 20px;
@@ -727,10 +723,10 @@
     flex: 1 1 auto;
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+    gap: var(--cs-space-1_25);
     min-height: 0;
-    margin-top: 11px;
-    padding: 8px;
+    margin-top: var(--cs-space-2_5);
+    padding: var(--cs-space-2);
     border-radius: 6px;
     background: var(--cv6-well);
     box-shadow: inset 0 0 0 1px var(--cv6-well-edge);
@@ -743,7 +739,7 @@
     align-items: center;
     max-width: 100%;
     height: 18px;
-    padding: 0 6px;
+    padding: 0 var(--cs-space-1_5);
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--cv6-tag-edge);
     font-size: 12px;
@@ -772,17 +768,17 @@
     flex: none;
     align-items: center;
     height: 24px;
-    margin-top: 11px;
+    margin-top: var(--cs-space-3);
     min-width: 0;
   }
 
   .cv6-chip-pill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--cs-space-1_25);
     height: 24px;
     max-width: 100%;
-    padding: 0 8px 0 7px;
+    padding: 0 var(--cs-space-2) 0 var(--cs-space-1_75);
     border-radius: 5px;
     background: var(--cv6-pill);
     box-shadow: inset 0 0 0 1px var(--cv6-pill-edge);
@@ -809,9 +805,9 @@
     display: flex;
     flex: none;
     align-items: center;
-    gap: 12px;
+    gap: var(--cs-space-3);
     height: 16px;
-    margin-top: 12px;
+    margin-top: var(--cs-space-3);
     min-width: 0;
     font-size: 12px;
     line-height: 16px;
@@ -823,16 +819,16 @@
   .cv6-foot-item {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--cs-space-1);
   }
 
   /* 중간(48~85%): 같은 칸을 크게. 푸터는 뺀다 */
   .cv6-plate-body[data-lod="mid"] {
-    padding: 16px;
+    padding: var(--cs-space-4);
   }
 
   .cv6-plate-body[data-lod="mid"] .cv6-head {
-    gap: 10px;
+    gap: var(--cs-space-2_5);
     height: 28px;
   }
 
@@ -848,15 +844,15 @@
   }
 
   .cv6-plate-body[data-lod="mid"] .cv6-card-well {
-    gap: 6px;
-    margin-top: 12px;
-    padding: 10px;
+    gap: var(--cs-space-1_5);
+    margin-top: var(--cs-space-3);
+    padding: var(--cs-space-2_5);
     border-radius: 8px;
   }
 
   .cv6-plate-body[data-lod="mid"] .cv6-tag {
     height: 22px;
-    padding: 0 7px;
+    padding: 0 var(--cs-space-1_75);
     font-size: 15px;
     line-height: 22px;
   }
@@ -869,13 +865,13 @@
 
   .cv6-plate-body[data-lod="mid"] .cv6-pill-row {
     height: 30px;
-    margin-top: 12px;
+    margin-top: var(--cs-space-3);
   }
 
   .cv6-plate-body[data-lod="mid"] .cv6-chip-pill {
-    gap: 6px;
+    gap: var(--cs-space-1_5);
     height: 30px;
-    padding: 0 10px 0 9px;
+    padding: 0 var(--cs-space-2_5) 0 var(--cs-space-2_25);
     border-radius: 6px;
     font-size: 17px;
     line-height: 30px;
@@ -884,8 +880,8 @@
   /* 멀리(48% 아래): 이름만 크게(두 줄까지) */
   .cv6-plate-body[data-lod="far"] {
     justify-content: center;
-    gap: 14px;
-    padding: 20px 22px;
+    gap: var(--cs-space-3_5);
+    padding: var(--cs-space-5) var(--cs-space-6);
   }
 
   .cv6-plate-hit {
@@ -910,9 +906,9 @@
   .cv6-mark {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: var(--cs-space-0_75);
     height: 18px;
-    padding: 0 6px;
+    padding: 0 var(--cs-space-1_5);
     border-radius: 4px;
     font-size: 11px;
     font-weight: 500;
@@ -923,14 +919,14 @@
 
   .cv6-mark-mid {
     height: 24px;
-    padding: 0 7px;
+    padding: 0 var(--cs-space-1_75);
     border-radius: 6px;
     font-size: 14px;
   }
 
   .cv6-mark-big {
     height: 34px;
-    padding: 0 10px;
+    padding: 0 var(--cs-space-2_5);
     border-radius: 8px;
     font-size: 19px;
   }
@@ -959,7 +955,7 @@
     display: inline-flex;
     align-items: center;
     height: 20px;
-    padding: 0 6px;
+    padding: 0 var(--cs-space-1_5);
     border-radius: 5px;
     font: 11px var(--cv6-mono);
     color: var(--cs-color-text-secondary);
@@ -969,7 +965,7 @@
 
   /* 상세 패널의 한 단 밝은 면(G4의 값 그대로: 상세 패널은 바꾸지 않는다) */
   .cv6-well {
-    padding: 7px 9px;
+    padding: var(--cs-space-1_75) var(--cs-space-2_25);
     border-radius: 10px;
     corner-shape: squircle;
     background: var(--cv6-pwell);
@@ -979,7 +975,7 @@
   /* 포커스가 도착했을 때 한 번만 퍼지는 고리(그 뒤로 도는 것 없음) */
   .cv6-arrive {
     position: absolute;
-    inset: -8px;
+    inset: calc(var(--cs-space-2) * -1);
     border-radius: 16px;
     border: 2px solid currentColor;
     pointer-events: none;
@@ -1058,10 +1054,10 @@
   .cv6-builder {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: var(--cs-space-3_5);
     width: 236px;
     height: 104px;
-    padding: 0 18px;
+    padding: 0 var(--cs-space-4_5);
     border-radius: 14px;
     border: 1px dashed var(--cv6-line);
     color: var(--cs-color-text-tertiary);
@@ -1121,11 +1117,11 @@
   .cv6-tool-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--cs-space-1_25);
     height: 28px;
     min-width: 28px;
     justify-content: center;
-    padding: 0 6px;
+    padding: 0 var(--cs-space-1_5);
     border-radius: 7px;
     color: var(--cs-color-text-secondary);
     outline: none;
@@ -1281,9 +1277,9 @@
     flex-wrap: wrap;
     align-items: baseline;
     max-width: 100%;
-    column-gap: 6px;
+    column-gap: var(--cs-space-1_5);
     min-height: 22px;
-    padding: 3px 7px;
+    padding: var(--cs-space-0_75) var(--cs-space-1_75);
     border-radius: 6px;
     font-size: 12px;
     line-height: 16px;
@@ -1310,7 +1306,7 @@
     display: inline-flex;
     align-items: center;
     height: 22px;
-    padding: 0 8px;
+    padding: 0 var(--cs-space-2);
     border-radius: 6px;
     font-size: 12px;
     color: var(--cs-color-text-secondary);
@@ -1337,9 +1333,9 @@
   .cv6-step {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--cs-space-1_25);
     height: 24px;
-    padding: 0 8px;
+    padding: 0 var(--cs-space-2);
     border-radius: 6px;
     border: 1px solid;
     color: var(--cs-color-text-primary);
@@ -1349,9 +1345,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+    gap: var(--cs-space-1_5);
     height: 24px;
-    padding: 0 8px;
+    padding: 0 var(--cs-space-2);
     border-radius: 6px;
     font-size: 11.5px;
     color: var(--cs-color-text-secondary);
@@ -1370,8 +1366,8 @@
   .cv6-stat {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 8px 10px;
+    gap: var(--cs-space-0_5);
+    padding: var(--cs-space-2) var(--cs-space-2_5);
     border-radius: 8px;
     background: color-mix(in oklab, var(--cs-color-text-primary) 4%, transparent);
   }
@@ -1407,9 +1403,9 @@
   .cv6-member {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--cs-space-2_5);
     width: 100%;
-    padding: 6px 8px;
+    padding: var(--cs-space-1_5) var(--cs-space-2);
     outline: none;
   }
 
@@ -1469,8 +1465,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 4px;
-    padding: 0 14px;
+    gap: var(--cs-space-1);
+    padding: 0 var(--cs-space-3_5);
     border-radius: 12px;
     background: var(--cv6-plate);
     box-shadow:

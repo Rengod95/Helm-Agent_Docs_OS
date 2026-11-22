@@ -285,7 +285,7 @@ suite("stdio MCP server under the real sandbox (srt, bwrap)", () => {
   });
 
   test(
-    "a sandboxed server cannot read the vault, write outside its folder, or reach a blocked domain",
+    "a sandboxed server cannot read the vault (the user's protectedPaths.extra), reaches no blocked domain, and writes outside its folder like the shell tool (the open policy, AGE-63)",
     async () => {
       const box = await openBox();
       const loopback = listenLoopback();
@@ -294,12 +294,12 @@ suite("stdio MCP server under the real sandbox (srt, bwrap)", () => {
         await settle();
         expect(outcome).toEqual({
           read: "denied",
-          write: "denied",
+          write: "ok",
           write_inside: "ok",
           net: "403",
           net_direct: "denied",
         });
-        expect(existsSync(join(box.outside, "written.txt"))).toBe(false);
+        expect(existsSync(join(box.outside, "written.txt"))).toBe(true);
         expect(loopback.seen).toEqual([]);
       } finally {
         loopback.stop();
@@ -310,14 +310,14 @@ suite("stdio MCP server under the real sandbox (srt, bwrap)", () => {
   );
 
   test(
-    "a sandboxed server can still write inside its working folder (the policy is not deny-all)",
+    "a sandboxed server writes inside and outside its working folder under the open policy, and the vault stays denied (the policy is not deny-all)",
     async () => {
       const box = await openBox();
       const loopback = listenLoopback();
       try {
         const outcome = await runProbe(box, loopback.port, true);
-        // 같은 실행에서 밖 쓰기는 막힌다. 격리가 빠졌다면 밖 쓰기도 되므로 이 검사가 실패한다
-        expect(outcome).toMatchObject({ write: "denied", write_inside: "ok" });
+        // 열린 정책: 밖 쓰기도 된다(셸 도구와 같다). 보호 경로(vault)의 읽기는 여전히 막힌다(위 시험)
+        expect(outcome).toMatchObject({ write: "ok", write_inside: "ok" });
         expect(existsSync(join(box.workspace, "inside.txt"))).toBe(true);
       } finally {
         loopback.stop();

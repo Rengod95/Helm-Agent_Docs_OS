@@ -21,7 +21,7 @@ case "$layer" in
   L0) dirs=('./packages/platform-*') ;;
   L1) dirs=('./packages/core-*' './plugins/*') ;;
   L2) dirs=('./packages/cap-*') ;;
-  L3) dirs=('./packages/group-*') ;;
+  L3) dirs=('./packages/plugin-*') ;;
   L4) dirs=('./apps/*') ;;
   *) echo "unknown layer: $layer (expected root F X L0 L1 L2 L3 L4)" >&2; exit 1 ;;
 esac

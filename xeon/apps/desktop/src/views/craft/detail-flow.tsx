@@ -357,11 +357,11 @@ function MomentRow({
 }): ReactNode {
   const id = row.moment.id;
   const line = (
-    <span aria-hidden className="absolute bottom-0 left-[3.1rem] top-0 w-px bg-border-default" />
+    <span aria-hidden className="absolute bottom-0 left-12 top-0 w-px bg-border-default" />
   );
   if (!row.active) {
     return (
-      <div className="relative flex h-6 scroll-mt-14 items-center gap-2" data-moment={id}>
+      <div className="relative flex h-6 scroll-mt-16 items-center gap-2" data-moment={id}>
         {line}
         <span className="w-10 flex-none" />
         <span aria-hidden className="z-10 h-px w-3 flex-none bg-border-strong" />
@@ -371,7 +371,7 @@ function MomentRow({
   }
   return (
     <div
-      className="relative grid scroll-mt-14 gap-x-3 py-2"
+      className="relative grid scroll-mt-16 gap-x-3 py-2"
       style={{
         gridTemplateColumns: `${railOf(grouped)} repeat(${String(columns.length)}, minmax(0,1fr))`,
       }}
@@ -496,7 +496,7 @@ export function Lifeline({ columns, grouped, nameOf, marks }: LifelineProps): Re
       </div>
       {PHASES.map((phase) => (
         <div key={phase}>
-          <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-ui text-text-tertiary">
+          <div className="ps-[calc(var(--cs-space-12)+var(--spacing)*1.5)] flex items-center gap-3 pb-0.5 pt-3 text-ui text-text-tertiary">
             {t(PHASE_LABEL[phase])}
             <span aria-hidden className="h-px flex-1 bg-border-subtle" />
           </div>
@@ -514,7 +514,7 @@ export function Lifeline({ columns, grouped, nameOf, marks }: LifelineProps): Re
       ))}
       {off.length > 0 && (
         <div>
-          <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-ui text-text-tertiary">
+          <div className="ps-[calc(var(--cs-space-12)+var(--spacing)*1.5)] flex items-center gap-3 pb-0.5 pt-3 text-ui text-text-tertiary">
             {t("desktop.craft.detail.flow.offTurn")}
             <span aria-hidden className="h-px flex-1 bg-border-subtle" />
           </div>

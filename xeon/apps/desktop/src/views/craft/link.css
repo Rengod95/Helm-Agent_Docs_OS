@@ -195,7 +195,7 @@
 }
 
 .craft-link-box {
-  padding-inline: clamp(20px, 3cqw, 48px);
+  padding-inline: clamp(var(--cs-space-5), 3cqw, var(--cs-space-12));
   pointer-events: none;
 }
 .craft-link-left,

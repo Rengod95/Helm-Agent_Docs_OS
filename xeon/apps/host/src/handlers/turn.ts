@@ -1,4 +1,4 @@
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, type LogFields } from "@fresnel/contracts";
 import { isId, type ThreadId, type TurnInvoked } from "@fresnel/contracts/conversation";
 import type { LoopError } from "@fresnel/contracts/services";
 import {
@@ -48,7 +48,10 @@ function loopRejection(error: LoopError, where: string): WireError {
  * 이름이 없는 거절(`limit`, `draft_unavailable`)은 `details`가 없다
  */
 /** 덧씌우기 거절을 와이어 오류로 옮긴다. `testRun.start`의 초안 구성도 같은 거절을 쓴다(§4.8.1 1) */
-export function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
+export function wireErrorOfOverlay(
+  refusal: OverlayRefusal,
+  report?: (event: string, fields: LogFields) => void,
+): WireError {
   switch (refusal.kind) {
     case "limit":
       return wireError("overlay.limit");
@@ -64,7 +67,17 @@ export function wireErrorOfOverlay(refusal: OverlayRefusal): WireError {
     case "draft_not_found":
       return wireError("draft.notFound", { details: { id: refusal.draftId } });
     case "draft_unavailable":
-      return wireError("overlay.draftUnavailable");
+      // 싣기 실패(격리, 안전 모드, 켜지지 않음, 내용 바뀜, 그 밖)는 싣는 쪽이 이미 기록했다. 검사에서 걸린 사유만 여기서 한 줄 남긴다
+      if (
+        refusal.reason === "project_plugin" ||
+        refusal.reason === "mixed_versions" ||
+        refusal.reason === "duplicate_start_drive"
+      ) {
+        report?.("plugin.overlay.draft_refused", { name: refusal.name, reason: refusal.reason });
+      }
+      return wireError("overlay.draftUnavailable", {
+        details: { name: refusal.name, reason: refusal.reason },
+      });
     case "plugin":
       return wireErrorOfPluginFailure(refusal.failure);
     default:
@@ -92,7 +105,8 @@ export function createTurnStartHandler(
     if (overlay.length > 0) {
       if (ports.turns.isLive(threadId)) throw wireError("turn.busy");
       const attached = await ports.overlay.attach(threadId, overlay);
-      if (!attached.ok) throw wireErrorOfOverlay(attached.error);
+      if (!attached.ok)
+        throw wireErrorOfOverlay(attached.error, (event, fields) => ports.log.error(event, fields));
       cacheImpact = attached.value.cacheImpact;
       invoked = attached.value.invoked;
       startsDrive = invoked.some((item) => item.kind === "drive");

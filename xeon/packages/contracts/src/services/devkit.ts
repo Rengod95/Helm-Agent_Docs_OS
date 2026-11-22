@@ -3,6 +3,7 @@ import type { ContextRef, JsonValue } from "../conversation/index.ts";
 import type {
   BridgeCapability,
   CompositionDecl,
+  DependencyKind,
   ExtensionLayer,
   PluginSubmitRequest,
   PluginSubmitResult,
@@ -67,7 +68,10 @@ export interface ScaffoldInput {
   /** `single-plugin`일 때 플러그인의 층. 생략하면 템플릿 기본값 [제안] */
   readonly layer?: ExtensionLayer;
   /** `group` 선언 초안. 있으면 매니페스트에 `group`이 붙는다 */
-  readonly group?: { readonly members?: readonly string[]; readonly composition?: CompositionDecl };
+  readonly orchestration?: {
+    readonly members?: readonly string[];
+    readonly composition?: CompositionDecl;
+  };
   /** Plugin UI 초안 */
   readonly ui?: UiDecl;
 }
@@ -75,6 +79,187 @@ export interface ScaffoldResult {
   readonly dir: string;
   /** 만든 파일(dir 기준 상대 경로) */
   readonly files: readonly string[];
+}
+
+/**
+ * 구성원 편집 한 건(`editMembers`, L3.authoring.spec §3.3). 뿌리 플러그인은 구성원이 아니라 바꾸지 않는다.
+ * 여러 건은 위에서 아래로 차례로 적용하고, 하나라도 실패하면 아무 파일도 쓰지 않는다
+ */
+export type MemberOp =
+  | {
+      readonly kind: "add";
+      readonly id: string;
+      /** 생략하면 뿌리 플러그인의 층(뿌리가 `plugin`이면 `plugin`) */
+      readonly layer?: ExtensionLayer;
+      readonly title?: string;
+      /** 생략하면 `hook`. `inject`는 지침 선언만, `drive`는 층 L3에서만 */
+      readonly mode?: PluginMode;
+    }
+  | { readonly kind: "rename"; readonly id: string; readonly to: string }
+  /** 보이는 이름(매니페스트 `title`)만 바꾼다. id와 파일은 그대로다. 빈 문자열이면 제목을 지운다. 64자 이하 */
+  | { readonly kind: "retitle"; readonly id: string; readonly title: string }
+  | { readonly kind: "remove"; readonly id: string }
+  /** 구성원끼리의 순서를 바꾼다(0부터, 구성원 목록 기준). 이 순서가 `plugins[]` 순서이고 등록·훅 순서가 된다 */
+  | { readonly kind: "move"; readonly id: string; readonly toIndex: number };
+
+/** 구성원의 지침 또는 스킬 한 항목. `id`는 `components`에 적힌 경로의 이름이다 */
+export interface MemberInject {
+  readonly id: string;
+  readonly kind: "instruction" | "skill";
+}
+
+/** 구성원 하나(뿌리 제외)의 요약. `members`는 매니페스트 `plugins[]` 순서다 */
+export interface MemberInfo {
+  readonly id: string;
+  readonly registrationId: string;
+  readonly title: string | null;
+  readonly layer: ExtensionLayer;
+  readonly hooks: readonly string[];
+  readonly drives: boolean;
+  readonly defaultEnabled: boolean;
+  /** `orchestration.composition.blocks` 가운데 `plugin`이 이 구성원인 블록 id */
+  readonly blockIds: readonly string[];
+  /**
+   * 이 구성원에 귀속되는 지침과 스킬. 지금 매니페스트는 `components`를 최상위에만 적으므로(구성원별 자리가 없다)
+   * 귀속할 근거가 없어 항상 빈 배열이다. 구성원별 선언이 생기면 그때 채운다
+   */
+  readonly injects: readonly MemberInject[];
+  /**
+   * 이 구성원에 귀속되는 도구 이름. 매니페스트 `tools`도 최상위에만 적혀 있어서 지금은 항상 빈 배열이다(`injects`와 같은 이유)
+   */
+  readonly tools: readonly string[];
+}
+
+export interface MembersEditInput {
+  /** 플러그인 원본 폴더의 절대 경로(`.fresnel-plugin/plugin.json`이 있어야 한다) */
+  readonly dir: string;
+  readonly ops: readonly MemberOp[];
+}
+
+export interface MembersEditResult {
+  readonly members: readonly MemberInfo[];
+  /** 검사 경고와 알림. 오류가 있었으면 편집이 거절되어 여기 오지 않는다 */
+  readonly issues: readonly DevkitIssue[];
+  /** 쓰거나 옮긴 파일(dir 기준 상대 경로). 옮긴 파일은 새 경로로 적는다 */
+  readonly changedFiles: readonly string[];
+  /** `generated`: 엔트리가 생성 파일을 가져온다. `manual`: 호출자가 엔트리 배선을 직접 확인해야 한다 */
+  readonly entryWiring: "generated" | "manual";
+}
+
+/**
+ * 의존 편집 한 건(`editDependencies`, AGE-33). 매니페스트 `plugins[].dependsOn`의 한 줄을 더하거나 뺀다.
+ * `from`은 의존을 거는 구성원의 id이고, 생략하면 뿌리 플러그인이다. 여러 건은 위에서 아래로 차례로 적용하고, 하나라도 실패하면 아무 파일도 쓰지 않는다
+ */
+export type DependencyOp =
+  | {
+      readonly kind: "add";
+      readonly from?: string;
+      /** 같은 `plugin`의 줄이 이미 있으면 그 줄을 이 값으로 바꾼다. `kind`를 생략하면 soft다 */
+      readonly dependency: {
+        readonly plugin: string;
+        readonly range?: string;
+        readonly kind?: DependencyKind;
+      };
+    }
+  | { readonly kind: "remove"; readonly from?: string; readonly plugin: string };
+
+/** 의존 한 줄의 요약. `from`은 의존을 건 Registration id, `target`은 가리키는 Registration id다 */
+export interface DependencyInfo {
+  readonly from: string;
+  readonly target: string;
+  readonly kind: DependencyKind;
+  /** 생략하면 어느 버전이든 된다 */
+  readonly range: string | null;
+}
+
+export interface DependenciesEditInput {
+  /** 플러그인 원본 폴더의 절대 경로(`.fresnel-plugin/plugin.json`이 있어야 한다) */
+  readonly dir: string;
+  /** 1~32건을 받는다. 빈 배열이면 쓰지 않는 읽기다 */
+  readonly ops: readonly DependencyOp[];
+}
+
+export interface DependenciesEditResult {
+  /** 확장 전체의 의존 줄(플러그인 등록 순서) */
+  readonly dependencies: readonly DependencyInfo[];
+  /** 검사 경고와 알림. 오류가 있었으면 편집이 거절되어 여기 오지 않는다 */
+  readonly issues: readonly DevkitIssue[];
+  /** 쓴 파일(dir 기준 상대 경로). 매니페스트만 쓴다 */
+  readonly changedFiles: readonly string[];
+}
+
+/**
+ * 구성원 떼기(`detachMember`, AGE-33). 구성원 하나를 독립 플러그인 폴더로 옮긴다. 원본 폴더 `dir`은 읽기만 하고,
+ * 새 폴더 `outDir`(없거나 비어 있어야 한다)에만 쓴다. 프로필 파일은 건드리지 않는다: 프로필 참조는 `profileMove`로 알린다
+ */
+export interface MembersDetachInput {
+  /** 원본 폴더의 절대 경로(`.fresnel-plugin/plugin.json`이 있어야 한다) */
+  readonly dir: string;
+  /** 떼어 낼 구성원의 id(뿌리 플러그인은 떼지 않는다) */
+  readonly member: string;
+  /** 새 폴더의 절대 경로. 없거나 비어 있어야 한다 */
+  readonly outDir: string;
+  /** 새 이름. 생략하면 `<원래 이름>-<member>`다 */
+  readonly name?: string;
+  /** 참이면 새 플러그인이 원래 이름의 플러그인에 `dependsOn`으로 기댄다 */
+  readonly keepDependency?: boolean;
+  /** `keepDependency`일 때 의존의 종류. 생략하면 soft다 */
+  readonly dependencyKind?: DependencyKind;
+  /** 새 매니페스트의 목적 한 문장(200자 이하). 생략하면 원본의 `purpose`를 그대로 옮기고, 원본에도 없으면 만들지 않는다 */
+  readonly purpose?: string;
+}
+
+/** 떼기의 결과. `changedFiles`는 새 폴더 안의 파일(`outDir` 기준 상대 경로)이다 */
+export interface MembersDetachResult {
+  /** 새 폴더의 절대 경로 */
+  readonly outDir: string;
+  /** 새 이름(매니페스트 `name`) */
+  readonly name: string;
+  readonly changedFiles: readonly string[];
+  readonly issues: readonly DevkitIssue[];
+  /**
+   * 프로필 참조를 옮길 때 화면이 승인 때 묻는 값. `from`은 떼기 전 구성원의 Registration id(`<원래 이름>/<member>`),
+   * `to`는 새 이름이다. 프로필은 이 함수가 바꾸지 않는다
+   */
+  readonly profileMove: { readonly from: string; readonly to: string };
+}
+
+/**
+ * 구성원 합치기(`mergeMembers`, AGE-33). 독립 플러그인 폴더 2~16개를 한 플러그인의 구성원으로 묶은 새 폴더(`outDir`)를 쓴다.
+ * 원본 폴더들은 읽기만 한다. 매니페스트와 선언만 합친다: 코드 파일과 공용 항목은 옮기지 않고 `issues`로 알린다.
+ * 프로필 파일은 건드리지 않는다: 프로필 참조는 `profileMove`로 알린다
+ */
+export interface MembersMergeInput {
+  /** 원본 폴더의 절대 경로 2~16개. 각 폴더는 `plugins` 선언이 하나뿐이고 `orchestration`이 없는 독립 플러그인이어야 한다 */
+  readonly dirs: readonly string[];
+  /** 새 폴더의 절대 경로. 없거나 비어 있어야 한다 */
+  readonly outDir: string;
+  /** 새 이름(매니페스트 `name`). 원본 이름이나 설치된 이름과 겹치면 안 된다 */
+  readonly name: string;
+  /** 뿌리 플러그인의 제목. 생략하면 없다 */
+  readonly title?: string;
+  /**
+   * 새 매니페스트의 목적 한 문장(200자 이하). 생략하면 원본들의 `purpose`를 선언 순서대로 `; `로 이어 붙인다.
+   * 원본에 하나도 없으면 만들지 않는다
+   */
+  readonly purpose?: string;
+}
+
+/**
+ * 합치기의 결과. `profileMove`의 `from`은 원본의 Registration id(선언에 id가 없으면 원본 이름), `to`는 `<새 이름>/<구성원 id>`다(구성원 id는 원본 이름이다).
+ * 프로필은 이 함수가 바꾸지 않는다
+ */
+export interface MembersMergeResult {
+  /** 새 폴더의 절대 경로 */
+  readonly outDir: string;
+  /** 새 이름(매니페스트 `name`) */
+  readonly name: string;
+  /** 새 매니페스트의 구성원 요약(`plugins[]` 순서) */
+  readonly members: readonly MemberInfo[];
+  /** 쓴 파일(`outDir` 기준 상대 경로). 매니페스트 하나뿐이다 */
+  readonly changedFiles: readonly string[];
+  readonly issues: readonly DevkitIssue[];
+  readonly profileMove: readonly { readonly from: string; readonly to: string }[];
 }
 
 /** 검사 결과 한 건. F `ManifestIssue`와 AU 규칙(`AU-NNN`)을 함께 싣는다 */
@@ -112,7 +297,7 @@ export const REPLAY_FAILURES = [
   "no-commits",
 ] as const;
 export type ReplayFailure = (typeof REPLAY_FAILURES)[number];
-/** 절단 한 칸: 앞에서 `commitIndex`개의 커밋을 복원해 다시 돌린 결과. group-sdk `ReplayCut`의 wire 모양 */
+/** 절단 한 칸: 앞에서 `commitIndex`개의 커밋을 복원해 다시 돌린 결과. orchestration-sdk `ReplayCut`의 wire 모양 */
 export interface ReplayCut {
   /** 앞에서 몇 개의 커밋을 복원했는가(1부터) */
   readonly commitIndex: number;
@@ -122,7 +307,7 @@ export interface ReplayCut {
   readonly firstDiff: number | null;
 }
 
-/** group-sdk `ReplayDriveReport`의 wire 모양 */
+/** orchestration-sdk `ReplayDriveReport`의 wire 모양 */
 export interface ReplayReport {
   readonly ok: boolean;
   readonly commits: number;

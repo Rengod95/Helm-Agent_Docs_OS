@@ -57,7 +57,8 @@ export function RequestArt(props: {
       height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.1}
+      // 20 좌표를 size px로 보인다. 윤곽과 가닥은 어느 크기에서도 화면 1px다(AGE-34). 흐르는 빛만 효과라 더 굵다
+      strokeWidth={20 / size}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={`request-art${props.className === undefined ? "" : ` ${props.className}`}`}

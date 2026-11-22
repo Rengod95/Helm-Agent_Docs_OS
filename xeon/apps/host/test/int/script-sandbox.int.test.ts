@@ -35,8 +35,9 @@ import {
 } from "@fresnel/platform-os";
 
 // 설계 B(매니페스트 `scripts`)의 실제 샌드박스 시험. 스크립트 실행기(`createScriptRunner`)가 띄우는 `sh`가 실제 샌드박스
-// (macOS: sandbox-exec, srt) 아래에서 돈다. 확인하는 것: 종료 코드 2, 표준 오류, 표준 출력(JSON)이 값으로 돌아오고,
-// 같은 스크립트가 확장 폴더 밖 파일을 읽거나 거기에 쓰면 실패한다. 밖의 비밀 파일 내용은 결과에 나오지 않는다.
+// (macOS: sandbox-exec, srt) 아래에서 돈다. 사용자 결정 2026-11-21(AGE-63): 승인된 플러그인의 스크립트는 열린 정책이다.
+// 확인하는 것: 종료 코드 2, 표준 오류, 표준 출력(JSON)이 값으로 돌아오고, 같은 스크립트는 확장 폴더 밖 파일을 셸 도구와 같이 읽고 쓴다.
+// 밖의 비밀 파일 내용은 결과에 나오지 않는다(스크립트는 읽었다는 사실만 적는다). 막는 것(보호 경로)은 `script-boundary.int.test.ts`가 본다.
 // 샌드박스를 쓸 수 없으면 건너뛰고 stderr에 한 줄 남긴다. FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2(환경 문제)로 끝난다.
 
 const ENVIRONMENT_EXIT_CODE = 2;
@@ -58,9 +59,12 @@ printf 'bad input\\n' 1>&2
 exit 2
 `;
 
-/** 환경 변수 값을 그대로 적는 스크립트. 허용된 것은 값으로, 허용되지 않은 것은 `unset`으로 나온다 */
+/**
+ * 환경 변수 값을 그대로 적는 스크립트. `FRESNEL_` 이름은 자식에게 가지 않아 `unset`이고, 그 밖의 이름(가짜 `MY_API_KEY`)은 값으로 온다.
+ * 열린 정책은 부모 env에서 `FRESNEL_` 이름만 뺀다 [결정: 2026-11-21, AGE-63]
+ */
 const ENV_SCRIPT =
-  'printf \'{"home":"%s","key":"%s","marker":"%s"}\' "$HOME" "${ANTHROPIC_API_KEY-unset}" "${MARKER-unset}"\n';
+  'printf \'{"home":"%s","internal":"%s","key":"%s","marker":"%s"}\' "$HOME" "${FRESNEL_FOO-unset}" "${MY_API_KEY-unset}" "${MARKER-unset}"\n';
 
 const LOGGER: Logger = {
   debug: () => undefined,
@@ -153,7 +157,8 @@ async function openBox(): Promise<Box> {
   ]) {
     mkdirSync(dir, { recursive: true });
   }
-  writeFileSync(join(outside, "secret.txt"), SECRET);
+  // 줄 끝 개행이 있어야 셸의 `read`가 성공한다. 없으면 읽기 실패가 샌드박스의 거부로 잘못 보인다
+  writeFileSync(join(outside, "secret.txt"), `${SECRET}\n`);
   writeFileSync(join(tree, "check.sh"), CHECK_SCRIPT);
   const scheduler = systemScheduler();
   // srt는 프로세스 전역 싱글턴이다. 먼저 만든 서비스를 끄고(srt를 되돌린다) 나서 시험 서비스를 만든다
@@ -203,7 +208,7 @@ const suite = environment.runnable ? describe : describe.skip;
 
 suite("the script runner under the real sandbox", () => {
   test(
-    "a script in the plugin folder runs sandboxed: its code, output and stderr come back as values, and it cannot read or write outside the folder",
+    "a script in the plugin folder runs sandboxed under the open policy: its code, output and stderr come back as values, and it reads and writes outside the folder like the shell tool",
     async () => {
       const box = await openBox();
       const platform = detectProcessPlatform();
@@ -252,7 +257,7 @@ suite("the script runner under the real sandbox", () => {
         const expected: Omit<ScriptRunResult, "stderr"> = {
           exitCode: 2,
           signal: null,
-          stdout: '{"input":"hi","own":"allowed","read":"denied","write":"denied"}',
+          stdout: '{"input":"hi","own":"allowed","read":"allowed","write":"allowed"}',
           stdoutTruncated: false,
           stderrTruncated: false,
           timedOut: false,
@@ -262,7 +267,8 @@ suite("the script runner under the real sandbox", () => {
         const { stderr, ...rest } = outcome.value;
         expect(rest).toEqual(expected);
         expect(stderr.endsWith("bad input\n")).toBe(true);
-        expect(existsSync(box.writePath)).toBe(false);
+        // 열린 정책: 밖에 쓴 파일이 생겼고, 스크립트는 비밀의 내용을 적지 않았다(읽었다는 사실만)
+        expect(readFileSync(box.writePath, "utf8")).toBe("x");
         expect(JSON.stringify(outcome)).not.toContain(SECRET);
       } finally {
         await background.close({ graceMs: 100 });
@@ -273,7 +279,7 @@ suite("the script runner under the real sandbox", () => {
   );
 
   test(
-    "the runner and the allowed environment that the assembly gives the loader reach a declared sh script under the sandbox: it sees the allowed values only",
+    "the runner and the environment that the assembly gives the loader reach a declared sh script under the open policy: only the allowlisted parent names arrive, declared names outside the allowlist and FRESNEL_ values never do",
     async () => {
       const box = await openBox();
       const platform = detectProcessPlatform();
@@ -286,11 +292,13 @@ suite("the script runner under the real sandbox", () => {
       });
       try {
         const home = join(box.root, "home");
+        // 가짜 값만 쓴다. `FRESNEL_FOO`는 Fresnel 내부 값이라 자식에게 가지 않고, `MY_API_KEY`처럼 시크릿 모양이어도 열린 정책은 넘긴다
         const parentEnv = {
           PATH: process.env["PATH"],
           HOME: home,
           MARKER: "marker-value",
-          ANTHROPIC_API_KEY: "must-not-reach-the-script",
+          MY_API_KEY: "fake-api-value",
+          FRESNEL_FOO: "fresnel-internal-value",
         };
         const port = createIsolationProcessPort({
           platform: platform.value,
@@ -320,7 +328,7 @@ suite("the script runner under the real sandbox", () => {
             name: "env",
             runner: "sh",
             file: "env.sh",
-            envNames: ["ANTHROPIC_API_KEY", "HOME", "MARKER"],
+            envNames: ["FRESNEL_FOO", "MY_API_KEY", "HOME", "MARKER"],
           },
         ];
         const runner = createScriptRunner({
@@ -342,15 +350,16 @@ suite("the script runner under the real sandbox", () => {
         });
         expect(outcome.ok).toBe(true);
         if (!outcome.ok) return;
-        // HOME은 허용 목록이라 온다. 시크릿 모양의 이름과 허용 목록 밖의 이름은 값이 없다(unset)
+        // 열린 정책에서도 자식 환경은 셸 도구와 같은 허용 목록뿐이다 [결정: 2026-11-22, 사용자, AGE-63]. 선언한 이름도 목록 밖이면 오지 않는다
         expect(outcome.value).toMatchObject({
           exitCode: 0,
           signal: null,
-          stdout: `{"home":"${home}","key":"unset","marker":"unset"}`,
+          stdout: `{"home":"${home}","internal":"unset","key":"unset","marker":"unset"}`,
           stdoutTruncated: false,
           timedOut: false,
         });
-        expect(JSON.stringify(outcome)).not.toContain("must-not-reach-the-script");
+        expect(JSON.stringify(outcome)).not.toContain("fresnel-internal-value");
+        expect(JSON.stringify(outcome)).not.toContain("fake-api-value");
       } finally {
         await background.close({ graceMs: 100 });
         await closeBox(box);

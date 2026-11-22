@@ -108,6 +108,23 @@ test("a path outside the snapshot answers pluginReview.pathInvalid (3653)", asyn
   expect(error.code).toBe(3653);
 });
 
+test("pluginReview.file passes the side to the port and answers its result unchanged", async () => {
+  const asked: (string | undefined)[] = [];
+  const handlers = createPluginReviewHandlers(
+    partial<PluginReviewPort>({
+      file: (_itemId, path, side) => {
+        asked.push(side);
+        return Promise.resolve(ok({ path, text: null, truncated: false, missing: true }));
+      },
+    }),
+  );
+  expect(
+    await handlers["pluginReview.file"]({ itemId: "rvw_a", path: "a.md", side: "base" }, CONTEXT),
+  ).toEqual({ path: "a.md", text: null, truncated: false, missing: true });
+  await handlers["pluginReview.file"]({ itemId: "rvw_a", path: "a.md" }, CONTEXT);
+  expect(asked).toEqual(["base", undefined]);
+});
+
 test("a successful review answers its result unchanged", async () => {
   const handlers = createPluginReviewHandlers(
     partial<PluginReviewPort>({ submitDraft: () => Promise.resolve(ok({ itemId: "rvw_b" })) }),
@@ -180,4 +197,28 @@ test("plugin.requestRemove answers the item id of the removal item", async () =>
   expect(await handlers["plugin.requestRemove"]({ name: "kit" }, CONTEXT)).toEqual({
     itemId: "rvw_removal",
   });
+});
+
+// AGE-33: 의존 거절은 `plugin.dependency`(3627)다. 이유, 플러그인, 항목 값을 그대로 싣는다
+test("a dependency refusal answers plugin.dependency (3627) with the reason, the plugin and each item", async () => {
+  const items = [
+    {
+      from: "app",
+      target: "core",
+      kind: "hard",
+      range: "^2.0.0",
+      problem: "range_unmet",
+      found: "1.0.0",
+    },
+  ] as const;
+  const handlers = createPluginHandlers(
+    partial<PluginPort>({
+      requestRemove: () =>
+        Promise.resolve(err({ kind: "dependency", reason: "unmet", plugin: "app", items })),
+    }),
+  );
+  const error = await wireErrorOf(handlers["plugin.requestRemove"]({ name: "app" }, CONTEXT));
+  expect(error.code).toBe(3627);
+  expect(error.data.kind).toBe("plugin.dependency");
+  expect(error.data.details).toEqual({ reason: "unmet", plugin: "app", items });
 });

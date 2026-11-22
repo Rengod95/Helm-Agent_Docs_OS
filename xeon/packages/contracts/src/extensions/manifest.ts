@@ -5,6 +5,7 @@ import {
   type TBoolean,
   type TInteger,
   type TLiteral,
+  type TNull,
   type TObject,
   type TOptional,
   type TRecord,
@@ -22,7 +23,7 @@ import {
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { DecisionKindSchema, HookNameSchema } from "./hooks.ts";
-import { PluginIdSchema } from "./registration-id.ts";
+import { PluginIdSchema, RegistrationIdSchema } from "./registration-id.ts";
 import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
 import { UiDeclSchema, type UiDecl } from "./ui.ts";
@@ -41,7 +42,7 @@ export const ExtensionLayerSchema: TUnion<
 
 export type ExtensionLayer = Static<typeof ExtensionLayerSchema>;
 
-/** 매니페스트 형식 버전. 2는 `plugins[]`와 선택적 `group`을 쓰는 형식이다. 옛 형식(1)은 읽지 않는다 */
+/** 매니페스트 형식 버전. 2는 `plugins[]`와 선택적 `orchestration`을 쓰는 형식이다. 옛 형식(1)은 읽지 않는다 */
 export const MANIFEST_SCHEMA_VERSION = 2 as const;
 
 export const CapabilityRequirementSchema: TObject<{
@@ -184,6 +185,49 @@ export const ScriptRunnerSchema: TUnion<
 ]);
 export type ScriptRunner = Static<typeof ScriptRunnerSchema>;
 
+/** 환경 모드 스크립트의 셸. 원래 하네스가 `bash`를 지정했으면 `bash`, 아니면 `sh`다 [결정: 2026-11-20, 사용자, AGE-58] */
+export const ScriptEnvShellSchema: TUnion<[TLiteral<"sh">, TLiteral<"bash">]> = Type.Union([
+  Type.Literal("sh"),
+  Type.Literal("bash"),
+]);
+
+/** 환경 모드가 참조하는 파일의 지문 형식(`sha256:<64 hex>`). 가져올 때 적고 실행 직전에 다시 본다 */
+export const SCRIPT_ENV_HASH_PATTERN: string = "^sha256:[0-9a-f]{64}$";
+
+/**
+ * 환경 모드 선언(`scripts[].env`, AGE-58 원칙 가, [제안] 이름 `env`). 가져온 훅이 "원래 돌던 환경"에서 도는 모양이다:
+ * 원래 명령 문자열을 `shell -c`로, 프로젝트 폴더를 작업 폴더로, 사용자의 환경으로 돈다. 기존 선언(`file` + `runner`)은 그대로 "좁은 모드"다.
+ * 이 필드는 선언일 뿐 권한이 아니다: 엔진은 마이그레이션 출처로 승인된 검토본에서만 이 선언을 받아들인다(`ScriptEnvGrant`). 그 밖은 `script_env_not_granted`다.
+ * `file`은 명령 원문을 담은 동반 파일(`scripts/<이름>.cmd`)을 가리키고(내용 해시에 든다), `runner`는 `shell`과 같다.
+ */
+export const ScriptEnvDeclSchema: TObject<{
+  command: TString;
+  shell: typeof ScriptEnvShellSchema;
+  refs: TArray<TObject<{ path: TString; hash: TUnion<[TString, TNull]> }>>;
+  refsKnown: TBoolean;
+}> = Type.Object(
+  {
+    /** 원래 명령 문자열 원문 */
+    command: Type.String({ minLength: 1, maxLength: 4096 }),
+    shell: ScriptEnvShellSchema,
+    /** 명령이 참조한 파일(절대 경로)과 가져올 때의 지문. 지문이 null이면 가져올 때 읽지 못했다(실행 때 파일이 있어도 `unreadable`, 없으면 `missing`으로 닫힌 실패다) */
+    refs: Type.Array(
+      Type.Object(
+        {
+          path: Type.String({ minLength: 1, maxLength: 1024 }),
+          hash: Type.Union([Type.String({ pattern: SCRIPT_ENV_HASH_PATTERN }), Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 16 },
+    ),
+    /** 참조 파일을 찾아냈는가. 거짓이면 어떤 파일을 읽는지 알 수 없다(리뷰 카드가 그렇게 말한다) */
+    refsKnown: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type ScriptEnvDecl = Static<typeof ScriptEnvDeclSchema>;
+
 /**
  * 스크립트 선언 하나(`scripts`, 설계 B [제안]). `file`은 확장 루트 기준 상대 경로이고 위치 검사는 `validateManifest`가 한다
  * (`script_path_invalid`). 엔진은 `<runner 절대 경로> <플러그인 폴더>/<file> ...args`로 띄운다. 부르는 것은 코드의 `g.runScript(name)`이다
@@ -195,6 +239,7 @@ export const ManifestScriptDeclSchema: TObject<{
   args: TOptional<TArray<TString>>;
   timeoutMs: TOptional<TInteger>;
   envNames: TOptional<TArray<TString>>;
+  env: TOptional<typeof ScriptEnvDeclSchema>;
 }> = Type.Object(
   {
     name: Type.String({ pattern: SCRIPT_NAME_PATTERN, maxLength: 32 }),
@@ -210,10 +255,37 @@ export const ManifestScriptDeclSchema: TObject<{
         maxItems: 16,
       }),
     ),
+    /** 환경 모드(가져온 훅). 없으면 좁은 모드다 */
+    env: Type.Optional(ScriptEnvDeclSchema),
   },
   { additionalProperties: false },
 );
 export type ManifestScriptDecl = Static<typeof ManifestScriptDeclSchema>;
+
+/**
+ * 플러그인이 다른 플러그인에 거는 의존 한 줄(AGE-33, F.extensions.spec 의존 관계). `plugin`은 확장 이름이나 구성원
+ * Registration id(`<이름>/<id>`)다. `kind`가 없으면 `soft`, `range`가 없으면 어느 버전이든 된다.
+ * 기능 단위 `requires`·`optional`과 다른 선언이고 둘을 함께 써도 된다
+ */
+export const DependencyKindSchema: TUnion<[TLiteral<"hard">, TLiteral<"soft">]> = Type.Union([
+  Type.Literal("hard"),
+  Type.Literal("soft"),
+]);
+export type DependencyKind = Static<typeof DependencyKindSchema>;
+
+export const DependencyDeclSchema: TObject<{
+  plugin: typeof RegistrationIdSchema;
+  range: TOptional<typeof SemVerRangeSchema>;
+  kind: TOptional<typeof DependencyKindSchema>;
+}> = Type.Object(
+  {
+    plugin: RegistrationIdSchema,
+    range: Type.Optional(SemVerRangeSchema),
+    kind: Type.Optional(DependencyKindSchema),
+  },
+  { additionalProperties: false },
+);
+export type DependencyDecl = Static<typeof DependencyDeclSchema>;
 
 /** 확장이 담는 플러그인 하나. 이 선언 하나가 Registration 하나가 된다 */
 export const PluginDeclSchema: TObject<{
@@ -230,6 +302,7 @@ export const PluginDeclSchema: TObject<{
   requires: TOptional<TArray<typeof CapabilityRequirementSchema>>;
   optional: TOptional<TArray<typeof CapabilityRequirementSchema>>;
   provides: TOptional<TArray<typeof CapabilityProvisionSchema>>;
+  dependsOn: TOptional<TArray<typeof DependencyDeclSchema>>;
   recordKinds: TOptional<TArray<typeof RecordKindDeclJsonSchema>>;
   readsRecordKinds: TOptional<TArray<TString>>;
   replaces: TOptional<TArray<TString>>;
@@ -260,11 +333,13 @@ export const PluginDeclSchema: TObject<{
       ),
     ),
     usesPost: Type.Optional(Type.Boolean()),
-    /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresGroup`이 정한다 */
+    /** 이 플러그인이 drive를 등록한다. 허용 여부는 정책 `x.primitives.driveRequiresOrchestration`이 정한다 */
     drives: Type.Optional(Type.Boolean()),
     requires: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
     optional: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
     provides: Type.Optional(Type.Array(CapabilityProvisionSchema, { maxItems: 128 })),
+    /** 다른 플러그인(이름이나 `이름/id`)에 거는 의존. `kind` 기본은 soft다 */
+    dependsOn: Type.Optional(Type.Array(DependencyDeclSchema, { maxItems: 32 })),
     /** 이 플러그인이 쓰는 레코드 종류 */
     recordKinds: Type.Optional(Type.Array(RecordKindDeclJsonSchema, { maxItems: 128 })),
     /** 이 플러그인이 읽는 다른 확장의 레코드 종류. 끝의 ".*"는 접두 일치 */
@@ -287,8 +362,8 @@ export const PluginDeclSchema: TObject<{
 );
 export type PluginDecl = Static<typeof PluginDeclSchema>;
 
-/** 플러그인 그룹 선언. 있으면 그 확장은 플러그인 그룹이다 */
-export const GroupDeclSchema: TObject<{
+/** 오케스트레이션 선언. 있으면 그 확장은 구성원이 있는 플러그인이다 */
+export const OrchestrationDeclSchema: TObject<{
   members: TOptional<TArray<typeof PluginIdSchema>>;
   composition: TOptional<TUnsafe<CompositionDecl>>;
 }> = Type.Object(
@@ -298,12 +373,12 @@ export const GroupDeclSchema: TObject<{
      * 루트 플러그인(id 없음)은 적지 않으며 `members`가 있어도 항상 구성원이다
      */
     members: Type.Optional(Type.Array(PluginIdSchema, { minItems: 1, maxItems: 16 })),
-    /** 구성 선언(X-16). 작성자가 선언하고 없으면 구성기는 블록 하나로 보인다. 플러그인 그룹만 둘 수 있다 */
+    /** 구성 선언(X-16). 작성자가 선언하고 없으면 구성기는 블록 하나로 보인다. 오케스트레이션 선언이 있는 플러그인만 둘 수 있다 */
     composition: Type.Optional(CompositionDeclSchema),
   },
   { additionalProperties: false },
 );
-export type GroupDecl = Static<typeof GroupDeclSchema>;
+export type OrchestrationDecl = Static<typeof OrchestrationDeclSchema>;
 
 /** Claude Code plugin.json의 레이아웃과 메타 필드를 따르고 Fresnel 필드를 더한다 */
 export const ExtensionManifestSchema: TObject<{
@@ -326,7 +401,7 @@ export const ExtensionManifestSchema: TObject<{
   scripts: TOptional<TArray<typeof ManifestScriptDeclSchema>>;
   entry: TOptional<TString>;
   plugins: TOptional<TArray<typeof PluginDeclSchema>>;
-  group: TOptional<typeof GroupDeclSchema>;
+  orchestration: TOptional<typeof OrchestrationDeclSchema>;
   ui: TOptional<TUnsafe<UiDecl>>;
   methods: TOptional<TArray<TUnsafe<ExtMethodDecl>>>;
   isolation: TOptional<TUnion<[TLiteral<"none">, TLiteral<"process">]>>;
@@ -368,7 +443,7 @@ export const ExtensionManifestSchema: TObject<{
     entry: Type.Optional(Type.String({ minLength: 1, maxLength: 512 })),
     /** 확장이 담는 플러그인. 생략할 수 있다(M5c-1). 생략하면 루트 플러그인 하나를 추론한다(§4.5.4) */
     plugins: Type.Optional(Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 })),
-    group: Type.Optional(GroupDeclSchema),
+    orchestration: Type.Optional(OrchestrationDeclSchema),
     /** Plugin UI 기여(ADR-0021). 확장 수준이고 화면마다 mode가 native 또는 app이다 */
     ui: Type.Optional(UiDeclSchema),
     /** 확장 메서드 `ext.<확장 이름>.<verb>`. Plugin UI와 따로 선언할 수 있다 */
@@ -385,14 +460,16 @@ export function defineManifest<const M extends ExtensionManifest>(manifest: M): 
   return manifest;
 }
 
-/** `group` 선언이 있으면 플러그인 그룹이다. 기록·상태 접두를 이 함수 하나로 고른다 */
-export function isGroupExtension(manifest: Pick<ExtensionManifest, "group">): boolean {
-  return manifest.group !== undefined;
+/** `orchestration` 선언이 있으면 구성원이 있는 플러그인이다. 기록·상태 접두를 이 함수 하나로 고른다 */
+export function isOrchestrationExtension(
+  manifest: Pick<ExtensionManifest, "orchestration">,
+): boolean {
+  return manifest.orchestration !== undefined;
 }
 
-/** 확장 접두: 플러그인 그룹이면 "grp", 아니면 "x" */
-export function extensionPrefix(manifest: Pick<ExtensionManifest, "group">): "grp" | "x" {
-  return isGroupExtension(manifest) ? "grp" : "x";
+/** 확장 접두: `orchestration` 선언이 있으면 "grp", 아니면 "x" */
+export function extensionPrefix(manifest: Pick<ExtensionManifest, "orchestration">): "grp" | "x" {
+  return isOrchestrationExtension(manifest) ? "grp" : "x";
 }
 
 /** 루트 플러그인(id 없음)은 확장 이름, 그 밖은 "<확장 이름>/<플러그인 id>" */
@@ -423,21 +500,21 @@ export interface PluginEntry {
   readonly decl: PluginDecl;
   /** id가 없는 루트 플러그인인가 */
   readonly root: boolean;
-  /** 플러그인 그룹의 구성원인가. `group.members`가 없으면 모든 플러그인, 있으면 루트와 목록의 플러그인 */
-  readonly inGroup: boolean;
+  /** 구성원이 있는 플러그인의 구성원인가. `orchestration.members`가 없으면 모든 플러그인, 있으면 루트와 목록의 플러그인 */
+  readonly inOrchestration: boolean;
 }
 
 export function pluginsOf(
-  manifest: Pick<ExtensionManifest, "name" | "plugins" | "group">,
+  manifest: Pick<ExtensionManifest, "name" | "plugins" | "orchestration">,
 ): readonly PluginEntry[] {
-  const members = manifest.group?.members;
+  const members = manifest.orchestration?.members;
   return pluginDeclsOf(manifest).map((decl, index) => ({
     index,
     registrationId: registrationIdOf(manifest, decl.id),
     decl,
     root: decl.id === undefined,
-    inGroup:
-      manifest.group !== undefined &&
+    inOrchestration:
+      manifest.orchestration !== undefined &&
       (members === undefined || decl.id === undefined || members.includes(decl.id)),
   }));
 }

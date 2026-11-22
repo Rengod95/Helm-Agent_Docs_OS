@@ -1,0 +1,3 @@
+import { value } from "@fresnel/plugin-a";
+
+export const defineGroup: number = value;

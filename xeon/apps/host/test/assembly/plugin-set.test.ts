@@ -332,6 +332,13 @@ test("nothing is requested before the copy loads, and every open thread is asked
   expect(h.requested).toEqual([THREAD, OTHER]);
 });
 
+test("the plugin set is not readable until the profile copy loads (before that E(T) is every registered extension, drafts included)", async () => {
+  const h = harness({ profiles: [profileOf("work", ["beta"])] });
+  expect(h.set.readable()).toBe(false);
+  await h.set.refresh();
+  expect(h.set.readable()).toBe(true);
+});
+
 test("a profile write asks every open thread again, and reports only the changed profile setting keys", async () => {
   const h = harness({
     profiles: [profileOf("work", ["alpha"], [{ key: "l1.loop.maxSteps", value: 3 }])],
@@ -601,14 +608,36 @@ test("a profile without the builder gives a regular conversation no builder, and
   expect(h.set.port.resolve(OTHER).plugins).toEqual(["authoring", "beta"]);
 });
 
-// AGE-60: 테스트 챗의 빌더는 빌트인이다. 관리 잠금, 오류 정지, 같은 이름을 대신하는 드래프트·고정 초안이 빼지 못한다.
-test("the builder stays in a test chat despite a managed lock, an error stop and a draft that replaces its name", async () => {
+// AGE-60 [결정: 2026-11-19]: 관리 잠금은 테스트 챗에서도 빌더를 뺀다. 이유는 `sourceOf`가 `managed`로 읽힌다.
+test("a managed lock removes the builder from a test chat, which opens empty and reads managed", async () => {
   const h = harness({ profiles: [profileOf("work", ["beta"])], common: commonOf(["alpha"]) });
   await h.set.refresh();
   h.threadProfile.set(THREAD, "craft");
   h.managed.add("authoring");
+  const view = h.set.port.resolve(THREAD);
+  expect(view.plugins).toEqual([]);
+  expect(view.pluginHashes).toEqual([]);
+  expect(h.set.sourceOf(THREAD, "authoring")).toBe("managed");
+  // 잠금이 풀리면 빌더가 돌아온다
+  h.managed.clear();
+  expect(h.set.port.resolve(THREAD).plugins).toEqual(["authoring"]);
+  expect(h.set.sourceOf(THREAD, "authoring")).toBe("profile");
+});
+
+// 오류 정지는 테스트 챗의 빌더를 빼지 못한다(다시 싣는다)
+test("an error stop keeps the builder in a test chat", async () => {
+  const h = harness({ profiles: [profileOf("work", ["beta"])], common: commonOf(["alpha"]) });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "craft");
   h.stopped.add("authoring");
   expect(h.set.port.resolve(THREAD).plugins).toEqual(["authoring"]);
+});
+
+// 드래프트·고정 초안은 빌더의 이름을 쓰거나 대신하지 못한다
+test("a draft that replaces or takes the builder's name cannot enter a test chat", async () => {
+  const h = harness({ profiles: [profileOf("work", ["beta"])], common: commonOf(["alpha"]) });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "craft");
   await h.set.setTestRunDrafts(THREAD, [
     {
       plugin: "ddrf1-authoring",

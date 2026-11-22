@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SandboxArgvRequest, SandboxPolicy } from "@fresnel/contracts/services";
 import type { PlatformInput } from "../src/select.ts";
@@ -8,6 +8,7 @@ import type { SandboxSettings } from "../src/settings.ts";
 import { quoteArgv } from "../src/wrap-shell.ts";
 import {
   fakeOs,
+  darwinPlatform,
   fakeSrt,
   linuxPlatform,
   makeTestDirs,
@@ -127,11 +128,48 @@ describe("wrapArgv", () => {
     const denyWrite = (fs?.denyWrite ?? []).map(String);
     expect(fs?.allowWrite).toContain(r.dirs.workspace);
     expect(denyRead).toContain(r.dirs.data);
-    expect(denyRead).toContain(join(r.dirs.home, ".ssh"));
-    expect(denyRead).toContain(join(r.dirs.workspace, ".env"));
+    // 자격 폴더와 이름 패턴은 기본으로 쓰기만 막는다
+    expect(denyRead).not.toContain(join(r.dirs.home, ".ssh"));
+    expect(denyRead).not.toContain(join(r.dirs.workspace, ".env"));
+    expect(denyWrite).toContain(join(r.dirs.home, ".ssh"));
+    expect(denyWrite).toContain(join(r.dirs.workspace, ".env"));
     expect(denyWrite).toContain(r.dirs.config);
     expect(denyWrite).toContain(join(r.dirs.workspace, ".git", "hooks"));
     expect("network" in (viaArgv?.customConfig ?? {})).toBe(false);
+  });
+
+  test("the open policy (writeEverywhere) writes root /, denies only the protected paths, makes no temp folder and no TMPDIR export, like the shell", async () => {
+    const r = await rig();
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [r.dirs.workspace],
+      tempDir: r.dirs.tmp,
+      writeEverywhere: true,
+    });
+    const result = await r.service.wrapArgv(
+      policy,
+      tool({ command: "true", args: [], cwd: r.dirs.workspace }),
+      NO_CANCEL,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sandboxed).toBe(true);
+    const wrapped = r.srt.wrapCalls[0];
+    const fs = wrapped?.customConfig.filesystem;
+    const denyRead = (fs?.denyRead ?? []).map(String);
+    const denyWrite = (fs?.denyWrite ?? []).map(String);
+    // 쓰기 루트는 `/` 하나다. 작업 공간과 임시 폴더는 쓰기 루트가 아니다
+    expect(fs?.allowWrite).toEqual(["/"]);
+    // 거부는 Fresnel 자신의 항목뿐이다: 데이터와 설정, 자격 폴더와 이름 패턴, 작업 공간 git 항목은 열린 정책에서 막지 않는다
+    expect(denyRead).toContain(r.dirs.data);
+    expect(denyWrite).toContain(r.dirs.data);
+    expect(denyWrite).toContain(r.dirs.config);
+    expect(denyWrite).not.toContain(join(r.dirs.home, ".ssh"));
+    expect(denyWrite).not.toContain(join(r.dirs.workspace, ".env"));
+    expect(denyWrite).not.toContain(join(r.dirs.workspace, ".git", "hooks"));
+    // 임시 폴더를 만들지 않고 TMPDIR도 바꾸지 않는다(셸 도구와 같다)
+    expect(wrapped?.command).toBe("true");
+    expect(readdirSync(r.dirs.tmp).filter((name) => name.startsWith("nw-"))).toEqual([]);
+    result.value.cleanup();
   });
 
   test("cleanup runs the srt cleanup once however often it is called", async () => {
@@ -213,22 +251,11 @@ describe("wrapArgv", () => {
     expect(r.srt.wrapCalls.length).toBe(0);
   });
 
-  test("allowEscape is refused without escapeRetry and runs plain as escape with it", async () => {
+  test("allowEscape is always refused: there is no run outside the sandbox", async () => {
     const r = await rig();
     const refused = await r.service.wrapArgv(r.policy({ allowEscape: true }), tool(), NO_CANCEL);
     expect(!refused.ok && refused.error).toEqual({ kind: "unavailable", reason: undefined });
     expect(r.srt.wrapCalls.length).toBe(0);
-    const allowed = await rig({ settings: { escapeRetry: true } });
-    const ran = await allowed.service.wrapArgv(
-      allowed.policy({ allowEscape: true }),
-      tool(),
-      NO_CANCEL,
-    );
-    expect(ran.ok).toBe(true);
-    if (!ran.ok) return;
-    expect(ran.value.sandboxed).toBe(false);
-    expect(ran.value.unsandboxedBy).toBe("escape");
-    expect(ran.value.argv).toEqual(["node", "server.js"]);
   });
 
   test("a non-empty network allow-list is err failed and srt is never called", async () => {
@@ -276,6 +303,37 @@ describe("wrapArgv", () => {
     expect(existsSync(twoTemp)).toBe(true);
     second.value.cleanup();
     expect(existsSync(twoTemp)).toBe(false);
+  });
+
+  test("the no-write temp folder under a symbolic link is exported and allowed by its real path (macOS /var/folders is such a link)", async () => {
+    const dirs = makeTestDirs();
+    const link = join(dirs.root, "tmp-link");
+    symlinkSync(dirs.tmp, link);
+    const srt = fakeSrt();
+    const service = await createSandboxService(
+      {
+        os: fakeOs({ ...dirs, tmp: link }),
+        settings: () => settingsOf(),
+        srt,
+        platform: linuxPlatform(),
+        parentEnv: () => ({}),
+      },
+      new AbortController().signal,
+    );
+    const policy = service.defaultPolicy({
+      workspaceRoots: [],
+      tempDir: link,
+      profile: "no-write",
+      readRoots: [dirs.workspace],
+    });
+    const wrapped = await service.wrapArgv(policy, tool({ command: "host", args: [] }), NO_CANCEL);
+    expect(wrapped.ok).toBe(true);
+    const call = srt.wrapCalls[0];
+    const temp = tempOf(call?.command);
+    expect(temp.startsWith(dirs.tmp)).toBe(true);
+    expect(temp.startsWith(link)).toBe(false);
+    expect(call?.customConfig.filesystem?.allowWrite).toEqual([temp]);
+    if (wrapped.ok) wrapped.value.cleanup();
   });
 
   test("the no-write profile reads only the allow-list and keeps the network policy of the sandbox", async () => {
@@ -329,5 +387,151 @@ describe("wrapArgv", () => {
       ok: false,
       error: { kind: "failed", message: "no-write sandbox could not prepare its temp folder" },
     });
+  });
+});
+
+describe("wrapArgv profile tail (script runner system tools)", () => {
+  const PROFILE = `(version 1)\n(deny default (with message "it's"))\n(deny file-read* (subpath "/"))\n(allow file-read* (subpath "/usr/bin"))`;
+  const mac = (): Promise<Rig> =>
+    rig({ srt: { seatbeltProfile: PROFILE }, platform: darwinPlatform() });
+
+  test("appends the literal allows, the tool denies, the Mach denies and the system-info rules after the last rule, once, before the shell", async () => {
+    const r = await mac();
+    const result = await r.service.wrapArgv(
+      r.policy({
+        readAllowLiteral: ["/var"],
+        toolDeny: ["/bin/launchctl", "/usr/bin/open"],
+        machDeny: ["com.apple.SecurityServer"],
+        systemInfoDeny: true,
+      }),
+      tool(),
+      NO_CANCEL,
+    );
+    expect(result.ok).toBe(true);
+    const command = result.ok ? (result.value.argv[2] ?? "") : "";
+    const start = command.lastIndexOf("; script tools");
+    expect(start).toBeGreaterThan(0);
+    expect(command.indexOf("; script tools")).toBe(start);
+    const tail = command.slice(start, command.indexOf("' /bin/bash -c '"));
+    expect(tail).toBe(
+      [
+        "; script tools",
+        '(allow file-read* (literal "/var"))',
+        '(deny file-read* (literal "/bin/launchctl") (literal "/usr/bin/open"))',
+        '(deny process-exec (literal "/bin/launchctl") (literal "/usr/bin/open"))',
+        '(deny mach-lookup (global-name "com.apple.SecurityServer"))',
+        "(deny process-info*)",
+        "(allow process-info* (target self))",
+        "(allow process-info* (target same-sandbox))",
+        '(deny sysctl-read (sysctl-name-prefix "kern.proc.all") (sysctl-name-prefix "kern.proc.pgrp.") (sysctl-name-prefix "kern.proc.pid.") (sysctl-name-prefix "kern.procargs"))',
+        "(deny iokit-get-properties)",
+        '(deny iokit-open (iokit-registry-entry-class "RootDomainUserClient"))',
+        "(deny distributed-notification-post)",
+        "",
+      ].join("\n"),
+    );
+    // 원래 규칙은 그대로 앞에 있다
+    expect(command).toContain('(allow file-read* (subpath "/usr/bin"))');
+  });
+
+  test("leaves the argv alone without those fields", async () => {
+    const r = await mac();
+    const plain = await r.service.wrapArgv(r.policy(), tool(), NO_CANCEL);
+    expect(plain.ok && (plain.value.argv[2] ?? "").includes("script tools")).toBe(false);
+  });
+
+  const UNSAFE: readonly Partial<SandboxPolicy>[] = [
+    { toolDeny: ['/bin/x"y'] },
+    { toolDeny: ["/bin/a'b"] },
+    { toolDeny: ["/bin/c\nd"] },
+    { toolDeny: ["relative/tool"] },
+    { readAllowLiteral: ["/etc/a\\b"] },
+    { machDeny: ['com.apple.x")(allow default)'] },
+  ];
+  for (const overrides of UNSAFE) {
+    test(`an unsafe path or service name refuses to start instead of dropping the rule: ${JSON.stringify(overrides)}`, async () => {
+      const r = await mac();
+      const result = await r.service.wrapArgv(r.policy(overrides), tool(), NO_CANCEL);
+      expect(result).toEqual({
+        ok: false,
+        error: {
+          kind: "failed",
+          message: "sandbox profile tail rejected an unsafe path or service name",
+        },
+      });
+      expect(r.srt.cleanupCalls).toBe(1);
+    });
+  }
+
+  test("a changed srt profile shape (no sandbox-exec profile string) refuses to start instead of dropping the rules", async () => {
+    const r = await rig({ platform: darwinPlatform() });
+    const result = await r.service.wrapArgv(
+      r.policy({ toolDeny: ["/bin/launchctl"], systemInfoDeny: true }),
+      tool(),
+      NO_CANCEL,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "failed",
+        message: "sandbox profile tail could not be applied to the srt profile",
+      },
+    });
+    expect(r.srt.cleanupCalls).toBe(1);
+  });
+
+  test("a profile string that never closes its quote refuses to start", async () => {
+    const r = await rig({
+      srt: {
+        rawArgv: (command) => [
+          "/bin/bash",
+          "-c",
+          `env A=1 /usr/bin/sandbox-exec -p '(version 1) ${command}`,
+        ],
+      },
+      platform: darwinPlatform(),
+    });
+    const result = await r.service.wrapArgv(
+      r.policy({ toolDeny: ["/bin/launchctl"] }),
+      tool(),
+      NO_CANCEL,
+    );
+    expect(result.ok).toBe(false);
+    expect(r.srt.cleanupCalls).toBe(1);
+  });
+
+  test("the tail is applied for a no-write profile with the real default policy of the script runner", async () => {
+    const r = await mac();
+    const policy = r.service.defaultPolicy({
+      workspaceRoots: [],
+      tempDir: r.dirs.tmp,
+      profile: "no-write",
+      systemTools: true,
+    });
+    expect(policy.systemInfoDeny).toBe(true);
+    for (const name of [
+      "com.apple.SecurityServer",
+      "com.apple.lsd.mapdb",
+      "com.apple.PowerManagement.control",
+    ]) {
+      expect(policy.machDeny).toContain(name);
+    }
+    const result = await r.service.wrapArgv(policy, tool(), NO_CANCEL);
+    expect(result.ok).toBe(true);
+    if (result.ok) result.value.cleanup();
+  });
+
+  test("a non-Seatbelt argv (no sandbox-exec profile) is returned unchanged", async () => {
+    const r = await rig();
+    const result = await r.service.wrapArgv(
+      r.policy({
+        toolDeny: ["/bin/launchctl"],
+        machDeny: ["com.apple.SecurityServer"],
+        systemInfoDeny: true,
+      }),
+      tool(),
+      NO_CANCEL,
+    );
+    expect(result.ok && (result.value.argv[2] ?? "").includes("script tools")).toBe(false);
   });
 });

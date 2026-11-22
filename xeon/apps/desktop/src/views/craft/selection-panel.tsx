@@ -143,7 +143,7 @@ function Frame(props: {
       variant="surface"
       size="sm"
       shadow="4"
-      className="craft-glass animate-enter absolute right-14 top-27 z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
+      className="craft-glass animate-enter absolute right-(--craft-float-end) top-18 z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
       style={{ width: PANEL_W }}
     >
       {props.grouped && (
@@ -313,7 +313,7 @@ function GroupBody({ group }: { readonly group: CanvasGroup }): ReactNode {
       meta={
         <>
           <Chip size="xs" tone="info" variant="soft">
-            {t("term.pluginGroup")}
+            {t("desktop.craft.orbit.kind.group")}
           </Chip>
           <CardMeta>v{group.version}</CardMeta>
           <CardMeta>{t(ORIGIN_TEXT[group.origin])}</CardMeta>

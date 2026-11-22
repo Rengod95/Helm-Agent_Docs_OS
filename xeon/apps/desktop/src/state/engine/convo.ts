@@ -12,6 +12,7 @@ import type {
   StepContextWarning,
   ThreadId,
   TurnId,
+  TurnInvoked,
   TurnStartedPayload,
   Usage,
 } from "@fresnel/contracts/conversation";
@@ -25,6 +26,7 @@ import type {
   LeafMovedPayload,
   LeaseAcquiredPayload,
   LeaseReleasedPayload,
+  ProfileAppliedPayload,
   SecretApprovedPayload,
   SecretDeniedPayload,
   SecretMaskedPayload,
@@ -51,6 +53,8 @@ const CONVO_LEASE_CAP = 40;
 const CONVO_AGENT_CAP = 100;
 const CONVO_TASK_CAP = 200;
 const CONVO_MARKER_CAP = 200;
+/** thread마다 남기는 Drive가 받은 사용자 메시지 수(`lease.user_input`) */
+const CONVO_DRIVE_INPUT_CAP = 100;
 /** 턴마다 남기는 컨텍스트 경고와 알림 수 */
 const CONVO_TURN_WARNING_CAP = 16;
 const CONVO_TURN_NOTICE_CAP = 8;
@@ -84,7 +88,44 @@ export type ConvoEvent =
   | { readonly kind: "secret.used"; readonly payload: SecretUsedPayload }
   | { readonly kind: "secret.denied"; readonly payload: SecretDeniedPayload }
   | { readonly kind: "secret.approved"; readonly payload: SecretApprovedPayload }
-  | { readonly kind: "secret.masked"; readonly payload: SecretMaskedPayload };
+  | { readonly kind: "secret.masked"; readonly payload: SecretMaskedPayload }
+  /** 대화의 켜짐 집합이 바뀌어 적용된 경계(M5c `profile.applied`). 프로필 전환 표지, 칩의 "적용됨", 살아 있는 원샷의 원천이다 */
+  | { readonly kind: "profile.applied"; readonly payload: ProfileAppliedPayload }
+  /** Drive가 가로챈 사용자 메시지(`lease.user_input`). 글은 디코더가 화면 가림을 적용해 뽑은 것이다 */
+  | { readonly kind: "lease.user_input"; readonly input: DriveInputFact };
+
+/** `lease.user_input` 한 건에서 화면이 읽는 값. `text`는 `held`에만 있고, 글이 없거나 읽지 못하면 null이다 */
+export type DriveInputFact = {
+  readonly requestId: string;
+  readonly scopeId: string;
+  readonly status: "held" | "settled";
+  readonly text: string | null;
+};
+
+/**
+ * Drive가 받은 사용자 메시지 하나. `held`면 엔진이 받아 플러그인의 다음 단계를 기다리고(전달 대기), `settled`면 단계가 받아 처리했거나
+ * 코어 루프로 돌려보냈다(전달됨). 같은 요청 id는 한 번만 든다
+ */
+export type DriveInputRecord = {
+  readonly requestId: string;
+  readonly scopeId: string;
+  /** `held` 사건의 seq. 대화 줄의 자리를 정한다 */
+  readonly seq: number;
+  readonly at: string;
+  readonly text: string | null;
+  readonly settled: boolean;
+};
+
+/** 대화에 마지막으로 적용된 프로필(`profile.applied`). 칩의 "적용됨"과 살아 있는 원샷을 읽는다 */
+export type AppliedProfile = {
+  readonly profileId: string;
+  readonly seq: number;
+  readonly reason: ProfileAppliedPayload["reason"];
+  readonly overlay: ProfileAppliedPayload["overlay"];
+};
+
+/** 한 턴에 얹힌 원샷 하나(`turn.started.invoked`). `draft`는 그 경계에 살아 있던 원샷이 드래프트였는지다 */
+export type TurnInvokedRecord = TurnInvoked & { readonly draft: boolean };
 
 /** 사건 위치. 모든 내구 사실이 가진다 */
 export type ConvoAt = {
@@ -220,6 +261,8 @@ export type TurnRecord = {
   readonly requestId: string | null;
   /** 이 턴을 시작한 입력 item id(`turn.started`의 `inputItemIds`). 시작을 못 봤으면 빈 목록 */
   readonly inputItemIds: readonly ItemId[];
+  /** 이 턴에 얹힌 원샷(`turn.started.invoked`). 없거나 시작을 못 봤으면 빈 목록 */
+  readonly invoked: readonly TurnInvokedRecord[];
   /** 턴이 시작할 때 이 거울이 알던 대화의 모델. 모르면 null */
   readonly model: string | null;
   /** 끝난 단계 수(가장 큰 단계 번호 + 1) */
@@ -250,7 +293,49 @@ export type LeaseRecord = {
   readonly releasedSeq: number | null;
   readonly releasedAt: string | null;
   readonly releaseReason: LeaseReleasedPayload["reason"] | null;
+  /** 핸드오프한 쪽 프레임의 임대 id(`lease.acquired.parent`). 사용자 명령이나 스타트 Drive면 null */
+  readonly parent: string | null;
+  /** 이 부여를 낳은 시작 요청 id(`lease.acquired.requestId`). 프로필의 스타트 Drive는 요청 사건 없이 쌓여 null이다 */
+  readonly requestId: string | null;
+  /** 넘겨받은 입력의 한 줄(`lease.acquired.input`, 가림 적용 뒤). 글이 없으면 null(`driveInputLineOf`) */
+  readonly inputLine: string | null;
 };
+
+/** 한 줄 상한(글자). 넘으면 말줄임표로 끝난다 */
+const DRIVE_INPUT_LINE_MAX = 160;
+/** 객체 입력에서 한 줄로 읽는 키. 앞선 것이 이긴다 */
+const DRIVE_INPUT_KEYS = [
+  "task",
+  "goal",
+  "summary",
+  "prompt",
+  "instruction",
+  "text",
+  "message",
+  "input",
+] as const;
+
+/**
+ * 넘겨받은 입력(`JsonValue`)의 한 줄. 글이면 그 글, 객체면 위 키 가운데 처음 있는 글이다. 그 밖(숫자, 배열, 모르는 모양)은
+ * 화면에 JSON을 쏟지 않으려고 null이다. 줄바꿈은 빈칸으로, 160자를 넘으면 자른다
+ */
+export function driveInputLineOf(input: unknown): string | null {
+  let raw: unknown = input;
+  if (input !== null && typeof input === "object" && !Array.isArray(input)) {
+    raw = undefined;
+    for (const key of DRIVE_INPUT_KEYS) {
+      const value: unknown = Object.entries(input).find(([name]) => name === key)?.[1];
+      if (typeof value === "string" && value.trim() !== "") {
+        raw = value;
+        break;
+      }
+    }
+  }
+  if (typeof raw !== "string") return null;
+  const line = raw.replace(/\s+/g, " ").trim();
+  if (line === "") return null;
+  return line.length > DRIVE_INPUT_LINE_MAX ? `${line.slice(0, DRIVE_INPUT_LINE_MAX - 1)}…` : line;
+}
 
 // ── 하위 에이전트 ─────────────────────────────────────────────────────
 
@@ -316,7 +401,18 @@ export type ConvoMarker = {
         readonly reason: LeafMovedPayload["reason"];
         readonly leafEventId: EventId;
       }
-    | { readonly kind: "branch_summarized"; readonly summary: string };
+    | { readonly kind: "branch_summarized"; readonly summary: string }
+    /**
+     * 프로필이 바뀌어 적용됐다(`profile.applied` 사유 `switched`·`profile_missing`). `from`은 바로 앞 적용의 프로필(모르면 null),
+     * `permission`은 권한 모드가 바뀌었을 때의 이전·이후 값이다(넓어져도 묻지 않고 표시만 한다)
+     */
+    | {
+        readonly kind: "profile";
+        readonly from: string | null;
+        readonly to: string;
+        readonly missing: boolean;
+        readonly permission: { readonly from: string; readonly to: string } | null;
+      };
 };
 
 export type ThreadConvo = {
@@ -330,11 +426,6 @@ export type ThreadConvo = {
   /** 도구 호출에 묶이지 않은 개입(시크릿 가림, 시크릿 승인)과 도구 호출 id 없는 승인 기록 */
   readonly looseInterventions: readonly Intervention[];
   readonly looseApprovals: readonly ApprovalTrail[];
-  /**
-   * 이 대화에서 샌드박스 밖 쓰기를 "이 대화에서 계속 허용"했다(DP-205). 허용 + remember thread인 해결 사건을 본 적이 있으면 참이다.
-   * thread 기억은 샌드박스 밖 쓰기 규칙만 낼 수 있어(L1.tools §4.7 6번 예외) 다른 승인과 섞이지 않는다. 철회는 없다
-   */
-  readonly writeAccessAllowed: boolean;
   readonly leases: readonly LeaseRecord[];
   readonly agents: readonly AgentRecord[];
   /** 판정 에이전트의 판정(`agent.judged`). 받은 순서 */
@@ -343,6 +434,10 @@ export type ThreadConvo = {
   readonly tasks: Readonly<Record<string, TaskState>>;
   readonly taskOrder: readonly string[];
   readonly markers: readonly ConvoMarker[];
+  /** 마지막으로 적용된 프로필. 아직 `profile.applied`를 못 봤으면 null(대화 요약의 `profileId`를 쓴다) */
+  readonly profile: AppliedProfile | null;
+  /** Drive가 받은 사용자 메시지(오래된 것부터) */
+  readonly driveInputs: readonly DriveInputRecord[];
 };
 
 export const EMPTY_THREAD_CONVO: ThreadConvo = {
@@ -353,7 +448,6 @@ export const EMPTY_THREAD_CONVO: ThreadConvo = {
   approvalOrder: [],
   looseInterventions: [],
   looseApprovals: [],
-  writeAccessAllowed: false,
   leases: [],
   agents: [],
   judgments: [],
@@ -361,6 +455,8 @@ export const EMPTY_THREAD_CONVO: ThreadConvo = {
   tasks: {},
   taskOrder: [],
   markers: [],
+  profile: null,
+  driveInputs: [],
 };
 
 /** 거울 전체의 대화 상태. thread id별이다 */
@@ -410,6 +506,7 @@ function newTurn(turnId: TurnId): TurnRecord {
     scopeId: null,
     requestId: null,
     inputItemIds: [],
+    invoked: [],
     model: null,
     steps: 0,
     lastStepIndex: -1,
@@ -466,8 +563,18 @@ export type TurnStartFact = ConvoAt & {
   readonly scopeId: string | null;
   readonly requestId: string | null;
   readonly inputItemIds: readonly ItemId[];
+  readonly invoked: readonly TurnInvoked[];
   readonly model: string | null;
 };
+
+/** 턴에 얹힌 원샷에 드래프트 표지를 붙인다. 그 경계에 살아 있는 원샷(`profile.applied.overlay`)의 `draftId`가 원천이다 */
+function invokedOf(c: ThreadConvo, invoked: readonly TurnInvoked[]): readonly TurnInvokedRecord[] {
+  const live = c.profile?.overlay ?? [];
+  return invoked.map((item) => ({
+    ...item,
+    draft: live.some((mark) => mark.plugin === item.plugin && mark.draftId !== undefined),
+  }));
+}
 
 export function convoTurnStarted(convo: Convo, fact: TurnStartFact): Convo {
   const turnId = fact.turnId;
@@ -484,6 +591,7 @@ export function convoTurnStarted(convo: Convo, fact: TurnStartFact): Convo {
             scopeId: fact.scopeId,
             requestId: fact.requestId,
             inputItemIds: fact.inputItemIds,
+            invoked: invokedOf(c, fact.invoked),
             model: fact.model,
             // 끝 사건이 먼저 온 턴(보조 재생 순서)은 시작을 보고 나서 시간을 채운다
             completion:
@@ -755,11 +863,7 @@ export function convoApprovalResolved(
   at: ConvoAt,
   resolved: ApprovalResolvedPayload,
 ): Convo {
-  return withThread(convo, threadId, (base) => {
-    const c =
-      !base.writeAccessAllowed && resolved.decision === "allow" && resolved.remember === "thread"
-        ? { ...base, writeAccessAllowed: true }
-        : base;
+  return withThread(convo, threadId, (c) => {
     const digest = c.approvalDigests[resolved.approvalId];
     if (digest === undefined) return c;
     const trail: ApprovalTrail = {
@@ -1205,9 +1309,92 @@ export function convoApply(
         }),
       );
     }
+    case "profile.applied":
+      return withThread(convo, threadId, (c) => convoProfileApplied(c, at, event.payload));
+    case "lease.user_input":
+      return withThread(convo, threadId, (c) => convoDriveInput(c, at, event.input));
     default:
       return assertNever(event, "convoApply");
   }
+}
+
+// ── 프로필과 Drive 입력 ───────────────────────────────────────────────
+
+/** 표지를 남기는 적용 사유: 사용자가 바꿨거나, 프로필이 사라져 기본 프로필로 읽혔다 */
+const PROFILE_MARKER_REASONS: ReadonlySet<ProfileAppliedPayload["reason"]> = new Set([
+  "switched",
+  "profile_missing",
+]);
+
+/**
+ * 프로필 적용 하나를 반영한다. 더 나중 seq의 적용을 이미 봤으면 마지막 적용은 그대로 둔다(보조 재생이 겹친다).
+ * 전환과 사라짐은 대화 줄 표지가 되고, 이전 프로필은 바로 앞 적용에서 읽는다
+ */
+function convoProfileApplied(c: ThreadConvo, at: ConvoAt, p: ProfileAppliedPayload): ThreadConvo {
+  const previous = c.profile;
+  if (previous !== null && previous.seq >= at.seq) return c;
+  const next: ThreadConvo = {
+    ...c,
+    profile: { profileId: p.profileId, seq: at.seq, reason: p.reason, overlay: p.overlay },
+  };
+  if (!PROFILE_MARKER_REASONS.has(p.reason)) return next;
+  const from = previous?.profileId ?? null;
+  if (p.reason === "switched" && from === p.profileId && p.permission === undefined) return next;
+  return addMarker(next, {
+    seq: at.seq,
+    at: at.at,
+    change: {
+      kind: "profile",
+      from,
+      to: p.profileId,
+      missing: p.reason === "profile_missing",
+      permission: p.permission ?? null,
+    },
+  });
+}
+
+/** Drive가 받은 사용자 메시지 하나를 반영한다. `held`가 자리와 글을, `settled`가 "전달됨"을 정한다. 순서가 바뀌어 와도 같다 */
+function convoDriveInput(c: ThreadConvo, at: ConvoAt, input: DriveInputFact): ThreadConvo {
+  const found = c.driveInputs.find((record) => record.requestId === input.requestId);
+  const held = input.status === "held";
+  if (found === undefined) {
+    const record: DriveInputRecord = {
+      requestId: input.requestId,
+      scopeId: input.scopeId,
+      seq: at.seq,
+      at: at.at,
+      text: input.text,
+      settled: !held,
+    };
+    return {
+      ...c,
+      driveInputs: capTail(
+        [...c.driveInputs, record].toSorted((a, b) => a.seq - b.seq),
+        CONVO_DRIVE_INPUT_CAP,
+      ),
+    };
+  }
+  const changed: DriveInputRecord = held
+    ? {
+        ...found,
+        seq: Math.min(found.seq, at.seq),
+        at: found.seq <= at.seq ? found.at : at.at,
+        text: found.text ?? input.text,
+      }
+    : { ...found, settled: true };
+  if (
+    changed.seq === found.seq &&
+    changed.text === found.text &&
+    changed.settled === found.settled
+  ) {
+    return c;
+  }
+  return {
+    ...c,
+    driveInputs: c.driveInputs
+      .map((record) => (record === found ? changed : record))
+      .toSorted((a, b) => a.seq - b.seq),
+  };
 }
 
 // ── 주도 임대 ─────────────────────────────────────────────────────────
@@ -1231,6 +1418,9 @@ export function convoLeaseAcquired(
       releasedSeq: null,
       releasedAt: null,
       releaseReason: null,
+      parent: p.parent ?? null,
+      requestId: p.requestId ?? null,
+      inputLine: driveInputLineOf(p.input),
     };
     return { ...c, leases: capTail([...c.leases, record], CONVO_LEASE_CAP) };
   });

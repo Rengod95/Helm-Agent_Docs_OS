@@ -1,3 +1,0 @@
-import { defineGroup } from "@fresnel/group-sdk";
-
-export const group = defineGroup;

@@ -4,10 +4,11 @@ import {
   isSemVerRange,
   type CapabilityId,
 } from "../capabilities/index.ts";
+import { hardDependencyCycles, splitDependencyTarget } from "./dependencies.ts";
 import { RESERVED_SOURCE_KEYS } from "../records/commit.ts";
 import {
   isRecordKindOf,
-  type GroupRecord,
+  type OrchestrationRecord,
   type RecordKind,
   type RecordKindDecl,
 } from "./group-record.ts";
@@ -50,8 +51,8 @@ export type ManifestIssueCode =
   | "plugin_id_duplicate"
   | "plugin_root_ambiguous"
   | "layer_mixed_external"
-  | "group_member_unknown"
-  | "group_member_duplicate"
+  | "orchestration_member_unknown"
+  | "orchestration_member_duplicate"
   | "hook_unknown"
   | "hook_duplicate"
   /** 내부 훅(H-4)을 내장이 아닌 등급이 선언했다. 거부다 */
@@ -64,6 +65,14 @@ export type ManifestIssueCode =
   | "range_invalid"
   | "capability_duplicate"
   | "capability_both"
+  /** `dependsOn`의 `range`가 받아들이는 형식이 아니다 */
+  | "dependency_range_invalid"
+  /** 같은 플러그인의 `dependsOn`에 같은 대상이 두 번 있다 */
+  | "dependency_duplicate"
+  /** `dependsOn`이 자기 확장 안의 플러그인을 가리킨다(같은 확장 안의 관계는 구성원 선언이 맡는다) */
+  | "dependency_self"
+  /** `hard` 의존이 순환을 이룬다(집합 검사). `soft` 순환은 허용한다 */
+  | "dependency_cycle"
   | "provides_reserved"
   | "record_kind_prefix"
   | "record_kind_duplicate"
@@ -88,6 +97,8 @@ export type ManifestIssueCode =
   | "script_duplicate"
   /** `scripts`의 `file`이 빈 값이거나 확장 루트 밖을 가리킨다(설계 B [제안]). 거부다 */
   | "script_path_invalid"
+  /** 환경 모드(`scripts[].env`) 선언이 모양에 맞지 않는다: `runner`가 `shell`과 다르거나, `args`·`envNames`가 함께 있거나, 참조 경로가 절대 경로가 아니다(AGE-58 [제안]). 거부다 */
+  | "script_env_invalid"
   | "composition_invalid"
   // validateComposition
   | "composition_duplicate"
@@ -108,7 +119,7 @@ export type ManifestIssueCode =
   | "record_kind_undeclared"
   | "read_kind_undeclared"
   // X 설치 시점(PrimitiveError)과 로더 진단. 정책 설정과 엔트리 실행 결과가 정하므로 정적 검사로 보지 못한다
-  | "drive_requires_group"
+  | "drive_requires_orchestration"
   | "plugin_not_registered"
   | "registration_unknown_plugin"
   // validateManifestSet
@@ -116,7 +127,7 @@ export type ManifestIssueCode =
   | "replace_conflict"
   | "drive_conflict"
   | "capability_unprovided"
-  // validateGroupRecord
+  // validateOrchestrationRecord
   | "record_kind_unregistered"
   | "record_payload_invalid"
   | "record_version_unknown";
@@ -159,9 +170,11 @@ export const RESERVED_EXTENSION_NAMES: readonly string[] = [
   "artifact",
   "artifacts",
   "schedule",
-  // wire 코어 메서드 `ext.ui.*`, `ext.test.*`의 영역(F.wire-settings.spec §3.2)
+  // wire 코어 메서드 `ext.ui.*`, `ext.test.*`, `ext.members.*`의 영역(F.wire-settings.spec §3.2, §4.2)
   "ui",
   "test",
+  "members",
+  "dependencies",
 ];
 
 /** 스키마 1의 최상위 이름. 스키마 2에서는 `plugins[]` 안으로 옮겼거나 없어졌다 */
@@ -181,13 +194,18 @@ const LEGACY_FIELDS: readonly string[] = [
   "provides",
   "recordKinds",
   "readsRecordKinds",
+  // 이름을 바꾼 최상위 블록. 옛 이름은 읽지 않고 거부한다(AGE-33)
+  "group",
 ];
 
 /** 옮겨 간 곳이 하나로 정해진 이름의 안내 문장 */
 const LEGACY_HINTS: Readonly<Record<string, string>> = {
+  group: 'top-level "group" was renamed to "orchestration"; the old name is not read',
   views: 'top-level "views" was renamed; declare Plugin UI under "ui" and methods under "methods"',
-  composition: 'top-level "composition" moved to "group.composition" (plugin groups only)',
-  phases: 'top-level "phases" moved to "group.composition.phases" (plugin groups only)',
+  composition:
+    'top-level "composition" moved to "orchestration.composition" (orchestration plugins only)',
+  phases:
+    'top-level "phases" moved to "orchestration.composition.phases" (orchestration plugins only)',
 };
 
 function isReservedSourceKey(name: string): boolean {
@@ -250,7 +268,7 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
       return "version_invalid";
     case "plugins":
       return codeForPluginPath(segments);
-    case "group":
+    case "orchestration":
       if (segments[2] === "composition") return "composition_invalid";
       return segments[2] === "members" && segments.length > 3 ? "plugin_id_invalid" : "schema";
     case "ui":
@@ -286,7 +304,7 @@ export function isEntryInsideRoot(entry: string): boolean {
   return true;
 }
 
-function ownPrefix(manifest: Pick<ExtensionManifest, "group" | "name">): string {
+function ownPrefix(manifest: Pick<ExtensionManifest, "orchestration" | "name">): string {
   return `${extensionPrefix(manifest)}.${manifest.name}.`;
 }
 
@@ -785,9 +803,11 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   });
   if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
   issues.push(...validateMethods(manifest.methods ?? []));
-  if (manifest.group?.composition !== undefined) {
+  if (manifest.orchestration?.composition !== undefined) {
     issues.push(
-      ...checkComposition(manifest.group.composition, "/group/composition", { manifest }),
+      ...checkComposition(manifest.orchestration.composition, "/orchestration/composition", {
+        manifest,
+      }),
     );
   }
 
@@ -835,6 +855,39 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
           ),
         );
       }
+    }
+    const dependsOn = plugin.dependsOn ?? [];
+    dependsOn.forEach((entry, index) => {
+      if (entry.range !== undefined && !isSemVerRange(entry.range)) {
+        issues.push(
+          issue(
+            "error",
+            "dependency_range_invalid",
+            `${base}/dependsOn/${index}/range`,
+            `"${entry.range}" is not an accepted version range`,
+          ),
+        );
+      }
+      if (splitDependencyTarget(entry.plugin).extension === manifest.name) {
+        issues.push(
+          issue(
+            "error",
+            "dependency_self",
+            `${base}/dependsOn/${index}/plugin`,
+            `"${entry.plugin}" is in the same extension; dependsOn points at other extensions`,
+          ),
+        );
+      }
+    });
+    for (const { index, id } of duplicatesIn(dependsOn.map((entry) => entry.plugin))) {
+      issues.push(
+        issue(
+          "error",
+          "dependency_duplicate",
+          `${base}/dependsOn/${index}`,
+          `dependency "${id}" is listed twice`,
+        ),
+      );
     }
     const required = new Set(requires.map((e) => e.id));
     optional.forEach((entry, index) => {
@@ -1071,14 +1124,14 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
   }
 
   const ids = new Set(named);
-  const members = manifest.group?.members ?? [];
+  const members = manifest.orchestration?.members ?? [];
   members.forEach((id, index) => {
     if (!ids.has(id)) {
       issues.push(
         issue(
           "error",
-          "group_member_unknown",
-          `/group/members/${index}`,
+          "orchestration_member_unknown",
+          `/orchestration/members/${index}`,
           `group member "${id}" is not a declared plugin id`,
         ),
       );
@@ -1088,8 +1141,8 @@ function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] 
     issues.push(
       issue(
         "error",
-        "group_member_duplicate",
-        `/group/members/${index}`,
+        "orchestration_member_duplicate",
+        `/orchestration/members/${index}`,
         `group member "${id}" is listed twice`,
       ),
     );
@@ -1157,6 +1210,29 @@ function checkScripts(manifest: ExtensionManifest): readonly ManifestIssue[] {
     );
   }
   scripts.forEach((script, index) => {
+    const env = script.env;
+    if (env !== undefined) {
+      const refsOk = env.refs.every(
+        (ref) =>
+          ref.path.startsWith("/") &&
+          !ref.path.includes("\0") &&
+          !ref.path.split("/").includes(".."),
+      );
+      const plain =
+        script.runner === env.shell &&
+        (script.args === undefined || script.args.length === 0) &&
+        (script.envNames === undefined || script.envNames.length === 0);
+      if (!refsOk || !plain) {
+        issues.push(
+          issue(
+            "error",
+            "script_env_invalid",
+            `/scripts/${index}/env`,
+            "an environment-mode script needs runner equal to its shell, no args or envNames, and absolute reference paths without '..'",
+          ),
+        );
+      }
+    }
     if (!isScriptFileValid(script.file)) {
       issues.push(
         issue(
@@ -1413,6 +1489,18 @@ export function validateManifestSet(
     );
   }
 
+  for (const cycle of hardDependencyCycles(manifests)) {
+    const [first] = cycle;
+    issues.push(
+      issue(
+        "error",
+        "dependency_cycle",
+        `${first === undefined ? "" : splitDependencyTarget(first).extension}/dependsOn`,
+        `hard dependencies form a cycle: ${[...cycle, ...cycle.slice(0, 1)].join(" -> ")}`,
+      ),
+    );
+  }
+
   const provided = new Set<string>(
     manifests.flatMap((m) =>
       pluginDeclsOf(m).flatMap((plugin) => (plugin.provides ?? []).map((p) => p.id)),
@@ -1439,8 +1527,8 @@ export function validateManifestSet(
 }
 
 /** 그룹 레코드 하나. decl이 없으면 record_kind_unregistered. 순수 함수 */
-export function validateGroupRecord(
-  record: GroupRecord,
+export function validateOrchestrationRecord(
+  record: OrchestrationRecord,
   decl: RecordKindDecl | undefined,
 ): readonly ManifestIssue[] {
   if (decl === undefined || decl.kind !== record.kind) {

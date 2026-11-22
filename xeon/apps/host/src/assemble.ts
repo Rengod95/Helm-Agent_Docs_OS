@@ -15,6 +15,7 @@ import {
   type Logger,
 } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
+import { createToolPluginsOf, createToolVisibility } from "./assembly/m4/tool-exposure.ts";
 import type {
   ContextTraceEvent,
   ContextTraceSink,
@@ -30,6 +31,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import {
   PluginCallTracePortKey,
+  ProcessPortKey,
   ToolsPortKey,
   TurnRecordPortKey,
 } from "@fresnel/contracts/extensions";
@@ -64,6 +66,7 @@ import { StoreIdSchema, type StartupNotice } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
+  createToolNamesPolicy,
   createRegistrationControl,
   createVolatileNotifier,
   hookUnitName,
@@ -96,7 +99,7 @@ import {
   type ProcessShutdown,
 } from "@fresnel/platform-process";
 import { createSecretsRuntime } from "@fresnel/platform-secrets";
-import type { GroupServiceWithUsage } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/orchestration-sdk";
 import {
   openStore,
   storePlugin,
@@ -112,7 +115,10 @@ import {
   scheduleUnit,
   unitOfModule,
 } from "./assembly/extensions.ts";
-import { isGroupCatalogManifest } from "./assembly/groups.ts";
+import {
+  createHostOrchestrationService,
+  isOrchestrationCatalogManifest,
+} from "./assembly/groups.ts";
 import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
 import {
   createHostSchedule,
@@ -165,7 +171,7 @@ import {
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
-import { BUILTIN_GROUP_NAMES } from "./assembly/ext-enabled.ts";
+import { BUILTIN_ORCHESTRATION_NAMES } from "./assembly/ext-enabled.ts";
 import { extSettingsOf } from "./assembly/ext-settings.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import {
@@ -179,6 +185,8 @@ import {
   reviewStartupPlugins,
 } from "./assembly/plugins/index.ts";
 import { createScriptDraftGate } from "./assembly/plugins/script-gate.ts";
+import { nodeScriptRefReader, readCarveOutsOf } from "./assembly/script-env-host.ts";
+import { createLoginShellRunner, createUserEnvResolver } from "./assembly/user-env.ts";
 import {
   createPluginHostAssembly,
   processPortOf,
@@ -213,7 +221,7 @@ import {
 import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { guideForcedOn, guideWiringOf } from "./assembly/guide.ts";
-import { GUIDE_GROUP_NAME } from "@fresnel/group-guide";
+import { GUIDE_ORCHESTRATION_NAME } from "@fresnel/plugin-guide";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
@@ -687,14 +695,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     now: () => clock.now(),
     setTimer,
     policy: operations,
+    // 도구의 노출 이름만 대화마다 정한다(X.operations.spec §4.5.1). 나머지 리소스는 같은 이름을 거부하던 그대로다
+    resourcePolicy: createToolNamesPolicy(),
     setupBudgetMs: () => operations.setupBudgetMs(),
     // x.operations.trace.* 유효 값. 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3)
     trace: () => operations.trace(),
     methodRun: operations.runMethod,
     onMethodSettled: operations.onMethodSettled,
     settings: primitivesSource(settings),
+    // `fresnel.settings` 포트: 모든 플러그인의 settingValue와 플러그인 호출 경로 판정이 읽는다
+    settingValue: (key) => settings.value(key),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     // 맡기기·사용자 메시지 입력 한 건의 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다(X.primitives.spec §10)
+    // 먼저 보낸 입력이 큐에 남아 있는 동안은 전환이 건 시작 Drive를 부여하지 않는다(AGE-64, X.primitives §4.4.1c)
+    hasQueuedInput: (threadId) => {
+      const found = late.session?.query.thread(threadId);
+      return found?.ok === true && (found.value?.queuedInputs ?? 0) > 0;
+    },
     driveInputMaxBytes: () =>
       storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
         .maxBlobBytes,
@@ -1048,7 +1065,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger: os.logger("platform-exec"),
       }),
     );
-    await register("platform-sandbox", sandboxPlatform(sandboxSource(settings), lifetime.signal));
+    // 호스트 시험 묶음(`scripts/test-pkg.sh`)만 `FRESNEL_HOST_TEST_NO_SELFTEST=1`로 시작 때 자가 시험을 끈다: 엔진마다 샌드박스 명령 여섯 개를 띄우면 묶음이 15% 늘어난다.
+    // 자가 시험 자체는 sandbox 시험과 `sandbox.selfTest` wire 시험이 따로 돈다
+    await register(
+      "platform-sandbox",
+      sandboxPlatform(
+        sandboxSource(settings),
+        lifetime.signal,
+        undefined,
+        process.env["FRESNEL_HOST_TEST_NO_SELFTEST"] !== "1",
+      ),
+    );
     // 가벼운 길의 호출 추적 포트(턴 기록이 받는다). 측정 저장소를 열기 전에는 줄을 버린다
     await register("platform-plugin-call-trace", {
       name: "platform-plugin-call-trace",
@@ -1078,8 +1105,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 서비스가 올라온 뒤에 올리는 단위(예약). 확장 읽기 목록이 내장 단위와 함께 읽는다 */
     const lateUnits: ExtensionUnit[] = [];
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
-    /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
-    const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
+    /** 설치된 그룹(L3 매니페스트)과 로드 순서. 단위 목록과 로더 보고가 채워진 뒤에 읽는다 */
+    const groupEntries = (): readonly OrchestrationCatalogEntry[] => [
+      ...unitList.units
+        .filter((unit) => isOrchestrationCatalogManifest(unit.manifest))
+        .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+      ...externalGroups.filter((entry) => isOrchestrationCatalogManifest(entry.manifest)),
+    ];
     // `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 확장 읽기 `mcp.servers`가 읽는다
     const mcpClientSlot: { current: CapabilityApi<typeof McpClient> | undefined } = {
       current: undefined,
@@ -1212,6 +1244,29 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         now: () => new Date(clock.now()).toISOString(),
       });
     }
+    // 대화가 보는 도구는 그 대화가 실은 플러그인(E(T))의 것이다. 하위 대화는 맨 위 부모의 집합을 쓴다.
+    // E(T)를 읽지 못하면(엔진 포트가 뜨기 전, 프로필 복사 읽기 전, 부모 조회 실패) 내장 도구만 보인다
+    const toolVisibility = createToolVisibility({
+      toolRecords: () => ext.resources.list("tool"),
+      realNameOf: (extension) => external.loader?.draftOf(extension)?.plugin,
+      pluginsOf: createToolPluginsOf({
+        ready: () => portsHandle?.ports.m4.pluginSet.readable() === true,
+        isThread: (id): id is ThreadId => isId("thr", id),
+        parentOf: (threadId) => {
+          const link = session.query.agentOfChild(threadId);
+          return link.ok ? link.value?.parentThreadId : null;
+        },
+        resolve: (threadId) => portsHandle?.ports.m4.pluginSet.port.resolve(threadId).plugins ?? [],
+      }),
+    });
+    // 그룹 서비스(`fresnel.orchestration`): 확장 읽기의 `group.*`가 읽는다. 확장 단위가 아니라 조립 루트가 만든다
+    const orchestrationService = createHostOrchestrationService({
+      ext,
+      settings,
+      currentThread: () => portsHandle?.activeThread() ?? null,
+      groups: groupEntries,
+      toolOwnerIn: toolVisibility.toolOwnerIn,
+    });
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
@@ -1231,7 +1286,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       inSet: (threadId) => {
         if (threadId === undefined || !isId("thr", threadId)) return false;
         const view = portsHandle?.ports.m4.pluginSet.port.resolve(threadId);
-        return view?.plugins.includes(GUIDE_GROUP_NAME) ?? false;
+        return view?.plugins.includes(GUIDE_ORCHESTRATION_NAME) ?? false;
       },
     });
     const units: ExtensionUnit[] = [
@@ -1245,6 +1300,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         // 드래프트 승인 방식의 원천은 고정 구성 묶음이다. 엔진 포트가 뜨기 전에는 없다(그때 모든 대화는 `ask`다)
         testRunApprovalOf: (threadId) =>
           portsHandle?.ports.m4.pluginSet.testRunApprovalOf(threadId),
+        toolVisibility,
         // 검토 싱크는 엔진 포트가 뜬 뒤에 생긴다. 호출 때 얻는다(지식 기능의 쓰기 경로)
         userSkillSink: () => portsHandle?.userSkillSink,
         ...(options.extraCapabilityDefs === undefined
@@ -1290,23 +1346,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
-          // `/group on`이 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 그룹이 재시작 전까지 다시 꺼지지 않는다(X-4)
-          onEnabled: (id) => {
-            operations.autoDisabler.clearLedger(`ext:${id}`);
-            // 자동 끄기 장부를 비우면 멈춘 확장이 다시 E(T)에 들 수 있다(M5c §4.1.12)
-            portsHandle?.ports.m4.pluginSet.recomputeAll();
-          },
-          onService: (service) => {
-            groupServiceSlot.current = service;
-          },
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
-          entries: () => [
-            ...unitList.units
-              .filter((unit) => isGroupCatalogManifest(unit.manifest))
-              .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
-            ...externalGroups.filter((entry) => isGroupCatalogManifest(entry.manifest)),
-          ],
+          entries: groupEntries,
         },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
@@ -1341,9 +1383,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const installable = units.map((unit): ExtensionUnit => {
       // 가이드 그룹은 개발 모드면 설정 값과 무관하게 켜진 채로 시작한다(`ext.list`의 상태가 `forcedOn`과 맞는다). 대화별 켜짐은 E(T)가 정한다
       const initialEnabled =
-        unit.builtin && unit.manifest.name === GUIDE_GROUP_NAME
+        unit.builtin && unit.manifest.name === GUIDE_ORCHESTRATION_NAME
           ? guideWiring.forced()
-          : unit.builtin && BUILTIN_GROUP_NAMES.includes(unit.manifest.name)
+          : unit.builtin && BUILTIN_ORCHESTRATION_NAMES.includes(unit.manifest.name)
             ? enabledOfBuiltin(unit.manifest.name)
             : undefined;
       return initialEnabled === undefined ? unit : { ...unit, initialEnabled };
@@ -1383,17 +1425,42 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         stateDir: os.dirs.state,
         settingValue: (key) => settings.value(key),
         now: () => clock.now(),
-        // 초안 스크립트는 테스트 런에 묶인 초안만, 호출마다 승인 카드를 거쳐 돈다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
+        // 초안 스크립트는 테스트 런에 묶인 초안만 돈다. 승인 카드는 `auto`에서는 없고 그 밖에는 스크립트마다 처음 한 번이다(AGE-58 [제안]). 도구 서비스와 샌드박스는 호출 때 찾는다
         scriptGate: createScriptDraftGate({
           tools: () => ext.ports.get(ToolsPortKey),
           testRunDraftsOf: (threadId) => portsHandle?.ports.m4.pluginSet.testRunDraftsOf(threadId),
           newRequestId: () => `script-${randomUUID()}`,
+          bootId: randomUUID(),
         }),
         sandboxAvailable: () => sandboxSourceOf(ext)()?.status().available === true,
+        // 승인 전 드래프트의 스크립트만 좁은 길(설정을 켠 때). 승인된 플러그인은 설정과 상관없이 열린 정책이다 [결정: 2026-11-21, AGE-63]
+        narrowDrafts: () => settings.value("l0.sandbox.narrowDrafts") === true,
+        // 가져온 훅(환경 모드): 사용자의 로그인 셸 환경, 참조 파일 지문, 보호 경로 안 참조의 읽기 예외, 대화의 프로젝트 폴더(AGE-58 [제안])
+        scriptEnv: {
+          userEnv: createUserEnvResolver({
+            parentEnv: process.env,
+            home: os.dirs.home,
+            run: createLoginShellRunner(() => ext.ports.get(ProcessPortKey)),
+            now: () => clock.now(),
+            logger: os.logger("script-env"),
+          }),
+          hookProcess: () => ext.ports.get(ProcessPortKey),
+          envSandboxed: () => settings.value("l0.sandbox.sandboxImportedHooks") === true,
+          refs: nodeScriptRefReader,
+          readCarveOutsFor: readCarveOutsOf(() => sandboxSourceOf(ext)()?.protectedPaths() ?? []),
+          projectDirOf: (threadId) =>
+            threadId === undefined
+              ? undefined
+              : (projectRootOfThread(threadId) ?? workspaceOf(threadId)),
+        },
         ...(options.pluginHost?.self === undefined ? {} : { self: options.pluginHost.self }),
         ...(options.pluginHost?.onSupervisor === undefined
           ? {}
           : { onSupervisor: options.pluginHost.onSupervisor }),
+        // 조각 전송의 엔진 쪽 상한은 블롭 한 건의 상한(`l0.store.maxBlobBytes`)을 따른다. 맡기기 입력 상한과 같은 값이다(X.primitives §10)
+        transferMaxBytes: () =>
+          storeSettingsOf(settings, (message) => late.logger?.warn("settings.invalid", { message }))
+            .maxBlobBytes,
       });
       backtestIsolationSlot.current = createBacktestIsolation({
         enabled: options.pluginHost?.disabled !== true,
@@ -1588,7 +1655,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
-      pluginsForced: () => (guideWiring.forced() ? [GUIDE_GROUP_NAME] : []),
+      pluginsForced: () => (guideWiring.forced() ? [GUIDE_ORCHESTRATION_NAME] : []),
       // 훑기 자식을 다시 띄울 자기 실행 값. 시험이 넣은 값이 있으면 그것을 쓴다(플러그인 호스트와 같다)
       ...(options.pluginHost?.self === undefined ? {} : { migrationSelf: options.pluginHost.self }),
       ...(fileRewind === undefined ? {} : { fileRewind: { service: fileRewind, newRewindId } }),
@@ -1665,7 +1732,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         extensions: extensionRecords,
         loader: () => external.loader,
         now: () => clock.now(),
-        groupService: () => groupServiceSlot.current,
+        orchestrationService: () => orchestrationService,
+        toolOwnerIn: toolVisibility.toolOwnerIn,
         mcpClient: () => mcpClientSlot.current,
       },
       web,

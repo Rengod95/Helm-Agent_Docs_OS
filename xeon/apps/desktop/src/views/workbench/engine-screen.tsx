@@ -71,7 +71,7 @@ function ToolsTable(props: { readonly view: BinaryView }): ReactNode {
         }
         if (column.key === "note") {
           return row.ok ? (
-            <span className="font-mono text-mono-sm text-text-secondary">{row.note}</span>
+            <span className="text-text-secondary">{row.note}</span>
           ) : (
             <span className="text-warning-text">{row.note}</span>
           );
@@ -169,17 +169,21 @@ export function EngineScreen(): ReactNode {
             >
               {appVersion === null ? null : (
                 <ListDescriptionRow term={t("desktop.workbench.engine.app")}>
-                  <span className="font-mono text-mono-sm">{appVersion}</span>
+                  <span>{appVersion}</span>
                 </ListDescriptionRow>
               )}
               <ListDescriptionRow term={t("desktop.workbench.engine.phase")}>
-                <span className="font-mono text-mono-sm">{link.phase}</span>
-                {link.attempt > 0 && (
-                  <span className="text-text-tertiary">
-                    {" · "}
-                    {t("desktop.workbench.engine.attempt", { attempt: link.attempt })}
-                  </span>
-                )}
+                <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+                  <span className="font-mono text-mono-sm">{link.phase}</span>
+                  {link.attempt > 0 && (
+                    <>
+                      {" "}
+                      <span className="text-text-tertiary">
+                        {t("desktop.workbench.engine.attempt", { attempt: link.attempt })}
+                      </span>
+                    </>
+                  )}
+                </span>
               </ListDescriptionRow>
               <ListDescriptionRow term={t("desktop.workbench.engine.state")}>
                 <span className="font-mono text-mono-sm">

@@ -2,14 +2,11 @@ import { Type } from "typebox";
 import { defineSettings, validateSettingValue, type SettingDef } from "@fresnel/contracts/settings";
 import type { OnUnavailable } from "@fresnel/contracts/services";
 
-// L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable, writeRoots.extra, escapeRetry)는 project 범위를 받지 않는다.
+// L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable)는 project 범위를 받지 않는다.
 // 네트워크는 기본 허용이고 차단 도메인만 관리한다(M3-REQ-55). 허용 목록 키(l0.sandbox.network.allowedDomains)는 정의하지 않는다.
 
 // 물어보기(ask)는 뺐다 [결정: 2026-11-11 사용자]. 저장된 옛 값은 설정 엔진이 무효로 보고 기본값 disable_execute로 읽는다.
 const UNAVAILABLE_VALUES = ["disable_execute", "run_unsandboxed"] as const;
-
-const CREDENTIAL_FILE_VALUES = ["allow", "deny"] as const;
-type CredentialFilesMode = (typeof CREDENTIAL_FILE_VALUES)[number];
 
 const sandboxSettings = defineSettings("l0.sandbox", {
   enabled: {
@@ -51,34 +48,7 @@ const sandboxSettings = defineSettings("l0.sandbox", {
       widget: "list",
       order: 102,
       label: "Extra protected paths",
-      help: "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
-    },
-    since: "0.1.0",
-  },
-  "writeRoots.extra": {
-    type: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
-    default: [],
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "list",
-      order: 103,
-      label: "Extra writable directories",
-    },
-    since: "0.1.0",
-  },
-  escapeRetry: {
-    type: Type.Boolean(),
-    default: false,
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "toggle",
-      order: 104,
-      label: "Allow retry outside the sandbox",
-      help: 'Not used yet: no call runs outside the sandbox today. A write the sandbox blocks is asked about instead, and "Extra writable directories" keeps the answer.',
+      help: "Absolute paths or paths starting with ~/. The shell and file tools can neither read nor write them. Nothing else is blocked for reading or writing by default.",
     },
     since: "0.1.0",
   },
@@ -96,21 +66,6 @@ const sandboxSettings = defineSettings("l0.sandbox", {
     },
     since: "0.1.0",
   },
-  credentialFiles: {
-    type: Type.String({ maxLength: 8 }),
-    default: "allow",
-    range: { enum: [...CREDENTIAL_FILE_VALUES] },
-    runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user"],
-    ui: {
-      tab: "permissions",
-      widget: "select",
-      order: 106,
-      label: "Credential files such as ~/.npmrc and ~/.config/gh",
-      help: "deny also blocks reading them from sandboxed shell commands.",
-    },
-    since: "0.1.0",
-  },
   nestedNamespaces: {
     type: Type.Boolean(),
     default: false,
@@ -122,6 +77,34 @@ const sandboxSettings = defineSettings("l0.sandbox", {
       order: 107,
       label: "Allow nested namespaces for browser tools",
       help: "Needed to start a browser inside the sandbox. It weakens isolation, so keep it off otherwise.",
+    },
+    since: "0.1.0",
+  },
+  sandboxImportedHooks: {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "toggle",
+      order: 108,
+      label: "Run imported hooks inside the sandbox",
+      help: "Off by default: imported hooks run with your own permissions, like in the tool they came from. On blocks reading protected folders and writing outside the project.",
+    },
+    since: "0.1.0",
+  },
+  narrowDrafts: {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "toggle",
+      order: 109,
+      label: "Run unapproved plugin drafts in a narrow sandbox",
+      help: "On runs the scripts of plugin drafts you have not approved yet in a narrow sandbox: they can only read the plugin's own folder and cannot write. Off works like approved plugins.",
     },
     since: "0.1.0",
   },
@@ -141,12 +124,8 @@ export interface SandboxSettings {
   readonly enabled: boolean;
   readonly onUnavailable: OnUnavailable;
   readonly protectedPathsExtra: readonly string[];
-  readonly writeRootsExtra: readonly string[];
-  readonly escapeRetry: boolean;
   /** 샌드박스 안에서 닿지 못하게 할 도메인(srt deniedDomains). 목록 밖은 모두 허용이다 */
   readonly blockedDomains: readonly string[];
-  /** "allow"(기본)면 ~/.npmrc, ~/.config/gh 같은 CLI 인증 파일을 읽을 수 있다. 쓰기는 항상 거부한다 */
-  readonly credentialFiles: CredentialFilesMode;
   /** 참이면 중첩 사용자 네임스페이스를 허용한다(브라우저 provider용, M3-REQ-56) */
   readonly nestedNamespaces: boolean;
   /** 0이면 시작 때만 자가 시험을 돈다 */
@@ -157,17 +136,10 @@ export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
   enabled: true,
   onUnavailable: "disable_execute",
   protectedPathsExtra: [],
-  writeRootsExtra: [],
-  escapeRetry: false,
   blockedDomains: [],
-  credentialFiles: "allow",
   nestedNamespaces: false,
   selfTestIntervalMin: 60,
 };
-
-function isCredentialFilesMode(value: unknown): value is CredentialFilesMode {
-  return value === "allow" || value === "deny";
-}
 
 function isOnUnavailable(value: unknown): value is OnUnavailable {
   return value === "disable_execute" || value === "run_unsandboxed";
@@ -190,10 +162,7 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
   const enabled = read(defs.enabled.key);
   const onUnavailable = read(defs.onUnavailable.key);
   const protectedExtra = read(defs["protectedPaths.extra"].key);
-  const writeExtra = read(defs["writeRoots.extra"].key);
-  const escapeRetry = read(defs.escapeRetry.key);
   const blocked = read(defs["network.blockedDomains"].key);
-  const credentialFiles = read(defs.credentialFiles.key);
   const nested = read(defs.nestedNamespaces.key);
   const interval = read(defs.selfTestIntervalMin.key);
   return {
@@ -209,22 +178,10 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
       valid(defs["protectedPaths.extra"], protectedExtra) && isStringArray(protectedExtra)
         ? protectedExtra
         : DEFAULT_SANDBOX_SETTINGS.protectedPathsExtra,
-    writeRootsExtra:
-      valid(defs["writeRoots.extra"], writeExtra) && isStringArray(writeExtra)
-        ? writeExtra
-        : DEFAULT_SANDBOX_SETTINGS.writeRootsExtra,
-    escapeRetry:
-      valid(defs.escapeRetry, escapeRetry) && typeof escapeRetry === "boolean"
-        ? escapeRetry
-        : DEFAULT_SANDBOX_SETTINGS.escapeRetry,
     blockedDomains:
       valid(defs["network.blockedDomains"], blocked) && isStringArray(blocked)
         ? blocked
         : DEFAULT_SANDBOX_SETTINGS.blockedDomains,
-    credentialFiles:
-      valid(defs.credentialFiles, credentialFiles) && isCredentialFilesMode(credentialFiles)
-        ? credentialFiles
-        : DEFAULT_SANDBOX_SETTINGS.credentialFiles,
     nestedNamespaces:
       valid(defs.nestedNamespaces, nested) && typeof nested === "boolean"
         ? nested

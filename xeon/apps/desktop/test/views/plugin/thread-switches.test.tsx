@@ -19,7 +19,7 @@ import { fakeCommands } from "../fake-commands.ts";
 // 서버 렌더는 효과를 돌리지 않으므로 읽은 뒤의 행은 `ThreadSwitchesBody`에 목록을 넣어 그린다.
 
 const THREAD = thr(1);
-const HELM = entry("helm", { layer: "L3", isGroup: true, displayName: "Helm" });
+const HELM = entry("helm", { layer: "L3", isOrchestration: true, displayName: "Helm" });
 const WEB = entry("web", { displayName: "웹 검색" });
 const CORE = entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" });
 

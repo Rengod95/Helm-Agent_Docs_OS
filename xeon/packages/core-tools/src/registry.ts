@@ -12,6 +12,7 @@ import {
   type ToolRisk,
 } from "@fresnel/contracts/services";
 import type { ToolEntry } from "./types.ts";
+import type { ToolExposure } from "./deps.ts";
 
 // L1.tools.spec §3.3 등록 표. 같은 이름이 이미 있으면 등록은 통째로 실패하고 표는 그대로다(name_conflict). 확장 조합이 낼 수 있는 정상 운영 중의 실패라 값으로 돌려준다(TY-24).
 // 내장 도구를 같은 이름으로 대체하는 등록(§4.13)은 이 표에 들어가지 않고 후보로 따로 둔다. 후보는 사용자가 승인해 `active`가 되어야 같은 이름을 가로챈다.
@@ -30,9 +31,23 @@ interface Candidate {
   approvalId: string | null;
 }
 
+/** 한 대화가 보는 도구 표. 대화별 이름과 가시성을 적용한 뒤의 항목이다(항목의 `name`이 그 대화에서의 노출 이름) */
+interface ToolView {
+  get(name: ToolName): ToolEntry | undefined;
+  all(): readonly ToolEntry[];
+}
+
 export interface ToolRegistry {
-  /** 등록한다. 돌려주는 함수가 이 호출로 넣은 항목을 뺀다. 이름이 겹치면 아무것도 넣지 않고 err */
-  add(entries: readonly ToolEntry[]): Result<() => void, ToolRegisterError>;
+  /**
+   * 등록한다. 돌려주는 함수가 이 호출로 넣은 항목을 뺀다. 이름이 겹치면 아무것도 넣지 않고 err.
+   * `perThread`이면 항목의 `name`은 요청한 이름이고 열쇠는 (주인, 이름)이다. 주인이 다르면 같은 이름이 여럿이어도 된다(L1.tools.spec §3.3.1)
+   */
+  add(
+    entries: readonly ToolEntry[],
+    options?: { readonly perThread?: boolean },
+  ): Result<() => void, ToolRegisterError>;
+  /** 한 대화가 보는 표. `exposure`가 없으면 모든 항목이 요청한 이름 그대로 보인다 */
+  view(exposure: ToolExposure | undefined): ToolView;
   /**
    * 내장 도구를 같은 이름으로 대체하는 후보를 둔다. 상태는 `pending`이고 `activate` 전에는 표가 바뀌지 않는다.
    * 대상이 내장 기능 도구가 아니거나 다른 확장이 이미 대체하면 err. 돌려주는 함수가 후보를 뺀다(원본이 다시 보인다)
@@ -87,8 +102,15 @@ function stateOf(candidate: Candidate): ToolReplacementState {
   };
 }
 
+/** 대화별 이름 항목의 열쇠: (주인, 요청한 이름) */
+function scopedKey(owner: string | undefined, name: string): string {
+  return `${owner ?? ""}\u0000${name}`;
+}
+
 export function createRegistry(): ToolRegistry {
   const table = new Map<ToolName, ToolEntry>();
+  /** 대화별 이름 항목. 열쇠는 (주인, 요청한 이름) */
+  const scoped = new Map<string, ToolEntry>();
   const candidates: Candidate[] = [];
 
   /** 원본이 표에 있고 후보가 승인됐을 때만 대체 항목이 원본 자리를 차지한다 */
@@ -99,11 +121,61 @@ export function createRegistry(): ToolRegistry {
     return active === undefined ? entry : active.effective;
   }
 
+  function isScopedName(name: string): boolean {
+    for (const entry of scoped.values()) if (entry.name === name) return true;
+    return false;
+  }
+
+  function viewOf(exposure: ToolExposure | undefined): ToolView {
+    const globals = [...table.values()].map(effective);
+    const taken = new Set<string>(globals.map((entry) => entry.name));
+    const visible: ToolEntry[] = [...globals];
+    for (const entry of scoped.values()) {
+      const exposed =
+        exposure === undefined || entry.owner === undefined
+          ? entry.name
+          : exposure.nameOf(entry.owner, entry.name);
+      // 이 대화에 보이지 않는 항목이거나 전역 이름과 겹치면 뺀다(전역 항목이 이긴다)
+      if (exposed === null || taken.has(exposed)) continue;
+      taken.add(exposed);
+      visible.push(
+        exposed === entry.name
+          ? entry
+          : { ...entry, name: exposed, label: exposed, ref: { ...entry.ref, name: exposed } },
+      );
+    }
+    const byName = new Map(visible.map((entry) => [entry.name, entry]));
+    return { get: (name) => byName.get(name), all: () => visible };
+  }
+
   return {
-    add(entries) {
+    view: viewOf,
+    add(entries, options) {
+      if (options?.perThread === true) {
+        const keys = new Set<string>();
+        for (const entry of entries) {
+          const key = scopedKey(entry.owner, entry.name);
+          // 전역 이름(내장, 기능, MCP)과 겹치는 요청은 전과 같이 거부한다. 대화 표에서 조용히 가려지는 도구를 만들지 않는다
+          if (scoped.has(key) || keys.has(key) || table.has(entry.name)) {
+            return err({ kind: "name_conflict", toolName: entry.name });
+          }
+          keys.add(key);
+        }
+        const marked = entries.map((entry): ToolEntry => ({ ...entry, perThread: true }));
+        for (const entry of marked) scoped.set(scopedKey(entry.owner, entry.name), entry);
+        let released = false;
+        return ok(() => {
+          if (released) return;
+          released = true;
+          for (const entry of marked) {
+            const key = scopedKey(entry.owner, entry.name);
+            if (scoped.get(key) === entry) scoped.delete(key);
+          }
+        });
+      }
       const incoming = new Set<string>();
       for (const entry of entries) {
-        if (table.has(entry.name) || incoming.has(entry.name)) {
+        if (table.has(entry.name) || incoming.has(entry.name) || isScopedName(entry.name)) {
           return err({ kind: "name_conflict", toolName: entry.name });
         }
         incoming.add(entry.name);
@@ -180,10 +252,7 @@ export function createRegistry(): ToolRegistry {
         table.set(entry.name, entry);
       }
     },
-    get(name) {
-      const entry = table.get(name);
-      return entry === undefined ? undefined : effective(entry);
-    },
-    all: () => [...table.values()].map(effective),
+    get: (name) => viewOf(undefined).get(name),
+    all: () => viewOf(undefined).all(),
   };
 }

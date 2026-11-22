@@ -71,7 +71,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 지역 이름 | 확장 전용 테이블 이름에서 접두를 뺀 부분 |
 | 정식 이름 (qualified name) | `<확장 이름>:<이름>` 형식의 리소스 이름. 모델 도구는 `<확장 이름>__<이름>` |
 | 짧은 이름 | 접두 없는 리소스 이름. 충돌이 없고 예약되지 않았을 때만 노출한다 |
-| 안전 모드 | 외부 확장(`user`·`project` tier), 외부 훅, L3 내장 그룹([결정: review.m3-design-inputs D-M3-07 a], §4.6.2)을 싣지 않고 시작하는 모드 |
+| 안전 모드 | 외부 확장(`user`·`project` tier), 외부 훅, L3 내장 플러그인([결정: review.m3-design-inputs D-M3-07 a], §4.6.2)을 싣지 않고 시작하는 모드 |
 | 외부 훅 | 설정에 적은 외부 명령. on 훅 하나에 stdin/stdout JSON으로 참여한다 |
 
 ## 3. 인터페이스
@@ -606,7 +606,20 @@ export function resolveNames(claims: readonly ResourceClaim[], reserved: Reserve
  * 쌍 판정 resolve는 집합 판정을 못 쓰는 호출자를 위해 들어오는 쪽만 정식 이름으로 바꾼다(rename). 같은 확장의 중복이나
  * 규칙 밖 kind는 reject다
  */
-export function createResourcePolicy(reserved: ReservedNames): ResourcePolicy;
+export function createResourcePolicy(
+  reserved: ReservedNames,
+  options?: { readonly perThreadToolNames?: boolean },
+): ResourcePolicy;
+
+/** 도구 이름만 대화마다 정하고 나머지 종류는 같은 이름을 거부하는 정책(§4.5.1). 조립 루트가 `ExtHostDeps.resourcePolicy`로 넘긴다 */
+export function createToolNamesPolicy(): ResourcePolicy;
+
+/** 한 대화의 도구 이름을 정하는 입력. `owner`는 드래프트여도 내부 이름이 아니라 실제 플러그인 이름이다 */
+export interface ToolNameInput { readonly scopeId: string; readonly owner: ExtensionName; readonly name: string; readonly builtin: boolean }
+/** 도구 이름 한 개의 열쇠 (scopeId, 요청한 이름) */
+export function toolNameKey(scopeId: string, name: string): string;
+/** 순수 함수. 그 대화에 실린 도구만 넣으면 `resolveNames`와 같은 규칙으로 열쇠마다 노출 이름을 돌려준다(§4.5.1) */
+export function exposeToolNames(inputs: readonly ToolNameInput[], reserved: ReservedNames): ReadonlyMap<string, string>;
 
 /** 예약 이름이 없는 값. 내장 패키지의 등록만 짧은 이름을 지킨다 */
 export const NO_RESERVED_NAMES: ReservedNames;
@@ -851,7 +864,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 
 ### 3.9 계측 링 버퍼와 시간 분포 (`trace-buffer.ts`, `handler-timings.ts`)
 
-X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다.
+X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다. [구현 2026-11-20, enTr] 버퍼는 `onRecord(listener)`로 핸들러 기록이 쌓인 직후를 알린다(`TraceReadPort.onRecord`). 알림은 턴이 열린 뒤의 기록만 싣고(턴 전 항목은 제외), 듣는 쪽은 Hook을 부르는 길 위에서 불리므로 던지지 않고 짧게 끝나야 한다. 듣는 쪽이 없으면 사본을 만들지 않는다. 시험은 `test/operations/trace-buffer.test.ts`.
 
 ```ts
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
@@ -970,7 +983,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 훅에 두지 않는다. 보안 판정은 first 훅(`tool.call.before`, `input.bash.before`, `thread.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
 
-예 4 (`chain`, `tool.result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 그룹이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
+예 4 (`chain`, `tool.result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 플러그인이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
 
 #### 4.1.4 샌드박스 강제 위치와 `tool_call` 처리 순서 [결정: M3-REQ-32]
 
@@ -1134,11 +1147,11 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 - 끄기는 `RegistrationControl.requestDisable(scopeId, "auto_disable")`로 그 확장의 모든 scope에 요청한다. 적용은 다음 단계 경계다(`F.extensions.spec` §4.5). 실행 중인 디스패치와 step은 끊지 않는다.
 - 요청 뒤 적용 전까지의 호출도 실패 처리 규칙은 그대로 적용한다. 그 사이의 실패는 장부에 넣지만 두 번째 요청을 만들지 않는다.
-- drive 락을 가진 그룹이 꺼지면 drive 락 반납 순서는 `F.extensions.spec` §4.5 비활성화 적용 순서를 따른다(`lease.released`의 `reason: "disabled"`).
+- drive 락을 가진 플러그인이 꺼지면 drive 락 반납 순서는 `F.extensions.spec` §4.5 비활성화 적용 순서를 따른다(`lease.released`의 `reason: "disabled"`).
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
 - 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
-- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름과 키 이름은 제안]: 화면은 `hooks.list`의 외부 훅 줄(`hook`이 훅 id)의 `keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기(§4.7.4)는 `OperationsDeps.hooks`로 연결되어 `hook:<id>`로 실패를 장부에 넣고, 끄기 답이 오면 그 id를 이번 실행에서 건너뛴다.
+- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름은 제안, 키 이름 `x.operations.hookDisabled`는 결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]: 화면은 `hooks.list`의 외부 훅 줄(`hook`이 훅 id)의 `keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기(§4.7.4)는 `OperationsDeps.hooks`로 연결되어 `hook:<id>`로 실패를 장부에 넣고, 끄기 답이 오면 그 id를 이번 실행에서 건너뛴다.
 
 #### 4.3.4 알림과 기록
 
@@ -1198,10 +1211,10 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.4.4 쓰기와 같은 트랜잭션
 
 - [제안] 확장 테이블 쓰기는 확장 투영(`ExtProjection.apply`)으로만 한다. 투영기는 코어 커밋 트랜잭션 안에서 이벤트마다 실행되므로(`eng.transactions.design` §4.3 "cap·ext 투영", §4.4 4단계), 확장 쓰기는 코어 커밋과 같은 트랜잭션에 들어간다. 코어 커밋이 롤백되면 확장 쓰기도 롤백된다.
-- 확장이 커밋에 이벤트를 넣는 경로는 기존 셋이다. boundary chain 결과의 `entries`, `RegistrationApi.commit`(scope 상태), `RegistrationApi.record`(그룹 레코드)(`F.extensions.spec` §3.2, §3.5). 확장 투영은 이 이벤트를 받아 자기 테이블을 고친다.
+- 확장이 커밋에 이벤트를 넣는 경로는 기존 셋이다. boundary chain 결과의 `entries`, `RegistrationApi.commit`(scope 상태), `RegistrationApi.record`(플러그인 레코드)(`F.extensions.spec` §3.2, §3.5). 확장 투영은 이 이벤트를 받아 자기 테이블을 고친다.
 - L0 트랜잭션 핸들은 X가 직접 쥐지 않는다. X는 투영기를 `fresnel.session`에 등록하고, `SessionWriter.commit`이 트랜잭션 안에서 `ProjectionTx`를 투영기에 넘긴다. X는 그 `ProjectionTx`를 `ExtWriters`로 감싼다. 이것이 "L0.store 트랜잭션 핸들을 SessionWriter 경유로 받는 방식"이고, `F.records.spec` §3.8의 [제안](확장 테이블 쓰기를 같은 트랜잭션에 넣는 방법은 `L0.store.spec`과 X가 정한다)에 대한 X 쪽 답이다.
 - `apply`는 동기 순수 함수다. 시계, 난수, 네트워크, 파일을 쓰지 않는다(`eng.events.design` §5.1 규칙 1, TX-01). 쓰기 메서드가 돌려준 `ExtRowError`는 `apply`의 반환값으로 올린다(`return tables.pins.upsert(…)`). `apply`가 오류를 돌려주면 X가 투영기 `apply` 안에서 `ProjectionRollback`을 던져 커밋 전체를 롤백하고, 저장소는 `ProjectorFailure`로 알린다(`F.records.spec` §3.9). `apply`가 예외를 던져도 같다. 이 실패는 핸들러 실패 장부에 넣지 않는다(커밋 경로의 문제이고 `projection_failed`로 자동 끄기에 쓴다).
-- `kinds`에는 자기 접두 kind와 코어 kind만 둘 수 있다. 다른 확장의 kind를 넣으면 `kind_not_owned`다. 다른 그룹의 공개 정보는 `RegistrationApi.readRecords`로 읽는다(`F.extensions.spec` §4.8).
+- `kinds`에는 자기 접두 kind와 코어 kind만 둘 수 있다. 다른 확장의 kind를 넣으면 `kind_not_owned`다. 다른 플러그인의 공개 정보는 `RegistrationApi.readRecords`로 읽는다(`F.extensions.spec` §4.8).
 - 재생: 투영 테이블은 이벤트에서 다시 만들 수 있다. `ExtProjection.version`을 올리면 그 확장 테이블만 지우고 이벤트 전체를 재생해 다시 만든다. 이것이 1차의 스키마 마이그레이션 방식이다.
 - 이벤트에서 다시 만들 수 없는 부가 데이터(캐시, 외부에서 가져온 자료)를 둘 테이블과 그 마이그레이션(열 추가 등)은 2차다(§10 미결 8).
 
@@ -1235,8 +1248,8 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.4.8 scope 상태 문서와의 관계
 
 - scope 상태 문서(`RegistrationApi.commit`)는 확장의 정본 상태다. 이벤트 kind로 커밋되고 kind 이름과 형식은 `X.primitives.spec`이 정한다.
-- 접두 테이블은 확장의 부가 데이터다. 상태 문서보다 크거나 질의가 필요한 자료(목록, 색인, 집계)를 둔다. 접두 테이블의 내용은 이벤트(상태 커밋, 그룹 레코드, boundary entries)에서 투영으로 만든다.
-- 상태 문서는 다른 그룹이 읽지 않는다. 접두 테이블도 다른 확장이 읽지 않는다. 공개할 정보는 그룹 레코드로 낸다(`F.extensions.spec` §3.6).
+- 접두 테이블은 확장의 부가 데이터다. 상태 문서보다 크거나 질의가 필요한 자료(목록, 색인, 집계)를 둔다. 접두 테이블의 내용은 이벤트(상태 커밋, 플러그인 레코드, boundary entries)에서 투영으로 만든다.
+- 상태 문서는 다른 플러그인이 읽지 않는다. 접두 테이블도 다른 확장이 읽지 않는다. 공개할 정보는 플러그인 레코드로 낸다(`F.extensions.spec` §3.6).
 - 확장 kind 접두는 F 규칙(`x.`/`grp.`, `F.records.spec` §3.2)이다. `eng.transactions.design`·`eng.events.design`도 같은 접두로 고쳤다([결정: review.decisions-2 T-21]).
 
 ### 4.5 이름 충돌 (2차)
@@ -1252,6 +1265,15 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 7. 단축키는 충돌하면 어느 쪽도 짧은 키를 받지 않는다. 사용자가 키 바인딩 설정으로 직접 지정한다. 키 바인딩 파일은 `L4.cli.spec`, `L4.desktop.spec` 소유다.
 8. 플래그(확장이 등록하는 CLI 플래그)는 정식 형식 `--<확장 이름>:<이름>`을 항상 받고, 충돌이 없으면 `--<이름>`도 받는다. CLI 파서는 확장 로드 뒤에 확장 플래그를 해석한다(`L4.cli.spec` [가정]).
 9. primitives `ResourceKind`의 나머지 셋(`provider`, `mcp_server`, `message_renderer`)은 이 규칙 밖이다. 같은 이름이면 `reject`다. provider 이름 충돌의 선택 규칙은 `x.primitives.capabilityProviders`와 `L1.models.spec`이 정한다.
+
+#### 4.5.1 도구 이름은 대화마다 정한다 [결정: 2026-11-19, 사용자, AGE-56]
+
+규칙 1~5는 이름이 정해지는 집합을 "엔진에 실린 전체"로 읽었다. 그러면 같은 플러그인의 드래프트와 승인본이 함께 실려 있을 때 둘이 서로 충돌로 보여, 승인본까지 모든 대화에서 정식 이름(`<플러그인>__<이름>`)으로 바뀌었다(원샷에서도). 도구는 이 집합을 **대화**로 바꾼다.
+
+1. 정책의 `perThreadToolNames`가 참이면(`createToolNamesPolicy()`, 또는 `createResourcePolicy(reserved, { perThreadToolNames: true })`) 리소스 저장소는 도구를 엔진 전체 집합으로 이름 짓지 않는다. 도구의 노출 이름(`ResourceRecord.exposed`)은 요청한 이름이고, 도구 포트(`fresnel.tools`)에 `perThread: true`로 요청한 이름 그대로 넘긴다. 정식 이름이 64자를 넘는 외부 도구는 여전히 등록을 거부한다(규칙 4). 명령·단축키·플래그는 그대로 엔진 전체 집합이다.
+2. 한 대화가 모델에게 보는 이름은 호출하는 쪽(조립 루트)이 `exposeToolNames`로 계산한다. 입력은 그 대화의 E(T)에 든 확장의 도구 레코드뿐이고(내장은 늘 든다), 드래프트의 `owner`는 내부 이름이 아니라 **실제 플러그인 이름**이다. 규칙 2·3은 이 집합 안에서만 적용한다. 드래프트는 E(T)에서 같은 이름의 승인본을 대신하므로(M5c §4.8.1 2) 한 대화에서 둘이 함께 보이는 일이 없고, 드래프트는 승인됐을 때와 같은 이름을 받는다.
+3. 다른 대화에 실린 확장은 이 대화의 이름 계산에 들지 않는다. 승인본의 이름은 드래프트가 엔진에 실려 있는지와 무관하다.
+4. `perThreadToolNames`가 거짓이면 옛 동작(엔진 전체 집합)이다. 조립 루트(`apps/host`)는 `createToolNamesPolicy()`를 `ExtHostDeps.resourcePolicy`로 넘긴다. 전에는 이 자리를 비워 두어 어떤 종류도 이름 정책을 받지 않았다(같은 이름은 모두 `resource_conflict`). 이 정책은 도구만 바꾸고 명령·단축키·플래그는 그대로 같은 이름을 거부한다.
 
 primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `exposeAll`을 더했다(M2). 리소스 레지스트리는 같은 kind(도구, 명령, 단축키, 플래그)의 리소스가 등록되거나 해제될 때마다 그 kind 전체 레코드로 `exposeAll`을 불러 노출 이름을 다시 계산한다. 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`에서 등록을 해제하고 새 이름으로 다시 등록한다). 들어오는 레코드의 노출 이름이 `too_long`이면 기존 레코드를 건드리지 않고 등록을 거부한다(`resource_name_invalid`). 그래서 규칙 3(로드 순서 무관)이 지켜지고, 확장 하나를 끄면 남은 확장이 짧은 이름을 되찾는다. 쌍 판정 `resolve`는 `exposeAll`이 없는 정책을 위해 남겼고 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다.
 
@@ -1269,7 +1291,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | 시작 옵션 | `fresnel --safe-mode`, `fresnel chat --safe-mode` | 이번 시작 |
 | 환경 변수 | `FRESNEL_SAFE_MODE=1` | 이번 시작. 데스크톱 사이드카 재시작용 |
 | 설정 | `x.operations.safeMode.default`(§6) | 시작할 때마다. 관리·사용자 범위만 |
-| 명령 | `/safe-mode` | 실행 중 요청. 단계 경계에서 외부 확장과 L3 내장 그룹([제안], §4.6.2)을 끄고(`reason: "safe_mode"`) 외부 훅을 멈춘다. 이미 실린 모듈은 프로세스에 남으므로 화면에 "다시 시작 권장"을 보인다 |
+| 명령 | `/safe-mode` | 실행 중 요청. 단계 경계에서 외부 확장과 L3 내장 플러그인([제안], §4.6.2)을 끄고(`reason: "safe_mode"`) 외부 훅을 멈춘다. 이미 실린 모듈은 프로세스에 남으므로 화면에 "다시 시작 권장"을 보인다 |
 
 - 개별 끄기: `--disable-ext <이름>`(여러 번 쓸 수 있다)는 이번 시작에서 그 확장만 싣지 않는다. `ext.<name>.enabled` 설정 값은 바꾸지 않는다.
 - 안전 모드인지는 호스트 상태로 클라이언트에 알린다. wire에 싣는 방법은 `F.wire-settings.spec` 소유이므로 추가를 요청한다(§10 미결 11).
@@ -1281,14 +1303,14 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `guard` tier(권한·샌드박스 내장 가드) | 켜짐 |
 | `core` tier(L1 코어) | 켜짐 |
 | `builtin` tier 중 L0~L2 내장 패키지(`platform-*`, `cap-*`) | 켜짐 |
-| `builtin` tier 중 L3 내장 그룹(학습 그룹) | 꺼짐 [결정: review.m3-design-inputs D-M3-07 a] |
+| `builtin` tier 중 L3 내장 플러그인(학습 플러그인) | 꺼짐 [결정: review.m3-design-inputs D-M3-07 a] |
 | `user`, `project` tier 확장(외부 plugin, 외부 group). 기본 플러그인 Helm은 사용자 확장 위치에 설치되므로 여기에 든다([결정: review.m3-design-inputs D-M3-01 c]) | 꺼짐 |
 | 외부 훅 전체(X 훅) | 꺼짐 [결정: 사용자 2026-11-01, 안전 모드에서 X 훅도 싣지 않는다] |
 | 관리(managed) 범위 확장(2차) | 꺼짐(`user` tier) [결정: 오케스트레이터 기본값, M4 X-13] |
 
 - 훅 판정(X-20): 외부 훅 로더는 훅을 싣기 전에 확장과 같은 `startupFilter`에 `HookLoadCandidate`를 넘긴다. 훅 후보는 tier와 상관없이 안전 모드에서 `allowedInSafeMode`가 거짓이고 사유는 `safe_mode`다. `--disable-ext`는 확장 이름만 가리키므로 훅 id가 같은 이름이어도 훅에는 적용하지 않는다. 같은 호출에서 확장은 `--disable-ext`가 안전 모드보다 먼저 사유가 된다. 외부 훅 로더(§3.7, M4)는 아직 코드에 없어 이 판정 함수와 시험(`safe-mode-x-hooks.test.ts`)만 있다.
 - 기준: `allowedInSafeMode`는 확장 후보에서 tier가 `guard`·`core`이거나, tier가 `builtin`이고 `layer`가 `L1`·`L2`이면 참이다. 내장 L0 패키지는 on을 쓰지 않으므로 이 판정과 별개로 항상 실린다.
-- [결정: review.m3-design-inputs D-M3-07 a] L3 내장 그룹을 끈다. 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
+- [결정: review.m3-design-inputs D-M3-07 a] L3 내장 플러그인을 끈다. 이유: drive를 쓰는 플러그인은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 플러그인([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 플러그인이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 플러그인을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
 
 #### 4.6.3 동작
 
@@ -1306,7 +1328,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 #### 4.6.5 L4 노출
 
-- 설정 화면 "플러그인과 그룹" 탭(`SettingsTab` `plugins`)에 안전 모드 항목을 둔다. 내용: 현재 상태, 원인(옵션·설정·명령), "안전 모드로 다시 시작" 버튼, `x.operations.safeMode.default` 토글.
+- 설정 화면 "플러그인" 탭(`SettingsTab` `plugins`)에 안전 모드 항목을 둔다. 내용: 현재 상태, 원인(옵션·설정·명령), "안전 모드로 다시 시작" 버튼, `x.operations.safeMode.default` 토글.
 - 같은 탭의 확장 목록에 자동으로 꺼진 확장과 안전 모드로 빠진 확장을 사유와 함께 보인다.
 - 안전 모드 키는 `x.operations.safeMode.*`다. `L4.settings-ui.spec` §4.1 "plugins" 탭 행도 안전 모드를 `x.operations.*` 아래로 적는다(§10 12번, 해소).
 
@@ -1537,7 +1559,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 계측 키 `trace.enabled`(§3.9, §4.8.3)는 `runtimeChange: nextTurn`이다. 값은 Turn이 처음 보일 때 읽는다. 계측 기본 켬은 사용자 결정이다(`review/m4-plan.md` §4 7번). 보관 Turn 수 키(`trace.turnsPerThread`)는 없앴다 [결정: 2026-11-04 사용자]. 이 키는 "계측" 묶음 [제안]에 든다.
 - 측정 키 둘(`trace.retentionDays`, `trace.storeRequestBody`)은 `runtimeChange: live`이고 측정 저장소(`L4.host-service.spec` 측정 절)가 읽는다. 이름은 [제안: 2026-11-04 T-MEAS-STORE 기본값, `L4.desktop-ux` §12.1 34번]이고 값은 사용자 결정이다 [결정: 2026-11-03 사용자]: 원본 보관 기본 30일(1~3650, 일별 집계는 계속 둔다), 요청 본문 저장 기본 끔(설정에서 누구나 켬). 본문은 시크릿 값을 가린 뒤에만 저장하고 가릴 수단이 없으면 저장하지 않는다. 범위는 `trace.*`와 같이 `managed`, `user`다.
 - L4 노출:
-  - 화면: 설정 화면 "플러그인과 그룹" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
+  - 화면: 설정 화면 "플러그인" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
   - 명령: `fresnel config get|set x.operations.…`(`L4.cli.spec`), `fresnel ext list`, `fresnel ext enable <name>`, `fresnel ext disable <name>`(X.primitives.spec §6과 같은 이름), `/safe-mode`, `fresnel --safe-mode`, `fresnel --disable-ext <name>`, `fresnel doctor`의 훅·확장 점검 [제안: 명령 이름은 `L4.cli.spec`이 확정].
   - 파일: 범위별 설정 파일의 같은 키(`F.wire-settings.spec` §3.9, 경로는 `L4.host-service.spec`).
 - 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`은 `X.loading-trust.spec`, `x.primitives.driveDefaultLimits`·`x.primitives.driveLimits`는 `X.primitives.spec` 소유다. 이 문서는 정의하지 않는다.
@@ -1547,7 +1569,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 이 문서는 훅을 선언하지 않는다. 훅 선언은 `F.extensions.spec` §3.4가 정본이다.
 - on: 모든 on 디스패치에 정렬 키(§4.1), 시간 예산(§4.2), 실패 처리(§4.3)를 적용한다. 외부 훅은 on 핸들러의 한 종류로 같은 디스패치에 들어간다(§4.7).
 - post: 이 문서의 규칙이 적용되지 않는다. post는 커밋 단위 기록이고 시간 예산이 없다. 안전 모드에서 빠진 확장은 post를 쓸 수 없다(실리지 않으므로).
-- drive: 시간 예산 밖이다(§4.2.5). 자동 끄기가 drive 그룹에 적용되면 drive 락 반납이 함께 일어난다(§4.3.3).
+- drive: 시간 예산 밖이다(§4.2.5). 자동 끄기가 drive 플러그인에 적용되면 drive 락 반납이 함께 일어난다(§4.3.3).
 - Registration: 자동 끄기와 안전 모드 끄기는 Registration 끄기 경로(`RegistrationControl`)를 쓴다. 토글 적용 시점은 `X.primitives.spec`과 `F.extensions.spec` §4.5를 따른다.
 - 확장 투영(`ExtProjection`)은 커밋 경로의 투영기이며 훅 선언 대상이 아니다.
 
@@ -1610,7 +1632,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 18. 확장 `a`의 `bc`와 확장 `a-b`의 `c`는 다른 테이블이 되고 `parseExtTableName`이 각각의 소유 확장을 돌려준다. `dropExtension("a", true)`는 `x_a_b_c`를 지우지 않는다.
 19. `dropExtension(name, false)`는 아무것도 지우지 않고 대상 목록만 돌려준다. `true`로 부른 뒤에도 그 확장의 이벤트 행 수는 같다.
 20. 외부 확장 둘이 같은 도구 이름 `search`를 등록하면 둘 다 `<확장>__search`로 노출되고 `search`는 노출되지 않는다. 입력 순서를 바꿔도 결과가 같다. 내장 도구 이름 `read`를 외부 확장이 등록하면 `<확장>__read`로만 노출된다. 한 확장을 끄면 남은 확장이 짧은 이름을 되찾고 도구 포트에는 해제 뒤 새 이름으로 다시 등록된다(집합 판정 `exposeAll`).
-21. 안전 모드로 시작하면 `user`·`project` tier 확장(기본 플러그인 Helm 포함), L3 내장 그룹, 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
+21. 안전 모드로 시작하면 `user`·`project` tier 확장(기본 플러그인 Helm 포함), L3 내장 플러그인, 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
 22. `--disable-ext acme-notes`로 시작하면 그 확장만 실리지 않고 `ext.acme-notes.enabled` 설정 값은 바뀌지 않는다.
 23. 연속 시작 실패 수가 3이면 `shouldSuggestSafeMode`가 참이다.
 24. `tool.call.before` 외부 훅이 exit 2로 끝나면 결정은 거부이고 `reason`은 stderr 앞 500자다. 장부에는 실패로 남지 않는다.
@@ -1647,7 +1669,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
    - 확장이 함께 내는 외부 훅: `hooks?: HookDef[]`(2차).
    - M2 전에 설치 전 검토가 필요하면 확장 루트의 `.fresnel-plugin/operations.json`에 같은 내용을 두고 X가 읽는다 [제안].
 3. 이름 정리(해소).
-   - extId 형식: [결정: review.decisions-2 U-18] `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈을 밑줄로>_`(§4.4.2). `F.extensions.spec` `EXTENSION_NAME_PATTERN`, `eng.context-map.design` §5.2·CM-07, `eng.domain-types.guide` DT-08, `eng.events.design` §4.5, `L0.store.spec`, adr.0004 §3.3이 모두 이 정규식과 `x_` 접두로 고쳐졌다. `L3.readme`의 그룹 이름 제안(`^[a-z][a-z0-9]{1,31}$`)은 부분 집합이라 충돌하지 않는다.
+   - extId 형식: [결정: review.decisions-2 U-18] `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈을 밑줄로>_`(§4.4.2). `F.extensions.spec` `EXTENSION_NAME_PATTERN`, `eng.context-map.design` §5.2·CM-07, `eng.domain-types.guide` DT-08, `eng.events.design` §4.5, `L0.store.spec`, adr.0004 §3.3이 모두 이 정규식과 `x_` 접두로 고쳐졌다. `L3.readme`의 플러그인 이름 제안(`^[a-z][a-z0-9]{1,31}$`)은 부분 집합이라 충돌하지 않는다.
    - 확장 kind 접두: `x.`/`grp.`(`F.records.spec` §3.2). 옛 밑줄 접두 표기는 쓰지 않는다([결정: review.decisions-2 T-21]). scope 상태 커밋 kind 이름은 `X.primitives.spec`이 정한다.
    - 대화 열 이름: `eng.context-map.design` §5.2는 `session_id`, 이 문서는 F 용어(`ThreadId`)를 따라 `thread_id`를 쓴다.
 4. F.records 추가 요청(F 부분 해소).
@@ -1668,7 +1690,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 16. (해소) X.primitives.spec `DispatchPolicy`(§3.4)에 선택 메서드 `onHandlerSettled(entry, activeMs)`와 `run(entry, work, outer)`를 넣었다 [제안]. 이 문서의 `DispatchPolicyExtension`은 지웠고 `OperationsPolicy`가 두 메서드를 구현한다(§3.8, §4.2.3, §4.3.2).
 17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.
-19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
+19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 플러그인을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
 20. (해소, M3-REQ-32) 샌드박스 강제는 L0 실행 경로에서 하고 on 핸들러는 두지 않는다(§4.1.4). on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다.
 21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.
 22. (해소) `traceReadOf`와 `TraceSettings`는 `X.primitives.spec` §3.1 표에 행이 있고 루트(`src/index.ts`)에서 내보낸다.

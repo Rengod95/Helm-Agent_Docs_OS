@@ -2,13 +2,17 @@ import { assertNever, type Result } from "@fresnel/contracts";
 import type { PluginCard } from "@fresnel/contracts/extensions";
 import {
   wireError,
+  type DependencyProblemKind,
+  type DependencyRefusalReason,
   type DraftInfo,
   type InvocableEntry,
+  type PluginDraftFilesResult,
   type PluginDraftFromInstructionParams,
   type PluginDraftFromInstructionResult,
   type PluginGetResult,
   type PluginListFilter,
   type PluginListResult,
+  type PluginReviewFileResult,
   type PluginScanResult,
   type WireError,
   type WireHandlers,
@@ -27,6 +31,16 @@ interface DraftIssue {
   readonly severity: "error" | "warning";
   readonly path: string;
   readonly message: string;
+}
+
+/** 거절을 낳은 의존 한 줄(AGE-33). wire `plugin.dependency`의 `items`와 같은 모양이다 */
+export interface DependencyItem {
+  readonly from: string;
+  readonly target: string;
+  readonly kind: "hard" | "soft";
+  readonly range: string | null;
+  readonly problem: DependencyProblemKind;
+  readonly found: string | null;
 }
 
 /** 포트가 돌려주는 거절. 처리기가 wire 오류로 옮긴다 */
@@ -56,7 +70,14 @@ export type PluginPortFailure =
   | { readonly kind: "hand_edit"; readonly itemId: string }
   | { readonly kind: "purpose_required"; readonly itemId: string }
   /** 대상 프로필 검증에 실패해 아무것도 바뀌지 않았다. 이슈는 프로필마다의 검증 결과다(§4.7.3, §5) */
-  | { readonly kind: "profile_invalid"; readonly issues: readonly PluginEditIssue[] };
+  | { readonly kind: "profile_invalid"; readonly issues: readonly PluginEditIssue[] }
+  /** 의존 거절(AGE-33). `unmet`은 설치·승인, `required_by`는 끄기·삭제, `breaks_range`는 업데이트다 */
+  | {
+      readonly kind: "dependency";
+      readonly reason: DependencyRefusalReason;
+      readonly plugin: string;
+      readonly items: readonly DependencyItem[];
+    };
 
 /** 처리기가 쓰는 포트. 메서드 하나가 wire 메서드 하나다 */
 export interface PluginPort {
@@ -90,6 +111,13 @@ export interface PluginPort {
     name: string,
   ): Promise<Result<{ readonly drafts: readonly DraftInfo[] }, PluginPortFailure>>;
   draftDiscard(draftId: string): Promise<Result<void, PluginPortFailure>>;
+  /** 초안 한 버전의 파일 목록(`plugin.draft.files`, 읽기만) */
+  draftFiles(draftId: string): Promise<Result<PluginDraftFilesResult, PluginPortFailure>>;
+  /** 초안 한 버전의 파일 하나(`plugin.draft.file`, 읽기만) */
+  draftFile(
+    draftId: string,
+    path: string,
+  ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
   /**
    * 한 줄 지침(§4.10): 지침만 든 원본 폴더를 쓰고 초안과 `user_instruction` 검토 항목을 만든다. 입력은 wire 매개변수 그대로다.
    * 같은 이름을 새 버전으로 덮어쓰는 규칙과 기본 프로필은 포트가 정한다
@@ -108,6 +136,8 @@ export type PluginMethods =
   | "plugin.revert"
   | "plugin.draft.create"
   | "plugin.draft.list"
+  | "plugin.draft.files"
+  | "plugin.draft.file"
   | "plugin.draft.discard"
   | "plugin.draft.fromInstruction";
 
@@ -155,6 +185,21 @@ export function wireErrorOfPluginFailure(failure: PluginPortFailure): WireError 
       return wireError("pluginReview.profileInvalid", {
         details: { issues: [...failure.issues] },
       });
+    case "dependency":
+      return wireError("plugin.dependency", {
+        details: {
+          reason: failure.reason,
+          plugin: failure.plugin,
+          items: failure.items.map((item) => ({
+            from: item.from,
+            target: item.target,
+            kind: item.kind,
+            range: item.range,
+            problem: item.problem,
+            found: item.found,
+          })),
+        },
+      });
     default:
       return assertNever(failure, "PluginPortFailure");
   }
@@ -181,6 +226,8 @@ export function createPluginHandlers(port: PluginPort): Pick<WireHandlers, Plugi
     "plugin.revert": (params) => unwrap(port.revert(params.name)),
     "plugin.draft.create": (params) => unwrap(port.draftCreate(params.dir, params.originThreadId)),
     "plugin.draft.list": (params) => unwrap(port.draftList(params.name)),
+    "plugin.draft.files": (params) => unwrap(port.draftFiles(params.draftId)),
+    "plugin.draft.file": (params) => unwrap(port.draftFile(params.draftId, params.path)),
     "plugin.draft.discard": async (params) => {
       await unwrapVoid(port.draftDiscard(params.draftId));
       return {};

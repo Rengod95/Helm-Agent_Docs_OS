@@ -8,7 +8,7 @@ import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
-import { testGroup } from "../fixtures/test-group.ts";
+import { testOrchestration } from "../fixtures/test-group.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -116,7 +116,7 @@ async function startReal(options: {
     ...options.settings,
   });
   writeProbe(home, options.fail, options.idle ?? true);
-  const group = testGroup(fixedIdFactory(9));
+  const group = testOrchestration(fixedIdFactory(9));
   const host = await startInProcessHost({
     devChecks: true,
     // 빈 번들 폴더: 기본 플러그인은 없고 로더가 사용자 위치의 확장을 싣는다
@@ -159,17 +159,21 @@ realTest(
       const rows = new Map(list.extensions.map((entry) => [entry.name, entry]));
       expect(rows.get("core-loop")).toMatchObject({
         layer: "L1",
-        isGroup: false,
+        isOrchestration: false,
         location: "builtin",
         origin: "builtin",
         tier: "builtin",
         effectiveGrade: "builtin",
         status: "enabled",
       });
-      expect(rows.get(groupId)).toMatchObject({ isGroup: true, layer: "L3", status: "enabled" });
+      expect(rows.get(groupId)).toMatchObject({
+        isOrchestration: true,
+        layer: "L3",
+        status: "enabled",
+      });
       expect(rows.get(PROBE)).toMatchObject({
         layer: "plugin",
-        isGroup: false,
+        isOrchestration: false,
         tier: "user",
         requestedGrade: "user",
         effectiveGrade: "user",
@@ -285,7 +289,7 @@ realTest(
       const groupRow = scoped.extensions.find((entry) => entry.name === groupId);
       expect(groupRow?.plugins[0]).toMatchObject({ status: "enabled", thread: "enabled" });
 
-      const groups = await connection.request("group.list", {});
+      const groups = await connection.request("orchestration.list", {});
       // 정렬은 holder가 먼저다: 이름순으로 맞춰 본다
       expect(
         groups.groups
@@ -298,7 +302,7 @@ realTest(
         [groupId, true, "enabled"],
       ]);
 
-      const metrics = await connection.request("group.metrics", {
+      const metrics = await connection.request("orchestration.metrics", {
         id: groupId,
         threadId: created.threadId,
       });
@@ -306,7 +310,7 @@ realTest(
       expect(metrics.metrics?.leases).toBe(0);
       expect(metrics.sinceIgnoredBy).toEqual([]);
       // since 이전의 drive 락 기록은 세지 않는다. 메모리 카운터 값은 since를 지키지 못한다고 밝힌다
-      const later = await connection.request("group.metrics", {
+      const later = await connection.request("orchestration.metrics", {
         id: groupId,
         threadId: created.threadId,
         since: "2999-01-01T00:00:00.000Z",
@@ -317,16 +321,19 @@ realTest(
       expect(later.sinceIgnoredBy).not.toContain("inputTokens");
       expect(later.sinceIgnoredBy).not.toContain("leases");
       expect(
-        await connection.request("group.promotion", { threadIds: [created.threadId] }),
+        await connection.request("orchestration.promotion", { threadIds: [created.threadId] }),
       ).toEqual({
         throughSeq: 0,
         threads: 0,
         candidates: [],
       });
 
-      expect(await failureOf(connection.request("group.metrics", { id: "no-such" }))).toMatchObject(
-        { code: 3402, data: { kind: "group.notFound", details: { id: "no-such" } } },
-      );
+      expect(
+        await failureOf(connection.request("orchestration.metrics", { id: "no-such" })),
+      ).toMatchObject({
+        code: 3402,
+        data: { kind: "orchestration.notFound", details: { id: "no-such" } },
+      });
       const ghost = "thr_00000000000000000000000000";
       expect(await failureOf(connection.request("ext.list", { threadId: ghost }))).toMatchObject({
         code: 3001,

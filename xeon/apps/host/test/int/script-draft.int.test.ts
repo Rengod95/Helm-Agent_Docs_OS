@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { err } from "@fresnel/contracts";
 import { openScriptBox, sandboxAvailable, type ScriptBox } from "../support/script-box.ts";
 
-// 초안(검토 전) 스크립트가 승인 카드를 거친 뒤 같은 샌드박스에서 도는 것을 실제 샌드박스로 본다(AGE-58 2부). 카드는 승인 문 대역이다.
+// 초안(검토 전) 스크립트가 승인 카드를 거친 뒤 도는 것을 실제 샌드박스로 본다(AGE-58 2부). 카드는 승인 문 대역이다.
+// 사용자 결정 2026-11-21(AGE-63): 설정 `narrowDrafts`를 끈 승인 전 초안은 열린 정책으로 돈다. 켜면 그 초안만 좁은 길(쓰기 없음, 자기 폴더 읽기)로 돈다.
+// 승인 카드 없이는 어느 쪽도 돌지 않는다.
 // 샌드박스를 쓸 수 없으면 건너뛴다. FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 종료 코드 2(환경 문제)로 끝난다.
 
 const ENVIRONMENT_EXIT_CODE = 2;
@@ -41,9 +43,9 @@ async function resultsOf(
 /** 셸 내장만 쓰는 검사 함수. 명령이 성공하면 open, 아니면 blocked다 */
 const PROBE_FN = `t() { local label=$1; shift; if "$@" 2>/dev/null; then echo "$label=open"; else echo "$label=blocked"; fi; }\n`;
 
-suite("a draft script under the gate (AGE-58)", () => {
+suite("a draft script under the gate (AGE-58, AGE-63)", () => {
   test(
-    "a draft script runs in this same sandbox only after the card is approved: the approved run cannot read outside the folder, and a declined card starts nothing",
+    "a draft script runs only after the card is approved, and with narrowDrafts off it runs open: it reads and writes outside the folder like the shell tool; a declined card starts nothing",
     async () => {
       const box = await openScriptBox();
       writeFileSync(
@@ -65,7 +67,8 @@ suite("a draft script under the gate (AGE-58)", () => {
             },
           },
         });
-        expect(approved).toEqual({ read_secret: "blocked", write_marker: "blocked", ran: "yes" });
+        expect(approved).toEqual({ read_secret: "open", write_marker: "open", ran: "yes" });
+        expect(existsSync(marker)).toBe(true);
         expect(seen).toEqual(["/bin/bash"]);
         const declined = await box.run({
           runner: "bash",
@@ -80,6 +83,55 @@ suite("a draft script under the gate (AGE-58)", () => {
           'failure:{"kind":"script_denied","cause":"denied","resolvedBy":"human"}',
         );
         expect(existsSync(join(box.outside, "declined.txt"))).toBe(false);
+      } finally {
+        await box.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  test(
+    "with narrowDrafts on, the same unapproved draft runs narrow after its card: it cannot read or write outside its folder, and it still starts only after the card",
+    async () => {
+      const box = await openScriptBox();
+      writeFileSync(
+        join(box.outside, "secret.txt"),
+        "fake secret in a temp folder made by this test",
+      );
+      const body = `${PROBE_FN}t read_secret bash -c "exec 3< $1"\nt write_marker bash -c "echo x > $2"\necho ran=yes\n`;
+      const marker = join(box.outside, "narrow-marker.txt");
+      const seen: string[] = [];
+      try {
+        const narrow = await resultsOf(box, {
+          runner: "bash",
+          args: [join(box.outside, "secret.txt"), marker],
+          body,
+          narrowDrafts: true,
+          draft: {
+            gate: (call) => {
+              seen.push(call.card.command);
+              return call.run(new AbortController().signal);
+            },
+          },
+        });
+        expect(narrow).toEqual({ read_secret: "blocked", write_marker: "blocked", ran: "yes" });
+        expect(existsSync(marker)).toBe(false);
+        expect(seen).toEqual(["/bin/bash"]);
+        // 같은 설정이라도 카드가 거절하면 아무것도 돌지 않는다
+        const declined = await box.run({
+          runner: "bash",
+          args: [join(box.outside, "secret.txt"), marker],
+          body: `echo ran=yes > ${join(box.outside, "declined-narrow.txt")}\n`,
+          narrowDrafts: true,
+          draft: {
+            gate: () =>
+              Promise.resolve(err({ kind: "script_denied", cause: "denied", resolvedBy: "human" })),
+          },
+        });
+        expect(declined).toBe(
+          'failure:{"kind":"script_denied","cause":"denied","resolvedBy":"human"}',
+        );
+        expect(existsSync(join(box.outside, "declined-narrow.txt"))).toBe(false);
       } finally {
         await box.close();
       }

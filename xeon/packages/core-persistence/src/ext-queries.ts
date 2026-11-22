@@ -9,7 +9,7 @@ import {
   type JsonValue,
   type ThreadId,
 } from "@fresnel/contracts/conversation";
-import { GroupRecordSchema } from "@fresnel/contracts/extensions";
+import { OrchestrationRecordSchema } from "@fresnel/contracts/extensions";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
@@ -460,7 +460,7 @@ export function queryActiveRecords(
     if (!isExtensionKind(kind) || kind.endsWith(EXT_STATE_KIND_SUFFIX)) continue;
     let row: ExtRecordRow | undefined;
     if (privateOwner === null) {
-      const record = parse(GroupRecordSchema, event.payload);
+      const record = parse(OrchestrationRecordSchema, event.payload);
       if (record.ok) {
         row = {
           groupId: record.value.groupId,

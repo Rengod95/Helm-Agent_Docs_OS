@@ -6,7 +6,7 @@ import {
   pluginsOf,
   registrationIdOf,
 } from "../../src/extensions/index.ts";
-import { groupJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
+import { orchestrationJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
 
 describe("registrationIdOf", () => {
   test("the root plugin uses the extension name, others use name/id", () => {
@@ -43,12 +43,12 @@ describe("pluginsOf", () => {
     expect(entries.map((entry) => entry.registrationId)).toEqual(["helm", "helm/explore"]);
     expect(entries.map((entry) => entry.index)).toEqual([0, 1]);
     expect(entries.map((entry) => entry.root)).toEqual([true, false]);
-    expect(entries.map((entry) => entry.inGroup)).toEqual([false, false]);
+    expect(entries.map((entry) => entry.inOrchestration)).toEqual([false, false]);
   });
 
   test("group without members puts every plugin in the group", () => {
     const manifest = validManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
         plugins: [
           { layer: "L3", hooks: [] },
@@ -59,14 +59,14 @@ describe("pluginsOf", () => {
     const entries = pluginsOf(manifest);
     expect(entries.map((entry) => entry.registrationId)).toEqual(["helm", "helm/explore"]);
     expect(entries.map((entry) => entry.root)).toEqual([true, false]);
-    expect(entries.map((entry) => entry.inGroup)).toEqual([true, true]);
+    expect(entries.map((entry) => entry.inOrchestration)).toEqual([true, true]);
   });
 
   test("group members pick the non-root plugins; the root stays in the group", () => {
     const manifest = validManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
-        group: { members: ["alpha"] },
+        orchestration: { members: ["alpha"] },
         plugins: [
           { layer: "L3", hooks: [] },
           { id: "alpha", layer: "L3", hooks: [] },
@@ -81,7 +81,7 @@ describe("pluginsOf", () => {
       "helm/beta",
     ]);
     expect(entries.map((entry) => entry.root)).toEqual([true, false, false]);
-    expect(entries.map((entry) => entry.inGroup)).toEqual([true, true, false]);
+    expect(entries.map((entry) => entry.inOrchestration)).toEqual([true, true, false]);
   });
 });
 
@@ -117,7 +117,7 @@ describe("pluginDefaultEnabled", () => {
 describe("effectiveLayer", () => {
   test("the highest layer among the plugins", () => {
     const manifest = validManifest(
-      groupJson({
+      orchestrationJson({
         name: "helm",
         plugins: [
           { layer: "L2", hooks: [] },

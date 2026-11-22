@@ -45,6 +45,8 @@ export interface TestHostOptions {
   readonly trace?: () => TraceSettings;
   /** thread마다 다른 값을 돌려주는 설정 읽기. 있으면 settings 대신 쓴다(session 범위 값을 시험한다) */
   readonly settingsSource?: PrimitivesSettingsSource;
+  /** 호스트가 `fresnel.settings` 포트로 내는 설정 읽기(조립 루트가 설정 엔진을 연결하는 자리) */
+  readonly settingValue?: (key: string) => unknown;
   readonly loop?: MemoryLoopOptions;
   /** 기능 정의 조회(`ExtHostDeps.capabilityDefs`) */
   readonly capabilityDefs?: CapabilityDefLookup;
@@ -127,6 +129,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     ...(inputLimit === undefined ? {} : { driveInputMaxBytes: () => inputLimit }),
     setupBudgetMs: options.setupBudget ?? (() => options.setupBudgetMs ?? null),
     settings: options.settingsSource ?? createStaticPrimitivesSettings(options.settings),
+    ...(options.settingValue === undefined ? {} : { settingValue: options.settingValue }),
     report: (diagnostic) => {
       diagnostics.push(diagnostic);
     },

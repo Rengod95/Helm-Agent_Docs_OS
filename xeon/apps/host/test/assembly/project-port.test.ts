@@ -188,7 +188,7 @@ test("list counts open threads inside each root, running ones apart, and leaves 
   if (!created.ok) throw new Error("create must succeed");
   const listed = await rig.port.list();
   expect(listed.ok && listed.value.projects).toEqual([
-    { ...created.value, threadCount: 2, runningCount: 1 },
+    { ...created.value, threadCount: 2, runningCount: 1, rootMissing: false },
   ]);
 });
 

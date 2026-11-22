@@ -10,7 +10,7 @@ import {
   type TrustChoice,
 } from "@fresnel/contracts/extensions";
 import type { LoaderPaths } from "../../src/loading-trust/index.ts";
-import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeOrchestrationSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, realLoaderFs } from "./support/real-fs.ts";
 
@@ -29,7 +29,7 @@ beforeEach(async () => {
   projectB = join(temp.dir, "b");
   await mkdir(projectA, { recursive: true });
   await mkdir(projectB, { recursive: true });
-  fakeGroupSdk.seen.length = 0;
+  fakeOrchestrationSdk.seen.length = 0;
 });
 
 afterEach(async () => {

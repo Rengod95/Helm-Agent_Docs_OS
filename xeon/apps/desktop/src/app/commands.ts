@@ -55,10 +55,14 @@ import { createMcpCommands } from "./mcp.ts";
 import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
+import { createPluginReviewCommands } from "./plugin-review.ts";
+import { createProjectCommands } from "./projects.ts";
 import { createMemoryCommands } from "./memory.ts";
 import { createSkillCommands } from "./skills.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createMeasureCommands } from "./measure-commands.ts";
+import { createCraftMetricsCommands } from "./craft-metrics.ts";
+import { createTestChatCommands } from "./test-chat-commands.ts";
 import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import {
@@ -612,6 +616,18 @@ export function createCommands(
     ),
     tests: createTestCommands(withConnection, withWriteConnection),
     measure: createMeasureCommands(withConnection),
+    craftMetrics: createCraftMetricsCommands(withConnection, withWriteConnection),
+    testChat: createTestChatCommands({
+      withRead: withConnection,
+      withWrite: withWriteConnection,
+      known: (threads) => engine.ingest({ type: "craft_chats", threads }),
+      leave: () => {
+        leaveSelected(null);
+        engine.flush();
+        ui.actions.selectThread(null);
+        session.link()?.closeThread();
+      },
+    }),
     schedule: createScheduleCommands(withConnection, () => connectionCommands.setServiceMode(true)),
     pluginUi: { withConnection, current: () => session.connection() },
     connection: connectionCommands,
@@ -625,6 +641,12 @@ export function createCommands(
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
+    pluginReview: createPluginReviewCommands(withConnection, withWriteConnection, () =>
+      session.connection(),
+    ),
+    projects: createProjectCommands(withConnection, withWriteConnection, () =>
+      session.connection(),
+    ),
     skills: createSkillCommands(withConnection),
     memory: createMemoryCommands(withConnection, withWriteConnection),
     usage: createUsageCommands(withConnection),

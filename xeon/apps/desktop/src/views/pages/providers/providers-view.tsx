@@ -31,7 +31,7 @@ import {
   SettingSection,
 } from "../settings/settings-section.tsx";
 import { CheckSteps, type CheckStep } from "../shared/check-steps.tsx";
-import { ModelPicker, modelMetaText } from "../shared/model-picker.tsx";
+import { ModelPicker, modelMetaPartsOf } from "../shared/model-picker.tsx";
 import { OrderedList, type OrderedItem } from "../shared/ordered-list.tsx";
 import { providerHostOf, providerMarkOf, providerNameOf } from "../shared/provider-names.ts";
 import {
@@ -152,13 +152,14 @@ function usdText(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
-/** 누적 사용량 한 줄: "지금까지 1.2M 토큰 · $3.40 · 120회" */
-export function usageLineOf(usage: UsageTotals): string {
-  return t("desktop.providers.usage.line", {
-    tokens: tokenCountText(usage.tokens),
-    usd: usdText(usage.usd),
-    requests: usage.requests,
-  });
+/** 누적 사용량 줄의 칸: "지금까지", 토큰, 비용, 요청 수. 칸마다 따로 놓고 간격으로 나눈다("지금까지 1.2M 토큰 $3.40 120회") */
+export function usageLineOf(usage: UsageTotals): readonly string[] {
+  return [
+    t("desktop.providers.usage.soFar"),
+    t("desktop.providers.usage.tokens", { tokens: tokenCountText(usage.tokens) }),
+    usdText(usage.usd),
+    t("desktop.providers.usage.requests", { requests: usage.requests }),
+  ];
 }
 
 // ── 연결 시험 줄 ─────────────────────────────────────────────────────────
@@ -330,12 +331,9 @@ function ProviderCardView(props: {
   // 마지막 점검이 떨어졌으면 그 사유를 상태 줄에 보인다(아래 점검 줄과 같은 문장). 점검을 다시 통과하면 상태로 돌아간다.
   // 거절됨과 확인 안 됨은 상태 말이 먼저 오고 사유가 뒤에 붙는다(무엇을 고칠지 같이 보이게)
   const failure = props.steps?.find((step) => step.state === "failed")?.detail ?? null;
-  const statusLine =
-    failure === null
-      ? providerStatusText(card)
-      : card.status === "rejected" || card.status === "unchecked"
-        ? `${providerStatusText(card)} · ${failure}`
-        : failure;
+  const status = providerStatusText(card);
+  const withStatus =
+    failure !== null && (card.status === "rejected" || card.status === "unchecked");
   return (
     <article
       data-slot="provider-card"
@@ -370,11 +368,22 @@ function ProviderCardView(props: {
             aria-hidden
             className={`size-1.5 flex-none rounded-full ${STATUS_DOT[card.status]}`}
           />
-          <span className="min-w-0 truncate">{statusLine}</span>
+          <span className="flex min-w-0 items-baseline gap-2">
+            {withStatus ? (
+              <>
+                <span className="flex-none">{status}</span>{" "}
+              </>
+            ) : null}
+            <span className="min-w-0 truncate">{failure ?? status}</span>
+          </span>
         </span>
         {card.usage === null ? null : (
-          <span className="truncate ps-3 text-ui-sm text-text-tertiary tabular-nums">
-            {usageLineOf(card.usage)}
+          <span className="flex min-w-0 items-baseline gap-2 ps-3 text-ui-sm text-text-tertiary">
+            {usageLineOf(card.usage).map((part) => (
+              <span key={part} className="min-w-0 truncate">
+                {part}
+              </span>
+            ))}
           </span>
         )}
       </div>
@@ -1038,7 +1047,7 @@ export interface RotationRowProps {
   readonly onCancel: () => void;
 }
 
-/** 회전 줄의 보조 글: 무엇이 도는지. 꺼짐, 돌 계정 없음, "Anthropic 2개 · OpenAI 3개를 차례로 써요" */
+/** 회전 줄의 보조 글: 무엇이 도는지. 꺼짐, 돌 계정 없음, "Anthropic 계정 2개, OpenAI 계정 3개 차례로 써요" */
 export function rotationSummaryOf(
   state: RotationState | null,
   pools: readonly ProviderPool[],
@@ -1053,7 +1062,7 @@ export function rotationSummaryOf(
         count: pool.accounts.length,
       }),
     )
-    .join(" · ");
+    .join(", ");
   return t("desktop.providers.rotation.summary.on", { list });
 }
 
@@ -1367,7 +1376,7 @@ function ModelAccessLine(props: {
 }): ReactNode {
   const { row } = props;
   const option = row.entry === null ? null : (modelOptionsOf([row.entry], null, null)[0] ?? null);
-  const meta = option === null ? null : modelMetaText(option);
+  const meta = option === null ? null : modelMetaPartsOf(option);
   const name = row.pattern ? t("desktop.models.list.pattern", { name: row.label }) : row.label;
   return (
     <li
@@ -1381,8 +1390,10 @@ function ModelAccessLine(props: {
         {name}
       </span>
       {meta === null ? null : (
-        <span className="flex-none font-mono text-mono-sm text-text-tertiary tabular-nums">
-          {meta}
+        <span className="flex flex-none items-baseline gap-2 text-footnote text-text-tertiary">
+          {meta.map((part) => (
+            <span key={part}>{part}</span>
+          ))}
         </span>
       )}
       {row.usable ? null : (

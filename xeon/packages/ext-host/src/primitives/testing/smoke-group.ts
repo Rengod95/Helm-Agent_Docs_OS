@@ -12,7 +12,7 @@ import type { ExtensionUnit } from "../host.ts";
  * M1 스모크 테스트 그룹의 매니페스트. F.extensions.plan의 test/extensions/fixtures/smoke-group.manifest.json과
  * 같은 내용이다(X.primitives.plan P-21). 상태와 drive를 쓰려고 usesPost·drives·recordKinds를 선언한다
  */
-export const SMOKE_GROUP_MANIFEST: ExtensionManifest = defineManifest({
+export const SMOKE_ORCHESTRATION_MANIFEST: ExtensionManifest = defineManifest({
   schemaVersion: 2,
   name: "smoke-group",
   version: "0.1.0",
@@ -42,11 +42,11 @@ export const SMOKE_GROUP_MANIFEST: ExtensionManifest = defineManifest({
       ],
     },
   ],
-  group: {},
+  orchestration: {},
   trust: { level: "builtin" },
 });
 
-export interface SmokeGroupOptions {
+export interface SmokeOrchestrationOptions {
   readonly ids: IdFactory;
   /** tool_call에서 거부할 도구 이름. 기본 "danger" */
   readonly denyTool?: string;
@@ -64,18 +64,18 @@ interface SmokeState {
 const SmokeStateSchema = Type.Object({ count: Type.Integer({ minimum: 0 }) });
 
 /** 스모크 그룹이 한 일을 시험이 볼 수 있게 모아 둔다 */
-export interface SmokeGroupProbe {
+export interface SmokeOrchestrationProbe {
   readonly deniedCalls: string[];
   readonly turnEndThreads: ThreadId[];
 }
 
-export function createSmokeGroup(options: SmokeGroupOptions): {
+export function createSmokeOrchestration(options: SmokeOrchestrationOptions): {
   readonly unit: ExtensionUnit;
-  readonly probe: SmokeGroupProbe;
+  readonly probe: SmokeOrchestrationProbe;
 } {
   const denyTool = options.denyTool ?? "danger";
   const driveTurns = options.driveTurns ?? 1;
-  const probe: SmokeGroupProbe = { deniedCalls: [], turnEndThreads: [] };
+  const probe: SmokeOrchestrationProbe = { deniedCalls: [], turnEndThreads: [] };
 
   const entry: ExtensionEntry = ({ manifest, register }) => {
     register(
@@ -142,7 +142,7 @@ export function createSmokeGroup(options: SmokeGroupOptions): {
 
   return {
     unit: {
-      manifest: SMOKE_GROUP_MANIFEST,
+      manifest: SMOKE_ORCHESTRATION_MANIFEST,
       entry,
       loadIndex: options.loadIndex ?? 0,
       builtin: true,

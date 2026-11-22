@@ -254,7 +254,7 @@ function FindRow(args: {
     <div className="flex flex-none items-center gap-2">
       {/* 거른 수는 찾는 중에만 뜻이 있다. 찾는 말이 없으면 "11/11개"는 빈 말이다 */}
       {props.search.trim() === "" ? null : (
-        <span data-memory-count className="text-ui-sm text-text-tertiary tabular-nums">
+        <span data-memory-count className="text-ui-sm text-text-tertiary">
           {t("desktop.memory.count", { shown: String(shown), total: String(total) })}
         </span>
       )}

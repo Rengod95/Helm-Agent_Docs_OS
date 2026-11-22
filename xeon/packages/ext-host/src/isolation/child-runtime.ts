@@ -37,6 +37,7 @@ import {
   type ToolChangeReport,
   type PluginHostRequestName,
   type PluginRegistrationDecl,
+  type PluginHostFrame,
   type RawPluginHostFrame,
   type RegistrationFn,
   type RegistrationId,
@@ -64,8 +65,10 @@ import {
 import {
   createFrameReader,
   createFrameWriter,
+  PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES,
   type FrameReadResult,
   type FrameSink,
+  type FrameWriteError,
 } from "./framing.ts";
 import {
   parseCommandRun,
@@ -111,11 +114,13 @@ export type ImportEntry = (
 export interface PluginHostDeps {
   /** 엔진이 보내는 바이트 스트림(표준입력). 끝나면 엔진이 닫았거나 죽은 것이다 */
   readonly input: AsyncIterable<Uint8Array>;
-  /** 엔진으로 가는 쓰기(표준출력). 줄 하나가 프레임 하나다 */
+  /**
+   * 엔진으로 가는 쓰기(표준출력). 줄 하나가 프레임 하나다. `drained`가 있으면 큰 줄을 조각으로 보낼 때 그것을 기다려 역압을 받는다
+   */
   readonly output: FrameSink;
   /** 진단 줄을 쓰는 표준오류. 없으면 진단을 버린다 */
   readonly stderr?: FrameSink;
-  /** 플러그인 번들이 import할 SDK 가상 모듈. X의 고정 모듈에 더해 등록한다(예: `@fresnel/group-sdk`) */
+  /** 플러그인 번들이 import할 SDK 가상 모듈. X의 고정 모듈에 더해 등록한다(예: `@fresnel/orchestration-sdk`) */
   readonly sdkModules: SdkModules;
   /** 엔트리를 싣는 함수. 생략하면 확장 루트 안의 파일을 import한다 */
   readonly importEntry?: ImportEntry;
@@ -326,7 +331,11 @@ async function importEntryFile(
 }
 
 function createRuntime(deps: PluginHostDeps) {
-  const writer = createFrameWriter(deps.output);
+  const writer = createFrameWriter(deps.output, {
+    onTransferFailed: (frame, error) => {
+      outboundFailed(frame, error);
+    },
+  });
   const scopes = new AsyncLocalStorage<CallScope>();
   const exit = deferred<PluginHostExit>();
   // host.init의 결과. true면 등록이 끝났고 요청을 처리해도 된다
@@ -364,6 +373,59 @@ function createRuntime(deps: PluginHostDeps) {
       return;
     }
     diag(`reply ${id} could not be sent (${sent.error.kind})`);
+  }
+
+  /**
+   * 조각으로 보내던 프레임이 나가지 못했다(엔진이 읽지 않았거나 끊겼다). 엔진 호출 요청이면 그 호출을 실패시킨다.
+   * 답이면 기록만 남긴다. 기록에는 본문과 해시를 싣지 않는다
+   */
+  function outboundFailed(frame: PluginHostFrame, error: FrameWriteError): void {
+    if ("id" in frame && "method" in frame) {
+      const call = pending.get(frame.id);
+      if (call === undefined) return;
+      pending.delete(frame.id);
+      call.reject(
+        new PluginEngineCallError(error.kind, `the engine call could not be sent (${error.kind})`),
+      );
+      return;
+    }
+    if ("id" in frame) {
+      diag(`reply ${frame.id} could not be sent (${error.kind})`);
+      return;
+    }
+    diag(`a notification could not be sent (${error.kind})`);
+  }
+
+  /**
+   * 엔진이 보낸 조각 전송이 읽히지 않았다. 기록에 이유만 남긴다. `frameId`가 있으면 요청(엔진이 보낸 요청)은 오류 답으로,
+   * 답(우리 `engine.call`의 답)은 그 호출의 실패로 끝낸다. 프로세스는 계속 산다
+   */
+  function inboundTransferFailed(failure: {
+    readonly reason: string;
+    readonly frameId?: number;
+    readonly frameKind?: "request" | "response";
+  }): void {
+    diag(`transfer dropped: ${failure.reason}`);
+    if (failure.frameId === undefined) return;
+    if (failure.frameKind === "request") {
+      respond(
+        failure.frameId,
+        err({
+          kind: "invalid_params",
+          message: `the plugin host could not read the request (${failure.reason})`,
+        }),
+      );
+      return;
+    }
+    settleEngineCall(
+      failure.frameId,
+      err(
+        new PluginEngineCallError(
+          "invalid_response",
+          `the engine's reply could not be read (${failure.reason})`,
+        ),
+      ),
+    );
   }
 
   /** 엔진에 `engine.call` 요청을 보내고 응답을 기다린다. 응답 id는 이 호출의 카운터다 */
@@ -853,6 +915,10 @@ function createRuntime(deps: PluginHostDeps) {
 
   function onFrame(item: FrameReadResult): void {
     if (!item.ok) {
+      if (item.error.kind === "transfer_failed") {
+        inboundTransferFailed(item.error);
+        return;
+      }
       diag(`frame dropped: ${item.error.kind}`);
       return;
     }
@@ -976,9 +1042,13 @@ function createRuntime(deps: PluginHostDeps) {
       if (!decl.ok) return decl;
       decls.push(decl.value);
     }
+    // 칸은 엔진이 보낸 칸이 있을 때만 답한다(조각 전송의 협상: 자식의 상한을 알린다)
     const body = toJsonValue({
       protocolVersion: PLUGIN_HOST_PROTOCOL_VERSION,
       registrations: decls,
+      ...(input.transfer === undefined
+        ? {}
+        : { transfer: { maxBytes: PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES } }),
     });
     return body === undefined ? err(threw("the registration declarations are not JSON")) : ok(body);
   }
@@ -1004,6 +1074,12 @@ function createRuntime(deps: PluginHostDeps) {
     if (!booted.ok) {
       await failInit(id, booted.error);
       return;
+    }
+    // 엔진이 조각 상한을 알렸으면 엔진의 값과 자식의 상한 가운데 작은 값으로 자식 → 엔진 조각을 쓴다
+    if (input.value.transfer !== undefined) {
+      writer.setTransfer(
+        Math.min(input.value.transfer.maxBytes, PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES),
+      );
     }
     ready.resolve(true);
     respond(id, booted);
@@ -1048,7 +1124,9 @@ function createRuntime(deps: PluginHostDeps) {
 
   /** 입력이 끝날 때까지 프레임을 읽는다. 끝나면 `stdin_closed`로 끝낸다. 종료가 먼저 정해졌으면 읽기를 멈춘다 */
   async function readAll(): Promise<void> {
-    const reader = createFrameReader(deps.input);
+    const reader = createFrameReader(deps.input, {
+      maxTransferBytes: PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES,
+    });
     const inputEnded = await repeatAsync<boolean>(async () => {
       const item = await reader.next();
       if (item === null) return { value: true };

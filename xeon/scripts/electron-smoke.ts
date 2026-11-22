@@ -297,6 +297,9 @@ if (import.meta.main) {
     "licenses/THIRD-PARTY-NOTICES-SHELL.txt",
     "licenses/THIRD-PARTY-NOTICES-UI.txt",
     "licenses/THIRD-PARTY-NOTICES.txt",
+    "licenses/LICENSE.font-geist-OFL-1.1.txt",
+    "licenses/LICENSE.font-pretendard-OFL-1.1.txt",
+    "licenses/LICENSE.font-suit-OFL-1.1.txt",
   ]) {
     check(`structure ${rel}`, existsSync(join(resources, rel)));
   }

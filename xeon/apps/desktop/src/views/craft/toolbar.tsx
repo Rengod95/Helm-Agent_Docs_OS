@@ -190,7 +190,7 @@ export function CraftToolbar(): ReactNode {
   const filtering = state.kind !== "all" || state.contrib.length > 0;
   const picked = state.sel.k === "plugin" || state.sel.k === "group";
   return (
-    <div className="pointer-events-none absolute left-3 right-14 top-3 z-20 flex items-start justify-between gap-3">
+    <div className="pointer-events-none absolute left-3 right-(--craft-float-end) top-3 z-20 flex items-start justify-between gap-3">
       <FloatingBar
         label={t("desktop.craft.orbit.bar.view")}
         size="md"

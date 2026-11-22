@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import {
   OVERLAY_LIMIT,
   wireError,
-  type ProfileIssue,
   type TestRunStartResult,
   type WireHandler,
 } from "@fresnel/contracts/wire";
@@ -44,26 +43,15 @@ export function createTestRunHandlers(
         threadId: undefined,
       });
       if (!checked.ok) throw wireErrorOfProfile(checked.error);
-      // 기본 프로필이 처음 주는 플러그인 가운데 설치돼 있지 않은 것(사용자가 지움)은 건너뛰고 시작한다. 건너뛴 이름은 결과에 싣는다.
-      // 그 밖의 오류(저장된 프로필이 없는 플러그인을 가리키는 경우 포함)는 그대로 `profile.invalid`다
-      const firstGiven =
-        baseProfileId === DEFAULT_PROFILE_ID
-          ? new Set(profiles.firstGivenPlugins())
-          : new Set<string>();
-      const isSkippable = (issue: ProfileIssue): boolean =>
-        issue.code === "plugin_unknown" &&
-        issue.plugin !== undefined &&
-        firstGiven.has(issue.plugin);
-      const errors = checked.value.issues.filter(
-        (issue) => issue.severity === "error" && !isSkippable(issue),
-      );
+      // 저장된 프로필이 이미 가리키던, 지금은 이 기기에 없는 플러그인(기본 프로필이 처음 준 것을 사용자가 지운 경우 포함)은
+      // 오류가 아니라 경고다. 건너뛰고 시작하고 건너뛴 이름은 결과에 싣는다 [결정: 2026-11-20, 사용자, AGE-34; 2026-11-18, AGE-51].
+      // 그 밖의 오류는 그대로 `profile.invalid`다
+      const errors = checked.value.issues.filter((issue) => issue.severity === "error");
       if (errors.length > 0) throw wireErrorOfProfile({ kind: "invalid", issues: errors });
       const skippedPlugins = [
         ...new Set(
           checked.value.issues.flatMap((issue) =>
-            issue.severity === "error" && isSkippable(issue) && issue.plugin !== undefined
-              ? [issue.plugin]
-              : [],
+            issue.code === "plugin_unknown" && issue.plugin !== undefined ? [issue.plugin] : [],
           ),
         ),
       ];
@@ -82,7 +70,10 @@ export function createTestRunHandlers(
       }
       // 초안은 대화를 만들기 전에 싣는다. 못 싣으면 아무것도 만들지 않는다(§4.8.1 1, 5)
       const prepared = await testRunDrafts.prepare(params.drafts);
-      if (!prepared.ok) throw wireErrorOfOverlay(prepared.error);
+      if (!prepared.ok)
+        throw wireErrorOfOverlay(prepared.error, (event, fields) =>
+          engine.ports.log.error(event, fields),
+        );
       const { marks, unhold } = prepared.value;
 
       const runGroupId = params.runGroupId ?? `trg-${randomUUID()}`;

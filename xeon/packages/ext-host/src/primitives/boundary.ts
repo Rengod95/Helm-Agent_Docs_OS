@@ -459,6 +459,8 @@ export function createBoundary(
       // 턴이 정착했으면 호스트가 턴 덧씌우기를 풀고 집합을 다시 맞춘다(M5c §4.3.4). 맞추기는 다음 유휴 적용으로 간다
       if (signal.kind === "turn_settled") {
         core.ports.get(PluginSetPortKey)?.turnSettled?.(thread.threadId);
+        // 첫 메시지 뒤의 전환이 건 시작은 턴이 끝난 뒤 유휴 경계에서 부여한다(AGE-64). 유휴 적용을 청한다
+        if (lease.hasAfterTurnStart(thread)) requestApply(thread.threadId);
       }
     } else {
       txn.grant?.abort.abort();
@@ -642,6 +644,23 @@ export function createBoundary(
         });
       }
       // 시작 요청까지 세운 뒤에 가로챘으나 처리되지 않은 사용자 메시지를 되살린다(AGE-26)
+      // 열린 임대가 있어 위 시작 요청을 못 둔 대화: 전환이 걸어 둔 기다리는 시작은 기록하지 않으므로, 시작 Drive가 스택에 없으면 같은 요청을 다시 건다(AGE-64)
+      if (
+        snapshot.openLeases.length > 0 &&
+        options?.startDrive !== undefined &&
+        !thread.frames.some((frame) => frame.scopeId === options.startDrive)
+      ) {
+        thread.startQueue.push({
+          scopeId: options.startDrive,
+          trigger: "profile",
+          input: null,
+          parentLeaseId: null,
+          requestId: null,
+          recorded: true,
+          waitStack: true,
+          afterTurn: true,
+        });
+      }
       lease.restoreUserInputs(thread, snapshot.pendingUserInputs);
       // 재시작 전에 커밋된 요청 가운데 끝나지 않은 것을 이어서 처리한다(ADR-0015 §3.5 2번 3)
       for (const scopeId of thread.active) {

@@ -3,12 +3,21 @@
 import { parse } from "@fresnel/contracts";
 import {
   CompositionDeclSchema,
+  PLUGIN_ID_PATTERN,
   type CompositionDecl,
   type CompositionOp,
+  type ExtensionLayer,
   type PhaseNodeKind,
   type PhasesDecl,
 } from "@fresnel/contracts/extensions";
-import type { DevkitIssue, ExtensionKind, KindEntry } from "@fresnel/contracts/services";
+import type {
+  DevkitIssue,
+  ExtensionKind,
+  KindEntry,
+  MemberInfo,
+  MemberOp,
+  PluginMode,
+} from "@fresnel/contracts/services";
 import {
   PROFILE_ID_PATTERN,
   type ExtScaffoldParams,
@@ -30,7 +39,7 @@ export type GroupComposition =
 
 /** `ext.get`의 매니페스트에서 `group.composition`을 읽는다. 없거나 모양이 맞지 않으면 `none`이다 */
 export function compositionOf(manifest: Readonly<Record<string, unknown>>): GroupComposition {
-  const group = manifest["group"];
+  const group = manifest["orchestration"];
   if (!isRecord(group)) return { kind: "none" };
   const declared = group["composition"];
   if (declared === undefined) return { kind: "none" };
@@ -51,22 +60,112 @@ export interface BlockRow {
   readonly consumes: readonly string[];
   /** 블록이 내는 것. 공개 기록은 기록 종류를 뒤에 붙인다 */
   readonly produces: readonly { readonly kind: ProductText; readonly recordKind: string | null }[];
+  /** 이 블록이 속한 구성원 id(`block.plugin`). 뿌리 플러그인의 블록이면 null */
+  readonly plugin: string | null;
+  /** 그 구성원의 제목. 뿌리 블록, 구성원 목록에 없는 id, 제목이 없는 구성원이면 null */
+  readonly memberTitle: string | null;
 }
 
-export function blockRowsOf(composition: CompositionDecl): readonly BlockRow[] {
-  return composition.blocks.map((block) => ({
-    id: block.id,
-    title: block.title ?? block.id,
-    stage: block.stage,
-    op: block.op,
-    summary: block.summary ?? null,
-    hooks: block.hooks ?? [],
-    consumes: block.consumes ?? [],
-    produces: (block.produces ?? []).map((product) => ({
-      kind: product.kind,
-      recordKind: product.kind === "record" ? product.recordKind : null,
-    })),
-  }));
+/** 구성원 목록의 한 줄. `MemberInfo`(`ext.members.read`의 결과)가 이 모양을 만족한다 */
+export type MemberTitleSource = Pick<MemberInfo, "id" | "title">;
+
+/**
+ * 블록 줄. `members`를 주면 블록의 구성원 제목을 채운다. 블록이 가리키는 id가 목록에 없어도 줄은 그대로 두고(`plugin`은 id,
+ * `memberTitle`은 null) 지어내지 않는다
+ */
+export function blockRowsOf(
+  composition: CompositionDecl,
+  members: readonly MemberTitleSource[] = [],
+): readonly BlockRow[] {
+  return composition.blocks.map((block) => {
+    const plugin = block.plugin ?? null;
+    return {
+      id: block.id,
+      title: block.title ?? block.id,
+      stage: block.stage,
+      op: block.op,
+      summary: block.summary ?? null,
+      hooks: block.hooks ?? [],
+      consumes: block.consumes ?? [],
+      produces: (block.produces ?? []).map((product) => ({
+        kind: product.kind,
+        recordKind: product.kind === "record" ? product.recordKind : null,
+      })),
+      plugin,
+      memberTitle:
+        plugin === null ? null : (members.find((member) => member.id === plugin)?.title ?? null),
+    };
+  });
+}
+
+/**
+ * 블록을 구성원별로 묶는다. 키는 구성원 id이고 뿌리 플러그인의 블록은 `null` 키다. 묶음 안은 선언 순서이고, 키는 처음 나온
+ * 순서다. 블록이 없는 구성원은 키가 없다(화면은 `get(id) ?? []`로 읽는다)
+ */
+export function blocksByMemberOf(
+  composition: CompositionDecl,
+  members: readonly MemberTitleSource[] = [],
+): ReadonlyMap<string | null, readonly BlockRow[]> {
+  const groups = new Map<string | null, BlockRow[]>();
+  for (const row of blockRowsOf(composition, members)) {
+    const group = groups.get(row.plugin);
+    if (group === undefined) groups.set(row.plugin, [row]);
+    else group.push(row);
+  }
+  return groups;
+}
+
+/** 구성원 추가 입력의 값. 빈 값은 보내지 않는다(생략하면 core가 정한다) */
+export interface MemberAddOptions {
+  readonly layer?: ExtensionLayer;
+  readonly title?: string;
+  readonly mode?: PluginMode;
+}
+
+export type MemberAddOp = Extract<MemberOp, { readonly kind: "add" }>;
+
+/**
+ * 구성원 추가 한 건(`MemberOp` add). 제목은 앞뒤 공백을 빼고 비면 보내지 않는다. 층과 방식은 주면 그대로 보낸다
+ */
+export function memberAddOp(id: string, options: MemberAddOptions = {}): MemberAddOp {
+  const title = options.title?.trim() ?? "";
+  return {
+    kind: "add",
+    id,
+    ...(options.layer === undefined ? {} : { layer: options.layer }),
+    ...(title === "" ? {} : { title }),
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
+  };
+}
+
+export type MemberIdProblem = "pattern" | "duplicate";
+
+/**
+ * 구성원 id의 이름 규칙 검사(`PLUGIN_ID_PATTERN`, contracts의 `PluginIdSchema`와 같은 규칙). `existing`은 `plugins[]`의 id 전부다
+ * (뿌리 플러그인 id를 포함한다. 뿌리 id를 구성원 id로 쓰면 중복이다). 빈 값은 아직 입력 전이라 null이다(`newGroupNameErrorOf`와 같다)
+ */
+export function memberIdErrorOf(id: string, existing: readonly string[]): MemberIdProblem | null {
+  if (id === "") return null;
+  if (!new RegExp(PLUGIN_ID_PATTERN).test(id)) return "pattern";
+  return existing.includes(id) ? "duplicate" : null;
+}
+
+/**
+ * 구성원 순서 바꾸기의 편집 명령. `ids`는 구성원 id를 목록 순서로 든 배열(뿌리 제외)이다. `fromIndex`의 구성원을 `toIndex`
+ * 자리로 옮기는 `move` 한 건을 돌려준다(`toIndex`는 옮긴 뒤의 자리다). 범위 밖이거나 같은 자리면 빈 목록이다
+ */
+export function memberMoveOps(
+  ids: readonly string[],
+  fromIndex: number,
+  toIndex: number,
+): readonly MemberOp[] {
+  const inRange = (index: number): boolean =>
+    Number.isInteger(index) && index >= 0 && index < ids.length;
+  const id = ids[fromIndex];
+  if (id === undefined || !inRange(fromIndex) || !inRange(toIndex) || fromIndex === toIndex) {
+    return [];
+  }
+  return [{ kind: "move", id, toIndex }];
 }
 
 export interface IssueSummary {
@@ -211,7 +310,7 @@ export function profileInputOf(draft: ProfileDraft): ProfileInput {
   };
 }
 
-/** 새 그룹 이름 규칙(`GROUP_NAME_PATTERN`, group-sdk). 예약 이름은 호스트가 `ext.scaffold`에서 거절한다 */
+/** 새 그룹 이름 규칙(`ORCHESTRATION_NAME_PATTERN`, orchestration-sdk). 예약 이름은 호스트가 `ext.scaffold`에서 거절한다 */
 export const NEW_GROUP_NAME_PATTERN = "^[a-z][a-z0-9-]{1,31}$";
 
 /** "새 그룹"의 시작점. 종류 카탈로그(`ext.kinds`)에서 온다(spec §6.29) */
@@ -514,10 +613,10 @@ export function coreLockedOf(entry: {
 
 /** drive 그룹으로 고를 수 있는 것: 그룹 확장만. 이름 순 */
 export function driverChoicesOf(
-  entries: readonly { readonly name: string; readonly isGroup: boolean }[],
+  entries: readonly { readonly name: string; readonly isOrchestration: boolean }[],
 ): readonly string[] {
   return entries
-    .filter((entry) => entry.isGroup)
+    .filter((entry) => entry.isOrchestration)
     .map((entry) => entry.name)
     .toSorted();
 }

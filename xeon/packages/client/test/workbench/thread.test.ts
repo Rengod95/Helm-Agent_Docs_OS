@@ -17,7 +17,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -25,7 +25,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -59,7 +59,7 @@ function summaryOf(over: Partial<ThreadSummary> = {}): ThreadSummary {
 
 const THREAD = threadOf("AA");
 
-const HELM = entry("helm", { layer: "L3", isGroup: true });
+const HELM = entry("helm", { layer: "L3", isOrchestration: true });
 const OFF = entry("review", { status: "disabled" });
 
 describe("이 대화에서 켜짐 값: 대화가 덮어 쓴 상태가 있으면 그것, 없으면 전역", () => {

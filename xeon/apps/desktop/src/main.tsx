@@ -4,6 +4,14 @@ import { toast } from "@caustic/react";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
 import { createApp } from "./app/bootstrap.ts";
+import { BUILD_CHECKS } from "./app/build.ts";
+import {
+  installSampleToggle,
+  sampleSceneOn,
+  sampleStateOn,
+  sampleView,
+  SAMPLE_PROPOSALS,
+} from "./app/dev-sample.ts";
 import { createLocalSettings, LOCAL } from "./settings-store/index.ts";
 import { selectShellBridge } from "./shell/index.ts";
 import { createDesktopIpc } from "./transport/ipc.ts";
@@ -241,10 +249,35 @@ if (container === null) {
   window.addEventListener("pagehide", () => {
     detach(app.stop(), rethrow);
   });
+  // 개발 빌드의 표본 보기(⌘⌥⇧S): 화면이 읽는 거울에만 표본 대화·승인·제안을 겹친다. 정식 빌드에서는 늘 꺼져 있다(app/dev-sample.ts)
+  // `BUILD_CHECKS`로 먼저 막아 정식 번들에서 이 길과 dev-sample 모듈이 빠진다
+  const sample = BUILD_CHECKS && sampleStateOn();
+  if (BUILD_CHECKS) {
+    installSampleToggle({
+      mac,
+      reload: () => {
+        location.reload();
+      },
+      onFailure: (cause) => {
+        app.log.logger.error("desktop.dev.sample_toggle_failed", {
+          error: cause instanceof Error ? cause.name : "unknown",
+        });
+      },
+    });
+  }
+  const engineView = sample
+    ? sampleView(app.engine.read, () => Date.now(), sampleSceneOn())
+    : app.engine.read;
   const render = (locale: string): void => {
     root.render(
       <ShellStoreContext value={shell}>
-        <Providers key={locale} engine={app.engine.read} ui={app.ui.read} commands={app.commands}>
+        <Providers
+          key={locale}
+          engine={engineView}
+          ui={app.ui.read}
+          commands={app.commands}
+          {...(sample ? { sampleProposals: SAMPLE_PROPOSALS } : {})}
+        >
           <DesktopShellContext value={desktopShell}>
             <UpdateContext value={updateController}>
               <PluginUiProvider value={pluginUi}>

@@ -241,6 +241,33 @@ describe("payload schemas round trip", () => {
     );
     expect(parse(ThreadStartedPayloadSchema, { ...base, workspace: 5 }).ok).toBe(false);
   });
+
+  // AGE-34: `project`는 선택 필드다. 옛 이벤트(필드 없음)는 그대로 읽히고 프로젝트가 없는 것으로 읽힌다
+  test("ThreadStarted.project is an optional id and root, null means no project, and a stored event without it still parses", () => {
+    const base = { title: "t", forkedFrom: null, workspace: "/work/app", profileId: "inquiry" };
+    const stored = parse(ThreadStartedPayloadSchema, base);
+    expect(stored.ok && stored.value.project).toBeUndefined();
+    const inside = parse(ThreadStartedPayloadSchema, {
+      ...base,
+      project: { id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV", root: "/work/app" },
+    });
+    expect(inside.ok && inside.value.project).toEqual({
+      id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      root: "/work/app",
+    });
+    const outside = parse(ThreadStartedPayloadSchema, { ...base, project: null });
+    expect(outside.ok && outside.value.project).toBeNull();
+    expect(parse(ThreadStartedPayloadSchema, { ...base, project: { id: "prj_a" } }).ok).toBe(false);
+    expect(
+      parse(ThreadStartedPayloadSchema, {
+        ...base,
+        project: { id: "prj_a", root: "/w", name: "x" },
+      }).ok,
+    ).toBe(false);
+    expect(parse(ThreadStartedPayloadSchema, { ...base, project: { id: "", root: "/w" } }).ok).toBe(
+      false,
+    );
+  });
 });
 
 describe("item records", () => {

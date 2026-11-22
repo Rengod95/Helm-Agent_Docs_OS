@@ -39,11 +39,15 @@ import {
 import { Ellipsis } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
-import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
+import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
 import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { requestAddon } from "../plugin/plugin-pick.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
+import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
+import { hasMembers } from "../craft/members/members-model.ts";
+import { MembersTab } from "../craft/members/members-tab.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
@@ -101,10 +105,18 @@ function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): 
           <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
         </ListDescriptionRow>
         <ListDescriptionRow term={t("desktop.workbench.detail.grade")}>
-          {t("desktop.workbench.detail.grade.value", {
-            requested: entry.requestedGrade,
-            effective: entry.effectiveGrade,
-          })}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+            <span>
+              {t("desktop.workbench.detail.grade.requested", {
+                requested: entry.requestedGrade,
+              })}
+            </span>{" "}
+            <span className="text-text-tertiary">
+              {t("desktop.workbench.detail.grade.effective", {
+                effective: entry.effectiveGrade,
+              })}
+            </span>
+          </span>
         </ListDescriptionRow>
         {/* 기능 줄은 첫 줄에만 "Capabilities" 글을 단다. 나머지 줄은 글 없이 이어진다 */}
         {bindings.map((b, index) => (
@@ -410,10 +422,12 @@ export function ExtDetail(props: {
   readonly onRemove: () => void;
 }): ReactNode {
   const commands = useCommands();
-  const threadId = useOpenThreadId();
+  // 훅 시간은 테스트 챗 창이 빌린 대화가 아니라 빌리기 전의 대화로 읽는다(C7)
+  const threadId = useWorkThreadId();
   const { entry } = props;
   const row = rowOf(entry, props.state.pending);
   const scope = enabledScopeOf(entry.enabledSource);
+  const withMembers = hasMembers(entry);
   const [get, setGet] = useState<Load>({ kind: "loading" });
   const [timings, setTimings] = useState<TimingsLoad>({ kind: "loading" });
   useEffect(() => {
@@ -434,8 +448,6 @@ export function ExtDetail(props: {
       rethrow,
     );
   }, [commands, entry.name, threadId]);
-  const statusText =
-    scope === null ? stateText(row.state) : `${stateText(row.state)} · ${scopeText(scope)}`;
   return (
     <article className="grid min-h-0 content-start gap-3 p-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -446,14 +458,25 @@ export function ExtDetail(props: {
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
           <DetailName row={row} />
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
-            <span className="font-mono text-mono-sm">{row.layer}</span>
-            <span>
-              {`${kindText(row.kind)}${entry.origin === undefined ? "" : ` · ${originText(entry.origin)}`} · ${row.version}`}
-            </span>
-            <StatusDot tone={stateTone(row.state)} label={statusText} />
+            <span>{row.layer}</span>
+            <span>{kindText(row.kind)}</span>{" "}
+            {entry.origin === undefined ? null : (
+              <>
+                <span>{originText(entry.origin)}</span>{" "}
+              </>
+            )}
+            <span>{row.version}</span>
+            <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
+            {scope === null ? null : (
+              <>
+                {" "}
+                <span>{scopeText(scope)}</span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-none items-center gap-2">
+          <TestChatButton plugin={entry.name} />
           {/* 시안 c02 머리: "끄기" 단추 하나와 "…" 메뉴. 켜기·끄기 요청은 스위치와 같은 `onToggle`이다 */}
           <Button
             size="xs"
@@ -498,6 +521,10 @@ export function ExtDetail(props: {
       >
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
+          {/* 구성원이 있는 플러그인만 구성원 탭이 있다(m6Mb). 없는 플러그인은 지금과 같다 */}
+          {withMembers && (
+            <TabsTrigger value="members">{t("desktop.craft.members.tab")}</TabsTrigger>
+          )}
           <TabsTrigger value="hooks" count={entry.hookCount}>
             {t("desktop.workbench.detail.tab.hooks")}
           </TabsTrigger>
@@ -510,6 +537,14 @@ export function ExtDetail(props: {
         <TabsContent value="overview">
           <Overview entry={entry} get={get} />
         </TabsContent>
+        {withMembers && (
+          <TabsContent value="members">
+            <MembersTab
+              entry={entry}
+              manifest={get.kind === "ready" ? get.result.manifest : null}
+            />
+          </TabsContent>
+        )}
         <TabsContent value="hooks">
           <HooksTab get={get} timings={timings} />
         </TabsContent>

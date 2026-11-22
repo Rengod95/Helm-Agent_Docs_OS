@@ -8,7 +8,7 @@ import {
   TestRunButton,
 } from "../../../src/views/compose/compose-profile.tsx";
 
-// 프로필 보기의 서버 렌더. drive 그룹 고르기, 내장 코어의 잠금 줄, "새 Test run으로"의 잠김만 본다.
+// 프로필 보기의 서버 렌더. Drive 플러그인 고르기, 내장 코어의 잠금 줄, "새 Test run으로"의 잠김만 본다.
 // 고르기의 목록은 순수 모델 `driverOptionsOf`가 시험하고, 여기서는 글과 잠김을 본다.
 
 const NOOP = (): void => {};
@@ -18,7 +18,7 @@ function entryOf(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L2",
-    isGroup: false,
+    isOrchestration: false,
     version: "1.0.0",
     location: "/x",
     origin: "user",
@@ -26,7 +26,7 @@ function entryOf(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L2", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -67,13 +67,13 @@ function testRunOf(
   );
 }
 
-describe("drive 그룹 고르기", () => {
+describe("Drive 플러그인 고르기", () => {
   // 닫힌 Select는 서버 렌더에 항목 글을 싣지 않는다. 항목 값(자동, 그룹, 저장된 이름)은 순수 모델 시험이 본다
-  test("drive 그룹 칸의 글과 설명이 보인다", () => {
+  test("Drive 플러그인 칸의 글과 설명이 보인다", () => {
     const html = renderToString(
       <DriverField driver={null} choices={["helm", "lens"]} onChange={NOOP} />,
     );
-    expect(html).toContain("drive 그룹");
+    expect(html).toContain("Drive 플러그인");
     expect(html).toContain("바꿔도 이미 쥔 drive는 회수하지 않아요");
   });
 });

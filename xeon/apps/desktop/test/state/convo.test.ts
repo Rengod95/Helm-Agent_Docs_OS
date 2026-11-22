@@ -39,6 +39,7 @@ const start = (c: Convo, seq: number, sec: number, origin: "user" | "scheduled" 
     scopeId: null,
     requestId: null,
     inputItemIds: [],
+    invoked: [],
     model: "m1",
   });
 
@@ -298,15 +299,9 @@ describe("승인 기록", () => {
     expect(convoApprovalResolved(c, thr(1), pos(11, trn(1), 1), once)).toBe(c);
   });
 
-  test("요청을 못 본 해결이라도 허용 + 이 대화에서는 쓰기 허용 표시를 켠다(DP-205)", () => {
-    const c = convoApprovalResolved({}, thr(1), pos(11, trn(1), 1), resolved);
-    expect(thread(c)?.writeAccessAllowed).toBe(true);
-    expect(thread(c)?.looseApprovals).toEqual([]);
-    const denied = convoApprovalResolved({}, thr(1), pos(11, trn(1), 1), {
-      ...resolved,
-      decision: "deny",
-    });
-    expect(thread(denied)?.writeAccessAllowed).toBeUndefined();
+  test("요청을 못 본 허용 + 이 대화에서 기억한 해결도 convo를 바꾸지 않는다", () => {
+    const empty: Convo = {};
+    expect(convoApprovalResolved(empty, thr(1), pos(11, trn(1), 1), resolved)).toBe(empty);
   });
 
   test("빈 convo에 요청 없는 해결을 먹여도 같은 객체를 돌려준다 (의심 사항, 아래 보고 참고)", () => {
@@ -462,7 +457,6 @@ describe("EMPTY_THREAD_CONVO", () => {
       approvalOrder: [],
       looseInterventions: [],
       looseApprovals: [],
-      writeAccessAllowed: false,
       leases: [],
       agents: [],
       judgments: [],
@@ -470,6 +464,8 @@ describe("EMPTY_THREAD_CONVO", () => {
       tasks: {},
       taskOrder: [],
       markers: [],
+      profile: null,
+      driveInputs: [],
     });
   });
 });

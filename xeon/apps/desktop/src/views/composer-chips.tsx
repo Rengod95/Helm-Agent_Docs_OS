@@ -1,5 +1,5 @@
 import { Button, ComboboxRow, Menu, MenuItem, MenuSeparator } from "@caustic/react";
-import { Check, FolderOpen, LockOpen, Pencil, RotateCcw, Shield } from "@caustic/react/icons";
+import { Check, LockOpen, Pencil, RotateCcw, Shield } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
@@ -23,7 +23,7 @@ import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-mode
 // 모델·추론 수준은 이름 자체가 값이라 아이콘이 정보를 더하지 않는다(사용자: 추론 수준 아이콘 제거).
 
 /** 세 칩이 같은 클래스를 쓴다. 높이는 `size="sm"`(28)이 정한다 */
-const COMPOSER_CHIP_CLASS =
+export const COMPOSER_CHIP_CLASS =
   "min-w-0 gap-1 px-2 font-normal text-text-tertiary hover:bg-neutral-hover hover:text-text-secondary [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 /** 모드마다 앞 아이콘 14 */
@@ -59,7 +59,7 @@ export function permissionModeChipText(mode: PermissionMode): string {
 }
 
 /** 메뉴 줄 안: 이름(13) 아래 설명(12 tertiary). 설명은 자르지 않고 줄을 바꾼다 */
-function MenuText(props: { readonly title: string; readonly hint: string }): ReactNode {
+export function MenuText(props: { readonly title: string; readonly hint: ReactNode }): ReactNode {
   return (
     <span className="grid min-w-0 gap-0.5 py-0.5 text-start">
       <span className="truncate">{props.title}</span>
@@ -70,8 +70,6 @@ function MenuText(props: { readonly title: string; readonly hint: string }): Rea
 
 /**
  * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
- * `writeAccess`(이 대화에서 샌드박스 밖 쓰기를 계속 허용함, DP-205)면 모드 이름 뒤에 폴더 아이콘 14(사이 4)를 붙이고,
- * 메뉴 맨 아래 구분선 뒤에 누를 수 없는 설명 줄(12 tertiary)을 둔다. 철회 동작은 없다(엔진에 방법이 없다).
  * 칩 자리는 늘 있다(DP-213): `mode`가 null이면 읽는 중이라 "승인 모드" 글의 비활성 칩이고, `note`가 있으면(읽기 실패, 모르는 값)
  * 기본 모드 글에 점선 밑줄을 긋고 이유를 툴팁(title)과 메뉴 맨 위 설명 줄로 말한다. 그때는 메뉴의 어느 모드도 골라져 있지 않고, 실패면 "다시 읽기"가 있다
  */
@@ -79,7 +77,6 @@ export function PermissionModeChip(props: {
   readonly mode: PermissionMode | null;
   readonly bypassAllowed: boolean;
   readonly disabled: boolean;
-  readonly writeAccess?: boolean;
   readonly note?: PermissionChipView["note"];
   readonly onRetry?: () => void;
   readonly onChange: (mode: PermissionMode) => void;
@@ -107,12 +104,9 @@ export function PermissionModeChip(props: {
     props.note === undefined || props.note === null
       ? null
       : t(props.note.id, props.note.value === undefined ? undefined : { value: props.note.value });
-  const writeAccess = props.writeAccess === true;
   const chipLabel = `${t("desktop.composer.approvalMode.label")}: ${permissionModeChipText(mode)}`;
   const danger = note === null && permissionModeToneOf(mode) === "danger";
-  const label = [chipLabel, writeAccess ? t("desktop.composer.writeAccess.label") : null, note]
-    .filter((part) => part !== null)
-    .join(", ");
+  const label = [chipLabel, note].filter((part) => part !== null).join(", ");
   return (
     <Menu
       size="sm"
@@ -142,7 +136,6 @@ export function PermissionModeChip(props: {
           >
             {permissionModeChipText(mode)}
           </span>
-          {writeAccess ? <FolderOpen aria-hidden data-slot="write-access-mark" /> : null}
         </Button>
       }
     >
@@ -190,18 +183,6 @@ export function PermissionModeChip(props: {
           </MenuItem>
         );
       })}
-      {writeAccess ? (
-        <>
-          <MenuSeparator />
-          <p
-            data-slot="write-access-note"
-            className="m-0 flex items-start gap-2 px-2 py-1.5 text-ui-sm text-text-tertiary [&_svg]:mt-px [&_svg]:size-3.5 [&_svg]:shrink-0"
-          >
-            <FolderOpen aria-hidden />
-            {t("desktop.composer.writeAccess.note")}
-          </p>
-        </>
-      ) : null}
     </Menu>
   );
 }

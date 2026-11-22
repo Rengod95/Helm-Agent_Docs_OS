@@ -4,14 +4,25 @@ import {
   CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
+  dependenciesOf,
+  internalPluginLayer,
+  isOrchestrationExtension,
   pluginDeclsOf,
+  pluginsOf,
+  splitDependencyTarget,
   SCRIPT_LIMITS,
+  SCRIPT_ENV_SANDBOXED_USES,
+  SCRIPT_ENV_USES,
+  SCRIPT_USES,
+  type CardDependency,
+  type CardDependencyProblem,
   type CardHook,
   type CardMcpLaunch,
   type CardScript,
   type CostFigures,
   type HookName,
   type HookPositionRow,
+  type ImportedHookOrigin,
   type InjectInventory,
   type ManifestScriptDecl,
   type PluginCard,
@@ -19,7 +30,15 @@ import {
   type PluginOriginKind,
   type PluginUiDecl,
 } from "@fresnel/contracts/extensions";
+import {
+  dependentsOf,
+  satisfiesRange,
+  scriptEnvNamesOf,
+  type DependencyNode,
+} from "@fresnel/ext-host";
+import { REQUIRED_BY_CORE_USERS } from "../m4/profile-defaults.ts";
 import { compareUtf8 } from "./content-hash.ts";
+import { declaredCostOf } from "./declared-cost.ts";
 import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
 
 // 플러그인 카드(M5c §3.1, §4.5.5, §4.5.9). 읽은 폴더와 매니페스트에서 정적으로 계산한다.
@@ -44,6 +63,17 @@ export interface BuildCardInput {
   readonly review: PluginCard["review"];
   readonly usedBy: readonly string[];
   readonly health: PluginCard["health"];
+  /** 실행 파일 위치 찾기(PATH 탐색, 실행하지 않는다). 환경 모드 스크립트의 카드 칸이 쓴다. 생략하면 엔진 프로세스의 PATH다 */
+  readonly whichTool?: (name: string) => string | undefined;
+  /** 참이면 환경 모드 스크립트의 권한을 샌드박스 안의 값(`SCRIPT_ENV_SANDBOXED_USES`)으로 싣는다(설정 `l0.sandbox.sandboxImportedHooks`). 생략하면 거짓: 사용자 권한 그대로(`SCRIPT_ENV_USES`) */
+  readonly envSandboxed?: boolean;
+  /** 참이면 설정 `l0.sandbox.narrowDrafts`가 켜져 있다. 코드가 있는 격리 플러그인의 카드에 `runs.narrowBeforeApproval`을 싣는다. 생략하면 거짓 */
+  readonly narrowDrafts?: boolean;
+  /**
+   * 가져온 훅의 출처(가져오기 계획이 검토 항목에 기록한 값). 환경 모드 스크립트의 `origin`과 `originLabel`은 이 값에서만 나온다. 매니페스트에서는 읽지 않는다.
+   * 없으면 `unknown`이다(프로젝트 폴더 출처의 플러그인은 `project`, 라벨 없음)
+   */
+  readonly importedHookOrigin?: ImportedHookOrigin;
 }
 
 type PositionRow = HookPositionRow["positions"][number];
@@ -140,13 +170,112 @@ export function launchOf(config: JsonValue): CardMcpLaunch | null {
   };
 }
 
+/** 명령 문자열의 첫 실행 단어. 앞의 `NAME=값` 접두는 건너뛴다. 셸 내장과 변수·경로로 시작하는 단어는 찾지 않는다(undefined) */
+function firstToolOf(command: string): string | undefined {
+  for (const word of command.trim().split(/\s+/)) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) {
+      // 대입의 값에 명령 치환이 있으면(`f=$(jq -r …)`) 첫 실행 파일은 그 안에 있다. 여기서는 찾지 않는다(`-r`을 도구로 잘못 꼽지 않는다)
+      if (word.includes("$(") || word.includes("`")) return undefined;
+      continue;
+    }
+    const bare = word.replace(/^[\u0022\u0027]+|[\u0022\u0027]+$/g, "");
+    if (bare === "" || bare.startsWith("$") || bare.includes("/") || SHELL_WORDS.has(bare)) {
+      return undefined;
+    }
+    return bare;
+  }
+  return undefined;
+}
+
+const SHELL_WORDS: ReadonlySet<string> = new Set([
+  "cd",
+  "echo",
+  "test",
+  "[",
+  "export",
+  "set",
+  "if",
+  "for",
+  "while",
+  "true",
+  "false",
+  ":",
+  "exit",
+  "read",
+  "printf",
+]);
+
+/**
+ * 환경 모드 칸(AGE-58 [제안]). 원문 명령, 찾아낸 첫 단어의 위치(PATH 탐색만, 실행하지 않는다), 참조 파일과 지문, 이 기기에 없는 실행 파일을 싣는다.
+ * 버전의 근거 글은 가져오기 보고서가 갖고 있고 매니페스트에는 없어 카드는 비워 둔다. `origin`은 가져오기가 검토 항목에 기록한 훅 출처이고 매니페스트에서는 읽지 않는다. `fromProject`는 `origin`이 프로젝트이거나 플러그인이 프로젝트 폴더 출처일 때 참이다
+ */
+function envOf(
+  decl: ManifestScriptDecl,
+  source: ScriptSource,
+  which: (name: string) => string | undefined,
+): CardScript["env"] {
+  const env = decl.env;
+  if (env === undefined) return undefined;
+  const tool = firstToolOf(env.command);
+  const found = tool === undefined ? undefined : which(tool);
+  return {
+    command: clipText(env.command, ENV_COMMAND_CHARS),
+    shell: env.shell,
+    interpreter: found ?? null,
+    refs: env.refs.slice(0, 16).map((ref) => ({ path: clipText(ref.path, 1024), hash: ref.hash })),
+    refsKnown: env.refsKnown,
+    missingTools: tool !== undefined && found === undefined ? [tool] : [],
+    versionHints: [],
+    origin: source.origin,
+    originLabel: source.originLabel,
+    fromProject: source.origin === "project" || source.pluginFromProject,
+  };
+}
+
+/** 스크립트 칸이 쓰는 출처 재료. `origin`은 엔진이 기록한 값에서만 정한다 */
+interface ScriptSource {
+  readonly origin: "user" | "project" | "unknown";
+  readonly originLabel: string | null;
+  /** 플러그인 자체가 프로젝트 폴더 출처인가 */
+  readonly pluginFromProject: boolean;
+}
+
+function scriptSourceOf(
+  pluginFromProject: boolean,
+  imported: ImportedHookOrigin | undefined,
+): ScriptSource {
+  if (imported !== undefined) {
+    return {
+      origin: imported.kind,
+      originLabel: imported.kind === "project" ? imported.label : null,
+      pluginFromProject,
+    };
+  }
+  return {
+    origin: pluginFromProject ? "project" : "unknown",
+    originLabel: null,
+    pluginFromProject,
+  };
+}
+
+const ENV_COMMAND_CHARS = 4096;
+
 /**
  * 매니페스트 스크립트 하나의 칸. 명령은 실행기 이름이고 첫 인자는 상대 `file`, 그 뒤가 `args`다. 환경 변수는 선언된 이름만
- * 정렬해 싣고 값은 싣지 않는다(거부 패턴에 걸리는 이름도 선언대로 싣는다. 실제로 넘기는 것은 실행기가 거른다). 작업 폴더는 없다.
+ * 정렬해 싣고 값은 싣지 않는다. 환경 모드가 아니면 실제로 넘어가는 이름만 `envNames`에 싣고 받지 못하는 이름은 `envNotPassed`에 싣는다. 작업 폴더는 없다.
  * 기한은 선언의 값이거나 기본값이다. 상한은 `CARD_MCP_LAUNCH_LIMITS`를 따르고 잘린 것은 말줄임표로 보인다
  */
-function scriptOf(decl: ManifestScriptDecl): CardScript {
-  const names = unique(decl.envNames ?? []).toSorted(compareUtf8);
+function scriptOf(
+  decl: ManifestScriptDecl,
+  source: ScriptSource,
+  which: (name: string) => string | undefined,
+  envSandboxed: boolean,
+): CardScript {
+  const env = envOf(decl, source, which);
+  const declared = unique(decl.envNames ?? []).toSorted(compareUtf8);
+  // 환경 모드가 아니면 실행기가 넘기는 이름(허용 목록, 토큰·키 이름 제외)만 싣고, 선언했지만 받지 못하는 이름은 따로 싣는다 [결정: 2026-11-22, 사용자, AGE-63]
+  const split = env === undefined ? scriptEnvNamesOf(declared) : undefined;
+  const names = split === undefined ? declared : [...split.passed];
   const argv = [decl.file, ...(decl.args ?? [])];
   return {
     name: decl.name,
@@ -163,10 +292,26 @@ function scriptOf(decl: ManifestScriptDecl): CardScript {
       cwd: null,
     },
     timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
+    uses:
+      env === undefined ? SCRIPT_USES : envSandboxed ? SCRIPT_ENV_SANDBOXED_USES : SCRIPT_ENV_USES,
+    ...(split === undefined || split.ignored.length === 0
+      ? {}
+      : {
+          envNotPassed: capList(
+            split.ignored.map((name) => clipText(name, CARD_MCP_LAUNCH_LIMITS.envName)),
+            CARD_MCP_LAUNCH_LIMITS.envNames,
+          ),
+        }),
+    ...(env === undefined ? {} : { env }),
   };
 }
 
-function injectOf(folder: CardSubject): InjectInventory | null {
+function injectOf(
+  folder: CardSubject,
+  source: ScriptSource,
+  which: (name: string) => string | undefined,
+  envSandboxed: boolean,
+): InjectInventory | null {
   const { manifest, materials } = folder;
   const decls = pluginDeclsOf(manifest);
   const tools = (manifest.tools ?? []).map((tool) => ({
@@ -201,7 +346,9 @@ function injectOf(folder: CardSubject): InjectInventory | null {
   }));
   const agents = unique(materials.agents.map((agent) => agent.name));
   // 승인하면 실행될 명령 줄. 부를 코드(`entry`)가 없으면 아무도 부르지 않으므로 실행되지 않는다(validate.ts)
-  const scripts = (manifest.scripts ?? []).map(scriptOf);
+  const scripts = (manifest.scripts ?? []).map((decl) =>
+    scriptOf(decl, source, which, envSandboxed),
+  );
 
   const empty =
     always.length === 0 &&
@@ -257,7 +404,10 @@ function driveOf(
   return drives ? { start: true, commands: [] } : null;
 }
 
-/** 격리 여부. 저장소 패키지(builtin)만 엔진 안에서 돈다(§4.5.5, 엔진 설계 §3) */
+/**
+ * 샌드박스 안에서 도는가. 저장소 패키지(builtin)만 엔진 안에서 돈다(§4.5.5, 엔진 설계 §3). 그 밖의 코드는 샌드박스 하나(열린 정책, 막는 것은 보호 셋)다
+ * [결정: 2026-11-21, 사용자, AGE-63]
+ */
 function isolatedOf(kind: PluginOriginKind): boolean {
   switch (kind) {
     case "builtin":
@@ -272,26 +422,110 @@ function isolatedOf(kind: PluginOriginKind): boolean {
   }
 }
 
-/** 비용 칸. 지침 글자 수의 단순 합(토큰 환산 전)이다. 스킬 본문과 명령 본문은 읽지 않으므로 null이다 */
-function costOf(folder: CardSubject, toolCount: number): CostFigures {
-  const alwaysChars = folder.materials.instructions.reduce(
-    (sum, item) => sum + Array.from(item.text).length,
-    0,
-  );
+/**
+ * 비용 칸(토큰 어림값, `textTokens` = 글자 수 / 4 올림). 프로필 미리 보기와 같은 계산(`declaredCostOf`)이다.
+ * - always = 지침 파일 + 선언된 도구(이름, 설명). 인자 스키마와 MCP 서버가 내는 도구는 정적으로 알 수 없어 들어 있지 않다(턴 기록의 값보다 작을 수 있다)
+ * - onDemand = 스킬마다 설명(색인 줄)과 본문
+ * - drive = null. Drive 중에만 싣는 지침은 훅이 실행 중에 넣어 정적 근거가 없다(측정은 `profileCost.get`)
+ * 코드 플러그인이 도구를 선언하지 않으면 도구 비용을 셀 수 없어 숫자는 null, basis는 unknown이다(프로필 미리 보기와 같다)
+ */
+function costOf(folder: CardSubject): CostFigures {
+  const tools = folder.manifest.tools ?? [];
+  if (folder.manifest.entry !== undefined && tools.length === 0) {
+    return { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" };
+  }
+  const figures = declaredCostOf({
+    tools,
+    instructions: folder.materials.instructions.map((item) => item.text),
+    skills: folder.materials.skills.map((skill) => ({
+      description: skill.description ?? "",
+      body: skill.body,
+    })),
+  });
   return {
-    always: alwaysChars,
+    always: figures.always,
     drive: null,
-    onDemand: null,
-    toolCount,
+    onDemand: figures.onDemand,
+    toolCount: figures.toolCount,
     basis: "declared",
   };
+}
+
+/** 내부 부품 판정(F.extensions.spec §3.1.3): 출처가 내장이고 매니페스트에 `group` 블록이 없다. 대화마다 켜고 끌 수 있는 내장 그룹은 아니다 */
+function isInternalCard(kind: PluginOriginKind, manifest: CardSubject["manifest"]): boolean {
+  return kind === "builtin" && !isOrchestrationExtension(manifest);
+}
+
+/** 의존 한 줄을 카드 칸으로 옮긴다. 문제(`problem`)는 설치된 집합을 봐야 알므로 호출자가 정한다 */
+function cardDependencyOf(
+  line: Omit<CardDependency, "problem">,
+  problem: CardDependencyProblem | null,
+): CardDependency {
+  return { from: line.from, target: line.target, kind: line.kind, range: line.range, problem };
+}
+
+/**
+ * 설치된 집합에서 본 의존 문제(AGE-33). `dependency-graph.ts`의 `problemIn`과 같은 판정이다: 대상 확장이 없으면 `target_missing`,
+ * 구성원이 없으면 `member_missing`, 범위를 어기면 `range_unmet`. `target_disabled`는 프로필 사정이라 여기서 보지 않는다
+ */
+function installedProblemOf(
+  target: string,
+  range: string | null,
+  nodes: readonly DependencyNode[],
+): CardDependencyProblem | null {
+  const { extension, member } = splitDependencyTarget(target);
+  const node = nodes.find((candidate) => candidate.name === extension);
+  if (node === undefined) return "target_missing";
+  if (member !== null && !pluginsOf(node.manifest).some((entry) => entry.decl.id === member)) {
+    return "member_missing";
+  }
+  if (range !== null && !satisfiesRange(node.version, range)) return "range_unmet";
+  return null;
+}
+
+/**
+ * 검토 카드의 의존 칸을 설치된 사실로 다시 채운다(AGE-33). `dependsOn`의 `problem`은 저장된 줄을 설치된 집합에서 다시 판정하고
+ * (후보 매니페스트는 다시 읽지 않는다), `dependents`는 이 플러그인에 기대는 설치된 줄이다. 이 플러그인 자신은 집합에서 뺀다.
+ * `dependencies`가 없는 옛 카드는 의존을 몰라 그대로 둔다. 저장된 항목은 바꾸지 않고 응답 값만 만든다
+ */
+export function withInstalledDependencies(
+  card: PluginCard,
+  nodes: readonly DependencyNode[],
+): PluginCard {
+  if (card.dependencies === undefined) return card;
+  const others = nodes.filter((node) => node.name !== card.name);
+  return {
+    ...card,
+    dependencies: {
+      dependsOn: card.dependencies.dependsOn.map((line) =>
+        cardDependencyOf(line, installedProblemOf(line.target, line.range, others)),
+      ),
+      dependents: dependentsOf(card.name, others).map(({ dependency }) =>
+        cardDependencyOf(dependency, null),
+      ),
+    },
+  };
+}
+
+/**
+ * 엔진이 필요로 하는 단위의 표시(AGE-33 enDep 10, M5c §4.1.17). 이름이 `REQUIRED_BY_CORE_USERS`에 있을 때만 `requiredByCore`를 싣고
+ * 그 밖의 카드는 그대로 준다. 응답 값만 만든다(저장된 카드는 바꾸지 않는다)
+ */
+export function withRequiredByCore(card: PluginCard): PluginCard {
+  const users = REQUIRED_BY_CORE_USERS.get(card.name);
+  return users === undefined ? card : { ...card, requiredByCore: [...users] };
 }
 
 /** 카드 한 장을 만든다. 코드는 실행하지 않는다 */
 export function buildPluginCard(input: BuildCardInput): PluginCard {
   const { folder } = input;
   const { manifest, materials } = folder;
-  const inject = injectOf(folder);
+  const inject = injectOf(
+    folder,
+    scriptSourceOf(input.origin.kind === "project", input.importedHookOrigin),
+    input.whichTool ?? ((name) => Bun.which(name) ?? undefined),
+    input.envSandboxed === true,
+  );
   const hook = hookOf(folder);
   const drive = driveOf(folder);
   const enforced = drive !== null || (hook?.hooks.some((item) => item.fold !== "tap") ?? false);
@@ -300,20 +534,39 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   const displayName = manifest.displayName?.trim() ?? "";
   const purpose = manifest.purpose ?? singleSkillPurpose(materials.skills);
   const projectId = input.origin.projectId;
+  const internal = isInternalCard(input.origin.kind, manifest);
+  const internalLayer = internal ? internalPluginLayer(manifest.name) : undefined;
   const origin =
     projectId === undefined ? { kind: input.origin.kind } : { kind: input.origin.kind, projectId };
 
   return {
     name: folder.name,
     displayName: displayName === "" ? folder.name : displayName,
+    version: manifest.version,
     purpose,
     does: { inject, hook, drive },
     enforcement,
-    runs: { code, isolated: code ? isolatedOf(input.origin.kind) : null },
-    cost: costOf(folder, manifest.tools?.length ?? 0),
+    runs: {
+      code,
+      isolated: code ? isolatedOf(input.origin.kind) : null,
+      // 코드가 격리 프로세스로 돌거나, 환경 모드가 아닌 스크립트가 있으면 승인 전에 좁게 돈다(스크립트만 있는 플러그인도)
+      ...(input.narrowDrafts === true &&
+      ((code && isolatedOf(input.origin.kind)) ||
+        (inject?.scripts ?? []).some((script) => script.env === undefined))
+        ? { narrowBeforeApproval: true as const }
+        : {}),
+    },
+    cost: costOf(folder),
     health: input.health,
     origin,
+    internal,
+    ...(internalLayer === undefined ? {} : { internalLayer }),
     review: input.review,
     usedBy: input.usedBy,
+    // 매니페스트만 아는 자리라 `dependsOn`의 문제는 모르고(null), 이 플러그인에 기대는 쪽은 검토 서비스가 설치된 사실로 채운다
+    dependencies: {
+      dependsOn: dependenciesOf(manifest).map((line) => cardDependencyOf(line, null)),
+      dependents: [],
+    },
   };
 }

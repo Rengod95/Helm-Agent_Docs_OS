@@ -73,7 +73,7 @@ function TrustCardFor(props: {
   if ("failed" in loaded) {
     return (
       // 읽지 못해도 대화는 막지 않는다. 입력창 위 한 줄 경고와 다시 읽기(DP-102, 공용 ProblemLine)
-      <section aria-label={t("desktop.trust.card.title")} className="px-3 pb-1">
+      <section aria-label={t("desktop.trust.card.title")}>
         <ProblemLine
           tone="warning"
           action={

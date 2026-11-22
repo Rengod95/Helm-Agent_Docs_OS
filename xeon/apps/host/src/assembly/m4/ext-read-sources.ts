@@ -3,12 +3,12 @@ import type { Result } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import { HOOKS, type RegistrationStatus } from "@fresnel/contracts/extensions";
 import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/records";
-import type { GroupStatus } from "@fresnel/contracts/services";
+import type { OrchestrationStatus } from "@fresnel/contracts/services";
 import { resolveSetting, type ScopeStack, type SettingCatalog } from "@fresnel/contracts/settings";
 import type {
   ExtDiagnostic,
-  GroupMetricsFull,
-  GroupPromotionResult,
+  OrchestrationMetricsFull,
+  OrchestrationPromotionResult,
   SafeModeCause,
 } from "@fresnel/contracts/wire";
 import {
@@ -25,9 +25,10 @@ import {
   defaultMetricsRegistry,
   gatherPromotionInput,
   summarizeUsage,
-  type GroupServiceWithUsage,
+  type OrchestrationServiceWithUsage,
+  type PromotionHostView,
   type ScopeUsage,
-} from "@fresnel/group-sdk";
+} from "@fresnel/orchestration-sdk";
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
 import type { SettingsEngine } from "../settings-engine.ts";
 import { operationsSource } from "../settings-sources.ts";
@@ -56,10 +57,12 @@ export interface ExtReadAssembly {
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
   readonly loader: () => ExtensionLoader | undefined;
+  /** 대화가 보는 도구 이름으로 도구 주인을 찾는다(승격 집계) */
+  readonly toolOwnerIn: PromotionHostView["toolOwnerIn"];
   /** 호스트 시계(ms). 실패 장부 창이 덮는 시간을 지금까지로 잰다 */
   readonly now: () => number;
   /** 그룹 서비스. `host-groups` 단위가 올라올 때 채워지고 그 전에는 없다 */
-  readonly groupService: () => GroupServiceWithUsage | undefined;
+  readonly orchestrationService: () => OrchestrationServiceWithUsage | undefined;
   /** `mcp.client` 공급자(cap-mcp가 올라올 때 채운다). 그 전에는 없다 */
   readonly mcpClient: () => McpClientPort | undefined;
   /** 설정 값과 무관하게 켜진 채 잠긴 내장 그룹의 이유(개발 모드). 아니면 null */
@@ -247,7 +250,8 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
   const ledger = assembly.operations.ledger;
   const order = assembly.operations.hookOrder;
 
-  const instrumented = (): boolean => env.settings.value("l3.group-sdk.instrumentation") !== false;
+  const instrumented = (): boolean =>
+    env.settings.value("l3.orchestration.instrumentation") !== false;
 
   function extensionOf(registrationId: string): string | undefined {
     return env.ext.registrations().find((info) => info.id === registrationId)?.extension;
@@ -448,10 +452,10 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
             info.lastError === undefined ? [] : [[info.id, info.lastError.code] as const],
           ),
       ),
-    groups: () => assembly.groupService()?.list() ?? [],
-    async groupMetrics(id, query) {
-      const service = assembly.groupService();
-      const known = service?.list().some((group: GroupStatus) => group.id === id) ?? false;
+    groups: () => assembly.orchestrationService()?.list() ?? [],
+    async orchestrationMetrics(id, query) {
+      const service = assembly.orchestrationService();
+      const known = service?.list().some((group: OrchestrationStatus) => group.id === id) ?? false;
       if (!known) return undefined;
       if (!instrumented()) return null;
       const counted = defaultMetricsRegistry.get(id)?.snapshot();
@@ -462,7 +466,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       const since =
         parsedSince === undefined || Number.isNaN(parsedSince) ? undefined : parsedSince;
       const usage = await usageOf(id, threadIds, since);
-      const metrics: GroupMetricsFull = {
+      const metrics: OrchestrationMetricsFull = {
         // 토큰과 비용의 원천은 이벤트 접기 하나다(drive 턴 `turn.completed` + 자식 `agent.settled`). 카운터의 `addUsage`는 읽지 않아 두 번 세지 않는다
         inputTokens: usage.tokens.input,
         outputTokens: usage.tokens.output,
@@ -482,14 +486,23 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       };
       return metrics;
     },
-    async promotion(threadIds): Promise<GroupPromotionResult> {
+    async promotion(threadIds): Promise<OrchestrationPromotionResult> {
       const requested = threadIds?.flatMap((value) => {
         const id = threadIdOf(value);
         return id === undefined ? [] : [id];
       });
       const current = env.activeThread();
       const targets = requested ?? (current === null ? [] : [current]);
-      const report = buildPromotionReport(await gatherPromotionInput(env.ext, targets));
+      const report = buildPromotionReport(
+        await gatherPromotionInput(
+          {
+            registrations: () => env.ext.registrations(),
+            queryEvents: (threadId, query) => env.ext.queryEvents(threadId, query),
+            toolOwnerIn: assembly.toolOwnerIn,
+          },
+          targets,
+        ),
+      );
       return {
         throughSeq: report.throughSeq,
         threads: report.threads,

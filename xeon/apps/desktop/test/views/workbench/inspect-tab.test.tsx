@@ -6,7 +6,7 @@ import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
-  GroupStatusWire,
+  OrchestrationStatusWire,
   SettingsExplainResult,
 } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
@@ -36,7 +36,7 @@ function buttonOf(html: string, label: string): string {
   return found?.[0] ?? "";
 }
 
-const REVIEW = entry("review", { layer: "L3", isGroup: true, hookCount: 1 });
+const REVIEW = entry("review", { layer: "L3", isOrchestration: true, hookCount: 1 });
 const WEB = entry("web", { displayName: "웹 검색" });
 
 function detailOf(name: string, over: Partial<ExtGetResult> = {}): ExtGetResult {
@@ -80,7 +80,7 @@ const REVIEW_DETAIL = detailOf("review", {
   ],
 });
 
-const WAITING: GroupStatusWire[] = [
+const WAITING: OrchestrationStatusWire[] = [
   {
     id: "helm",
     displayName: "helm",
@@ -253,7 +253,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
   });
 
   test("drive를 안 쓰는 그룹은 주도 구역을 그리지 않는다", () => {
-    const noDrive: readonly GroupStatusWire[] = [
+    const noDrive: readonly OrchestrationStatusWire[] = [
       {
         id: "review",
         displayName: "review",
@@ -338,9 +338,8 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     const failures = sectionOf(html, t("desktop.inspect.failures.title"));
     const text = textOf(failures);
     expect(text).toContain(t("desktop.inspect.failures.consecutive", { count: 2 }));
-    expect(text).toContain(
-      t("desktop.inspect.failures.last", { at: "2026-11-04T10:00:00Z", error: "timeout" }),
-    );
+    expect(text).toContain(t("desktop.inspect.failures.last", { at: "2026-11-04T10:00:00Z" }));
+    expect(text).toContain("timeout");
     expect(text).toContain("tool.call.before");
     expect(text).toContain("boom");
     expect(text).toContain(t("desktop.inspect.failures.streak", { count: 2 }));
@@ -350,7 +349,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
   test("자동 꺼진 확장은 다시 켜기 단추를 보이고, 켜기·끄기 단추는 보이지 않는다", () => {
     const off = entry("review", {
       layer: "L3",
-      isGroup: true,
+      isOrchestration: true,
       status: "disabled",
       autoDisabled: true,
     });
@@ -377,7 +376,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
 
   test("켜진 확장의 단추는 끄기이고, 꺼진 확장의 단추는 켜기다", () => {
     expect(buttonOf(body(REVIEW, READY_DATA), t("desktop.inspect.toggle.off"))).not.toBe("");
-    const off = entry("review", { layer: "L3", isGroup: true, status: "disabled" });
+    const off = entry("review", { layer: "L3", isOrchestration: true, status: "disabled" });
     expect(buttonOf(body(off, READY_DATA), t("desktop.inspect.toggle.on"))).not.toBe("");
   });
 

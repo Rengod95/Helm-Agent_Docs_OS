@@ -9,15 +9,14 @@ import {
   withoutEntry,
 } from "../../src/views/pages/settings/settings-sandbox-model.ts";
 
-// 샌드박스 목록 모델(L4.desktop-ux §6.13). 쓰기 경로와 차단 도메인의 형식 검사는 실패 이유를 값으로 돌려준다.
+// 샌드박스 목록 모델(L4.desktop-ux §6.13). 보호 경로와 차단 도메인의 형식 검사는 실패 이유를 값으로 돌려준다.
 
 describe("sandboxListKindOf", () => {
-  test("write paths, protected paths and skill paths are paths, blocked domains are domains", () => {
-    expect(sandboxListKindOf("l0.sandbox.writeRoots.extra")).toBe("paths");
+  test("protected paths and skill paths are paths, blocked domains are domains", () => {
     expect(sandboxListKindOf("l0.sandbox.protectedPaths.extra")).toBe("paths");
     expect(sandboxListKindOf("l2.knowledge.skills.paths")).toBe("paths");
     expect(sandboxListKindOf("l0.sandbox.network.blockedDomains")).toBe("domains");
-    expect(sandboxListKindOf("l0.sandbox.credentialFiles")).toBeNull();
+    expect(sandboxListKindOf("l0.sandbox.nestedNamespaces")).toBeNull();
   });
 });
 

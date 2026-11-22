@@ -8,7 +8,7 @@
 
 /* 글줄 안 orb(생각 블록 머리): 20 프리셋을 아이콘 칸(14px)에 겹쳐 둔다. 바깥 여백 -3px로 줄 높이와 글 시작점이 흔들리지 않는다 */
 .thinking-indicator-inline {
-  margin: -3px;
+  margin: calc(-1 * var(--cs-space-0_75));
 }
 
 .thinking-shimmer {

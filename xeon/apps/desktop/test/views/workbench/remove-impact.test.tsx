@@ -77,9 +77,9 @@ describe("지우기 상자 영향 묶음", () => {
     expect(out).toContain("플러그인 뷰");
     expect(out).toContain("조사용, 기본");
     expect(out).toContain("작업 흐름판");
-    expect(out).toContain("· 전체 화면");
+    expect(out).toContain(">전체 화면<");
     expect(out).toContain("흐름판");
-    expect(out).toContain("· 옆 패널");
+    expect(out).toContain(">옆 패널<");
   });
 
   test("쓰는 프로필과 뷰가 없으면 두 줄 모두 없어요라고 말한다", () => {

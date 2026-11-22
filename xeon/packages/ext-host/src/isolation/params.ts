@@ -10,7 +10,8 @@ import {
   DriveLimitsSchema,
   DriveLockBudgetSchema,
   DriveStepLastSchema,
-  GroupRecordSchema,
+  OrchestrationRecordSchema,
+  PluginHostTransferOptionSchema,
   type ScriptRunFailure,
   type ScriptRunResult,
   type CommandRunParams,
@@ -19,7 +20,7 @@ import {
   type DriveStepParams,
   type DriveStepReply,
   type EventNotifyParams,
-  type GroupRecord,
+  type OrchestrationRecord,
   type HookInvokeParams,
   type HostDisposeParams,
   type HostInitParams,
@@ -51,6 +52,7 @@ const hostInitSchema = Type.Object({
   root: Type.String(),
   entry: Type.String(),
   settings: Type.Record(Type.String(), JsonValueSchema),
+  transfer: Type.Optional(PluginHostTransferOptionSchema),
 });
 
 const hookInvokeSchema = Type.Object({
@@ -288,8 +290,10 @@ export function parsePostReceipt(value: unknown): Result<PostReceipt, ParseError
 }
 
 /** 엔진이 답한 `readRecords` 결과 */
-export function parseGroupRecords(value: unknown): Result<readonly GroupRecord[], ParseError> {
-  return parse(Type.Array(GroupRecordSchema), value);
+export function parseOrchestrationRecords(
+  value: unknown,
+): Result<readonly OrchestrationRecord[], ParseError> {
+  return parse(Type.Array(OrchestrationRecordSchema), value);
 }
 
 const scriptRunResultSchema = Type.Object({
@@ -314,6 +318,17 @@ const scriptRunFailureSchema = Type.Union([
     message: Type.String(),
   }),
   Type.Object({ kind: Type.Literal("sandbox_unavailable"), reason: Type.String() }),
+  // 환경 모드(AGE-58): 자격이 없거나 참조 파일 지문이 다르면 엔진이 이 두 값으로 답한다. 빠지면 자식이 응답을 읽지 못해 핸들러가 던진다
+  Type.Object({ kind: Type.Literal("script_env_not_granted") }),
+  Type.Object({
+    kind: Type.Literal("script_ref_changed"),
+    path: Type.String(),
+    reason: Type.Union([
+      Type.Literal("changed"),
+      Type.Literal("missing"),
+      Type.Literal("unreadable"),
+    ]),
+  }),
 ]);
 
 const scriptOutcomeSchema = Type.Union([

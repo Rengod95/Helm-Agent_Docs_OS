@@ -19,7 +19,7 @@ import {
 /** 포트가 돌려주는 거절. 처리기가 wire 오류로 옮긴다 */
 type ExtReadError =
   | { readonly kind: "unknown_extension"; readonly name: string }
-  | { readonly kind: "unknown_group"; readonly id: string }
+  | { readonly kind: "unknown_orchestration"; readonly id: string }
   | { readonly kind: "unknown_thread"; readonly threadId: string }
   | { readonly kind: "unknown_profile"; readonly profileId: string }
   | { readonly kind: "unknown_setting"; readonly key: string }
@@ -51,9 +51,9 @@ export interface ExtReadPort {
   readonly health: PortCall<"ext.health">;
   readonly timings: PortCall<"ext.timings">;
   readonly bindings: PortCall<"ext.bindings">;
-  readonly groupList: PortCall<"group.list">;
-  readonly groupMetrics: PortCall<"group.metrics">;
-  readonly groupPromotion: PortCall<"group.promotion">;
+  readonly orchestrationList: PortCall<"orchestration.list">;
+  readonly orchestrationMetrics: PortCall<"orchestration.metrics">;
+  readonly orchestrationPromotion: PortCall<"orchestration.promotion">;
   readonly driveFrames: PortCall<"drive.frames">;
   /** 주도권 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
   readonly onDriveFramesChanged: (listener: (threadId: string) => void) => () => void;
@@ -81,9 +81,9 @@ export type ExtReadMethods =
   | "ext.health"
   | "ext.timings"
   | "ext.bindings"
-  | "group.list"
-  | "group.metrics"
-  | "group.promotion"
+  | "orchestration.list"
+  | "orchestration.metrics"
+  | "orchestration.promotion"
   | "drive.frames"
   | "hooks.list"
   | "settings.explain"
@@ -105,8 +105,8 @@ function wireErrorOf(
   switch (error.kind) {
     case "unknown_extension":
       return wireError("extension.notFound", { details: { name: error.name } });
-    case "unknown_group":
-      return wireError("group.notFound", { details: { id: error.id } });
+    case "unknown_orchestration":
+      return wireError("orchestration.notFound", { details: { id: error.id } });
     case "unknown_thread":
       return wireError("thread.notFound", { details: { threadId: error.threadId } });
     case "unknown_profile":
@@ -155,11 +155,12 @@ export function createExtReadHandlers(port: ExtReadPort): Pick<WireHandlers, Ext
     "ext.timings": (params, context) => settle("ext.timings", port.timings(params, context.signal)),
     "ext.bindings": (params, context) =>
       settle("ext.bindings", port.bindings(params, context.signal)),
-    "group.list": (params, context) => settle("group.list", port.groupList(params, context.signal)),
-    "group.metrics": (params, context) =>
-      settle("group.metrics", port.groupMetrics(params, context.signal)),
-    "group.promotion": (params, context) =>
-      settle("group.promotion", port.groupPromotion(params, context.signal)),
+    "orchestration.list": (params, context) =>
+      settle("orchestration.list", port.orchestrationList(params, context.signal)),
+    "orchestration.metrics": (params, context) =>
+      settle("orchestration.metrics", port.orchestrationMetrics(params, context.signal)),
+    "orchestration.promotion": (params, context) =>
+      settle("orchestration.promotion", port.orchestrationPromotion(params, context.signal)),
     "drive.frames": (params, context) =>
       settle("drive.frames", port.driveFrames(params, context.signal)),
     "hooks.list": (params, context) => settle("hooks.list", port.hooks(params, context.signal)),

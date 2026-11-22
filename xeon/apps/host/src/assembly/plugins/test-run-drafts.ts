@@ -85,7 +85,13 @@ export function createTestRunDrafts(deps: TestRunDraftsDeps): TestRunDraftsPort 
     async prepare(refs) {
       // 시작 Drive를 가진 초안은 한 대화에 최대 하나다. 둘째는 싣기 앞에서 거절한다([제안]: 대화의 시작 요청은 하나다)
       const second = refs.filter((ref) => ref.entry !== undefined)[1];
-      if (second !== undefined) return err({ kind: "draft_unavailable", name: second.plugin });
+      if (second !== undefined) {
+        return err({
+          kind: "draft_unavailable",
+          name: second.plugin,
+          reason: "duplicate_start_drive",
+        });
+      }
       const planned = await planOverlay(
         refs.map((ref) => ({
           plugin: ref.plugin,
@@ -113,7 +119,11 @@ export function createTestRunDrafts(deps: TestRunDraftsDeps): TestRunDraftsPort 
       );
       if (!loaded.ok) {
         unhold();
-        return err({ kind: "draft_unavailable", name: loaded.error.name });
+        return err({
+          kind: "draft_unavailable",
+          name: loaded.error.name,
+          reason: loaded.error.reason,
+        });
       }
       // 시작 Drive를 가진 초안은 싣고 나서 등록을 본다(등록은 싣기로 생긴다). 없으면 대화를 만들지 않는다
       const undriven = items.find(

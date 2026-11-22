@@ -14,6 +14,7 @@ import {
 import { assertNever } from "@fresnel/contracts";
 import { Button, Table, type TableColumn } from "@caustic/react";
 import type { ReactNode } from "react";
+import { LINE_GLYPH } from "../illustrations/line-glyph.ts";
 import { MUTED, PLAIN_TABLE, TabBody } from "../workbench/tab-body.tsx";
 import { SectionTitle } from "./measure-parts.tsx";
 import type { PerfInput } from "./perf-read.ts";
@@ -158,28 +159,20 @@ function Curve(props: {
   return (
     <figure className="m-0 grid gap-0.5">
       <figcaption className="text-ui-sm text-text-tertiary">{props.label}</figcaption>
-      {/* 가장자리의 점이 눈금 밖으로 나가도 잘리지 않게 넘침을 보인다 */}
+      {/* 가장자리의 점이 눈금 밖으로 나가도 잘리지 않게 넘침을 보인다. 선은 직접 그린 선의 한 벌(화면 1px, AGE-34) */}
       <svg
         viewBox={`0 0 ${CURVE_W} ${CURVE_H}`}
         overflow="visible"
-        className="h-16 w-full max-w-144"
+        className={`${LINE_GLYPH.className} h-16 w-full max-w-144`}
         role="img"
         aria-label={props.label}
       >
-        <polyline
-          points={line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.5}
-          className="text-text-secondary"
-        />
+        <polyline points={line} fill="none" stroke="currentColor" className="text-text-secondary" />
+        {/* 1px 선 위에서 점이 앞서지 않게 보이는 점은 반지름 2로 줄이고(전 3), 누르는 칸은 반지름 6의 투명한 원으로 넓게 둔다 */}
         {points.map((p, i) => (
-          <circle
+          <g
             key={p.turnId}
-            cx={x(i)}
-            cy={y(props.pick(p))}
-            r={3}
-            className="cursor-pointer fill-current text-text-primary"
+            className="cursor-pointer"
             onClick={() => {
               props.onOpenTurn(p.turnId);
             }}
@@ -190,7 +183,14 @@ function Curve(props: {
                 value: numberText(props.pick(p)),
               })}
             </title>
-          </circle>
+            <circle cx={x(i)} cy={y(props.pick(p))} r={6} fill="transparent" />
+            <circle
+              cx={x(i)}
+              cy={y(props.pick(p))}
+              r={2}
+              className="fill-current text-text-primary"
+            />
+          </g>
         ))}
       </svg>
     </figure>
@@ -203,9 +203,19 @@ function FailingRows(props: { readonly failing: readonly FailingExtensionVM[] })
   return (
     <ul className="m-0 grid list-none gap-0.5 p-0">
       {props.failing.map((row) => (
-        <li key={row.name} className="text-text-primary">
-          {t("desktop.workbench.keepOff.consecutive", { name: row.name, count: row.consecutive })}
-          {row.autoDisabled ? ` · ${t("desktop.inspect.failures.autoOff")}` : ""}
+        <li
+          key={row.name}
+          className="flex min-w-0 flex-wrap items-baseline gap-2 text-text-primary"
+        >
+          <span>
+            {t("desktop.workbench.keepOff.consecutive", { name: row.name, count: row.consecutive })}
+          </span>
+          {row.autoDisabled ? (
+            <>
+              {" "}
+              <span className="text-text-secondary">{t("desktop.inspect.failures.autoOff")}</span>
+            </>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -271,11 +281,17 @@ function Ready(props: {
             {view.toRead.map((row) => (
               <li key={row.turnId}>
                 <OpenButton turnId={row.turnId} number={row.number} onOpenTurn={props.onOpenTurn}>
-                  {t("desktop.measure.perf.toReadRow", {
-                    number: row.number,
-                    tokens: numberText(row.totalTokens),
-                    count: row.signals.length,
-                  })}
+                  <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+                    <span>{t("desktop.measure.perf.toReadRow", { number: row.number })}</span>{" "}
+                    <span className="text-text-secondary">
+                      {t("desktop.measure.perf.toReadTokens", {
+                        tokens: numberText(row.totalTokens),
+                      })}
+                    </span>{" "}
+                    <span className="text-text-secondary">
+                      {t("desktop.measure.perf.toReadSignals", { count: row.signals.length })}
+                    </span>
+                  </span>
                 </OpenButton>
               </li>
             ))}

@@ -1,3 +1,4 @@
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,6 +18,11 @@ import { invalidParams, partial } from "../fixtures/unsafe.ts";
 
 // M5c §4.8.1 `testRun.start`(처리기 값 시험). 프로필 저장은 실제 프로필 포트가, 엔진과 초안 목록은 가짜가 한다.
 // 시험하는 것: 기준 프로필로 대화를 만들고 표지를 다는 것, 검사가 대화를 만들기 전에 거절하는 것, 초안이 있으면 P1 전 게이트다.
+
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
 
 const roots: string[] = [];
 afterAll(() => {
@@ -60,8 +66,24 @@ function rigOf(): {
   const dir = mkdtempSync(join(tmpdir(), "xh-test-run-start-"));
   roots.push(dir);
   const facts: PluginFact[] = [
-    { name: "helm", replaces: [], drives: false, requiredKeys: [], declared: NONE },
-    { name: "demo", replaces: [], drives: false, requiredKeys: [], declared: NONE },
+    {
+      name: "helm",
+      replaces: [],
+      drives: false,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("helm"),
+      declared: NONE,
+    },
+    {
+      name: "demo",
+      replaces: [],
+      drives: false,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("demo"),
+      declared: NONE,
+    },
   ];
   const drafts: DraftInfo[] = [];
   const fakes: DraftFakes = {
@@ -243,7 +265,7 @@ test("more than four drafts is overlay.limit and creates no thread", async () =>
   await connection.close();
 });
 
-test("a base profile that is invalid now is profile.invalid with the issues, and creates no thread or profile change", async () => {
+test("a stored base profile that points at a plugin that is gone now starts without it and lists it in the result (AGE-34)", async () => {
   const { host, facts } = rigOf();
   const connection = await connect(host);
   await connection.request("profile.put", {
@@ -257,17 +279,81 @@ test("a base profile that is invalid now is profile.invalid with the issues, and
     baseRev: null,
   });
   const stored = await connection.request("profile.get", { id: "work" });
-  // 저장한 뒤 플러그인이 사라졌다: 같은 프로필이 이제 검증에서 오류가 난다
+  // 저장한 뒤 플러그인이 사라졌다: 같은 프로필의 그 참조는 경고고 대화는 그것 없이 시작한다
   facts.splice(
     facts.findIndex((fact) => fact.name === "demo"),
     1,
+  );
+  const started = await connection.request("testRun.start", {
+    baseProfileId: "work",
+    drafts: [],
+    runGroupId: "grp-w",
+  });
+  expect(started).toEqual({
+    threadId: expect.any(String),
+    profileId: "work",
+    drafts: [],
+    runGroupId: "grp-w",
+    skippedPlugins: ["demo"],
+  });
+  expect(await connection.request("profile.get", { id: "work" })).toEqual({
+    ...stored,
+    missingPlugins: ["demo"],
+  });
+  await connection.close();
+});
+
+test("a base profile that is invalid now for another reason is profile.invalid with the issues, and creates no thread or profile change", async () => {
+  const { host, facts } = rigOf();
+  const connection = await connect(host);
+  facts.splice(
+    facts.findIndex((fact) => fact.name === "demo"),
+    1,
+    {
+      name: "demo",
+      replaces: [],
+      drives: true,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("demo"),
+      declared: NONE,
+    },
+  );
+  await connection.request("profile.put", {
+    profile: {
+      id: "work",
+      title: "Work",
+      plugins: [{ name: "demo" }],
+      settings: [],
+      startDrive: "demo",
+    },
+    baseRev: null,
+  });
+  const stored = await connection.request("profile.get", { id: "work" });
+  // 저장한 뒤 플러그인이 시작 Drive를 줄 수 없게 바뀌었다: 같은 프로필이 이제 검증에서 오류가 난다
+  facts.splice(
+    facts.findIndex((fact) => fact.name === "demo"),
+    1,
+    {
+      name: "demo",
+      replaces: [],
+      drives: false,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("demo"),
+      declared: NONE,
+    },
   );
   const refused = await failureOf(
     connection.request("testRun.start", { baseProfileId: "work", drafts: [] }),
   );
   expect(refused).toMatchObject({ code: 3307, data: { kind: "profile.invalid" } });
   expect(refused).toMatchObject({
-    data: { details: { issues: [{ code: "plugin_unknown", severity: "error", plugin: "demo" }] } },
+    data: {
+      details: {
+        issues: [{ code: "driver_cannot_drive", severity: "error", plugin: "demo" }],
+      },
+    },
   });
   expect((await connection.request("thread.list", {})).threads).toEqual([]);
   expect(await connection.request("profile.get", { id: "work" })).toEqual(stored);

@@ -12,7 +12,7 @@ import { startInProcessHost, startStdioHost } from "../src/command-run.ts";
 import { useEngineHome } from "./fixtures/engine-home.ts";
 import { realEngineGate } from "./fixtures/real-engine.ts";
 import { stdioStreams } from "./fixtures/stdio-pair.ts";
-import { testGroup } from "./fixtures/test-group.ts";
+import { testOrchestration } from "./fixtures/test-group.ts";
 import { writeUserSettings } from "./fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, requestTurn } from "./fixtures/wire-client.ts";
 import { createStdioTransport } from "../src/transport/stdio.ts";
@@ -210,7 +210,7 @@ describe("real engine", () => {
   realTest(
     "extraPlugins installs the test group, which then takes part in the engine",
     async () => {
-      const group = testGroup(fixedIdFactory(9));
+      const group = testOrchestration(fixedIdFactory(9));
       const engine = await assemble({ mode: "in-process", extraPlugins: [group.module] });
       expect(engine.storeId.startsWith("sto_")).toBe(true);
       await engine.close();

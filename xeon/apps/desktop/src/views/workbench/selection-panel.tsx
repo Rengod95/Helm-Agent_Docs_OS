@@ -40,10 +40,9 @@ export function SelectionPanel(props: {
       </div>
       {/* 시안의 머리 줄처럼 층 mono, 종류·등급 글, 상태 점을 한 줄에 둔다. 종류와 등급은 칩이 아니라 글이다 */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-dense">
-        <span className="font-mono text-mono-sm text-text-tertiary">{row.layer}</span>
-        <span className="text-text-secondary">
-          {kindText(row.kind)} · {row.grade}
-        </span>
+        <span className="text-text-tertiary">{row.layer}</span>
+        <span className="text-text-secondary">{kindText(row.kind)}</span>{" "}
+        <span className="text-text-secondary">{row.grade}</span>
         <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
       </div>
       <div className="flex items-center gap-3">

@@ -36,7 +36,7 @@ interface Run {
 /**
  * 모델이 `calls`에 적은 도구를 차례로 부르고 끝내는 대화 하나를 돌린다. 호출이 없으면 "hi"에 답만 한다.
  * `profile.add`가 있으면 기본 프로필의 플러그인에 그것을 더한 프로필을 저장하고 대화를 그 프로필로 만든다(가이드는 대화의 프로필이 켠다, M5c §4.1).
- * 기본 목록을 빼지 않는 것은 의도다: 기본 목록에서 빠진 내장 단위(`host-groups` 등)가 꺼지면 턴이 응답하지 않는다([미결], X §4.5.8)
+ * 기본 목록을 빼지 않는 것은 의도다: 기본 목록에서 빠진 내장 단위(`core-loop` 등)가 꺼지면 턴이 응답하지 않는다([미결], X §4.5.8)
  */
 async function run(options: {
   readonly settings?: Readonly<Record<string, unknown>>;

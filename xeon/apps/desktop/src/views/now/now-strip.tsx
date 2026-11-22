@@ -20,7 +20,9 @@ import {
   useNow,
   useOpenThreadId,
 } from "../../state/engine/index.ts";
+import type { LeadSegment } from "../../state/engine/index.ts";
 import { ShellStoreContext } from "../../state/shell/index.ts";
+import { useDriveFrames } from "../convo/drive-frames.ts";
 import { Presence, SwapFade, useChangedSinceMount } from "../../lib/motion-presets.tsx";
 import { Reveal } from "../convo/tool-line.tsx";
 import { Aurora, type AuroraState } from "../effects/aurora.tsx";
@@ -29,6 +31,7 @@ import { DrawnCheck } from "../effects/drawn-check.tsx";
 import { auroraOn } from "../effects/fx-config.ts";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
 import {
+  leadsBesideBandOf,
   nowShownOf,
   nowViewOf,
   progressPercentOf,
@@ -57,7 +60,7 @@ export function NowStrip(): ReactNode {
 function NowStripFor(props: { readonly threadId: ThreadId }): ReactNode {
   const now = useNow(props.threadId);
   const agents = useAgentRows(props.threadId);
-  const leads = useLeadSegments(props.threadId);
+  const leads = useLeadSegmentsBesideBand(props.threadId);
   const [open, setOpen] = useState(false);
   const shown = nowShownOf(now, agents, leads);
   return (
@@ -68,6 +71,11 @@ function NowStripFor(props: { readonly threadId: ThreadId }): ReactNode {
       ) : null}
     </Presence>
   );
+}
+
+/** 이 띠가 보일 Drive 구간: 입력창 위 Drive 띠가 같은 말을 하면 뺀다(`leadsBesideBandOf`, lcM6g) */
+function useLeadSegmentsBesideBand(threadId: ThreadId): readonly LeadSegment[] {
+  return leadsBesideBandOf(useLeadSegments(threadId), useDriveFrames(threadId));
 }
 
 function PulseIcon(props: { readonly pulse: NowPulse; readonly goal: boolean }): ReactNode {
@@ -97,7 +105,7 @@ function headlineText(headline: NowHeadline): string {
     case "agents":
       return t("desktop.now.headline.agents", { count: headline.count });
     case "lead":
-      return t("desktop.now.lead.short", { name: headline.name });
+      return t("desktop.drive.drivingBy", { name: headline.name });
     case "stopping":
       return t("desktop.now.headline.stopping");
     default:
@@ -149,7 +157,7 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
     items.push({
       key: "lead",
       extra: true,
-      node: t("desktop.now.lead.short", { name: view.lead.name }),
+      node: t("desktop.drive.drivingBy", { name: view.lead.name }),
     });
   }
   if (view.pendingApprovals > 0) {
@@ -165,7 +173,7 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
   }
   if (items.length === 0) return null;
   return (
-    <span className="flex shrink-0 items-center text-ui-sm text-text-tertiary tabular-nums">
+    <span className="flex shrink-0 items-center gap-3 text-ui-sm text-text-tertiary">
       {items.map((item) => (
         <span
           key={item.key}
@@ -173,9 +181,6 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
           // 좁은 띠(520 이하)에서는 곁 정보(에이전트, 주도)를 숨기고 진행과 승인만 남긴다
           className={`inline-flex items-center ${item.extra ? "@max-[520px]:hidden" : ""}`}
         >
-          <span aria-hidden className="px-2">
-            ·
-          </span>
           {item.node}
         </span>
       ))}
@@ -210,7 +215,7 @@ export function NowStripView(props: {
     <section
       data-now-strip=""
       aria-label={t("desktop.now.label")}
-      className="@container relative isolate mx-3 mb-1.5 overflow-hidden rounded-xl border border-border-subtle bg-surface-raised"
+      className="@container relative isolate overflow-hidden rounded-xl border border-border-subtle bg-surface-raised"
     >
       {auroraOn("strip") ? <StripAurora view={view} /> : null}
       {/* 줄 전체가 펼침 단추다. 끝의 chevron은 같은 동작을 보이는 표시라 따로 탭 순서에 두지 않는다 */}
@@ -260,7 +265,7 @@ function SectionHead(props: { readonly children: ReactNode; readonly end?: React
   return (
     <div className="flex h-6 items-center justify-between gap-2 text-ui-sm text-text-tertiary">
       <h3 className="m-0 text-ui-sm font-normal">{props.children}</h3>
-      {props.end === undefined ? null : <span className="tabular-nums">{props.end}</span>}
+      {props.end === undefined ? null : <span>{props.end}</span>}
     </div>
   );
 }
@@ -381,7 +386,7 @@ function NowBody(props: { readonly id: string; readonly view: NowView }): ReactN
                 <span className="min-w-0 flex-1 truncate text-ui text-text-primary">
                   {agent.name}
                 </span>
-                <span className="shrink-0 font-mono text-ui-sm text-text-tertiary tabular-nums">
+                <span className="shrink-0 text-ui-sm text-text-tertiary tabular-nums">
                   {agentTailOf(agent)}
                 </span>
               </li>
@@ -405,7 +410,7 @@ function NowBody(props: { readonly id: string; readonly view: NowView }): ReactN
           </SectionHead>
           <p className="m-0 flex min-h-7 items-center gap-2 text-ui text-text-primary">
             <Compass aria-hidden className={`${ICON} text-text-tertiary`} />
-            {t("desktop.now.lead.long", { name: view.lead.name })}
+            {t("desktop.drive.drivingBy", { name: view.lead.name })}
           </p>
         </section>
       )}

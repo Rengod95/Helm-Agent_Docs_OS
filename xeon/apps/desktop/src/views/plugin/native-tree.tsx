@@ -50,6 +50,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
+import { LINE_GLYPH } from "../illustrations/line-glyph.ts";
 import { stepperLive } from "../thinking-indicator.tsx";
 
 // 선언형 화면 트리(ADR-0021 §3.4.1)를 caustic 부품으로 그린다. 순수 렌더러이고 앱 밖의 일을 하지 않는다.
@@ -887,16 +888,15 @@ function SparklineNode({ node }: NodeProps): ReactNode {
       viewBox="0 0 100 24"
       preserveAspectRatio="none"
       fill="none"
-      className="h-6 w-24 overflow-visible text-accent-text"
+      // 작은 추이 선은 직접 그린 선의 한 벌(화면 1px, AGE-34). 늘어나는 칸(preserveAspectRatio none)이라도 굵기는 non-scaling-stroke로 1px다
+      className={`${LINE_GLYPH.className} h-6 w-24 overflow-visible text-accent-text`}
     >
       {values.length === 0 ? null : (
         <polyline
           points={sparkPoints(values)}
           stroke="currentColor"
-          strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
         />
       )}
     </svg>

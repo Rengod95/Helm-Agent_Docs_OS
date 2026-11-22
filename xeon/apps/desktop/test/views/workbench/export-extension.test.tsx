@@ -11,7 +11,7 @@ const ENTRY: ExtListEntry = {
   name: "lens",
   displayName: "Lens",
   layer: "L2",
-  isGroup: false,
+  isOrchestration: false,
   version: "1.2.0",
   location: "/cfg/extensions/lens",
   origin: "user",

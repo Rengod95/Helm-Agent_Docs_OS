@@ -14,7 +14,6 @@ import {
   type BlobSink,
   type RgResolver,
   type ThreadWorkspaces,
-  type WriteAccessPort,
 } from "@fresnel/core-workspace";
 import type { WorkspaceDeps } from "../../src/deps.ts";
 import {
@@ -41,7 +40,12 @@ export function fakeSandbox(protectedPaths: readonly ProtectedPathEntry[] = []):
     policies,
     deny: false,
     defaultPolicy: (input) => ({
-      writeRoots: input.profile === "read-only" ? [] : [...input.workspaceRoots, input.tempDir],
+      writeRoots:
+        input.profile === "read-only"
+          ? []
+          : input.writeEverywhere === true
+            ? ["/"]
+            : [...input.workspaceRoots, input.tempDir],
       readDeny: [],
       writeDeny: [],
       network: { allowedDomains: [], deniedDomains: [] },
@@ -107,8 +111,8 @@ export interface DepsOptions {
   readonly blobs?: BlobSink;
   readonly threads?: ThreadWorkspaces;
   readonly unattendedTimeoutMs?: () => number;
-  readonly writeAccess?: WriteAccessPort;
-  readonly homeDir?: string;
+  /** 참이면 쓰기 root에서 `/`(제한 없음)를 뺀 좁은 대화(플러그인 만들기 시험)다. 작업 폴더 밖 쓰기가 막히는 길을 시험할 때 쓴다 */
+  readonly narrowRoots?: boolean;
   /** 잘린 도구 출력의 파일 사본(읽기 루트와 복원) */
   readonly outputs?: ToolOutputFiles;
 }
@@ -123,7 +127,12 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
     core: workspaceCore,
     roots: {
       env,
-      roots: (context) => defaultRoots(env, context, options.outputs),
+      roots: async (context) => {
+        const roots = await defaultRoots(env, context, options.outputs);
+        return options.narrowRoots === true
+          ? { ...roots, write: roots.write.filter((root) => root !== "/") }
+          : roots;
+      },
       protectedPaths: () => protectedPaths,
       ...(options.outputs === undefined ? {} : { outputs: options.outputs }),
     },
@@ -138,8 +147,6 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
     ...(options.blobs === undefined ? {} : { blobs: options.blobs }),
     ...(options.threads === undefined ? {} : { threads: options.threads }),
     ...(rg === undefined ? {} : { rg }),
-    ...(options.writeAccess === undefined ? {} : { writeAccess: options.writeAccess }),
-    ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
     ...(options.unattendedTimeoutMs === undefined
       ? {}
       : { unattendedTimeoutMs: options.unattendedTimeoutMs }),

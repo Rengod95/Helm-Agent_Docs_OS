@@ -438,7 +438,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     // 이전 프로세스가 남긴 결과 불명 효과(intent만, 또는 intent+exec만)를 합성 결과로 닫는다. 메모리 호출 표에는 그 호출이 없어
     // 아래 turn_end의 closeUnexecuted가 닫지 못한다(L1.persistence.spec §4.8.1 6단계). 취소 의도가 이미 커밋돼 재실행 없이 합성된다
     const recovered = deps.session.recover(thread.threadId, {
-      toolReplay: (name) => deps.tools.meta(name)?.replay ?? null,
+      toolReplay: (name) => deps.tools.meta(name, thread.threadId)?.replay ?? null,
       cancelledByOwner: deps.cancelledByOwner,
       hostMode: deps.hostMode,
     });
@@ -522,7 +522,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       }
     }
     const recovered = deps.session.recover(threadId, {
-      toolReplay: (name) => deps.tools.meta(name)?.replay ?? null,
+      toolReplay: (name) => deps.tools.meta(name, threadId)?.replay ?? null,
       cancelledByOwner: deps.cancelledByOwner,
       hostMode: deps.hostMode,
     });

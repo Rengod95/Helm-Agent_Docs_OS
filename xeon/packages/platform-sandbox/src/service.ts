@@ -21,7 +21,14 @@ import {
 } from "@fresnel/contracts/services";
 import { decideAutoAllow } from "./auto-allow.ts";
 import { canonicalizePath, sortedUnique, toAbsolutePath } from "./paths.ts";
-import { runtimeReadPaths } from "./runtime-read-paths.ts";
+import {
+  runtimeReadPaths,
+  systemInfoDeny,
+  systemToolDeny,
+  systemToolMachDeny,
+  systemToolLiterals,
+  systemToolReadPaths,
+} from "./runtime-read-paths.ts";
 import {
   BLOCKED_NETWORK,
   blocklistNetwork,
@@ -29,15 +36,20 @@ import {
   mergePolicy,
   socatPathOf,
   toSrtGlobalConfig,
+  WRITE_EVERYWHERE,
   type EffectivePolicy,
   type PolicyInput,
   type SrtTools,
 } from "./policy.ts";
 import {
+  BASENAME_SEARCH_DEPTH,
   buildProtectedPaths,
+  type ProtectedScope,
   dropProtectedWriteRoots,
   expandBasenameEntries,
+  MAX_SCANNED_DIRS,
   resolveExtraPaths,
+  suggestedProtectedPaths,
   withGitEntries,
 } from "./protected-paths.ts";
 import { runSelfTest, SELF_TEST_ITEM_IDS } from "./self-test.ts";
@@ -55,9 +67,6 @@ import { wrapArgvWith } from "./wrap-argv.ts";
 import { wrapShellWith, type WrapShellDeps } from "./wrap-shell.ts";
 
 // L0.sandbox.spec §3.1 SandboxService 구현. exec·secrets·os 패키지를 import하지 않고 F 서비스 인터페이스만 받는다.
-
-/** srt 자동 보호 경로 탐색 깊이 기본값(srt `mandatoryDenySearchDepth` 기본 3) */
-const BASENAME_SEARCH_DEPTH = 3;
 
 export interface SandboxServiceDeps {
   /** fresnel.os 서비스에서 쓰는 부분 */
@@ -148,8 +157,6 @@ export async function createSandboxService(
   /** 마지막 갱신에서 srt가 거부해 차단 목록에서 뺀 도메인. 갱신할 때마다 새로 정한다 */
   let rejectedBlockedDomains: readonly string[] = [];
   let refreshing: Promise<SandboxStatus> | undefined;
-  /** 정책에서 본 작업 공간 root. protectedPaths()가 root별 git 항목을 더하는 데 쓴다 */
-  const knownRoots = new Set<string>();
 
   const currentStatus = (withSelfTest: boolean): SandboxStatus => {
     const settings = deps.settings();
@@ -163,7 +170,7 @@ export async function createSandboxService(
     });
   };
 
-  const baseProtectedEntries = (): readonly ProtectedPathEntry[] => {
+  const baseProtectedEntries = (scope: ProtectedScope): readonly ProtectedPathEntry[] => {
     const extra = resolveExtraPaths(deps.settings().protectedPathsExtra, dirs.home);
     const ageKeyFile = parentEnv()["SOPS_AGE_KEY_FILE"];
     return buildProtectedPaths({
@@ -172,7 +179,7 @@ export async function createSandboxService(
       secretPaths: deps.secrets?.protectedPaths() ?? [],
       ageKeyFileEnv: ageKeyFile,
       extraPaths: extra.resolved,
-      credentialReadAllowed: deps.settings().credentialFiles === "allow",
+      scope,
     });
   };
 
@@ -263,19 +270,27 @@ export async function createSandboxService(
     return refreshing;
   };
 
-  /** 쓰기 루트 후보에 git 항목을 더하고, 보호 경로 안의 루트를 지운다 */
+  /**
+   * 쓰기 루트 후보에 보호 경로를 합치고, 보호 경로 안의 루트를 지운다. `narrow`는 작업 공간 root별 git 항목도 더한다.
+   * `open`(쓰기 범위 제한 없음)은 Fresnel 자신의 항목과 사용자가 더한 곳만 막는다
+   */
   const analyzeRoots = (
     roots: readonly string[],
+    scope: ProtectedScope,
   ): {
     readonly entries: readonly ProtectedPathEntry[];
     readonly kept: string[];
     readonly pathEntries: readonly ProtectedPathEntry[];
   } => {
-    const entries = withGitEntries(baseProtectedEntries(), roots);
+    const base = baseProtectedEntries(scope);
+    const entries = scope === "narrow" ? withGitEntries(base, roots) : base;
     const { kept, removed } = dropProtectedWriteRoots(roots, entries);
     if (removed.length > 0) logger.warn("sandbox.write_root_removed", { roots: removed });
-    for (const root of kept) knownRoots.add(root);
-    return { entries, kept, pathEntries: entries.filter((entry) => entry.match !== "basename") };
+    return {
+      entries,
+      kept,
+      pathEntries: entries.filter((entry) => entry.match !== "basename"),
+    };
   };
 
   /** srt가 정책과 상관없이 쓰기를 허용하는 곳(임시·로그 폴더). 읽기 전용 프로필은 이 곳도 쓰기를 막는다 */
@@ -289,16 +304,28 @@ export async function createSandboxService(
 
   const resolvePolicy = (policy: SandboxPolicy, baseDir: string): EffectivePolicy => {
     const readOnly = policy.profile === "read-only" || policy.profile === "no-write";
+    const scriptEnv = policy.profile === "script-env";
+    // 쓰기 루트가 `/`인 보통 프로필(셸 도구)은 쓰기 범위 제한이 없다. 보호 경로는 Fresnel 자신의 것과 사용자가 더한 곳뿐이다
+    const open = !readOnly && !scriptEnv && policy.writeRoots.includes(WRITE_EVERYWHERE);
+    const scope: ProtectedScope = open ? "open" : "narrow";
     const input: PolicyInput = {
       policy,
       protectedReadDeny: [],
       protectedWriteDeny: [],
-      basenameFiles: [],
-      extraWriteRoots: readOnly ? [] : deps.settings().writeRootsExtra,
+      basenameReadFiles: [],
+      basenameWriteFiles: [],
       home: dirs.home,
       base: baseDir,
     };
-    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidateWriteRoots(input));
+    // `/`(쓰기 범위 제한 없음)는 보통 프로필만 받는다. 스크립트 환경이 `/`를 담아 와도 프로젝트 폴더 쪽만 쓴다
+    const candidates = candidateWriteRoots(input).filter(
+      (root) => open || root !== WRITE_EVERYWHERE,
+    );
+    const { entries, kept, pathEntries } = analyzeRoots(readOnly ? [] : candidates, scope);
+    // 이름 패턴 항목은 `narrow`에만 있다. `open`은 훑을 것이 없어 작업 공간을 훑지 않는다
+    const names = expandBasenameEntries(entries, kept, BASENAME_SEARCH_DEPTH);
+    if (names.truncated)
+      logger.warn("sandbox.basename_scan_truncated", { limit: MAX_SCANNED_DIRS });
     const merged = mergePolicy(
       {
         ...input,
@@ -309,13 +336,19 @@ export async function createSandboxService(
           .filter((entry) => entry.access === "read_write" && entry.reason === "fresnel_data")
           .map((entry) => entry.path),
         protectedWriteDeny: pathEntries.map((entry) => entry.path),
-        basenameFiles: expandBasenameEntries(entries, kept, BASENAME_SEARCH_DEPTH),
+        basenameReadFiles: names.readFiles,
+        basenameWriteFiles: names.writeFiles,
       },
       kept,
     );
-    return readOnly
-      ? { ...merged, writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]) }
-      : merged;
+    // 읽기 전용·쓰기 없음·스크립트 환경은 srt가 정책과 상관없이 허용하는 임시·로그 폴더에도 쓰지 못하게 막는다
+    if (readOnly || scriptEnv) {
+      return {
+        ...merged,
+        writeDeny: sortedUnique([...merged.writeDeny, ...srtImplicitWritePaths()]),
+      };
+    }
+    return merged;
   };
 
   const wrapDeps = (withSelfTest: boolean): WrapShellDeps => ({
@@ -326,8 +359,8 @@ export async function createSandboxService(
     parentEnv,
     readOnlyTempBase: () => dirs.tmp,
     status: () => currentStatus(withSelfTest),
-    escapeRetry: () => deps.settings().escapeRetry,
     resolvePolicy,
+    protectedEntries: () => baseProtectedEntries("narrow"),
     tools: () => tools,
     ensureCurrent: async (context: CancelScope): Promise<void> => {
       if (detectedEnabled === deps.settings().enabled) return;
@@ -336,9 +369,36 @@ export async function createSandboxService(
   });
 
   const defaultPolicy: SandboxService["defaultPolicy"] = (input) => {
+    if (input.profile === "script-env") {
+      // 스크립트 환경(가져온 훅): 읽기는 보호 경로만 거부하고(읽기 허용 목록 없음), 쓰기는 프로젝트 폴더 하나다. 호출마다 만드는 임시 폴더는 wrapArgv가 더한다.
+      // 스크립트 실행기의 막기(도구, Mach 서비스, 시스템 정보)를 그대로 얹고, 보호 경로 안의 읽기 예외는 readCarveOuts로 받는다
+      const projectDir = input.projectDir;
+      const projectRoots =
+        projectDir !== undefined && projectDir.startsWith("/")
+          ? [canonicalizePath(projectDir)]
+          : [];
+      const { kept, pathEntries } = analyzeRoots(projectRoots, "narrow");
+      return {
+        writeRoots: kept,
+        readDeny: sortedUnique(
+          pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
+        ),
+        writeDeny: sortedUnique(pathEntries.map((entry) => entry.path)),
+        network: {
+          allowedDomains: [],
+          deniedDomains: splitBlockedDomains(deps.settings().blockedDomains).accepted,
+        },
+        allowEscape: false,
+        profile: "script-env",
+        toolDeny: [...systemToolDeny(provider.kind)],
+        machDeny: [...systemToolMachDeny(provider.kind)],
+        ...(systemInfoDeny(provider.kind) ? { systemInfoDeny: true } : {}),
+        ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
+      };
+    }
     if (input.profile === "no-write") {
       // 쓰기 루트 없음, 읽기 허용 목록 프로필(플러그인 호스트). 네트워크는 차단 목록 방식 그대로다. 호출마다 만드는 임시 폴더는 wrapArgv가 더한다
-      const { pathEntries } = analyzeRoots([]);
+      const { pathEntries } = analyzeRoots([], "narrow");
       return {
         writeRoots: [],
         readDeny: sortedUnique(
@@ -351,9 +411,18 @@ export async function createSandboxService(
         },
         allowEscape: false,
         profile: "no-write",
+        ...(input.systemTools === true
+          ? {
+              readAllowLiteral: [...systemToolLiterals(provider.kind)],
+              toolDeny: [...systemToolDeny(provider.kind)],
+              machDeny: [...systemToolMachDeny(provider.kind)],
+              ...(systemInfoDeny(provider.kind) ? { systemInfoDeny: true } : {}),
+            }
+          : {}),
         readAllow: [
           ...(input.readRoots ?? []),
           ...runtimeReadPaths(provider.kind),
+          ...(input.systemTools === true ? systemToolReadPaths(provider.kind) : []),
           ...srt.helperReadPaths(),
           ...(provider.kind === "bwrap" && tools.socatPath !== undefined
             ? [socatPathOf(tools.socatPath)]
@@ -363,7 +432,7 @@ export async function createSandboxService(
     }
     if (input.profile === "read-only") {
       // 쓰기 루트 없음, 네트워크 차단 프로필. 보호 경로 읽기 금지는 그대로 더한다. 호출마다 만드는 임시 폴더는 wrapShell이 더한다
-      const { pathEntries } = analyzeRoots([]);
+      const { pathEntries } = analyzeRoots([], "narrow");
       return {
         writeRoots: [],
         readDeny: sortedUnique(
@@ -375,12 +444,16 @@ export async function createSandboxService(
         profile: "read-only",
       };
     }
-    const roots = sortedUnique(
-      [...input.workspaceRoots, input.tempDir, ...deps.settings().writeRootsExtra].map((root) =>
-        canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
-      ),
-    );
-    const { kept, pathEntries } = analyzeRoots(roots);
+    // 보통 프로필. 셸 도구는 `writeEverywhere`로 쓰기 범위 제한 없이 부른다. 그 밖(MCP 서버)은 작업 공간과 임시 폴더만 쓴다
+    const writeEverywhere = input.writeEverywhere === true;
+    const roots = writeEverywhere
+      ? [WRITE_EVERYWHERE]
+      : sortedUnique(
+          [...input.workspaceRoots, input.tempDir].map((root) =>
+            canonicalizePath(toAbsolutePath(root, dirs.home, "/")),
+          ),
+        );
+    const { kept, pathEntries } = analyzeRoots(roots, writeEverywhere ? "open" : "narrow");
     return {
       writeRoots: kept,
       readDeny: sortedUnique(
@@ -393,6 +466,8 @@ export async function createSandboxService(
         deniedDomains: splitBlockedDomains(deps.settings().blockedDomains).accepted,
       },
       allowEscape: false,
+      // 읽기 예외는 열린 정책(`writeEverywhere`)과 스크립트 환경에서 받는다. 다른 보통 프로필에 실리면 wrapArgv가 거절한다
+      ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
     };
   };
 
@@ -500,9 +575,17 @@ export async function createSandboxService(
   return {
     status: () => currentStatus(true),
     defaultPolicy,
-    // 호출한 쪽이 넘긴 root도 git 항목을 받는다. knownRoots는 bash 정책을 만든 뒤에야 차므로 그것만 쓰면 첫 파일 쓰기가 열린다
+    // 쓰기 루트에 `/`가 든 대화(쓰기 범위 제한 없음)는 `open` 범위(Fresnel 자신의 항목과 사용자가 더한 곳)다. 좁은 대화는 제안 목록과 root별 git 항목을 쓰기 전용으로 막는다
     protectedPaths: (roots) =>
-      withGitEntries(baseProtectedEntries(), [...knownRoots, ...(roots ?? [])]),
+      roots?.includes(WRITE_EVERYWHERE) === true
+        ? baseProtectedEntries("open")
+        : withGitEntries(baseProtectedEntries("narrow"), roots ?? []),
+    protectedPathKey: (value) => resolveExtraPaths([value], dirs.home).resolved[0],
+    suggestedProtectedPaths: () =>
+      suggestedProtectedPaths(currentStatus(false).platform).flatMap((row) => {
+        const key = resolveExtraPaths([row.path], dirs.home).resolved[0];
+        return key === undefined ? [] : [{ path: row.path, label: row.label, key }];
+      }),
     wrapShell: (shell, policy) => wrapShellWith(wrapDeps(true), shell, policy),
     wrapArgv: (policy, request, context) => wrapArgvWith(wrapDeps(true), policy, request, context),
     autoAllow: (policy, request) =>
@@ -513,6 +596,8 @@ export async function createSandboxService(
     refresh,
     dispose: async () => {
       for (const schedule of schedules) schedule.stop();
+      // 중단 신호를 받은 실행이 임시 폴더를 지우고 끝나기를 기다린다. 기다리지 않으면 엔진을 닫는 프로세스가 그대로 끝나 폴더가 남는다
+      await selfTestTail;
       if (!initialized) return;
       initialized = false;
       await srt.reset();

@@ -128,7 +128,7 @@ export function ExtCell(props: {
     case "name":
       return <ExtName row={row} />;
     case "layer":
-      return <span className="font-mono text-mono-sm text-text-tertiary">{row.layer}</span>;
+      return <span className="text-text-tertiary">{row.layer}</span>;
     case "kind":
       return <span className="text-text-tertiary">{kindText(row.kind)}</span>;
     case "grade":
@@ -138,7 +138,7 @@ export function ExtCell(props: {
     case "state":
       return <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />;
     case "version":
-      return <span className="font-mono text-mono-sm text-text-tertiary">{row.version}</span>;
+      return <span className="text-text-tertiary">{row.version}</span>;
     case "switch":
       return <ExtSwitch row={row} onToggle={props.onToggle} />;
     default:

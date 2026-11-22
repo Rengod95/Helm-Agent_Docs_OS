@@ -50,6 +50,8 @@ import {
   type TurnStartInput,
   type WhenBusy,
   type WireResult,
+  START_DRIVE_REJECT_REASONS,
+  type StartDriveRejectReason,
 } from "@fresnel/contracts/wire";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { stat } from "node:fs/promises";
@@ -117,6 +119,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { pluginFactOf } from "./m4/plugin-fact.ts";
 import { pluginLifecycleOf } from "./m4/plugin-lifecycle.ts";
 import {
   approvalHooksOf,
@@ -137,10 +140,11 @@ import { processPortOf, sandboxSourceOf } from "./plugin-host.ts";
 import { currentSelf, type SelfRunTarget } from "../self-command.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
-import { projectIdOf } from "./m4/project-scope.ts";
+import { deepestRoot, projectIdOf } from "./m4/project-scope.ts";
+import { createAppEditLedger } from "./plugins/app-edits.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { withPendingReview } from "./plugins/pending-overlay.ts";
-import { DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
+import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
 import { ensureResidentDrive, type ResidentDriveDeps } from "./m4/resident-drive.ts";
 import { restorableLeasesOf } from "./m4/drive-restore.ts";
 import type { OverlayMark } from "./m4/plugin-set.ts";
@@ -264,6 +268,11 @@ export interface PortsHandle {
   releaseAll(): Promise<void>;
   /** 플러그인 원본 폴더 감시를 닫는다(엔진을 닫기 전). 진행 중인 훑기를 기다린다 */
   closeSourceWatch(): Promise<void>;
+}
+
+/** 엔진의 시작 Drive 거부 이유를 wire의 닫힌 목록으로 옮긴다. 목록 밖(`input_too_large` 등)은 비운다 */
+function startDriveRejectReasonOf(kind: string): StartDriveRejectReason | undefined {
+  return START_DRIVE_REJECT_REASONS.find((reason) => reason === kind);
 }
 
 function toLogValue(value: unknown): LogValue {
@@ -457,6 +466,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     const profile = await ports.m4.profileTestRun.get(profileId);
     if (!profile.ok || profile.value.startDrive === null) return undefined;
     const named = profile.value.startDrive;
+    // 관리 잠금으로 빌더가 빠진 테스트 챗은 시작 Drive 없이 빈 대화로 연다(오류 아님) [결정: 2026-11-19, 사용자, AGE-60]
+    if (
+      profileId === CRAFT_PROFILE_ID &&
+      ports.m4.pluginSet.sourceOf(threadId, named) === "managed"
+    ) {
+      return undefined;
+    }
     const found = driveRegistrationOf(named);
     // 조용히 넘어가지 않는다: 이 대화는 시작 Drive 없이 열린다. 같은 사유는 `profile.preview`의 이슈(`driver_unavailable` 등)로도 보인다
     if (found === undefined) {
@@ -648,6 +664,27 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     logger,
   });
 
+  /**
+   * 대화 폴더가 속한 프로젝트와 그 루트(`thread.started.project`). 기본 폴더 대화와 작업 폴더가 없는 대화는 null이다.
+   * 어느 루트에도 없는 폴더면 `attach`가 그 폴더를 루트로 프로젝트를 만든다(§4.4.3). 그래서 대화를 쓰기 전에 부른다
+   */
+  async function projectOfWorkspace(
+    workspace: string | undefined,
+  ): Promise<{ readonly id: string; readonly root: string } | null> {
+    if (workspace === undefined) return null;
+    const attached = await projects.attach(workspace);
+    if (!attached.ok) throw wireErrorOfProject(attached.error);
+    if (attached.value === null) return null;
+    const all = await projects.roots();
+    if (!all.ok) throw wireErrorOfProject(all.error);
+    const deepest = deepestRoot(workspace, all.value);
+    // 확인과 읽기 사이에 프로젝트가 지워졌으면 대화를 만들지 않고 거절한다
+    if (deepest === undefined || deepest.projectId !== attached.value.projectId) {
+      throw wireErrorOfProject({ kind: "root_invalid" });
+    }
+    return { id: deepest.projectId, root: deepest.root };
+  }
+
   const threads: ThreadPort = {
     async create(input) {
       // 작업 폴더는 정규 경로로 저장한다(HS-76). 상대 경로와 없는 폴더는 thread를 만들기 전에 거절한다
@@ -665,6 +702,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         if (!folder.ok) throw wireErrorOfProject(folder.error);
         workspace = folder.value;
       }
+      // 소속은 thread.started가 싣는다(§4.4.2). `thread.create`만 정한다(`attachProject`). 시험 대화는 프로젝트 묶음에서 뺀다(§4.8).
+      // 열기 훅이 폴더를 바꾸면 이 값과 나중의 `attach`가 다를 수 있다 [미결]
+      let project: { readonly id: string; readonly root: string } | null | undefined;
+      if (input.attachProject === true) {
+        project = input.testRun === true ? null : await projectOfWorkspace(workspace);
+      }
       const created = session.threads.create({
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
@@ -672,6 +715,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
         ...(input.craftChat === undefined ? {} : { craftChat: input.craftChat }),
+        ...(project === undefined ? {} : { project }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       if (input.testRun === true) {
@@ -688,6 +732,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     exists(threadId) {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value !== undefined) : found;
+    },
+    titleOf(threadId) {
+      const found = session.query.thread(threadId);
+      return found.ok
+        ? ok(found.value === undefined ? undefined : { title: found.value.title })
+        : found;
     },
     workspaceOf(threadId) {
       const found = session.query.thread(threadId);
@@ -845,6 +895,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const head = session.feed.headSeq();
       if (!head.ok) return head;
       return ok({ position: { storeId, seq: head.value } });
+    },
+    async switchStartDrive(threadId) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      if (found.value === undefined)
+        return ok({ startDrive: "rejected", reason: "unknown_thread" });
+      // 첫 메시지 전의 빈 대화: turn도 큐에 든 입력도 없다. 이때는 시작 Drive가 첫 메시지를 받는다(AGE-47)
+      const fresh = found.value.lastTurnId === null && found.value.queuedInputs === 0;
+      const scopeId = await startDriveOf(threadId);
+      // 스택을 어떻게 바꿀지(메시지를 받지 않은 시작 Drive만 내린다, 일하는 Drive는 끝난 뒤 바꾼다)는 엔진이 정한다(X.primitives §4.4.1c)
+      const switched = deps.ext.switchStartDrive(threadId, scopeId ?? null, fresh);
+      if (!switched.ok) {
+        logger.warn("profile.switch_start_drive_rejected", { threadId, kind: switched.error.kind });
+        const reason = startDriveRejectReasonOf(switched.error.kind);
+        return ok(
+          reason === undefined ? { startDrive: "rejected" } : { startDrive: "rejected", reason },
+        );
+      }
+      return ok({ startDrive: switched.value });
     },
     hasTitle(threadId) {
       const found = session.query.thread(threadId);
@@ -1350,7 +1419,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   });
   // 사용자 플러그인 폴더(`<config>/plugins`). 읽기 서비스, 한 줄 지침(§4.10), 마이그레이션 제출(§7.5)이 같이 본다
   const userPluginsDir = join(deps.configDir, "plugins");
+  // 설치된 플러그인 사실(AGE-33 의존 검사). 읽기 서비스와 프로필 검증이 보는 목록과 같은 원천이다
+  const installedFacts = () =>
+    deps.extRead.extensions().map((record) => pluginFactOf(record.manifest, record.location));
+  // 앱의 편집 통신이 쓴 폴더의 해시 장부. 제작 포트가 적고 검토 서비스가 읽는다(AGE-33)
+  const appEdits = createAppEditLedger();
   const pluginReview = createPluginReview({
+    appEdits,
     store: deps.pluginStore,
     plugins: pluginService,
     profiles: { list: () => ports.m4.profileTestRun.list() },
@@ -1359,6 +1434,9 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.localIds,
     now: () => new Date(deps.clock.now()).toISOString(),
     log: deps.logger,
+    envSandboxed: () => deps.settings.value("l0.sandbox.sandboxImportedHooks") === true,
+    narrowDrafts: () => deps.settings.value("l0.sandbox.narrowDrafts") === true,
+    facts: installedFacts,
     // 승인의 프로필 반영과 커밋 뒤 실행 중인 판 맞추기(M5c §4.7.3, §4.6.7). 프로필과 플러그인 집합은 엔진 포트가 올라온 뒤에 읽는다
     approvalHooks: approvalHooksOf({
       profiles: {
@@ -1367,6 +1445,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       },
       loader: () => deps.extRead.loader(),
       refreshPluginSet: () => ports.m4.pluginSet.refresh(),
+      facts: installedFacts,
       log: deps.logger,
     }),
     // 돌려보내기 사유를 만든 대화의 다음 입력으로 넣는다(입력 큐, 사용자가 보낸 것으로 기록한다 [제안])
@@ -1484,6 +1563,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     report: (event, fields) => log.error(event, fields),
     timeoutMs: OVERLAY_LOAD_TIMEOUT_MS,
   });
+  // 덧씌우기의 적재도 대화의 참조와 같은 길을 쓴다(AGE-33 enDep 5b): 기록이 있는 이름은 hard 대상을 먼저 싣고, 같은 로더의 진행 중인 적재를 함께 쓴다
+  const overlayLifecycle = pluginLifecycleOf({
+    loader: () => deps.extRead.loader(),
+    // 덧씌우기는 내리지 않는다(내리기는 대화의 참조가 맡는다)
+    busy: () => false,
+    signal: deps.signal,
+  });
   const overlay = createOverlayPort({
     targetOf: (name) => pluginService.overlayTarget(name),
     draftOf: (draftId) => pluginReview.draftOf(draftId),
@@ -1498,11 +1584,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           const signal = AbortSignal.timeout(OVERLAY_LOAD_TIMEOUT_MS);
           // 기록이 있으면(시작 때 미룬 것, 내린 것) `ensureLoaded`가 싣는다. 기록이 없으면 검토본에서 새로 설치한다
           if (loader.list().some((info) => info.name === name)) {
-            const attempted = await attemptAsync(() => loader.ensureLoaded(name, signal));
-            if (!attempted.ok || attempted.value.state !== "active") {
+            const attempted = await attemptAsync(() => overlayLifecycle.ensureLoaded(name, signal));
+            // 상태는 적재 뒤의 기록에서 읽는다(`ensureLoaded`의 돌려주는 값은 호출하는 쪽마다 다르다)
+            const state = loader.list().find((info) => info.name === name)?.state;
+            if (!attempted.ok || state !== "active") {
               log.error("plugin.overlay.load_failed", {
                 name,
-                kind: attempted.ok ? attempted.value.state : "thrown",
+                kind: attempted.ok ? (state ?? "missing") : "thrown",
               });
             }
             return;
@@ -1656,6 +1744,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       },
       draftList: (name) => pluginReview.draftList(name),
       draftDiscard: (draftId) => pluginReview.draftDiscard(draftId),
+      draftFiles: (draftId) => pluginReview.draftFiles(draftId),
+      draftFile: (draftId, path) => pluginReview.draftFile(draftId, path),
       draftFromInstruction: (params) => pluginReview.fromInstruction(params),
       invocables: async (threadId) => {
         if (!isId("thr", threadId)) return err({ kind: "thread_not_found", threadId });
@@ -1680,6 +1770,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         dialogArea: deps.dialogArea,
         log,
         projects,
+        appEdits,
         // 제작 포트가 읽는 원본 폴더와 초안 목록(M5c §4.9.2, §4.9.3). 플러그인 wire와 같은 서비스다
         plugins: {
           get: (name) => pluginService.get(name),
@@ -1718,6 +1809,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         },
         configDir: deps.configDir,
         stateDir: deps.stateDir,
+        // 검토본·초안 저장소(`assemble.ts`의 `pluginStoreRoot`와 같다). 제작 포트가 이 폴더 안을 편집하지 않게 막는다
+        pluginStoreDir: join(deps.dataDir, "plugin-store"),
         secretNames: async () => {
           const listed = await deps.secrets.admin.ls({ usage: false });
           if (!listed.ok) return null;

@@ -417,7 +417,7 @@ export interface McpService extends McpPort {
   - 돌려준 `Unsubscribe`를 부르면(Registration이 꺼질 때 X가 자동으로 부른다) 다음 단계 경계에서 연결을 닫고 그 서버의 동적 도구를 해제한다.
 - `connect`, `reconnect`, `disable`, `callTool`은 `replay`를 생략해 `"unsafe"`다. `callTool`은 서버 쪽 효과를 알 수 없으므로 `unsafe`로 둔다.
 - 정적 도구 3개는 모두 읽기다 [제안]. 서버를 켜고 끄는 일은 사용자 명령과 설정 화면만 하고 모델 도구로 두지 않는다. 모델의 서버 도구 호출은 §3.3 동적 도구로 한다.
-- 서버 도구를 모델이 부르는 경로는 동적 도구이고, 그룹 코드가 부르는 경로는 `callTool` 메서드다. 두 경로 모두 §4.6 MRTR 규칙을 따른다.
+- 서버 도구를 모델이 부르는 경로는 동적 도구이고, 플러그인 코드가 부르는 경로는 `callTool` 메서드다. 두 경로 모두 §4.6 MRTR 규칙을 따른다.
 - `mcp_read_resource`의 `toContent`는 `server`를 모르므로 감싸기 표지에 `"resource"`를 쓴다. 동적 도구 결과는 실제 서버 id를 쓴다(§4.5).
 
 ### 3.3 동적 도구 광고
@@ -531,7 +531,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.2 서버 정의 로딩
 
 1. 설정 `l2.mcp.servers`의 유효 값(관리 > … > 사용자 범위 병합, `F.wire-settings.spec` §4.7)을 읽는다.
-2. 작업 폴더가 신뢰된 상태면(`thread.trust.before` 훅, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 작업 폴더 루트의 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6, M5g-2]. `l2.mcp.importMcpJson` 키는 M5g-2에서 뺐다. 파일에 남은 키는 `settings.readFile`의 `unknownKeys`로 경고만 된다. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다. 예외 [결정: 오케스트레이터 기본값, fxPT]: 신뢰 카드 미리 보기(조립 루트 `trust-preview.ts`, X.loading-trust §4.7.4)는 신뢰 전에 이 파일을 읽어 서버 이름과 `command`·`args`만 보인다. 상한은 파일 256 KiB, 파일당 서버 50개, `command`·인자 문자열 512자, `args` 64개다. `env`·`headers`·`url` 값은 읽고 버리며 보이지도 싣지도 않는다. 아무것도 기동하거나 로드하지 않고, 서버 목록은 신뢰 전까지 `blocked`로 남는다.
+2. 작업 폴더가 신뢰된 상태면(`thread.trust.before` 훅, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 작업 폴더 루트의 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6, M5g-2. 2026-11-18 밤, 사용자, AGE-48 (1): 지금대로 둔다. 폴더 신뢰, 기동 승인, 샌드박스를 지나고 끄는 설정은 되살리지 않는다]. `l2.mcp.importMcpJson` 키는 M5g-2에서 뺐다. 파일에 남은 키는 `settings.readFile`의 `unknownKeys`로 경고만 된다 [결정: 2026-11-18 저녁, 사용자, AGE-48 (4): 없어진 설정 키는 경고만 하고 무시한다. 파일을 고치지 않는다]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다. 예외 [결정: 오케스트레이터 기본값, fxPT]: 신뢰 카드 미리 보기(조립 루트 `trust-preview.ts`, X.loading-trust §4.7.4)는 신뢰 전에 이 파일을 읽어 서버 이름과 `command`·`args`만 보인다. 상한은 파일 256 KiB, 파일당 서버 50개, `command`·인자 문자열 512자, `args` 64개다. `env`·`headers`·`url` 값은 읽고 버리며 보이지도 싣지도 않는다. 아무것도 기동하거나 로드하지 않고, 서버 목록은 신뢰 전까지 `blocked`로 남는다.
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 시크릿처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 시크릿 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
@@ -562,7 +562,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
   - 관리 범위 값은 낮은 범위가 덮어쓰지 못한다(`F.wire-settings.spec` §4.7). 화면은 잠금 표시를 한다.
 - 도구 수준: 서버 정의의 `tools.deny` > `tools.allow` 순으로 거른다. 걸러진 도구는 `listTools` 결과에 `exposed: false`로 남고 모델 도구 집합에는 없다. 도구를 시야에서 빼는 방식이다(`_research/item-catalog.md` 진보된 설계 5번).
 - 승인 모드: `prompt`(매번 묻기), `auto`(묻지 않음), `deny`(호출 거부). 서버 정의 `tools.approval[도구]` > `l2.mcp.approvalMode` 순으로 정한다.
-  - `deny`인 도구의 호출은 도구 경로(모델의 동적 도구)와 직접 경로(`mcp.client.callTool`을 부르는 그룹 코드) 모두 전송에 닿기 전에 `denied` 오류로 거부한다. 직접 경로는 L1.tools 규칙을 거치지 않으므로 `cap-mcp`가 이 검사를 맡는다 [결정: 감사 l2/mcp #6].
+  - `deny`인 도구의 호출은 도구 경로(모델의 동적 도구)와 직접 경로(`mcp.client.callTool`을 부르는 플러그인 코드) 모두 전송에 닿기 전에 `denied` 오류로 거부한다. 직접 경로는 L1.tools 규칙을 거치지 않으므로 `cap-mcp`가 이 검사를 맡는다 [결정: 감사 l2/mcp #6].
   - 승인 판정과 실행은 L1.tools가 한다. `cap-mcp`는 위 값을 L1.tools 권한 규칙으로 공급한다. 규칙 키 형식은 `mcp__<서버 id>`(서버 전체)와 `mcp__<서버 id>__<서버 도구 이름>`(도구 하나)이다(`_research/settings.md` §2.10 도구별 승인 행 omp `mcp__<이름>`) [제안]. 이 키는 권한 규칙 키이고 도구 기계 이름과 별개다.
   - 규칙을 공급하는 API는 `L1.tools.spec`이 정한다 [가정]. `ToolService.registerRules`는 `core:` 출처만 받으므로 구현은 `McpRulesSink` 포트(`src/ports/rules.ts`)로 규칙을 내고 L1A 레인에 확장 티어 공급 API를 요청했다(`L2.mcp.plan` §8.5).
 
@@ -622,7 +622,7 @@ sequenceDiagram
 6. `requestId` 규칙: 라운드 r의 요청 키는 `<기본 requestId>#r<r>`이다. 기본값은 `CallOptions.requestId`이고, 합친 길이가 64자를 넘으면 기본값 부분을 SHA-256 앞 32자 hex로 줄인다. 같은 라운드를 다시 보낼 때 같은 키를 쓴다(`eng.transactions.design` TX-05).
 7. 재시작 뒤 재개: 대기 상태(질문, `inputRequests`, `requestState`, 라운드)는 승인 요청 이벤트와 도구 결과 레코드에 내구로 있으므로 `cap-mcp` 메모리 없이 4번을 다시 할 수 있다. 서버 연결은 재시작 뒤 새로 맺는다. 2026 무상태 서버는 `requestState`만으로 이어진다. 2025 `session` 서버는 `session`이 바뀌어 `requestState`가 무효일 수 있고, 그때 서버 오류가 그대로 도구 오류 결과가 된다.
 8. 멱등: 승인 해결 뒤의 재시도는 L1.tools가 의도를 먼저 커밋하고 보낸다. 보낸 뒤 결과가 기록되기 전에 프로세스가 죽으면 그 라운드는 결과 불명이고 `callTool`이 `unsafe`라 자동으로 다시 보내지 않는다(`F.records.spec` §3.5 판정 표). 승인 대기 중의 재시작은 아직 보내지 않은 상태라 재시도가 한 번만 일어난다.
-9. 같은 규칙을 `getPrompt`, `readResource`에도 쓴다. MRTR이 이 세 요청에만 `input_required`를 허용하기 때문이다(`_research/notes/L2-1.md` §3 사양 제약). 그룹 코드가 서비스로 부를 때는 `CallToolOutput`의 `input_required` 변형을 그룹이 직접 처리하고, 사람에게 물을 때는 `fresnel.approvals`를 쓴다.
+9. 같은 규칙을 `getPrompt`, `readResource`에도 쓴다. MRTR이 이 세 요청에만 `input_required`를 허용하기 때문이다(`_research/notes/L2-1.md` §3 사양 제약). 플러그인 코드가 서비스로 부를 때는 `CallToolOutput`의 `input_required` 변형을 플러그인이 직접 처리하고, 사람에게 물을 때는 `fresnel.approvals`를 쓴다.
 10. elicitation 보안: 비밀번호, API 키, 토큰, 결제 정보는 form 모드로 받지 않는다(사양 규칙, `_research/notes/L2-1.md` §5). form 스키마 필드 이름이 시크릿처럼 보이면(`password`, `token`, `apiKey`, `secret` 등) 질문에 경고를 붙이고(`McpQuestion`에 경고 필드가 없어 구현은 `message` 앞에 경고 문장을 붙인다) 응답을 저장할 때 L0.secrets 마스킹을 거친다 [제안].
 
 ### 4.7 sampling과 roots
@@ -728,7 +728,7 @@ sequenceDiagram
 ## 7. 훅
 
 - `thread.mcp.after`(session, fold tap, `dispatch: detached`, `F.extensions.spec` §3.4 29번): 서버 상태나 노출 도구 집합이 바뀐 단계 경계에서 한 번 발화한다. 페이로드 타입 `McpServersChangePayload`의 필드는 `F.extensions.spec`이 정한다. `cap-mcp`는 바뀐 서버 id 목록, 서버별 상태, 추가·제거된 도구 기계 이름(`toolsAdded`, `toolsRemoved`)을 채운다 [가정: 페이로드에 이 정보를 담을 자리가 있다].
-- 서버 도구 호출은 `tool.call.before`(first), `tool.result`(chain), `tool_execution_*`(tap)를 지난다. 페이로드의 `capability`는 동적 도구라 비어 있을 수 있다. [제안] 동적 도구는 `capability: { id: "mcp.client", method: "callTool" }`를 싣고 서버 id와 원래 도구 이름을 `details`에 둔다. 그러면 그룹 핸들러가 MCP 도구 전체를 한 조건으로 고를 수 있다.
+- 서버 도구 호출은 `tool.call.before`(first), `tool.result`(chain), `tool_execution_*`(tap)를 지난다. 페이로드의 `capability`는 동적 도구라 비어 있을 수 있다. [제안] 동적 도구는 `capability: { id: "mcp.client", method: "callTool" }`를 싣고 서버 id와 원래 도구 이름을 `details`에 둔다. 그러면 플러그인 핸들러가 MCP 도구 전체를 한 조건으로 고를 수 있다.
 - `thread.trust.before`(first): `.fresnel/mcp.json`을 읽을지 결정에 쓴다(§4.2).
 - 이 문서는 새 훅을 정의하지 않는다.
 
@@ -738,8 +738,8 @@ sequenceDiagram
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `McpClient`, `McpClientKey`(F `capabilities/defs/mcp.ts`) | L3 그룹 spec, `L4.host-service.spec`(상태 조회), `L2.readme` |
-| `McpService` 구현(`registerServer`는 `McpPort` 구현, Cordis `fresnel.mcp`). 타입 `McpService`, `McpServiceName`은 F `services/mcp.ts`에 있다 | `X.primitives.spec`(`hostOf(g).registerMcpServer`), L3 그룹 spec |
+| `McpClient`, `McpClientKey`(F `capabilities/defs/mcp.ts`) | L3 플러그인 기반 spec, `L4.host-service.spec`(상태 조회), `L2.readme` |
+| `McpService` 구현(`registerServer`는 `McpPort` 구현, Cordis `fresnel.mcp`). 타입 `McpService`, `McpServiceName`은 F `services/mcp.ts`에 있다 | `X.primitives.spec`(`hostOf(g).registerMcpServer`), L3 플러그인 기반 spec |
 | `McpServerDef`, `McpServerDefSchema`, `McpServerStatusSchema` | `L4.settings-ui.spec`, `L4.cli.spec` |
 | `McpQuestionSchema`, `McpContinuationSchema` | `L1.tools.spec`(승인 payload, 재호출), `L2.dialog.spec`(질문 표시) |
 | 권한 규칙 키 `mcp__<서버 id>`, `mcp__<서버 id>__<도구>` | `L1.tools.spec` |
@@ -779,7 +779,7 @@ sequenceDiagram
 ## 10. 미결 사항
 
 1. [미결] 서버 도구 기계 이름 형식(`F.capabilities.spec` §10의 a/b/c). 이 문서는 정하지 않고 `mcpToolName` 한 곳에 모은다. `eng.context-map.design` CM-03 예시의 `mcp:<서버>:<도구>`는 `TOOL_NAME_WIRE_PATTERN`과 맞지 않으므로 예시를 고치도록 요청한다.
-2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 그룹 코드가 쓴다. F 요청 12(`L1.tools.spec` §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`(`CallContinuation`)과 질문 옮기기 규칙(F `defs/mcp-questions.ts`의 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`)이다. cap-mcp의 `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 입력의 `continuation`보다 먼저 읽는다. core-tools 어댑터 연결과 동적 도구 경로(`AgentTool.execute`에 연속 정보 자리가 없음)는 [미결]이다.
+2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 플러그인 코드가 쓴다. F 요청 12(`L1.tools.spec` §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`(`CallContinuation`)과 질문 옮기기 규칙(F `defs/mcp-questions.ts`의 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`)이다. cap-mcp의 `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 입력의 `continuation`보다 먼저 읽는다. core-tools 어댑터 연결과 동적 도구 경로(`AgentTool.execute`에 연속 정보 자리가 없음)는 [미결]이다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
 4. [결정: review.m3-design-inputs D-M3-19 행 3] 서버 정의 `env`·`headers`에 평문 값을 허용하되, 시크릿 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 키의 평문은 거부한다. 명시 답이 없어 권고를 적용했다 [가정]. 구현했다(§4.2).
 5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.fresnel/mcp.json`은 작업 폴더 신뢰 뒤에만 읽는다(M5g-2 뒤 루트 `.mcp.json`은 읽지 않는다). 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.

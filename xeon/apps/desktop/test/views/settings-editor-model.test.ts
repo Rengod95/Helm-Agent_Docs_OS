@@ -87,9 +87,9 @@ describe("dedicatedEditorOf", () => {
     expect(dedicatedEditorOf(fieldOf("l1.tools.rules", "permissions", "table"))).toBe(
       "permissionRules",
     );
-    expect(dedicatedEditorOf(fieldOf("l0.sandbox.writeRoots.extra", "permissions", "list"))).toBe(
-      "sandboxLists",
-    );
+    expect(
+      dedicatedEditorOf(fieldOf("l0.sandbox.protectedPaths.extra", "permissions", "list")),
+    ).toBe("sandboxLists");
     expect(
       dedicatedEditorOf(fieldOf("l0.sandbox.network.blockedDomains", "permissions", "list")),
     ).toBe("sandboxLists");
@@ -99,9 +99,6 @@ describe("dedicatedEditorOf", () => {
     expect(dedicatedEditorOf(fieldOf("l2.knowledge.skills.paths", "tools", "list"))).toBe(
       "sandboxLists",
     );
-    expect(
-      dedicatedEditorOf(fieldOf("l0.sandbox.credentialFiles", "permissions", "list")),
-    ).toBeNull();
   });
 
   test("a table and a secret without a key or hint get their editor by widget", () => {

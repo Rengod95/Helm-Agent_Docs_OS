@@ -5,7 +5,7 @@ domain: models
 kind: spec
 status: draft
 depends_on: [F.conversation.spec, F.capabilities.spec, F.records.spec, F.extensions.spec, F.wire-settings.spec, eng.context-map.design, adr.0001, adr.0002]
-binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/group-account-rotation/**, xeon/packages/group-provider-anthropic-oauth/**]
+binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/plugin-account-rotation/**, xeon/packages/plugin-provider-anthropic-oauth/**]
 ---
 
 # L1 모델 게이트웨이 (models)
@@ -211,7 +211,7 @@ export interface ModelCallContext {
   readonly turnId: TurnId | null;
   readonly stepId: StepId | null;
   readonly role: ModelRole;
-  /** 사용량을 귀속할 scope. 그룹이 일으킨 호출이면 그 scope */
+  /** 사용량을 귀속할 scope. 플러그인이 일으킨 호출이면 그 scope */
   readonly scopeId?: ScopeId;
   readonly signal?: AbortSignal;
 }
@@ -273,16 +273,16 @@ export interface ContextUsageEstimate {
 | 역할 | 쓰는 곳 | 설정 키 | 기본 대체 사슬 | 기본 캐시 보존 |
 |---|---|---|---|---|
 | `main` | 주 루프의 단계 요청(`L1.loop.spec`) | `l1.models.default` | 없음 | 설정값(`l1.models.cacheRetention`) |
-| `review` | 검토 서브에이전트, 그룹의 검토 호출 | `l1.models.routing.review` | `main` | 설정값 |
+| `review` | 검토 서브에이전트, 플러그인의 검토 호출 | `l1.models.routing.review` | `main` | 설정값 |
 | `summary` | 컴팩션 요약(`L1.context.spec` §4.6), 떠난 가지 요약 | `l1.models.routing.summary` | `main` | `none`(pi `completeSummarization`의 `cacheRetention: "none"`, coding-agent `compaction.ts:631`) |
 | `subagent` | 서브에이전트(`L1.agents.spec`). 정의 파일의 `model` 필드가 `RoleOverrides.ref`로 들어와 덮어쓴다 | `l1.models.routing.subagent` | `main` | 설정값 |
 | `judge` | 목표 판정. `L1.agents.spec`이 판정 실행 경로에서 부른다(실행 횟수 상한은 그 문서) | `l1.models.routing.judge` | `review` → `main` | `none` |
 | `search` | 내장 검색 래퍼의 소형 모델 한 턴(`_research/foundation-plan.md` §1 결정 6 ②, `L2.web.spec`) | `l1.models.routing.search` | `summary` → `main` | `none` |
-| 그룹 덮어쓰기 | 그룹이 일으킨 위 역할 호출 | `l1.models.groupRouting` (`{ [scopeId]: { [role]: ref } }`) | 해당 역할의 일반 해석 | 해당 역할 |
+| 그룹 덮어쓰기 | 플러그인이 일으킨 위 역할 호출 | `l1.models.groupRouting` (`{ [scopeId]: { [role]: ref } }`) | 해당 역할의 일반 해석 | 해당 역할 |
 
 - [결정] 목표 판정은 별도 판정 모델과 실행 횟수 상한으로 한다(`_research/foundation-plan.md` §1 결정 4). 이 문서는 `judge` 역할로 모델만 고른다.
 - omp `modelRoles`(default, smol, slow, plan, commit 등 16종, `_research/settings.md` §2.5)는 참고만 했다. 역할 수를 6개로 줄인 이유는 L1 안에 실제 호출처가 있는 역할만 두기 위해서다 [제안].
-- [미결] 그룹이 새 역할 이름(예: Helm 렌즈 전용)을 등록할 수 있게 할지. 현재 제안은 6종 고정이고 그룹은 `groupRouting`으로 기존 역할만 덮어쓴다.
+- [미결] 플러그인이 새 역할 이름(예: Helm 렌즈 전용)을 등록할 수 있게 할지. 현재 제안은 6종 고정이고 플러그인은 `groupRouting`으로 기존 역할만 덮어쓴다.
 - 모델 테이프의 `ModelTapeTurn.role`(`eng.testing.guide` TS-04)은 이 표의 `ModelRole` 값이다.
 
 ### 3.5 사용량
@@ -642,7 +642,7 @@ export function resolveRole(input: {
 1. 스트림 래퍼는 종결 이벤트 `done`의 `message.usage`, `error`의 `error.usage`를 읽는다. 중단(`aborted`)과 오류 응답도 pi-ai가 `usage`를 채우므로 같은 방식으로 기록한다(`_research/packages.md` §4.3 L1-c 비용·토큰 계측 행).
 2. 비용은 pi-ai `calculateCost(model, usage)`(`models.ts:1200`)로 계산한 값이 이미 `usage.cost`에 있다. 단가가 모두 0이면 비용은 0으로 합산하고 `UsageTotals`에는 그대로 둔다.
 3. 종결 이벤트 없이 스트림이 끊기면(프로세스 종료 제외) 래퍼가 `aborted: true`, 0 사용량으로 기록한다.
-4. 합산 단위는 `UsageScope`(thread, turn, role, scope)다. 그룹이 일으킨 호출은 `scopeId`별로 따로 합산한다. drive 락 상한(`maxTokens`, `F.extensions.spec` §3.2 `DriveLimits`)은 X가 이 합계를 읽어 판정한다 [가정: X.primitives.spec].
+4. 합산 단위는 `UsageScope`(thread, turn, role, scope)다. 플러그인이 일으킨 호출은 `scopeId`별로 따로 합산한다. drive 락 상한(`maxTokens`, `F.extensions.spec` §3.2 `DriveLimits`)은 X가 이 합계를 읽어 판정한다 [가정: X.primitives.spec].
 
 ### 4.5 재시도
 
@@ -695,7 +695,7 @@ export function resolveRole(input: {
   - 시험 X7(`packages/client/test/accounts/x7.test.ts`, `scripts/exit-tests.txt`): 메모리 호스트가 설정 파일 하나를 들고 두 번 저장합니다. 키 세 개가 같은 이름으로 쓰이고 다른 키와 키 순서가 남는지, 두 번째 편집이 계정을 지우지 않는지 확인합니다. 키와 값은 core-models의 `MODELS_SETTING_DEFS`와 `validateSettingValue`를 통과해야 합니다. 읽기와 쓰기 사이에 파일이 바뀌면 `conflict`로 실패하고 아무것도 쓰지 않습니다. 같은 종료 조건의 `packages/core-models test/rotation.test.ts`는 429 계정 회전 시험입니다.
   - [미결] 저장 뒤 `settings.invalidated` 알림으로 다시 읽는 일은 M4 화면 작업에서 정합니다. `routes.yaml`의 `settings-ui` 경로(`packages/client/src/settings/**`)에는 `accounts/`가 없어 라우팅으로는 이 절이 찾아지지 않습니다. 경로를 넣을지는 문서 라우팅 담당이 정합니다.
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
-- 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/group-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 그룹은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.fresnel-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
+- 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/plugin-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 플러그인은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.fresnel-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
 
 ### 4.9 폴백 체인 (2차)
 
@@ -763,8 +763,8 @@ export function resolveRole(input: {
 
 - [가정] Anthropic 서버가 래퍼 경로 요청을 받아들이고 구독 OAuth 토큰을 이 방식으로 쓸 수 있다고 보고 설계한다. 둘 다 확인하지 않았다(`_research/notes/L1-2.md` §6). 공개 배포 여부를 정하기 전에 확인한다.
 - [미결] 별도 플러그인 배포 여부(`product.scope.spec` N6).
-- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/group-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(시크릿 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
-- [미결] M-8 와이어 동등 래퍼를 쓸지 정하지 않았습니다. 고지 동의가 없을 때 진단 메시지를 내라는 위 사용자 확인 `[제안]`은 구현하지 않았습니다. 그룹 API에는 진단 경로가 없어 setup은 조용히 등록을 건너뜁니다.
+- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/plugin-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(시크릿 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
+- [미결] M-8 와이어 동등 래퍼를 쓸지 정하지 않았습니다. 고지 동의가 없을 때 진단 메시지를 내라는 위 사용자 확인 `[제안]`은 구현하지 않았습니다. 오케스트레이션 API에는 진단 경로가 없어 setup은 조용히 등록을 건너뜁니다.
 - [미결] `xeon/plugins/provider-anthropic-oauth` 스텁을 남길지 정하지 않았습니다. 이 위치는 §3.11이 가리키는 옛 경로입니다.
 
 #### 4.11.4 배포 제외 검사
@@ -789,7 +789,7 @@ export function resolveRole(input: {
 | 참조 접미가 레벨 이름이 아님(`…-v1:0`) | modelId의 일부로 읽는다 |
 | 모델이 지원하지 않는 레벨 요청 | `clampThinkingLevel`로 낮춘다. `request.thinking.after`는 실제 쓰인 레벨로 발화한다 |
 | 체크포인트의 모델이 없어짐 | `rebind` 오류 → 새로 해석, `request.model.after`(`restore`) |
-| 그룹 덮어쓰기의 scopeId가 꺼진 그룹 | 덮어쓰기를 무시한다. 꺼진 그룹은 호출을 일으키지 않으므로 정상 경로에서는 생기지 않는다 |
+| 그룹 덮어쓰기의 scopeId가 꺼진 플러그인 | 덮어쓰기를 무시한다. 꺼진 플러그인은 호출을 일으키지 않으므로 정상 경로에서는 생기지 않는다 |
 | 시크릿 참조 해석 실패 | `secret_unresolved` 오류 종결 메시지. 재시도하지 않는다 |
 | 기본 `anthropic` provider에 `sk-ant-oat` 키 | `oauth_token_on_default_provider`. 요청을 보내지 않는다 |
 | 같은 이름 provider 두 번 등록 | 두 번째가 `provider_conflict` |
@@ -950,7 +950,7 @@ export interface ThinkingLevelSelectPayload {
 2. [미결 M-2] 방안 A의 갈래: A1(새 Api id)과 A2(Api id 유지, provider id 분리). 제안은 A2.
 3. [미결] 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6)와 서버 수용·이용 조건 확인 시점.
 4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `fresnel.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
-5. [미결] 그룹 정의 역할(6종 밖)을 허용할지(§3.4).
+5. [미결] 오케스트레이션 정의 역할(6종 밖)을 허용할지(§3.4).
 6. [미결] `StepCheckpoint.model`에 `role`을 넣을지(§3.2).
 7. [미결] `l1.models.thinkingLevel` 기본값과 `cacheRetention` 기본값(§4.6).
 8. [미결] 구독 계정 회전(M3, review.decisions-2 U-21)의 약관 검토와 별도 설계 문서(§4.8).

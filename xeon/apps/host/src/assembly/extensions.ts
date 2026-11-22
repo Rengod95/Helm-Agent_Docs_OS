@@ -38,6 +38,7 @@ import {
   WebFetch,
   WebSearch,
   WorkTasks,
+  WorkspaceProtection,
   type AnyCapabilityDef,
   type CapabilityApi,
   type Notice,
@@ -52,7 +53,8 @@ import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin, type UserSkillSink } from "@fresnel/cap-knowledge";
 import { workPlugin } from "@fresnel/cap-work";
 import { workspacePlugin } from "@fresnel/cap-workspace";
-import { workspaceCore, writeAccessTitle } from "@fresnel/core-workspace";
+import { protectPathsStoreOf } from "./protect-paths.ts";
+import { workspaceCore } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition, DraftMark, ToolOutputFiles } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
@@ -69,6 +71,7 @@ import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/cor
 import { sessionPlugin } from "@fresnel/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
 import { dialogCore, toolsPlugin } from "@fresnel/core-tools";
+import type { ToolVisibility } from "./m4/tool-exposure.ts";
 import type {
   BuiltinExtensionModule,
   ExtHost,
@@ -79,7 +82,6 @@ import type {
 import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
 import type { ContributedServer, McpProcessPort } from "@fresnel/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
-import { hostGroupsPlugin } from "./groups.ts";
 import { proposalsBridgePlugin, type KnowledgeWireHolder } from "./proposals.ts";
 import { authoringLoaded, authoringUnit, type AuthoringWiring } from "./authoring.ts";
 import { guideLoaded, guideSkillRoots, guideUnit, type GuideWiring } from "./guide.ts";
@@ -87,11 +89,17 @@ import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
-import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
+import {
+  goalBridgePlugin,
+  memoryBridgePlugin,
+  skillBridgePlugin,
+  taskBridgePlugin,
+  type DialogAreaHolder,
+} from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
-import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
+import type { OrchestrationCatalogEntry } from "@fresnel/orchestration-sdk";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -156,17 +164,13 @@ export interface ExtensionDeps {
   /** 대화가 지워졌을 때 부른다(측정 저장소의 그 대화 행 지우기). 조립 루트가 넘긴다 */
   readonly onThreadRemoved: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
-  /** 그룹 서비스(`fresnel.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
+  /** 그룹 서비스(`fresnel.orchestration`) 연결: 카탈로그, 설정 저장소, 현재 thread */
   readonly groups: {
     readonly catalog: SettingCatalog;
     readonly store: () => SettingsStorePort | undefined;
     readonly currentThread: () => ThreadId | null;
     readonly heldThreads: () => readonly ThreadId[];
-    readonly entries: () => readonly GroupCatalogEntry[];
-    /** `/group on` 뒤에 부른다. 실패 장부를 비운다(X-4) */
-    readonly onEnabled: (id: string) => void;
-    /** 그룹 서비스가 올라올 때 부른다 */
-    readonly onService: (service: GroupServiceWithUsage) => void;
+    readonly entries: () => readonly OrchestrationCatalogEntry[];
   };
   /** L2 제안 대기열 어댑터를 받는 자리(`proposal.*` 처리기가 읽는다) */
   readonly knowledgeWire: KnowledgeWireHolder;
@@ -192,6 +196,11 @@ export interface ExtensionDeps {
    * 드래프트 카드를 띄우지 않는다(L1.tools.spec §4.6.1). 엔진 포트가 뜬 뒤에 답한다. 생략하면 모든 대화가 `ask`다
    */
   readonly testRunApprovalOf?: (threadId: ThreadId) => "auto" | undefined;
+  /**
+   * 대화가 보는 도구 이름과 가시성(L1.tools.spec §3.3.1 [결정: 2026-11-19, 사용자, AGE-56]). 도구는 `perThread`로 등록되고 이름은 대화가 실은 플러그인(E(T))으로 정한다.
+   * E(T)를 읽지 못하면(엔진 포트가 뜨기 전, 프로필 복사 읽기 전, 부모 조회 실패, 대화 id 아님) 내장 도구만 보인다. 승격 집계의 도구 주인 조회도 같은 규칙을 쓴다
+   */
+  readonly toolVisibility: ToolVisibility;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -269,6 +278,7 @@ export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   ArtifactsReviews,
   ArtifactsSessions,
   ScheduleEntries,
+  WorkspaceProtection,
 ];
 
 /**
@@ -325,6 +335,7 @@ function pluginMcpServersOf(
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
+  const { exposureOf } = deps.toolVisibility;
   // cap-dialog의 동작 명령 등록부와 명령 서비스 API. 브리지 확장이 채우고 cap-work와 호스트의 command.* 처리기가 읽는다
   const commandRegistry = deps.commands;
   // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
@@ -428,6 +439,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           draftOf: (scopeId) => draftMarkOf(deps.ext, deps.loader, scopeId),
           // 드래프트 승인 `auto`인 테스트 실행 대화의 호출은 드래프트 카드를 띄우지 않는다. 판정은 호출한 대화로 한다(L1.tools.spec §4.6.1)
           draftAutoApproved: (threadId) => deps.testRunApprovalOf?.(threadId) === "auto",
+          exposureOf,
           loadIndex,
         }),
     ],
@@ -443,22 +455,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           kindLookup,
           cancelledByOwnerOf,
           ...(deps.contextTrace === undefined ? {} : { contextTrace: deps.contextTrace }),
-          loadIndex,
-        }),
-    ],
-    [
-      "host-groups",
-      (loadIndex) =>
-        hostGroupsPlugin({
-          ext: deps.ext,
-          settings,
-          currentThread: deps.groups.currentThread,
-          groups: deps.groups.entries,
-          onEnabled: deps.groups.onEnabled,
-          onService: deps.groups.onService,
-          report: (cause) => {
-            deps.logger.error("groups.listener_failed", { message: messageOf(cause) });
-          },
           loadIndex,
         }),
     ],
@@ -483,14 +479,14 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       "cap-workspace",
       (loadIndex) =>
         workspacePlugin({
-          // 경로 검사, 샌드박스 셸, 쓰기 허용 승인의 구현 묶음(core-workspace가 낸다)
+          // 경로 검사, 샌드박스 셸, 파일 변경 줄 세우기의 구현 묶음(core-workspace가 낸다)
           core: workspaceCore,
           settings: workspaceSource(settings),
           // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
           unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
-          // 작업 폴더 밖 쓰기(샌드박스가 막은 경로, 파일 도구)는 도구 승인 카드로 묻는다(L2.workspace.spec §4.3.1)
-          approvals: (service) => createBareL2ApprovalsPort(service, writeAccessTitle),
           outputFiles: deps.toolOutputs,
+          // 보호 경로 더하기(모델 도구 `sandbox_protect`, AGE-63): 사용자 범위 extra에만 쓴다. 설정 저장소가 없으면 unavailable이다
+          protectPaths: protectPathsStoreOf(settings, deps.groups.store),
           // 편집 도구의 원본 저장과 파일 되감기 이벤트 id(L1.persistence.spec §4.13.2). 없으면 원본을 저장하지 않는다
           ids: deps.ids,
           loadIndex,
@@ -611,8 +607,11 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
-    // 대화 영역 브리지는 목표·작업·계획(cap-work)과 스킬(cap-knowledge) 뒤에 올라와야 그 기능 API를 얻는다
-    ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
+    // 목표·태스크 브리지는 cap-work 뒤에, 스킬·메모리 브리지는 cap-knowledge 뒤에 올라와야 그 기능 API를 얻는다
+    ["host-goal-bridge", (loadIndex) => goalBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-task-bridge", (loadIndex) => taskBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-skill-bridge", (loadIndex) => skillBridgePlugin(deps.dialogArea, loadIndex)],
+    ["host-memory-bridge", (loadIndex) => memoryBridgePlugin(deps.dialogArea, loadIndex)],
     ["host-proposals-bridge", (loadIndex) => proposalsBridgePlugin(deps.knowledgeWire, loadIndex)],
     ...(authoring
       ? [["authoring", (loadIndex: number) => authoringUnit(deps.authoring, loadIndex)] as const]

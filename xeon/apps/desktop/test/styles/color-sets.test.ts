@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { read, SRC } from "./source-scan.ts";
 
 // 앱이 더한 색 토큰 셋(`src/color-sets.css`, AGE-31). caustic 토큰을 덮지 않고 새 이름으로만 더하며,
-// 라이트·다크(시스템 설정과 앱 테마 둘 다)가 같은 자리를 갖는다. 프로필 캔버스 G5의 Inject가 이 셋을 쓴다.
+// 라이트와 다크(시스템 설정과 앱 테마 둘 다)가 같은 자리를 갖는다. 리뷰, 메트릭, 트레이스의 Inject가 이 셋을 쓴다.
 
 const CSS = read(join(SRC, "color-sets.css")).replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -66,15 +66,25 @@ test("styles.css imports the set", () => {
   expect(read(join(SRC, "styles.css")).includes('@import "./color-sets.css";')).toBe(true);
 });
 
-test("canvas G5 takes Inject's glow, text and tab face from the cobalt set in both themes", () => {
-  const cv6 = read(join(SRC, "views/craft/canvas/cv6/cv6.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  const inject = [...cv6.matchAll(/(--cv6-inject[\w-]*)\s*:\s*([^;]+);/g)].map((m) => [
-    m[1] ?? "",
-    (m[2] ?? "").trim(),
+/** CSS 파일 하나에서 이름이 `prefix`로 시작하는 변수 선언(이름, 값)을 나온 차례로 */
+function variablesOf(path: string, prefix: string): readonly (readonly [string, string])[] {
+  const css = read(join(SRC, path)).replace(/\/\*[\s\S]*?\*\//g, "");
+  return [...css.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)]
+    .map((m) => [m[1] ?? "", (m[2] ?? "").replace(/\s+/g, " ").trim()] as const)
+    .filter(([name]) => name.startsWith(prefix));
+}
+
+// 종류 색은 두 테마가 같다(AGE-31 라이트=다크 유채색, `src/chroma.css`): 표시는 graphic 하나, 타일 글은 테마와 상관없는 다크 짝
+test("review takes Inject's kind colour from the cobalt set, the same in every theme", () => {
+  expect(variablesOf("views/craft/review/review.css", "--rv-inject")).toEqual([
+    ["--rv-inject", "var(--fr-color-cobalt-graphic)"],
   ]);
-  expect(inject).toEqual([
-    ["--cv6-inject", "var(--fr-color-cobalt-solid)"],
-    ["--cv6-inject-text", "var(--fr-color-cobalt-text)"],
-    ["--cv6-inject-tab", "var(--fr-color-cobalt-face)"],
+});
+
+test("metrics and trace take Inject's mark, tile face and tile glyph from the cobalt set, the same in every theme", () => {
+  expect(variablesOf("views/craft/metrics/viz.css", "--viz-inject")).toEqual([
+    ["--viz-inject", "var(--fr-color-cobalt-graphic)"],
+    ["--viz-inject-tab", "var(--fr-color-cobalt-face)"],
+    ["--viz-inject-tab-text", "var(--fr-chroma-cobalt-text)"],
   ]);
 });

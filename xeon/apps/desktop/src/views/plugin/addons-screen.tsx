@@ -107,7 +107,8 @@ import { ScreenSwap } from "../../lib/motion-presets.tsx";
 // 모델은 `addon-model.ts`(순수), 치수 근거는 노트 `design/dz/dzP-design.md`다.
 
 /** 가운데 열: 960px, 오른쪽 막대만큼 비켜 둔다(설정 화면과 같은 식) */
-const SCROLL = "min-h-0 flex-1 overflow-y-auto ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-12";
+const SCROLL =
+  "min-h-0 flex-1 overflow-y-auto ps-6 pe-[calc(var(--shell-rail,0px)+var(--cs-space-6))] pb-12";
 const COLUMN = "mx-auto grid w-full max-w-240 content-start";
 const ICON = "size-4 flex-none text-text-tertiary";
 /** 줄 목록 카드(설정 카드와 같은 면·선·반경) */
@@ -174,9 +175,7 @@ function Section(props: {
         <h2 id={id} className="m-0 flex flex-1 items-baseline gap-2 text-title-2 text-text-primary">
           {props.title}
           {props.count === undefined ? null : (
-            <span className="text-ui font-normal text-text-tertiary tabular-nums">
-              {props.count}
-            </span>
+            <span className="text-ui font-normal text-text-tertiary">{props.count}</span>
           )}
         </h2>
         {props.end}
@@ -264,7 +263,7 @@ function BuiltinGroup(props: {
         <span id={id} className="text-ui font-medium text-text-primary">
           {t("desktop.addons.builtin.title")}
         </span>
-        <span className="text-ui text-text-tertiary tabular-nums">{props.rows.length}</span>
+        <span className="text-ui text-text-tertiary">{props.rows.length}</span>
         <span className="min-w-0 truncate text-ui text-text-tertiary">
           {t("desktop.addons.builtin.body")}
         </span>
@@ -511,19 +510,18 @@ function DetailHead(props: { readonly detail: AddonDetail; readonly ops: DetailO
             {detail.description}
           </p>
         )}
-        <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui-sm font-normal text-text-tertiary">
+        <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-2 text-ui-sm font-normal text-text-tertiary">
           <span className="font-mono">{row.name}</span>
           {row.version === "" ? null : (
             <>
-              <span aria-hidden>·</span>
-              <span>v{row.version}</span>
+              {" "}
+              <span>{`v${row.version}`}</span>
             </>
-          )}
-          <span aria-hidden>·</span>
+          )}{" "}
           <span>{t(ORIGIN_TEXT[row.trust])}</span>
-          {detail.isGroup ? (
+          {detail.isOrchestration ? (
             <>
-              <span aria-hidden>·</span>
+              {" "}
               <span>{t("desktop.addons.detail.group")}</span>
             </>
           ) : null}
@@ -880,8 +878,13 @@ function DiagnosticRow(props: { readonly item: ExtDiagnostic }): ReactNode {
           </span>
           {item.message}
         </span>
-        <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-          {where === undefined ? item.code : `${where} · ${item.code}`}
+        <span className="flex min-w-0 items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
+          {where === undefined ? null : (
+            <>
+              <span className="min-w-0 truncate">{where}</span>{" "}
+            </>
+          )}
+          <span className="min-w-0 truncate">{item.code}</span>
         </span>
       </span>
     </li>

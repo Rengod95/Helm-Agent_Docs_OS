@@ -29,6 +29,7 @@ import {
   PLUGIN_HOST_STDERR_LINE_MAX,
   PLUGIN_HOST_STDERR_LINES_MAX,
   PLUGIN_HOST_MAX_FRAME_BYTES,
+  PluginHostTransferOptionSchema,
   isPluginHostToEngineNotification,
   type EngineCallParams,
   type HostDisposeParams,
@@ -41,6 +42,7 @@ import {
   type PluginHostError,
   type PluginHostErrorKind,
   type PluginHostFrame,
+  PLUGIN_HOST_TRANSFER_STALL_MS,
   type PluginHostNotificationName,
   type PluginHostRequestName,
   type PluginProcessFailureReason,
@@ -49,11 +51,17 @@ import {
 import {
   createFrameReader,
   createFrameWriter,
+  PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES,
   type FrameReadResult,
+  type FrameSink,
   type FrameWriteError,
   type FrameWriter,
 } from "./framing.ts";
 import { parseEngineCallParams } from "./engine-calls.ts";
+import type { FrameReadError } from "./framing-types.ts";
+
+/** 읽는 쪽이 낸 조각 전송 실패 값 */
+type TransferFailure = Extract<FrameReadError, { readonly kind: "transfer_failed" }>;
 
 const DEFAULT_IDLE_MS = 60_000;
 const DEFAULT_KILL_GRACE_MS = 2_000;
@@ -134,7 +142,7 @@ export interface RestartLimitInfo {
 
 export interface PluginHostSupervisorDeps {
   readonly process: IsolationProcessPort;
-  /** 띄울 때마다 읽는다. 허용 목록 환경만 담는다 */
+  /** 띄울 때마다 읽는다. 호스트가 정한 환경 값만 담는다(부모 env는 포트가 정책에 따라 옮긴다) */
   readonly specOf: () => IsolationSpawnSpec;
   /** 취소 함수를 돌려준다. ext-host의 시계 주입과 같은 모양이다 */
   readonly setTimer: (ms: number, fn: () => void) => () => void;
@@ -155,6 +163,13 @@ export interface PluginHostSupervisorDeps {
   readonly maxRestarts?: () => number;
   /** 죽음을 세는 창의 길이(초). 죽음을 셀 때마다 부른다. 없으면 `PLUGIN_HOST_RESTART_DEFAULTS` */
   readonly restartWindowSec?: () => number;
+  /**
+   * 조각 전송의 엔진 쪽 상한(바이트, 받을 수 있는 원래 줄의 최대 크기). 띄울 때마다 읽는다(live). 없거나 `undefined`면 조각 전송을 끈다
+   * (옛 동작: 줄 상한을 넘는 줄은 `frame_too_large`). 자식이 `host.init` 응답에 상한을 알리면 두 값 가운데 작은 값을 쓴다
+   */
+  readonly transferMaxBytes?: () => number | undefined;
+  /** 조각 하나를 쓴 뒤 받는 쪽이 비워지기를 기다리는 시간(ms). 넘으면 그 전송을 접고 프로세스를 멈춘다. 없으면 `PLUGIN_HOST_TRANSFER_STALL_MS` */
+  readonly transferStallMs?: number;
   /** 자식이 보낸 `engine.call`을 처리한다. 등록 라우터(`createEngineCallRouter`)가 맡는다 */
   readonly onEngineCall: (params: EngineCallParams) => Promise<Result<JsonValue, PluginHostError>>;
   readonly onRestartLimit: (info: RestartLimitInfo) => void;
@@ -182,6 +197,12 @@ export interface PluginHostSupervisor {
   status(): PluginHostStatus;
   /** 표준오류의 마지막 줄들(줄 수와 길이 상한 안, 마스킹 뒤) */
   stderrTail(): readonly string[];
+  /**
+   * 엔진 → 자식 방향으로 보낼 수 있는 원래 줄의 최대 크기(바이트). 협상이 끝난 떠 있는 프로세스는 협상 결과(조각을 끄면 `undefined`),
+   * 떠 있지 않으면 같은 빌드의 자식이 받을 값(엔진 설정과 자식 상한 가운데 작은 값, 엔진이 끄면 `undefined`)을 돌려준다.
+   * 격리 등록이 입력을 기록하기 전에 상한을 정할 때 쓴다(X.loading-trust §4.9.3)
+   */
+  transferLimit(): number | undefined;
 }
 
 // ── 내부 상태 ─────────────────────────────────────────────────────────────
@@ -196,11 +217,17 @@ interface ExitInfo {
 
 interface Pending {
   readonly settle: (outcome: Result<JsonValue, CallError>) => void;
+  /** 시간 한도의 시계. 요청 프레임을 조각으로 보내는 동안 멈춘다. 시간 한도가 없으면 없다 */
+  clock?: DeadlineClock;
 }
 
 interface Proc {
   readonly child: IsolatedChild;
   readonly writer: FrameWriter;
+  /** 띄울 때 읽은 엔진 쪽 조각 상한(없으면 조각 전송을 쓰지 않는다) */
+  readonly transferMax: number | undefined;
+  /** 협상으로 정한 엔진 → 자식 조각 상한. 협상 전이나 자식이 칸을 안 줬으면 없다 */
+  negotiated: number | undefined;
   /** 응답을 기다리는 요청. 응답, 취소, 시간 초과, 종료 가운데 하나가 한 번 정한다 */
   readonly pending: Map<number, Pending>;
   /** 프로세스 단위 타이머(강제 종료 대기, 시작 시간 한도). 종료 때 모두 푼다 */
@@ -265,6 +292,7 @@ const EventDoneSchema = Type.Object({ eventKey: Type.String() });
 const HostInitResultSchema = Type.Object({
   protocolVersion: Type.Integer(),
   registrations: Type.Array(DeclSchema),
+  transfer: Type.Optional(PluginHostTransferOptionSchema),
 });
 
 const SUPERVISOR_ERROR_KINDS: ReadonlySet<string> = new Set<string>([
@@ -393,10 +421,86 @@ function writeFrameError(error: FrameWriteError): CallError {
     case "encode_failed":
       return { kind: "invalid_params", message: "the frame is not JSON" };
     case "write_failed":
+    case "transfer_stalled":
       return { kind: "process_exit", message: "the plugin host did not take the frame" };
     default:
       return assertNever(error, "FrameWriteError");
   }
+}
+
+/**
+ * 엔진이 띄울 때 읽는 조각 상한. 설정 값이 정수가 아니거나 1 미만이면 조각 전송을 끈다(옛 동작)
+ */
+function transferMaxOf(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 1 ? value : undefined;
+}
+
+/**
+ * 엔진 → 자식 조각 상한의 협상 결과. 양쪽이 칸을 가졌을 때만 켜고, 켜면 두 값 가운데 작은 값이다
+ */
+function negotiatedOf(
+  engineMax: number | undefined,
+  childMax: number | undefined,
+): number | undefined {
+  if (engineMax === undefined || childMax === undefined) return undefined;
+  return Math.min(engineMax, childMax);
+}
+
+/**
+ * 협상 전에 같은 빌드의 자식이 받을 엔진 → 자식 상한. 엔진 값과 자식 상한(`PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`)의 작은 값이다.
+ * 엔진 값이 없으면 조각을 끈 것이다
+ */
+export function expectedTransferLimitOf(engineMax: number | undefined): number | undefined {
+  const sanitized = transferMaxOf(engineMax);
+  return sanitized === undefined
+    ? undefined
+    : Math.min(sanitized, PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES);
+}
+
+/**
+ * 표준입력을 프레임 싱크로 감싼다. 줄을 쓰면 `write`가 거짓을 돌려줄 때 `drained`가 비워지기를 기다린다(역압).
+ * 'close'와 'error'는 기다림을 풀고, 그 뒤의 쓰기는 던져서 쓰기 실패 값이 되게 한다(기다림이 영영 끝나지 않는 일을 막는다)
+ */
+function stdinSinkOf(stdin: NodeJS.WritableStream): FrameSink {
+  let needDrain = false;
+  let broken = false;
+  let wake: (() => void) | undefined;
+  const release = (): void => {
+    const resume = wake;
+    wake = undefined;
+    resume?.();
+  };
+  stdin.on("drain", () => {
+    needDrain = false;
+    release();
+  });
+  stdin.on("close", () => {
+    broken = true;
+    release();
+  });
+  stdin.on("error", () => {
+    broken = true;
+    release();
+  });
+  return {
+    write(line) {
+      if (broken) throw new Error("the plugin host input is closed");
+      if (!stdin.write(line)) needDrain = true;
+    },
+    drained() {
+      if (broken || !needDrain) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        wake = resolve;
+      });
+    },
+  };
+}
+
+/** 프레임의 요청 여부. 요청은 `id`와 `method`를 가진다(답은 `id`만, 알림은 `method`만) */
+function isRequestFrame(
+  frame: PluginHostFrame,
+): frame is { readonly id: number; readonly method: string; readonly params: JsonValue } {
+  return "id" in frame && "method" in frame;
 }
 
 // ── 감독 ─────────────────────────────────────────────────────────────────
@@ -408,6 +512,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     deps.maxRestarts ?? ((): number => PLUGIN_HOST_RESTART_DEFAULTS.maxRestarts);
   const restartWindowSecOf =
     deps.restartWindowSec ?? ((): number => PLUGIN_HOST_RESTART_DEFAULTS.restartWindowSec);
+  const stallMsOf = (): number => deps.transferStallMs ?? PLUGIN_HOST_TRANSFER_STALL_MS;
 
   let state: PluginHostStatusState = "idle";
   let since = deps.now();
@@ -522,23 +627,31 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
   }
 
   /**
-   * 시간 초과 종료. 대상 요청은 `process_killed`, 함께 떠 있던 나머지는 `process_exit`로 끝낸다.
-   * 시간 초과 종료는 죽음으로 센다
+   * 프로세스를 멈춘다(시간 초과나 멈춘 전송). 대상 요청(있으면)은 `process_killed`, 함께 떠 있던 나머지는 `process_exit`로 끝낸다.
+   * 이미 멈추는 중이면 대상만 `process_exit`로 끝낸다. 멈춤은 죽음으로 센다
    */
-  function timeoutKill(proc: Proc, targetId: number, why: string): void {
-    const target = proc.pending.get(targetId);
-    if (target === undefined) return;
+  function stopFor(proc: Proc, targetId: number | undefined, why: string, others: string): void {
+    const target = targetId === undefined ? undefined : proc.pending.get(targetId);
     if (proc.exited || proc.endReason !== undefined) {
-      target.settle(err(exitedError("the plugin host was already stopping")));
+      target?.settle(err(exitedError("the plugin host was already stopping")));
       return;
     }
     proc.endReason = "timeout";
     recordDeath("process_killed");
-    target.settle(err({ kind: "process_killed", message: `${why}; the plugin host was stopped` }));
-    for (const other of Array.from(proc.pending.values())) {
-      other.settle(err(exitedError("the plugin host was stopped after another call timed out")));
+    target?.settle(err({ kind: "process_killed", message: `${why}; the plugin host was stopped` }));
+    for (const entry of Array.from(proc.pending.values())) {
+      entry.settle(err(exitedError(others)));
     }
     terminate(proc);
+  }
+
+  /**
+   * 시간 초과 종료. 대상 요청은 `process_killed`, 함께 떠 있던 나머지는 `process_exit`로 끝낸다.
+   * 시간 초과 종료는 죽음으로 센다
+   */
+  function timeoutKill(proc: Proc, targetId: number, why: string): void {
+    if (!proc.pending.has(targetId)) return;
+    stopFor(proc, targetId, why, "the plugin host was stopped after another call timed out");
   }
 
   /** 요청 하나를 보낸다. 응답, 취소, 시간 초과, 종료 가운데 가장 먼저 오는 것이 결과를 정한다 */
@@ -555,8 +668,6 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     }
     const id = allocateId();
     options?.onRequestId?.(id);
-    const sent = writeFrame(proc, { id, method, params });
-    if (!sent.ok) return Promise.resolve(err(sent.error));
     disarmIdle();
     return new Promise((resolve) => {
       const cleanups: (() => void)[] = [];
@@ -569,7 +680,9 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         resolve(outcome);
         if (proc.pending.size === 0) armIdle();
       };
-      proc.pending.set(id, { settle });
+      // 대기 표에 먼저 넣고 시계를 맞춘 뒤 쓴다. 조각 전송은 쓰기 안에서 시작하고, 그 시작 알림이 이 호출의 시계를 멈춘다
+      const entry: Pending = { settle };
+      proc.pending.set(id, entry);
       if (signal !== undefined) {
         const onAbort = (): void => {
           if (isTimeoutAbort(signal.reason)) {
@@ -598,7 +711,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         };
         arm();
         cleanups.push(() => cancel?.());
-        options?.onDeadlineClock?.({
+        const clock: DeadlineClock = {
           pause: () => {
             paused += 1;
             if (paused !== 1 || cancel === undefined) return;
@@ -611,9 +724,102 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
             paused -= 1;
             if (paused === 0 && !settled) arm();
           },
-        });
+        };
+        entry.clock = clock;
+        options?.onDeadlineClock?.(clock);
       }
+      const sent = writeFrame(proc, { id, method, params });
+      if (!sent.ok) settle(err(sent.error));
     });
+  }
+
+  /** 요청 프레임의 조각 전송이 시작하거나 끝나면 그 호출의 시계를 멈추거나 잇는다. 답 프레임은 `id` 번호가 상대 쪽 것이라 건드리지 않는다 */
+  function transferClock(proc: Proc, frame: PluginHostFrame, action: "pause" | "resume"): void {
+    if (!isRequestFrame(frame)) return;
+    const entry = proc.pending.get(frame.id);
+    if (action === "pause") entry?.clock?.pause();
+    else entry?.clock?.resume();
+  }
+
+  /**
+   * 조각 전송이 실패한 프레임을 처리한다. 요청이면 그 호출을 실패시킨다(전송이 멈추면 프로세스를 멈춘다). 답이면 작은 오류 답을 보내고,
+   * 알림이면 기록만 남긴다. 기록에는 프레임 본문과 해시를 싣지 않는다
+   */
+  function outboundFailed(proc: Proc, frame: PluginHostFrame, error: FrameWriteError): void {
+    if (isRequestFrame(frame)) {
+      if (error.kind === "transfer_stalled") {
+        stopFor(
+          proc,
+          frame.id,
+          `the plugin host did not read the request for ${stallMsOf()} ms (the transfer stalled)`,
+          "the plugin host was stopped after a transfer stalled",
+        );
+        return;
+      }
+      proc.pending.get(frame.id)?.settle(err(writeFrameError(error)));
+      return;
+    }
+    if ("id" in frame) {
+      if (error.kind === "transfer_stalled") {
+        stopFor(
+          proc,
+          undefined,
+          `the plugin host did not read a reply for ${stallMsOf()} ms (the transfer stalled)`,
+          "the plugin host was stopped after a transfer stalled",
+        );
+        return;
+      }
+      if (error.kind === "frame_too_large") {
+        // 답이 상한을 넘으면 답 대신 오류를 보낸다(replyTo와 같은 길). 오류 프레임은 작다
+        const replaced = writeFrame(proc, {
+          id: frame.id,
+          error: { kind: "frame_too_large", message: `the reply exceeds ${error.max} bytes` },
+        });
+        if (!replaced.ok)
+          deps.logger.warn("plugin_host.reply_not_sent", { kind: replaced.error.kind });
+        return;
+      }
+      deps.logger.warn("plugin_host.reply_not_sent", { kind: error.kind });
+      return;
+    }
+    deps.logger.warn("plugin_host.notification_not_sent", { kind: error.kind });
+  }
+
+  /** 엔진이 읽은 조각 전송 실패. 기록에 이유만 남긴다. 알 수 있는 요청(`frameId`)만 호출로 돌려준다 */
+  function inboundTransferFailed(proc: Proc, failure: TransferFailure): void {
+    deps.logger.warn("plugin_host.transfer_failed", { reason: failure.reason });
+    if (failure.frameId === undefined) return;
+    // 입력이 끝난 채 전송이 남았다: 프로세스가 답을 다 쓰기 전에 끝난 것이다. 그 호출은 `process_exit`로 본다
+    if (failure.reason === "truncated") {
+      if (failure.frameKind !== "request") {
+        settleById(
+          proc,
+          failure.frameId,
+          err(exitedError("the plugin host exited while it was sending a reply")),
+        );
+      }
+      return;
+    }
+    if (failure.frameKind === "request") {
+      // 자식이 보낸 요청을 읽지 못했다. 요청 대신 오류로 답해 자식의 대기 호출이 끝나게 한다(frame_too_large와 같은 길)
+      replyTo(
+        proc,
+        failure.frameId,
+        err({
+          kind: "invalid_params",
+          message: `the engine could not read the request (${failure.reason})`,
+        }),
+      );
+      return;
+    }
+    settleById(
+      proc,
+      failure.frameId,
+      err({
+        kind: "invalid_response",
+        message: `the plugin host's reply could not be read (${failure.reason})`,
+      }),
+    );
   }
 
   function replyTo(proc: Proc, id: number, outcome: Result<JsonValue, PluginHostError>): void {
@@ -699,6 +905,10 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
 
   function onFrame(proc: Proc, read: FrameReadResult): void {
     if (!read.ok) {
+      if (read.error.kind === "transfer_failed") {
+        inboundTransferFailed(proc, read.error);
+        return;
+      }
       deps.logger.warn("plugin_host.frame_invalid", { kind: read.error.kind });
       return;
     }
@@ -742,7 +952,10 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
   }
 
   async function pumpFrames(proc: Proc, stdout: NodeJS.ReadableStream): Promise<void> {
-    const reader = createFrameReader(bytesOf(stdout));
+    const reader = createFrameReader(
+      bytesOf(stdout),
+      proc.transferMax === undefined ? {} : { maxTransferBytes: proc.transferMax },
+    );
     await repeatAsync<void>(async () => {
       const next = await reader.next();
       if (next === null) return { value: undefined };
@@ -787,6 +1000,8 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     for (const entry of Array.from(proc.pending.values())) {
       entry.settle(err(exitedError(detail)));
     }
+    // 보내지 못한 프레임과 보내는 중인 전송을 끊는다. 요청은 위에서 이미 끝났다
+    proc.writer.abort();
     const ended = attempt(() => deps.onProcessEnd?.());
     if (!ended.ok) deps.logger.error("plugin_host.process_end_handler_failed", {});
     const reason = proc.endReason;
@@ -817,15 +1032,26 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
   }
 
   /** 자식 프로세스 하나를 감독에 붙인다. 표준입력은 프레임 쓰기로, 표준출력은 프레임 읽기로, 종료는 `exited`로 본다 */
-  function attach(child: IsolatedChild): Proc {
+  function attach(child: IsolatedChild, transferMax: number | undefined): Proc {
     const gate = gateOf();
     const proc: Proc = {
       child,
-      writer: createFrameWriter({
-        write: (line) => {
-          child.stdin.write(line);
+      writer: createFrameWriter(stdinSinkOf(child.stdin), {
+        setTimer: deps.setTimer,
+        stallMs: stallMsOf(),
+        // 조각 전송의 실패와 시계는 이 프로세스의 대기 호출에 잇는다
+        onTransferFailed: (frame, error) => {
+          outboundFailed(proc, frame, error);
+        },
+        onTransferStart: (frame) => {
+          transferClock(proc, frame, "pause");
+        },
+        onTransferEnd: (frame) => {
+          transferClock(proc, frame, "resume");
         },
       }),
+      transferMax,
+      negotiated: undefined,
       pending: new Map(),
       timers: new Set(),
       endReason: undefined,
@@ -858,7 +1084,10 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
 
   /** `host.init`을 보내고 응답을 검사한다. 맞지 않으면 그 프로세스를 멈춘다(죽음으로 세지 않는다) */
   async function handshake(proc: Proc): Promise<Result<Ready, SupervisorError>> {
-    const params = toJsonValue(deps.initParams());
+    const base = deps.initParams();
+    const params = toJsonValue(
+      proc.transferMax === undefined ? base : { ...base, transfer: { maxBytes: proc.transferMax } },
+    );
     if (params === undefined) {
       return abandon(proc, {
         kind: "init_failed",
@@ -892,6 +1121,9 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
         message: "the plugin declared different registrations than when it first started",
       });
     }
+    // 협상: 양쪽이 칸을 가졌을 때만 조각을 쓴다. 자식의 칸이 없으면 엔진 → 자식 방향은 끈 채로 둔다
+    proc.negotiated = negotiatedOf(proc.transferMax, decoded.value.transfer?.maxBytes);
+    if (proc.negotiated !== undefined) proc.writer.setTransfer(proc.negotiated);
     proc.init = decoded.value;
     setState("running");
     armIdle();
@@ -920,7 +1152,7 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
       markStopped();
       return err(spawnErrorOf(spawned.value.error));
     }
-    const proc = attach(spawned.value.value);
+    const proc = attach(spawned.value.value, transferMaxOf(deps.transferMaxBytes?.()));
     current = proc;
     const started = await handshake(proc);
     if (!started.ok) markStopped();
@@ -992,6 +1224,11 @@ export function createPluginHostSupervisor(deps: PluginHostSupervisorDeps): Plug
     },
     stderrTail() {
       return tail.slice();
+    },
+    transferLimit() {
+      const proc = current;
+      if (proc !== undefined && !proc.exited && proc.init !== undefined) return proc.negotiated;
+      return expectedTransferLimitOf(deps.transferMaxBytes?.());
     },
   };
 }

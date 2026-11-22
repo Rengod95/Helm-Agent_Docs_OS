@@ -33,7 +33,7 @@ import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
-  GroupStatusWire,
+  OrchestrationStatusWire,
 } from "@fresnel/contracts/wire";
 import {
   Alert,
@@ -51,7 +51,8 @@ import {
 import { CircleAlert, Ellipsis, TriangleAlert } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
+import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
+import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
@@ -61,6 +62,8 @@ import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { detachVoid, reloadOnExtChanges, useWorkbenchController } from "./controller.ts";
 import { useToggleRequest } from "./craft-parts.tsx";
 import { linkOf, RoleText, type LinkState } from "../runtime/runtime-tab.tsx";
+import { DriveStackCards } from "../convo/drive-stack.tsx";
+import { driveStackOf } from "../convo/drive-stack-model.ts";
 
 /** 한 묶음의 읽기 상태. `idle`은 대화가 없어 읽을 것이 없다는 뜻이다 */
 type Load<T> =
@@ -74,7 +77,7 @@ const ERROR: { readonly kind: "error" } = { kind: "error" };
 const IDLE: { readonly kind: "idle" } = { kind: "idle" };
 
 interface DriveData {
-  readonly groups: readonly GroupStatusWire[];
+  readonly groups: readonly OrchestrationStatusWire[];
   readonly frames: readonly DriveFrameView[];
 }
 
@@ -338,19 +341,19 @@ function Gauge(props: {
 function DriveSection(props: {
   readonly name: string;
   readonly drive: Load<DriveData>;
-  readonly isGroup: boolean;
+  readonly isOrchestration: boolean;
 }): ReactNode {
   const { drive } = props;
   const title = t("desktop.inspect.drive.title");
   if (drive.kind === "idle") {
-    return props.isGroup ? (
+    return props.isOrchestration ? (
       <Section title={title}>
         <p className={MUTED}>{t("desktop.inspect.drive.noThread")}</p>
       </Section>
     ) : null;
   }
   if (drive.kind === "loading") {
-    return props.isGroup ? (
+    return props.isOrchestration ? (
       <Section title={title}>
         <Skeleton height={24} />
       </Section>
@@ -373,6 +376,8 @@ function DriveSection(props: {
         <p className="m-0 flex flex-wrap items-baseline gap-2 text-ui-dense">
           <span className="text-text-primary">{t(RoleText[role])}</span>
         </p>
+        {/* 쌓인 판: 맨 위가 지금 Drive를 쥔 칸, 맨 아래 "기본"(lcM6b §6.6.1) */}
+        <DriveStackCards view={driveStackOf(drive.value.frames)} />
         <div className="grid grid-cols-[3rem_minmax(0,1fr)_5.5rem] items-center gap-x-2 gap-y-1.5 text-ui">
           <Gauge
             label={t("desktop.inspect.drive.turns")}
@@ -397,7 +402,7 @@ function DriveSection(props: {
 
 /** 주도 락 구역을 보일지: 그룹이거나, 목록에서 이 확장이 drive를 쓴다고 읽힌 경우다 */
 function driveShown(entry: ExtListEntry, drive: Load<DriveData>): boolean {
-  if (entry.isGroup) return true;
+  if (entry.isOrchestration) return true;
   return (
     drive.kind === "ready" && drive.value.groups.some((g) => g.id === entry.name && g.usesDrive)
   );
@@ -543,8 +548,8 @@ function CompositionSection(props: { readonly load: Load<ExtGetResult> }): React
     <ListDescription variant="ghost" size="xs">
       {blocks.map((block) => (
         <ListDescriptionRow key={block.id} term={block.title ?? block.id}>
-          <span className="font-mono text-mono-sm text-text-tertiary">
-            {`${block.stage} · ${block.op}`}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
+            <span>{block.stage}</span> <span>{block.op}</span>
           </span>
         </ListDescriptionRow>
       ))}
@@ -580,11 +585,16 @@ function FailuresSection(props: {
               </span>
             )}
             {h.lastFailureAt !== null && (
-              <span className="truncate text-ui text-text-tertiary">
-                {t("desktop.inspect.failures.last", {
-                  at: h.lastFailureAt,
-                  error: h.lastError ?? "",
-                })}
+              <span className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
+                <span className="flex-none">
+                  {t("desktop.inspect.failures.last", { at: h.lastFailureAt })}
+                </span>
+                {h.lastError === null ? null : (
+                  <>
+                    {" "}
+                    <span className="min-w-0 truncate">{h.lastError}</span>
+                  </>
+                )}
               </span>
             )}
           </span>
@@ -654,7 +664,7 @@ export function InspectBody(props: {
 }): ReactNode {
   const { entry, data } = props;
   const row = rowOf(entry, props.pending);
-  const isGroup = entry.isGroup;
+  const isOrchestration = entry.isOrchestration;
   return (
     <div className="grid content-start gap-5">
       <header className="grid gap-2">
@@ -669,7 +679,7 @@ export function InspectBody(props: {
         </span>
         <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-ui text-text-tertiary">
           <span className="font-mono text-mono-sm">{row.layer}</span>
-          <span>{`${kindText(row.kind)} · ${row.grade} · ${row.version}`}</span>
+          <span>{kindText(row.kind)}</span> <span>{row.grade}</span> <span>{row.version}</span>
         </p>
         <div className="text-ui-dense">
           <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
@@ -706,7 +716,7 @@ export function InspectBody(props: {
             <HooksSection load={data.detail} timings={data.timings} />
           </Section>
           {driveShown(entry, data.drive) && (
-            <DriveSection name={entry.name} drive={data.drive} isGroup={isGroup} />
+            <DriveSection name={entry.name} drive={data.drive} isOrchestration={isOrchestration} />
           )}
           <Section title={t("desktop.inspect.features.title")}>
             <FeaturesSection load={data.detail} />
@@ -714,7 +724,7 @@ export function InspectBody(props: {
           <Section title={t("desktop.inspect.settings.title")}>
             <SettingsSection load={data.settings} />
           </Section>
-          {isGroup && (
+          {isOrchestration && (
             <Section title={t("desktop.inspect.composition.title")}>
               <CompositionSection load={data.detail} />
             </Section>
@@ -747,7 +757,8 @@ export function InspectTab(): ReactNode {
 
 function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
   const { entry } = props;
-  const threadId = useOpenThreadId();
+  // 테스트 챗 창이 빌린 대화가 열려 있어도 검사 탭은 빌리기 전의 대화를 본다(C7)
+  const threadId = useWorkThreadId();
   const link = linkOf(useLinkPhase());
   const data = useInspectData(entry.name, threadId, link === "live");
   const controller = useWorkbenchController();

@@ -6,6 +6,7 @@ import {
   type InjectInventory,
   type PluginCard,
 } from "@fresnel/contracts/extensions";
+import type { DiffEntry } from "@fresnel/contracts/wire";
 import { buildPluginCard, type CardSubject } from "../../../src/assembly/plugins/card.ts";
 import { diffCards } from "../../../src/assembly/plugins/diff.ts";
 
@@ -75,8 +76,8 @@ test("the same card yields an empty difference with a zero cost change", () => {
   expect(diff.removed).toEqual([]);
   expect(diff.changed).toEqual([]);
   expect(diff.enforcementChange).toBeNull();
-  // 항상 싣는 비용은 0 차이이고, 필요할 때 비용은 모르는 값(null)이라 차이도 모른다
-  expect(diff.costDelta).toEqual({ always: 0, onDemand: null });
+  // 스킬이 없어 필요할 때 비용도 0이다. 같은 카드라 두 비용 모두 차이가 0이다
+  expect(diff.costDelta).toEqual({ always: 0, onDemand: 0 });
 });
 
 test("a removed tool is listed as removed with its description and the cost change is the difference", () => {
@@ -182,9 +183,9 @@ const LINT = {
   runner: "sh",
   file: "scripts/lint.sh",
   args: ["--strict"],
-  envNames: ["ALPHA"],
+  envNames: ["TZ"],
 };
-const LINT_DETAIL = 'sh ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 10000ms]';
+const LINT_DETAIL = 'sh ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 10000ms]';
 
 test("a script the plugin adds or removes is an added or removed row with its command line and time limit", () => {
   const without = cardOf(PLAIN);
@@ -197,6 +198,22 @@ test("a script the plugin adds or removes is an added or removed row with its co
   const removed = diffCards(withLint, without);
   expect(removed.removed).toEqual([{ row: "inject", what: "script:lint", detail: LINT_DETAIL }]);
   expect(removed.changed).toEqual([]);
+});
+
+test("a script's env names that do not reach it are a changed entry on its row, and the same list is not", () => {
+  const prev = cardOf({ ...PLAIN, scripts: [LINT] });
+  expect(diffCards(prev, cardOf({ ...PLAIN, scripts: [{ ...LINT }] })).changed).toEqual([]);
+  const withToken = diffCards(
+    prev,
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["TZ", "API_TOKEN"] }] }),
+  );
+  expect(withToken.changed).toEqual([
+    {
+      row: "inject",
+      what: "script:lint",
+      detail: `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: TZ] [not passed: API_TOKEN] [timeout: 10000ms]`,
+    },
+  ]);
 });
 
 test("a script whose runner, file arguments, env names or time limit changed is a changed entry, and the same line is not", () => {
@@ -212,7 +229,7 @@ test("a script whose runner, file arguments, env names or time limit changed is 
     {
       row: "inject",
       what: "script:lint",
-      detail: `${LINT_DETAIL} → bash ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 10000ms]`,
+      detail: `${LINT_DETAIL} → bash ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 10000ms]`,
     },
   ]);
 
@@ -224,7 +241,7 @@ test("a script whose runner, file arguments, env names or time limit changed is 
 
   const envChanged = diffCards(
     prev,
-    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["ALPHA", "BETA"] }] }),
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["TZ", "LANG"] }] }),
   );
   expect(envChanged.changed.map((entry) => entry.what)).toEqual(["script:lint"]);
 
@@ -233,6 +250,60 @@ test("a script whose runner, file arguments, env names or time limit changed is 
     cardOf({ ...PLAIN, scripts: [{ ...LINT, timeoutMs: 60000 }] }),
   );
   expect(timeChanged.changed[0]?.detail).toBe(
-    `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: ALPHA] [timeout: 60000ms]`,
+    `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 60000ms]`,
   );
+});
+
+// AGE-33 enDep: 기대는 줄(`dependsOn`)의 추가·바뀜은 `dependencies` 칸으로 보인다. 옛 카드와는 비교하지 않는다.
+const DEPENDS_ON_BETA = {
+  plugins: [
+    { layer: "plugin", hooks: [], dependsOn: [{ plugin: "beta", kind: "hard", range: "^1.0.0" }] },
+  ],
+};
+const DEPENDS_ON_BETA_NEXT = {
+  plugins: [
+    { layer: "plugin", hooks: [], dependsOn: [{ plugin: "beta", kind: "hard", range: "^2.0.0" }] },
+  ],
+};
+
+test("a new dependsOn line is an added dependencies row, and a changed range is a changed one", () => {
+  const prev = cardOf(PLAIN);
+  expect(diffCards(prev, cardOf({ ...PLAIN, ...DEPENDS_ON_BETA })).added).toEqual([
+    { row: "dependencies", what: "dependsOn:kit->beta", detail: "hard, range ^1.0.0" },
+  ]);
+
+  expect(
+    diffCards(
+      cardOf({ ...PLAIN, ...DEPENDS_ON_BETA }),
+      cardOf({ ...PLAIN, ...DEPENDS_ON_BETA_NEXT }),
+    ).changed,
+  ).toEqual([
+    {
+      row: "dependencies",
+      what: "dependsOn:kit->beta",
+      detail: "hard, range ^1.0.0 → hard, range ^2.0.0",
+    },
+  ]);
+});
+
+test("a dependsOn line that is removed is a removed dependencies row", () => {
+  const removed = diffCards(cardOf({ ...PLAIN, ...DEPENDS_ON_BETA }), cardOf(PLAIN));
+  expect(removed.removed).toEqual([
+    { row: "dependencies", what: "dependsOn:kit->beta", detail: "hard, range ^1.0.0" },
+  ]);
+});
+
+/** 차이 가운데 의존 칸의 줄만 모은다 */
+function dependencyRowsOf(diff: ReturnType<typeof diffCards>): DiffEntry[] {
+  return [...diff.added, ...diff.removed, ...diff.changed].filter(
+    (entry) => entry.row === "dependencies",
+  );
+}
+
+test("an old card without the dependency cell is not compared with the dependency lines of the new one", () => {
+  const withCell = cardOf({ ...PLAIN, ...DEPENDS_ON_BETA });
+  const { dependencies, ...legacy } = withCell;
+  expect(dependencies).toBeDefined();
+  expect(dependencyRowsOf(diffCards(legacy, withCell))).toEqual([]);
+  expect(dependencyRowsOf(diffCards(withCell, legacy))).toEqual([]);
 });

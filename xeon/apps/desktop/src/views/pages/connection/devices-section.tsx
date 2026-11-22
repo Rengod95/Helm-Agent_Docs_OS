@@ -132,11 +132,11 @@ export function DevicesView(props: {
             <span className="min-w-0 flex-1 truncate text-ui font-medium text-text-primary">
               {row.name}
             </span>
-            <span className="flex flex-none items-center gap-1.5 text-ui-sm text-text-tertiary">
+            <span className="flex flex-none items-center gap-3 text-ui-sm text-text-tertiary">
               <span>{seen}</span>
               {row.address === null ? null : (
                 <>
-                  <span aria-hidden>·</span>
+                  {" "}
                   <span className="font-mono text-mono-sm">{row.address}</span>
                 </>
               )}

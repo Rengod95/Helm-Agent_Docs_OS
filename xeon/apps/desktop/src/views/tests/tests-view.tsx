@@ -263,11 +263,12 @@ function Sections(props: TestsViewProps & { readonly rows: readonly TestRowVM[] 
   // 고른 행이 속한 구역이 그려질 때만 그 구역 아래에 상세를 둔다(거른 목록 밖이면 구역들 뒤)
   const inTrials = selected?.kind === "testRun" && trials.length > 0;
   const inReplays = selected?.kind === "replay" && replays.length > 0;
-  const devTitle = [
-    t(NEW_KIND_TEXT.replay),
-    t(NEW_KIND_TEXT.benchmark),
-    t(NEW_KIND_TEXT.coreDiff),
-  ].join(" · ");
+  const devTitle = (
+    <span className="inline-flex min-w-0 items-baseline gap-2">
+      <span>{t(NEW_KIND_TEXT.replay)}</span> <span>{t(NEW_KIND_TEXT.benchmark)}</span>{" "}
+      <span>{t(NEW_KIND_TEXT.coreDiff)}</span>
+    </span>
+  );
   return (
     <>
       {trials.length === 0 ? null : (
@@ -319,7 +320,7 @@ function Sections(props: TestsViewProps & { readonly rows: readonly TestRowVM[] 
 
 /** 구역 머리(시안 SectionTitle): 굵기와 글자색 단계로만 묶고, 오른쪽 끝에 잠금 배지와 설명 아이콘을 둔다 */
 function Group(props: {
-  readonly title: string;
+  readonly title: ReactNode;
   readonly end?: ReactNode;
   readonly children: ReactNode;
 }): ReactNode {

@@ -1,4 +1,4 @@
-import { isIsolatedStep } from "../isolation/mark.ts";
+import { isolatedInputLimit } from "../isolation/mark.ts";
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
@@ -363,10 +363,10 @@ export function createRegistrationApi(
           scopeId: record.id,
         });
       }
-      if (core.deps.settings.driveRequiresGroup() && !plugin.inGroup) {
+      if (core.deps.settings.driveRequiresOrchestration() && !plugin.inOrchestration) {
         throw new PrimitiveError(
-          "drive_requires_group",
-          "x.primitives.driveRequiresGroup is on and this plugin is not a member of a plugin group",
+          "drive_requires_orchestration",
+          "x.primitives.driveRequiresOrchestration is on and this plugin is not a member of a plugin group",
           { scopeId: record.id },
         );
       }
@@ -379,7 +379,7 @@ export function createRegistrationApi(
       const registration = {
         fn: eraseDrive(step),
         options: eraseDriveOptions(options),
-        isolated: isIsolatedStep(step),
+        inputLimit: isolatedInputLimit(step),
       };
       generation.drive = registration;
       fiberOf(generation).effect(

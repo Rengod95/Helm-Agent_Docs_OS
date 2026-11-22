@@ -17,7 +17,7 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
     "x.primitives.driveMaxDepth",
-    "x.primitives.driveRequiresGroup",
+    "x.primitives.driveRequiresOrchestration",
   ]);
   expect(primitivesSettings.defs.driveLimits.default).toEqual({});
   expect(primitivesSettings.defs.driveDefaultLimits.default).toEqual({
@@ -62,9 +62,12 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
   expect(parse(primitivesSettings.defs.driveMaxDepth.type, 0).ok).toBe(false);
   expect(parse(primitivesSettings.defs.driveMaxDepth.type, 1.5).ok).toBe(false);
   expect(primitivesSettings.defs.capabilityProviders.default).toEqual({});
-  expect(primitivesSettings.defs.driveRequiresGroup.default).toBe(true);
-  expect(primitivesSettings.defs.driveRequiresGroup.runtimeChange).toBe("restart");
-  expect(primitivesSettings.defs.driveRequiresGroup.allowedScopes).toEqual(["managed", "user"]);
+  expect(primitivesSettings.defs.driveRequiresOrchestration.default).toBe(true);
+  expect(primitivesSettings.defs.driveRequiresOrchestration.runtimeChange).toBe("restart");
+  expect(primitivesSettings.defs.driveRequiresOrchestration.allowedScopes).toEqual([
+    "managed",
+    "user",
+  ]);
   expect(primitivesSettings.defs.driveLimits.runtimeChange).toBe("nextTurn");
   expect(primitivesSettings.defs.capabilityProviders.runtimeChange).toBe("restart");
   for (const def of defs) {
@@ -85,11 +88,15 @@ test("a static settings source defaults to the default caps, no ceiling, the def
 });
 
 test("the drive policy reads group-only by default and can be opened by the static source", () => {
-  expect(createStaticPrimitivesSettings().driveRequiresGroup()).toBe(true);
-  expect(createStaticPrimitivesSettings({ driveRequiresGroup: true }).driveRequiresGroup()).toBe(
-    true,
-  );
-  expect(createStaticPrimitivesSettings({ driveRequiresGroup: false }).driveRequiresGroup()).toBe(
-    false,
-  );
+  expect(createStaticPrimitivesSettings().driveRequiresOrchestration()).toBe(true);
+  expect(
+    createStaticPrimitivesSettings({
+      driveRequiresOrchestration: true,
+    }).driveRequiresOrchestration(),
+  ).toBe(true);
+  expect(
+    createStaticPrimitivesSettings({
+      driveRequiresOrchestration: false,
+    }).driveRequiresOrchestration(),
+  ).toBe(false);
 });

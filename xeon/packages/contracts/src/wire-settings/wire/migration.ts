@@ -71,6 +71,16 @@ export const MIGRATION_DIFFERENCE_KINDS = [
 ] as const;
 export type MigrationDifferenceKind = (typeof MIGRATION_DIFFERENCE_KINDS)[number];
 
+/** 보고 줄의 알림 종류(라이브러리 `ReportNoteCode`). 환경 모드 알림은 원래 명령을 싣는다(AGE-58) */
+export const MIGRATION_REPORT_NOTE_CODES = [
+  "env_mode",
+  "refs_unknown",
+  "tool_missing",
+  "version_hint",
+  "env_note",
+] as const;
+export type MigrationReportNoteCode = (typeof MIGRATION_REPORT_NOTE_CODES)[number];
+
 /** 프로필 제안의 범위. 프로젝트 범위 항목은 프로젝트 이름의 프로필로, 사용자 공통 항목은 모든 프로필 공통으로 제안한다 */
 export const MIGRATION_PROFILE_SCOPES = ["project", "user-common"] as const;
 export type MigrationProfileScope = (typeof MIGRATION_PROFILE_SCOPES)[number];
@@ -89,6 +99,9 @@ const DiagnosticCodeShape = Type.Union(
 const ReportStatusShape = Type.Union(MIGRATION_REPORT_STATUSES.map((name) => Type.Literal(name)));
 const DifferenceKindShape = Type.Union(
   MIGRATION_DIFFERENCE_KINDS.map((name) => Type.Literal(name)),
+);
+const ReportNoteCodeShape = Type.Union(
+  MIGRATION_REPORT_NOTE_CODES.map((name) => Type.Literal(name)),
 );
 const ProfileScopeShape = Type.Union(MIGRATION_PROFILE_SCOPES.map((name) => Type.Literal(name)));
 const ChangeKindShape = Type.Union(MIGRATION_CHANGE_KINDS.map((name) => Type.Literal(name)));
@@ -259,7 +272,11 @@ export interface MigrationReportLine {
   readonly alternative?: string;
   /** 어느 플러그인 초안의 어느 파일로 갔나 */
   readonly output?: { readonly plugin: string; readonly path: string };
+  /** 알림(환경 모드, 없는 도구, 버전 근거 등). 없으면 키가 없다 */
+  readonly notes?: readonly { readonly code: MigrationReportNoteCode; readonly text: string }[];
 }
+/** 알림 글 상한. 환경 모드 알림은 명령 상한(4096자)을 싣고 앞말이 붙으므로 그보다 넉넉히 둔다 */
+const REPORT_NOTE_TEXT_MAX = 4352;
 const MigrationReportLineShape = closed({
   itemId: Id,
   harness: HarnessShape,
@@ -283,6 +300,13 @@ const MigrationReportLineShape = closed({
   ),
   alternative: Type.Optional(Type.String({ maxLength: 1024 })),
   output: Type.Optional(closed({ plugin: Name, path: Path })),
+  // 명령 하나에서 나오는 알림은 이름 하나마다(없는 도구) 하나이므로 개수는 명령 상한에서 나온다
+  notes: Type.Optional(
+    Type.Array(
+      closed({ code: ReportNoteCodeShape, text: Type.String({ maxLength: REPORT_NOTE_TEXT_MAX }) }),
+      { maxItems: 4096 },
+    ),
+  ),
 });
 export const MigrationReportLineSchema: TUnsafe<MigrationReportLine> =
   Type.Unsafe<MigrationReportLine>(

@@ -23,6 +23,7 @@ import {
   WorkTasks,
   WorkspaceFiles,
   WorkspaceImages,
+  WorkspaceProtection,
   WorkspaceShell,
   type AnyCapabilityDef,
 } from "../../src/capabilities/index.ts";
@@ -64,6 +65,7 @@ const DEFS: readonly AnyCapabilityDef[] = [
   WorkspaceFiles,
   WorkspaceImages,
   WorkspaceShell,
+  WorkspaceProtection,
 ];
 
 const EXPECTED: readonly string[] = [
@@ -148,6 +150,8 @@ const EXPECTED: readonly string[] = [
   "workspace.images.resize readOnly safe",
   "workspace.images.register none unsafe",
   "workspace.shell.run none unsafe",
+  "workspace.protection.protect none unsafe",
+  "workspace.protection.list readOnly safe",
 ];
 
 describe("L2 method effect classes (M3-REQ-88)", () => {

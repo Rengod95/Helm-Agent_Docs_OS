@@ -5,7 +5,7 @@ domain: extension-points
 kind: adr
 status: accepted
 depends_on: [adr.0007, adr.0013, adr.0015, F.extensions.spec, X.primitives.spec, X.loading-trust.spec, review.m3-design-inputs]
-binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xeon/packages/core-loop/**, xeon/packages/group-sdk/**]
+binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xeon/packages/core-loop/**, xeon/packages/orchestration-sdk/**]
 ---
 
 # ADR-0017 확장 지점 개정: 자체 이름 규칙, collect fold, 지점별 실패 정책, 수명주기·가드레일 지점, pi 어댑터 없음

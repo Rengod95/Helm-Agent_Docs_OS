@@ -10,6 +10,7 @@ import type {
   TraceFailureReason,
   TraceHandlerEntry,
   TraceHandlerResult,
+  TraceRecordEvent,
   TraceSourceKind,
   TraceTurnEntry,
   TraceTurnResult,
@@ -109,6 +110,11 @@ export interface TraceBuffer {
   blockedCount(threadId: ThreadId): number;
   /** thread의 기록을 지운다. `closeThread`가 부른다(§4.8.3) */
   forgetThread(threadId: ThreadId): void;
+  /**
+   * 핸들러 기록이 쌓일 때마다 알린다(`TraceReadPort.onRecord`). 턴 전 항목은 알리지 않는다. 돌려준 함수로 푼다.
+   * 듣는 쪽이 던지면 Hook을 부르는 길이 깨지므로 던지지 않아야 한다
+   */
+  onRecord(listener: (event: TraceRecordEvent) => void): () => void;
 }
 
 /** 쓰기 중인 항목. 생성된 뒤에는 핸들러 기록만 자란다 */
@@ -228,6 +234,7 @@ function openCurrentOf(thread: ThreadTrace): TurnTrace | undefined {
 
 export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
   const threads = new Map<string, ThreadTrace>();
+  const listeners = new Set<(event: TraceRecordEvent) => void>();
 
   /** thread를 찾는다. 없으면 만들고 thread 수 상한을 넘는 가장 오래된 thread를 뺀다 */
   function threadOf(threadId: string): ThreadTrace {
@@ -268,7 +275,8 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
   }
 
   function dispatchOf(
-    threadId: string,
+    threadId: ThreadId,
+    turnId: string | null,
     thread: ThreadTrace,
     turn: TurnTrace,
     step: number,
@@ -312,6 +320,15 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
           ...(run.decision === undefined ? {} : { decision: run.decision }),
           ...(run.ask === undefined ? {} : { ask: run.ask }),
         });
+        // 턴이 열린 뒤의 기록만 알린다. 듣는 쪽이 없으면 사본도 만들지 않는다
+        if (listeners.size === 0 || pre || turnId === null) return;
+        const event: TraceRecordEvent = {
+          threadId,
+          turnId,
+          entry: snapshotOf(entry),
+          handlerIndex: entry.handlers.length - 1,
+        };
+        for (const listener of listeners) listener(event);
       },
     };
   }
@@ -342,7 +359,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
    * `boundary.turn.after`는 Turn을 닫는다. 닫힌 뒤의 훅(`boundary.settle.after`)은 그 Turn에 붙지만 현재 Turn으로 세우지는 않는다
    */
   function startTurn(
-    threadId: string,
+    threadId: ThreadId,
     turnId: string,
     hook: HookName,
     now: number,
@@ -360,7 +377,9 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     } else if (!turn.closed) {
       thread.current = turnId;
     }
-    return turn.enabled ? dispatchOf(threadId, thread, turn, 0, hook, toolCallId) : undefined;
+    return turn.enabled
+      ? dispatchOf(threadId, turnId, thread, turn, 0, hook, toolCallId)
+      : undefined;
   }
 
   /**
@@ -369,7 +388,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
    * 닫힌 이전 Turn에는 붙이지 않는다(다음 Turn의 턴 전 훅이 이전 Turn에 들어가지 않게 한다)
    */
   function startInCurrent(
-    threadId: string,
+    threadId: ThreadId,
     prefix: string,
     hook: HookName,
     now: number,
@@ -380,7 +399,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     if (thread !== undefined && open !== undefined) {
       if (!open.enabled) return undefined;
       const step = prefix.startsWith("stp_") ? stepOrdinal(open, prefix) : 0;
-      return dispatchOf(threadId, thread, open, step, hook, toolCallId);
+      return dispatchOf(threadId, thread.current ?? null, thread, open, step, hook, toolCallId);
     }
     if (!PRE_TURN_HOOKS.has(hook)) return undefined;
     // 계측이 꺼지면 기다리던 항목도 버린다(계측을 다시 켜도 이전 항목이 다음 Turn에 붙지 않는다)
@@ -391,7 +410,7 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     const holder = threadOf(threadId);
     const waiting = holder.waiting ?? waitingTrace(now);
     holder.waiting = waiting;
-    return dispatchOf(threadId, holder, waiting, 0, hook, toolCallId);
+    return dispatchOf(threadId, null, holder, waiting, 0, hook, toolCallId);
   }
 
   return {
@@ -437,6 +456,13 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
 
     forgetThread(threadId) {
       threads.delete(threadId);
+    },
+
+    onRecord(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

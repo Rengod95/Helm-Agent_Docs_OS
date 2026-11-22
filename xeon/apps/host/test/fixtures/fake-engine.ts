@@ -444,6 +444,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       exists: (threadId) => ok(threads.has(threadId)),
       workspaceOf: (threadId) => ok(workspaces.get(threadId) ?? null),
       isCraftChat: (threadId) => ok(craftThreads.has(threadId)),
+      titleOf: (threadId) => ok(threads.has(threadId) ? { title: null } : undefined),
       // 열기 훅과 같은 폴더 알림은 이 가짜에서 할 일이 없다
       applyOpenWorkspace: () => Promise.resolve(),
       sameFolder: () => [],
@@ -490,6 +491,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         commit([{ kind: "thread.updated", threadId, payload: { profileId } }]);
         return ok({ position: position() });
       },
+      switchStartDrive: () => Promise.resolve(ok({ startDrive: "none" })),
       compact: () => Promise.reject(new Error("compact is not part of the fake")),
       hasTitle: (threadId) => ok((titles.get(threadId) ?? "") !== ""),
       title: (threadId) => ok(titles.get(threadId) ?? null),
@@ -749,6 +751,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           resolve: () => ({ plugins: [], profileId: "default", profileRev: 0, commonRev: 0 }),
         },
         refresh: () => Promise.resolve(),
+        readable: () => true,
         recompute: () => undefined,
         attachOverlay: () => Promise.resolve(),
         restoreOverlay: () => Promise.resolve(),
@@ -807,6 +810,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           forcedPlugins: () => [],
           defaultPlugins: () => ["helm"],
           stateDir: join(tmpdir(), "fresnel-fake-profiles-state"),
+          pluginStoreDir: join(tmpdir(), "fresnel-fake-plugin-store"),
           configDir: fakeConfigDir,
           fileLock: fakeFileLock,
           clock: fakeClock,

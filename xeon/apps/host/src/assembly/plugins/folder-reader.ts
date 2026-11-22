@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { assertNever, attempt, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
+import { parseFrontmatter as parseYamlFrontmatter } from "@fresnel/core-agents";
 import { JsonValueSchema, type JsonValue } from "@fresnel/contracts/conversation";
 import {
   ExtensionNameSchema,
@@ -39,6 +40,8 @@ export interface SkillMaterial {
   readonly description: string | null;
   /** 설명의 글자 수(코드 포인트). 설명이 없으면 0 */
   readonly descriptionChars: number;
+  /** 머리말 뒤의 본문(앞뒤 공백 없이). 머리말이 YAML로 읽히지 않으면 파일 전체다. 카드의 비용 어림이 쓴다 */
+  readonly body: string;
   readonly when: "on_demand";
 }
 interface McpMaterial {
@@ -121,6 +124,11 @@ export interface PluginFolder {
 export interface ReadFolderOptions {
   /** 원본이 어디서 왔는가. 읽는 결과에 그대로 싣는다(읽기 방식은 출처와 무관하다) */
   readonly origin: PluginOriginKind;
+  /**
+   * 플러그인 이름(매니페스트가 없을 때만 쓴다). 생략하면 폴더 경로의 마지막 이름이다.
+   * 후보 스냅샷(`candidates/<hex>/tree`)과 검토본 사본(`reviewed/…/tree`)은 마지막 이름이 `tree`라서 호출자가 원래 이름을 준다
+   */
+  readonly name?: string;
 }
 
 const McpFileShape = Type.Object({ mcpServers: Type.Record(Type.String(), Type.Unknown()) });
@@ -331,6 +339,12 @@ function parseFrontmatter(text: string): ReadonlyMap<string, string> {
   return fields;
 }
 
+/** 스킬 파일의 본문. 프로필 미리 보기의 비용 계산과 같은 머리말 읽기(`core-agents`)를 쓴다 */
+function skillBodyOf(text: string): string {
+  const parsed = parseYamlFrontmatter(text);
+  return parsed.ok ? parsed.value.body : text;
+}
+
 function unquote(value: string): string {
   const quoted =
     value.length >= 2 &&
@@ -449,7 +463,7 @@ export function readPluginFolder(
   if (!tree.ok) return reject("tree_rejected", [treeDiagnostic(tree.error)]);
   const { files, contentHash } = tree.value;
   const present: ReadonlySet<string> = new Set(files.map((file) => file.path));
-  const folderName = basename(resolve(dir));
+  const folderName = options.name ?? basename(resolve(dir));
   const diagnostics: FolderDiagnostic[] = [];
 
   let manifest: ExtensionManifest | undefined;
@@ -552,6 +566,7 @@ export function readPluginFolder(
       path,
       description,
       descriptionChars: description === null ? 0 : Array.from(description).length,
+      body: skillBodyOf(read.value.text),
       when: "on_demand",
     });
   }

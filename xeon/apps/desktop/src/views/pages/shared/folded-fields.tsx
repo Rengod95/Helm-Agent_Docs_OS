@@ -31,7 +31,7 @@ export function FoldedFields(props: {
       >
         {shown ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
         <span className="text-text-secondary">{props.title}</span>
-        <span className="text-text-tertiary tabular-nums">{props.count}</span>
+        <span className="text-text-tertiary">{props.count}</span>
       </Button>
       {shown ? (
         <div id={id}>

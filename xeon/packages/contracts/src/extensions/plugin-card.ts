@@ -1,8 +1,10 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
+import { INTERNAL_PLUGIN_LAYERS, type InternalPluginLayer } from "./internal-plugins.ts";
+import { DependencyKindSchema, type DependencyKind } from "./manifest.ts";
 import { ExtensionNameSchema } from "./name.ts";
-import { SCRIPT_LIMITS } from "./plugin-script.ts";
+import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 
 // F.extensions.spec §3.1.3 플러그인 카드 [M5c-1]. 정본: docs/xeon/review/m5/profile-project-loader.md §3.1.
 // 카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다.
@@ -21,6 +23,10 @@ type HookPower = string;
 export const PLUGIN_ORIGIN_KINDS = ["builtin", "bundled", "user", "project", "managed"] as const;
 export type PluginOriginKind = (typeof PLUGIN_ORIGIN_KINDS)[number];
 const PluginOriginKindShape = Type.Union(PLUGIN_ORIGIN_KINDS.map((name) => Type.Literal(name)));
+
+const InternalPluginLayerShape = Type.Union(
+  INTERNAL_PLUGIN_LAYERS.map((name) => Type.Literal(name)),
+);
 
 export const PLUGIN_HEALTH_STATES = ["ok", "idle", "error", "stopped", "integrity"] as const;
 export type PluginHealthState = (typeof PLUGIN_HEALTH_STATES)[number];
@@ -230,12 +236,100 @@ export interface CardScript {
   readonly name: string;
   readonly launch: CardLaunch;
   readonly timeoutMs: number;
+  /** 승인하면 이 스크립트가 쓸 수 있는 것(`ScriptCard.uses`와 같은 값). 선택 필드라 없는 옛 카드도 파싱된다. 없으면 화면은 알리지 못한다 */
+  readonly uses?: readonly ScriptUse[];
+  /**
+   * Fresnel에서 만든 스크립트(환경 모드 아님)가 선언했지만 받지 못하는 환경 변수 이름: 허용 목록 밖이거나 토큰·키 이름이다. 없으면 비어 있다(필드 없음).
+   * `launch.envNames`는 실제로 넘어가는 이름만 싣는다. 환경 모드 스크립트에는 이 필드가 없다 [결정: 2026-11-22, 사용자, AGE-63]
+   */
+  readonly envNotPassed?: readonly string[];
+  /** 환경 모드(가져온 훅)일 때만. 리뷰 화면은 이것으로 "당신의 셸 명령 그대로 돈다"를 그린다 [제안, AGE-58] */
+  readonly env?: CardScriptEnv;
 }
+
+/** 가져온 훅의 출처 범위. 사용자 설정(`~/.claude`)에서 옴, 프로젝트 설정(`<프로젝트>/.claude`)에서 옴, 알 수 없음 */
+export type ScriptOrigin = "user" | "project" | "unknown";
+
+/** 가져오기 계획이 검토 항목에 남기는 훅 출처(엔진이 정한 값). 카드의 `origin`과 `originLabel`이 된다 */
+export interface ImportedHookOrigin {
+  readonly kind: "user" | "project";
+  readonly label: string | null;
+}
+
+/**
+ * 환경 모드 카드 칸. `command`는 원문 그대로다(가림 규칙은 호스트가 지난다). `interpreter`는 PATH에서 찾아낸 첫 단어의 위치이고 못 찾았으면 null이다.
+ * `refs`의 `hash`가 null이면 지문을 못 냈다. `refsKnown`이 거짓이면 어떤 파일을 읽는지 알 수 없다고 말해야 한다(추측으로 채우지 않는다).
+ * `missingTools`는 이 기기에 없는 실행 파일, `versionHints`는 버전의 근거가 되는 글이다(`python3.11` 이름, shebang, 옆의 `.python-version`)
+ */
+export interface CardScriptEnv {
+  readonly command: string;
+  readonly shell: "sh" | "bash";
+  readonly interpreter: string | null;
+  readonly refs: readonly { readonly path: string; readonly hash: string | null }[];
+  readonly refsKnown: boolean;
+  readonly missingTools: readonly string[];
+  readonly versionHints: readonly string[];
+  /**
+   * 훅이 어디서 왔는가 [제안, enFp]. 값은 가져오기가 실제로 읽은 설정 파일의 자리에서 엔진이 정하고 검토 항목에 기록한다.
+   * 매니페스트에서는 읽지 않는다(손으로 고쳐도 바뀌지 않는다). 기록이 없으면 `unknown`이다
+   */
+  readonly origin: ScriptOrigin;
+  /**
+   * `origin`이 `project`일 때 그 프로젝트 폴더의 사람이 읽는 표시(홈은 `~`로 줄인다). 그 밖에는 null이다
+   */
+  readonly originLabel: string | null;
+  /** 프로젝트가 싣고 온 훅인가. `origin`이 `project`이거나 플러그인 자체가 프로젝트 폴더 출처이면 참이다("프로젝트가 싣고 옴" 하나로 쓴다) */
+  readonly fromProject: boolean;
+}
+const CardScriptEnvShape = Type.Object(
+  {
+    command: Type.String({ maxLength: 4096 }),
+    shell: Type.Union([Type.Literal("sh"), Type.Literal("bash")]),
+    interpreter: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
+    refs: Type.Array(
+      Type.Object(
+        {
+          path: Type.String({ maxLength: 1024 }),
+          hash: Type.Union([Type.String({ maxLength: 100 }), Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 16 },
+    ),
+    refsKnown: Type.Boolean(),
+    missingTools: Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 }),
+    versionHints: Type.Array(Type.String({ maxLength: 256 }), { maxItems: 16 }),
+    origin: Type.Union([Type.Literal("user"), Type.Literal("project"), Type.Literal("unknown")]),
+    originLabel: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
+    fromProject: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 const CardScriptShape = Type.Object(
   {
     name: Id,
     launch: CardMcpLaunchShape,
     timeoutMs: Type.Integer({ minimum: 1, maximum: SCRIPT_LIMITS.timeoutMaxMs }),
+    uses: Type.Optional(
+      Type.Array(
+        Type.Union([
+          Type.Literal("sandbox_full_access"),
+          Type.Literal("system_tools"),
+          Type.Literal("network"),
+          Type.Literal("user_environment"),
+          Type.Literal("user_full_access"),
+          Type.Literal("read_wide"),
+          Type.Literal("write_project"),
+        ]),
+        { maxItems: 6 },
+      ),
+    ),
+    envNotPassed: Type.Optional(
+      Type.Array(Type.String({ maxLength: CARD_MCP_LAUNCH_LIMITS.envName }), {
+        maxItems: CARD_MCP_LAUNCH_LIMITS.envNames,
+      }),
+    ),
+    env: Type.Optional(CardScriptEnvShape),
   },
   { additionalProperties: false },
 );
@@ -325,12 +419,59 @@ const CardHookShape = Type.Object(
 );
 
 /**
+ * 카드의 의존 한 줄(AGE-33). `from`은 선언한 Registration id, `target`은 가리키는 id(확장 이름 또는 `이름/id`)다.
+ * `problem`은 설치된 집합에서 본 값이다. 매니페스트만 읽은 카드는 null이다. `target_disabled`는 프로필 사정이라 카드가 싣지 않는다
+ */
+export const CARD_DEPENDENCY_PROBLEMS = [
+  "target_missing",
+  "member_missing",
+  "range_unmet",
+] as const;
+export type CardDependencyProblem = (typeof CARD_DEPENDENCY_PROBLEMS)[number];
+const CardDependencyProblemShape = Type.Union(
+  CARD_DEPENDENCY_PROBLEMS.map((name) => Type.Literal(name)),
+);
+
+export interface CardDependency {
+  readonly from: string;
+  readonly target: string;
+  readonly kind: DependencyKind;
+  readonly range: string | null;
+  readonly problem: CardDependencyProblem | null;
+}
+const CardDependencyShape = Type.Object(
+  {
+    from: Type.String({ minLength: 1, maxLength: 256 }),
+    target: Type.String({ minLength: 1, maxLength: 256 }),
+    kind: DependencyKindSchema,
+    range: Type.Union([Type.String({ maxLength: 256 }), Type.Null()]),
+    problem: Type.Union([CardDependencyProblemShape, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+/** 카드의 의존 칸. `dependsOn`은 이 플러그인이 기대는 것, `dependents`는 이 플러그인에 기대는 쪽이다(`problem`은 null) */
+export interface CardDependencies {
+  readonly dependsOn: readonly CardDependency[];
+  readonly dependents: readonly CardDependency[];
+}
+const CardDependenciesShape = Type.Object(
+  {
+    dependsOn: Type.Array(CardDependencyShape, { maxItems: 256 }),
+    dependents: Type.Array(CardDependencyShape, { maxItems: 256 }),
+  },
+  { additionalProperties: false },
+);
+
+/**
  * 카드 한 장. 칸마다 값이 있으면 그 종류의 재료가 있다는 뜻이다. `does`의 세 칸은 종류이고 나머지는 층 2·3(실행과 사용처)이다.
  * `origin`과 `review`는 호스트 기록이고 `health`는 `ext.health`의 값이다
  */
 export interface PluginCard {
   readonly name: string;
   readonly displayName: string;
+  /** 매니페스트의 버전(SemVer). 매니페스트를 읽을 수 없는 카드(내장 따위)에는 없다 [제안] 이름 `version` */
+  readonly version?: string;
   /** 목적 한 문장. 없으면 검토에서 승인할 수 없다(`pluginReview.purposeRequired`) */
   readonly purpose: string | null;
   readonly does: {
@@ -339,7 +480,20 @@ export interface PluginCard {
     readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
   };
   readonly enforcement: PluginEnforcement;
-  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
+  /**
+   * `code`는 `entry`(격리 플러그인 프로세스)가 있는가다. `isolated`는 코드가 샌드박스 안에서 도는가다: `true`면 Fresnel의 샌드박스 하나(열린 정책, 막는 것은
+   * 사용자가 막은 경로, Fresnel 자신의 비밀·데이터·설정, 차단 도메인)다. 엔진 안에서 도는 내장 패키지만 `false`다. 코드가 없으면 `null`이다 [결정: 2026-11-21, AGE-63]
+   */
+  readonly runs: {
+    readonly code: boolean;
+    readonly isolated: boolean | null;
+    /**
+     * 참일 때만 있다. 설정 `l0.sandbox.narrowDrafts`가 켜져 있어, 이 플러그인이 승인되기 전(드래프트)에는 코드(격리 프로세스)와 Fresnel에서 만든 스크립트(코드 없이 스크립트만 있어도)가 좁은 샌드박스
+     * (자기 폴더만 읽고 쓰지 못함, 환경 변수는 허용 목록만)에서 돈다는 뜻이다. 승인된 뒤에는 `isolated`가 말하는 열린 샌드박스다. 없으면 승인 전에도 같다
+     * [결정: 2026-11-22, 사용자, AGE-63]
+     */
+    readonly narrowBeforeApproval?: true;
+  };
   readonly cost: CostFigures;
   readonly health: {
     readonly state: PluginHealthState;
@@ -351,6 +505,17 @@ export interface PluginCard {
     readonly projectId?: string;
     readonly createdIn?: { readonly threadId: string };
   };
+  /**
+   * 내부 부품 여부: 엔진이 스스로 싣고 사용자가 켜고 끌 수 없으면 참이다(`origin.kind`가 `builtin`이고 매니페스트에 `group` 블록이 없다).
+   * 내장이어도 대화마다 켜고 끌 수 있는 그룹(`authoring`, `guide`)은 거짓이다. 선택 필드라 없는 옛 카드(검토본 메타)도 파싱되고, 화면은 없으면 거짓으로 읽는다.
+   * [제안] 이름 `internal` (AGE-33, enIn)
+   */
+  readonly internal?: boolean;
+  /**
+   * 내부 부품의 층 값. 목록 화면이 내부 부품을 코어와 기능으로 나눠 보이는 데 쓴다. `internal`이 참인 카드에만 있다
+   * [결정: 2026-11-20, 사용자, AGE-33] 이름 `internalLayer`는 [제안]
+   */
+  readonly internalLayer?: InternalPluginLayer;
   readonly review: {
     readonly state: CardReviewState;
     readonly currentHash: string | null;
@@ -359,11 +524,22 @@ export interface PluginCard {
   };
   /** 이 플러그인을 쓰는 프로필 id. 공통 묶음은 `"common"` */
   readonly usedBy: readonly string[];
+  /**
+   * 의존 칸(AGE-33). 선택 필드라 없는 옛 카드도 파싱된다. `buildPluginCard`는 매니페스트만 알아 `dependsOn`(problem null)까지만 싣고 `dependents`는 비운다.
+   * 검토 서비스가 목록과 항목을 줄 때 설치된 사실로 다시 채운다(저장된 항목은 바꾸지 않는다)
+   */
+  readonly dependencies?: CardDependencies;
+  /**
+   * 엔진이 아직 필요로 하는 단위의 표시(M5c §4.1.17, AGE-33 enDep 10). 이 단위에 기대는 코어 부분의 코드 이름이다. 값이 있을 때만 싣는다(없으면 키가 없다).
+   * 프로필 화면이 미리 잠그는 데 쓴다. 저장된 카드가 아니라 응답 값이다
+   */
+  readonly requiredByCore?: readonly string[];
 }
 const PluginCardShape = Type.Object(
   {
     name: ExtensionNameSchema,
     displayName: Type.String({ minLength: 1, maxLength: 64 }),
+    version: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     purpose: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
     does: Type.Object(
       {
@@ -393,6 +569,7 @@ const PluginCardShape = Type.Object(
       {
         code: Type.Boolean(),
         isolated: Type.Union([Type.Boolean(), Type.Null()]),
+        narrowBeforeApproval: Type.Optional(Type.Literal(true)),
       },
       { additionalProperties: false },
     ),
@@ -413,6 +590,8 @@ const PluginCardShape = Type.Object(
       },
       { additionalProperties: false },
     ),
+    internal: Type.Optional(Type.Boolean()),
+    internalLayer: Type.Optional(InternalPluginLayerShape),
     review: Type.Object(
       {
         state: CardReviewStateShape,
@@ -423,6 +602,8 @@ const PluginCardShape = Type.Object(
       { additionalProperties: false },
     ),
     usedBy: Type.Array(Id, { maxItems: 256 }),
+    dependencies: Type.Optional(CardDependenciesShape),
+    requiredByCore: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 })),
   },
   { additionalProperties: false },
 );

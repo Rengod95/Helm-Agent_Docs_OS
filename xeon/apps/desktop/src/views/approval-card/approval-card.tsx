@@ -2,9 +2,18 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import type { LiveApprovalRequest } from "../../state/engine/input.ts";
-import { Badge, Button } from "@caustic/react";
+import { Badge, Button, ScrollArea } from "@caustic/react";
 import { ChevronRight, FileText, MessageCircleQuestion, ShieldCheck } from "@caustic/react/icons";
-import { memo, useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useApproval, useThread } from "../../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend } from "../../state/ui/index.ts";
 import {
@@ -19,6 +28,15 @@ import { APPROVE_ALL_ANSWER } from "../review-model.ts";
 import { QuestionBody, ReviewBody, RiskBadge, ToolBody, toolHasArgs } from "./bodies.tsx";
 import { useClockNow } from "./clock.ts";
 import {
+  questionAutoAdvanceOf,
+  questionPageKeyOf,
+  questionPageOf,
+  questionPagedOf,
+  questionPrimaryOf,
+  questionStepsOf,
+} from "./question-pages.ts";
+import { QuestionPager } from "./question-pager.tsx";
+import {
   approvalAgeOf,
   approvalExpiryOf,
   approvalKeyOf,
@@ -29,17 +47,11 @@ import {
 } from "./card-model.ts";
 import { useGoToThread } from "../thread-link.ts";
 import { AttendGlow } from "../effects/attention-mark.tsx";
-import { WriteAccessBody } from "./write-access-body.tsx";
-import {
-  writeAccessDecisionsOf,
-  writeAccessFoldsOf,
-  writeAccessViewOf,
-} from "./write-access-model.ts";
 
 // 승인 카드. 트랜스크립트 끝, 끝 영역 받은 요청(InboxApprovals), P-03 목록이 같은 카드를 쓴다(FS-02).
 // 카드는 거울의 approvals를 읽고 응답 직후 표시는 UI 스토어가 가진다. 대기열에서 빠지는 일은 approval.resolved가 한다.
 // 머리의 대화 이름은 트랜스크립트 밖에서만 누를 수 있다(threadLinkVisibleOf).
-// 카드 틀은 네 종류가 같다(L4.desktop-ux DP-134 [결정: 2026-11-12 사용자]): 안쪽 16, 머리(아이콘 칸 28 + 사이 12 + 제목·곁 줄),
+// 카드 틀은 세 종류가 같다(L4.desktop-ux DP-134 [결정: 2026-11-12 사용자]): 안쪽 16, 머리(아이콘 칸 28 + 사이 12 + 제목·곁 줄),
 // 본문과 단추 줄은 제목 열(왼쪽 40)에 맞추고 사이 12. 단추 줄은 오른쪽 아래에 [거부] [주 동작](sm 28, 사이 8), 왼쪽은 펼침 단추나 보조 동작.
 // caustic AgentRequest는 종류마다 틀(구슬·유리 판·띠)과 단추 배치가 달라 쓰지 않는다. 본문은 ChoiceGroup·Input·Textarea·MessageCode·Alert.
 
@@ -103,14 +115,10 @@ function ageTextOf(age: ApprovalAge): string {
   }
 }
 
-/**
- * 카드가 보내는 답들. primary는 Y, deny는 N, thread는 샌드박스 밖 쓰기의 "이 대화에서 계속 허용"이다.
- * null이면 그 동작을 끈다(thread는 그 단추를 그리지 않는다)
- */
+/** 카드가 보내는 답들. primary는 Y, deny는 N. primary가 null이면 그 동작을 끈다 */
 type Decisions = {
   readonly primary: ApprovalDecision | null;
   readonly deny: ApprovalDecision;
-  readonly thread: ApprovalDecision | null;
 };
 
 type Action = {
@@ -118,9 +126,14 @@ type Action = {
   readonly label: MessageId;
   readonly decision: ApprovalDecision | null;
   readonly look: "solid" | "soft" | "ghost";
+  /** 답을 보내지 않는 동작(질문 넘김의 "다음"). 있으면 decision 대신 이것을 부른다 */
+  readonly onPress?: () => void;
 };
 
-/** 단추 크기: 네 종류 모두 폼 표준 sm(28)이다 */
+/** 질문 선택지를 눌러 고른 뒤 다음 질문으로 넘기기까지(고른 표시가 눈에 들어올 만큼) */
+const AUTO_ADVANCE_MS = 220;
+
+/** 단추 크기: 세 종류 모두 폼 표준 sm(28)이다 */
 const ACTION_SIZE = "sm";
 
 function ActionButton(props: {
@@ -130,15 +143,17 @@ function ActionButton(props: {
 }): ReactNode {
   const { action } = props;
   const decision = action.decision;
+  const press = action.onPress;
   return (
     <Button
       type="button"
       data-action={action.id}
       size={ACTION_SIZE}
       variant={action.look}
-      disabled={props.disabled || decision === null}
+      disabled={props.disabled || (press === undefined && decision === null)}
       onClick={() => {
-        if (decision !== null) props.onRespond(decision);
+        if (press !== undefined) press();
+        else if (decision !== null) props.onRespond(decision);
       }}
     >
       {t(action.label)}
@@ -163,14 +178,44 @@ function PendingCard(props: {
   const [draft, setDraft] = useState<QuestionDraft>({});
   // 도구 인자(원시 JSON)는 접어 두고 단추 줄 왼쪽의 펼침 단추로 연다
   const [argsOpen, setArgsOpen] = useState(false);
-  // 쓰기 허용 본문이 폭 때문에 잘린 값이 있다고 알린 상태(펼침 단추를 세운다)
-  const [clipped, setClipped] = useState(false);
   const argsId = useId();
   const titleId = useId();
   const { body } = request;
   const busy = sendState === "sending";
 
-  const writeAccess = writeAccessViewOf(request);
+  // 질문 넘김(DP-224): 지금 보이는 질문과 사용자가 넘긴 횟수(새 질문으로 초점을 옮길 때를 안다)
+  const questions = body.kind === "question" ? body.question.questions : [];
+  const paged = questionPagedOf(questions.length);
+  const [pageWanted, setPageWanted] = useState(0);
+  const page = questionPageOf(pageWanted, questions.length);
+  const [focusTick, setFocusTick] = useState(0);
+  const lastPage = questionPrimaryOf(page, questions.length) === "answer";
+  const goToPage = (next: number): void => {
+    const target = questionPageOf(next, questions.length);
+    if (target === page) return;
+    setPageWanted(target);
+    setFocusTick((n) => n + 1);
+  };
+  // 선택지를 눌러 고르면 잠깐(선택이 눈에 보이게) 뒤 다음 질문으로 간다. 그 사이 사용자가 넘겼으면 하지 않는다
+  const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (advance.current !== null) clearTimeout(advance.current);
+    },
+    [],
+  );
+  const onPointerPick = (index: number): void => {
+    const question = questions[index];
+    if (question === undefined || index !== page) return;
+    if (!questionAutoAdvanceOf({ question, picked: true, page, count: questions.length })) return;
+    if (advance.current !== null) clearTimeout(advance.current);
+    advance.current = setTimeout(() => {
+      advance.current = null;
+      setPageWanted((shown) => (shown === index ? index + 1 : shown));
+      setFocusTick((n) => n + 1);
+    }, AUTO_ADVANCE_MS);
+  };
+
   const decisions: Decisions = decisionsOf(request, { draft });
   const respond = (decision: ApprovalDecision): void => {
     detach(commands.respondApproval(id, decision), rethrow);
@@ -189,6 +234,12 @@ function PendingCard(props: {
     if (busy || isTypingTarget(event.target)) return;
     const action = approvalKeyOf(event, event.target === event.currentTarget);
     if (action === null) return;
+    // 넘기는 질문 카드에서 기본 답 글쇠(Y, 카드의 Enter)는 주 단추와 같다: 마지막 질문 전에는 "다음"이다
+    if (action === "primary" && paged && !lastPage) {
+      event.preventDefault();
+      goToPage(page + 1);
+      return;
+    }
     const decision = action === "primary" ? decisions.primary : decisions.deny;
     if (decision === null) return;
     event.preventDefault();
@@ -201,13 +252,11 @@ function PendingCard(props: {
       ? request.title
       : titleView.id === "desktop.approvals.title.tool"
         ? t(titleView.id, titleView.params)
-        : titleView.id === "desktop.approvals.title.writeAccess"
-          ? t(titleView.id)
-          : titleView.id === "desktop.approvals.title.web"
+        : titleView.id === "desktop.approvals.title.web"
+          ? t(titleView.id, titleView.params)
+          : titleView.id === "desktop.approvals.title.mcpStart"
             ? t(titleView.id, titleView.params)
-            : titleView.id === "desktop.approvals.title.mcpStart"
-              ? t(titleView.id, titleView.params)
-              : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
+            : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const review = body.kind === "review" ? body.review : null;
@@ -236,57 +285,64 @@ function PendingCard(props: {
   ].filter((part): part is string => part !== null);
   const threadLabel = t("desktop.approvals.card.threadLabel");
   const lead = t(KIND_LEAD[body.kind]);
-  const subtitle: ReactNode =
-    linkTo === null ? (
-      [lead, `${threadLabel}: ${threadName}`, ...meta].join(" · ")
-    ) : (
-      <>
-        {`${lead} · ${threadLabel}: `}
-        {/* 대화 이름 링크는 글 줄 안의 링크다(단추 상자 없이 밑줄 hover). 누르는 영역은 줄 높이 */}
-        <button
-          type="button"
-          data-action="thread"
-          className="cursor-pointer rounded-xs text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:shadow-focus"
-          onClick={() => {
-            linkTo(props.threadId);
-          }}
-        >
-          {threadName}
-        </button>
-        {meta.map((part) => ` · ${part}`)}
-      </>
-    );
+  // 곁 줄의 조각(종류, 대화, 시각·라운드·만료)은 따로 두고 간격으로 가른다. 글은 조각 사이에 공백을 남긴다
+  const subtitle: ReactNode = (
+    <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+      <span>{lead}</span>{" "}
+      <span className="min-w-0">
+        {linkTo === null ? (
+          `${threadLabel}: ${threadName}`
+        ) : (
+          <>
+            {`${threadLabel}: `}
+            {/* 대화 이름 링크는 글 줄 안의 링크다(단추 상자 없이 밑줄 hover). 누르는 영역은 줄 높이 */}
+            <button
+              type="button"
+              data-action="thread"
+              className="cursor-pointer rounded-xs text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:shadow-focus"
+              onClick={() => {
+                linkTo(props.threadId);
+              }}
+            >
+              {threadName}
+            </button>
+          </>
+        )}
+      </span>
+      {meta.map((part) => (
+        <Fragment key={part}>
+          {" "}
+          <span>{part}</span>
+        </Fragment>
+      ))}
+    </span>
+  );
 
-  // 오른쪽 아래 단추 묶음, 읽는 순서대로: [거부] [(계획) 수정 요청 | (쓰기 허용) 이 대화에서 계속 허용] [주 동작]. 주 동작만 채움이다
+  // 오른쪽 아래 단추 묶음, 읽는 순서대로: [거부] [주 동작 | (질문 넘김) 다음]. 주 동작만 채움이다
   const answers: Action[] = [
     { id: "deny", label: denyLabelOf(body.kind), decision: decisions.deny, look: "ghost" },
+    paged && !lastPage
+      ? {
+          id: "next",
+          label: "desktop.approvals.question.next",
+          decision: null,
+          look: "solid",
+          onPress: () => {
+            goToPage(page + 1);
+          },
+        }
+      : {
+          id: "primary",
+          label: primaryLabelOf(body.kind),
+          decision: decisions.primary,
+          look: "solid",
+        },
   ];
-  if (decisions.thread !== null) {
-    answers.push({
-      id: "allow-thread",
-      label: "desktop.approvals.writeAccess.thread.button",
-      decision: decisions.thread,
-      look: "soft",
-    });
-  }
-  answers.push({
-    id: "primary",
-    label:
-      writeAccess === null
-        ? primaryLabelOf(body.kind)
-        : "desktop.approvals.writeAccess.once.button",
-    decision: decisions.primary,
-    look: "solid",
-  });
   const tool = body.kind === "tool" ? body.tool : null;
-  // 쓰기 허용 승인은 같은 값을 구조로 이미 보여 원시 인자 단추 대신, 잘린 경로·명령이 있을 때만 "전체 보기"를 둔다
-  const hasArgs = writeAccess === null && tool !== null && toolHasArgs(tool);
-  const folds = writeAccess !== null && (clipped || writeAccessFoldsOf(writeAccess));
+  const hasArgs = tool !== null && toolHasArgs(tool);
 
   const bodyNode =
-    writeAccess !== null ? (
-      <WriteAccessBody view={writeAccess} open={argsOpen} id={argsId} onClipped={setClipped} />
-    ) : body.kind === "tool" ? (
+    body.kind === "tool" ? (
       <ToolBody body={body.tool} argsOpen={argsOpen} argsId={argsId} />
     ) : body.kind === "question" ? (
       <QuestionBody
@@ -294,26 +350,46 @@ function PendingCard(props: {
         draft={draft}
         disabled={busy}
         onChange={setDraft}
+        page={page}
+        focusTick={focusTick}
+        onPointerPick={onPointerPick}
       />
     ) : (
       <ReviewBody review={body.review} />
     );
 
   const tile = KIND_TILE[body.kind];
+  const steps = paged ? questionStepsOf(questions, draft, page) : [];
+  const pager = paged ? <QuestionPager steps={steps} disabled={busy} onPage={goToPage} /> : null;
+  /** ←·→는 질문을 넘긴다. 선택지 묶음이 화살표로 선택을 옮기기 전에(잡기 단계에서) 받는다. 입력 칸 안의 글쇠는 그대로 둔다 */
+  const onPageKey = (event: KeyboardEvent<HTMLElement>): void => {
+    if (!paged || busy || isTypingTarget(event.target)) return;
+    const delta = questionPageKeyOf(event);
+    if (delta === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    goToPage(page + delta);
+  };
   return (
-    <li data-slot="approval-card-item" data-approval-id={id} className="list-none">
+    <li
+      data-slot="approval-card-item"
+      data-approval-id={id}
+      className="flex min-h-0 list-none flex-col"
+    >
       <article
         data-slot="approval-card"
         data-approval-kind={body.kind}
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        // 주의 면(DP-190): 대기 중인 카드는 위 변 빛과 안쪽 오로라가 깔린다(답을 보내는 동안은 걷는다)
-        className="fx-attend-card grid gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
+        onKeyDownCapture={onPageKey}
+        // 주의 면(DP-190): 대기 중인 카드는 위 변 가운데의 빛과 안쪽으로 옅은 번짐이 깔린다(종류마다 빛깔 조합, 답을 보내는 동안은 걷는다)
+        // 높이: 쌓임 띠가 준 상한(`--approval-card-max`) 안에서 본문만 스크롤하고 머리와 단추 줄은 늘 보인다(DP-225)
+        className="fx-attend-card flex max-h-(--approval-card-max) min-h-0 flex-col gap-3 rounded-xl bg-surface-base p-4 text-ui text-text-primary shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle),var(--cs-focus)]"
       >
-        <AttendGlow pending={!busy} />
+        <AttendGlow pending={!busy} kind={body.kind} />
         {/* 머리: 아이콘 칸 28, 제목 13/600, 곁 줄 12 tertiary(종류 · 대화 · 시각). 위험도·출처는 오른쪽 끝 */}
-        <header data-slot="approval-head" className="flex min-w-0 items-start gap-3">
+        <header data-slot="approval-head" className="flex min-w-0 shrink-0 items-start gap-3">
           <span
             aria-hidden
             className={`grid size-7 shrink-0 place-items-center rounded-lg [&_svg]:size-4 ${tile.tone}`}
@@ -343,24 +419,38 @@ function PendingCard(props: {
             </span>
           )}
         </header>
-        {/* 본문이 비면(웹 승인처럼 접힌 인자뿐이면) 칸째 숨겨 머리와 단추 줄 사이가 12 하나로 남는다 */}
-        <div
-          data-slot="approval-body"
-          className="grid min-w-0 gap-2 pl-10 [&:not(:has(>:not(:empty)))]:hidden"
+        {/* 본문이 비면(웹 승인처럼 접힌 인자뿐이면) 칸째 숨겨 머리와 단추 줄 사이가 12 하나로 남는다.
+            본문은 카드 높이 상한 안에서 혼자 스크롤한다(가장자리 흐림이 더 있음을 알린다).
+            스크롤 상자는 사방 4px 넓히고 본문이 같은 만큼 안쪽 여백을 가져, 선택지의 초점 고리(바깥 3px)가 상자에 잘리지 않고 글 자리는 그대로다 */}
+        <ScrollArea
+          fade
+          label={t("desktop.approvals.body.label")}
+          className="-m-1 h-auto min-h-0 w-[calc(100%+0.5rem)] shrink [&:not(:has([data-slot=approval-body]>:not(:empty)))]:hidden"
         >
-          {bodyNode}
-          {sendState === undefined || sendState === "sending" ? null : (
-            <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
-              {t(APPROVAL_FAILURE_ID[sendState])}
-              {detail === undefined ? null : ` (${detail})`}
-            </p>
-          )}
-        </div>
-        {/* 단추 줄: 대기열 띠 안에서 본문이 스크롤될 때도 바닥에 붙어 늘 닿는다(sticky, 배경은 카드 면) */}
+          <div
+            data-slot="approval-body"
+            className="grid min-w-0 gap-2 p-1 pl-[calc(var(--cs-space-7)+var(--cs-space-3)+var(--cs-space-1))]"
+          >
+            {bodyNode}
+            {sendState === undefined || sendState === "sending" ? null : (
+              <p className="m-0 text-ui text-danger-text" role="alert" data-failure={sendState}>
+                {t(APPROVAL_FAILURE_ID[sendState])}
+                {detail === undefined ? null : ` (${detail})`}
+              </p>
+            )}
+          </div>
+        </ScrollArea>
+        {/* 단추 줄: 본문 스크롤 밖이라 늘 보인다. 넘기는 질문 카드는 왼쪽에 넘김 표시를 둔다(DP-224) */}
         <div
           data-slot="approval-actions"
-          className="sticky bottom-0 flex min-w-0 flex-wrap items-center gap-2 bg-surface-base pl-10"
+          className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 pl-10"
         >
+          {pager}
+          {paged ? (
+            <span className="sr-only" aria-live="polite">
+              {t("desktop.approvals.question.position", { n: page + 1, total: questions.length })}
+            </span>
+          ) : null}
           {hasArgs ? (
             <Button
               type="button"
@@ -377,27 +467,6 @@ function PendingCard(props: {
             >
               <ChevronRight aria-hidden />
               {t(argsOpen ? "desktop.approvals.args.hide" : "desktop.approvals.args.show")}
-            </Button>
-          ) : null}
-          {folds ? (
-            <Button
-              type="button"
-              data-action="fold"
-              size={ACTION_SIZE}
-              variant="ghost"
-              aria-expanded={argsOpen}
-              aria-controls={argsId}
-              className="-ml-2.5 gap-1 text-text-secondary [&_svg]:size-3.5 [&_svg]:transition-transform aria-expanded:[&_svg]:rotate-90"
-              onClick={() => {
-                setArgsOpen((open) => !open);
-              }}
-            >
-              <ChevronRight aria-hidden />
-              {t(
-                argsOpen
-                  ? "desktop.approvals.writeAccess.less"
-                  : "desktop.approvals.writeAccess.full",
-              )}
             </Button>
           ) : null}
           {body.kind === "review" ? (
@@ -471,17 +540,10 @@ function decisionsOf(
 ): Decisions {
   const { body } = request;
   const deny: ApprovalDecision = { decision: "deny" };
-  // 샌드박스 밖 쓰기 승인: 이번만(주 동작) · 이 대화에서 계속 허용 · 거부(L2.workspace §4.3.1, DP-204)
-  const writeAccess = writeAccessViewOf(request);
-  if (writeAccess !== null) {
-    const choices = writeAccessDecisionsOf(writeAccess);
-    return { primary: choices.once, deny: choices.deny, thread: choices.thread };
-  }
   if (body.kind === "tool") {
     return {
       primary: { decision: "allow", remember: "once" },
       deny,
-      thread: null,
     };
   }
   if (body.kind === "question") {
@@ -489,13 +551,11 @@ function decisionsOf(
     return {
       primary: answer === null ? null : { decision: "answer", answer },
       deny,
-      thread: null,
     };
   }
   return {
     primary: { decision: "answer", answer: APPROVE_ALL_ANSWER },
     deny,
-    thread: null,
   };
 }
 
@@ -523,7 +583,7 @@ export function ApprovalCardList(props: {
 }): ReactNode {
   const within = props.within ?? null;
   return (
-    <ul className="m-0 grid gap-2 p-0" aria-label={props.label}>
+    <ul className="m-0 flex min-h-0 flex-col gap-2 p-0" aria-label={props.label}>
       {props.ids.map((id) => (
         <ApprovalCard key={id} id={id} within={within} />
       ))}

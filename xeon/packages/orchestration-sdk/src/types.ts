@@ -1,0 +1,232 @@
+import type { Result } from "@fresnel/contracts";
+import type {
+  CompositionDecl,
+  DriveOptions,
+  DriveStep,
+  ExtensionEntry,
+  ExtensionManifest,
+  PluginDecl,
+  ProviderResourceDef,
+  OrchestrationDecl,
+  RegistrationApi,
+  RegistrationFn,
+  RegistrationId,
+  ScriptRunFailure,
+  ScriptRunResult,
+  StateDecl,
+  ToolResourceDef,
+} from "@fresnel/contracts/extensions";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { Upcaster } from "@fresnel/contracts/records";
+import type { SettingDef, SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
+import type {
+  CommandResourceDef,
+  ExtMethodResourceDef,
+  RegistrationStartDriveError,
+} from "@fresnel/ext-host";
+import type { Static } from "typebox";
+import type {
+  CancelDelegatesResult,
+  DelegateCallOptions,
+  DelegateResult,
+  DelegateSpec,
+  DelegateStatusResult,
+} from "./delegate.ts";
+import type { OrchestrationMetricsHandle } from "./metrics/types.ts";
+import type { StateMigrations } from "./state.ts";
+
+// 플러그인 정의 API의 타입 선언 모음. define-group.ts(검증·defineOrchestration)와 wrap.ts가 함께 import한다.
+// 함수가 없는 파일이라 두 파일 사이에 import 순환이 생기지 않는다.
+
+/** `orchestration` 선언이 있고 id 없는 L3 루트 플러그인이 있는 매니페스트(검사는 isOrchestrationManifest) */
+export type OrchestrationManifest = ExtensionManifest & {
+  readonly orchestration: OrchestrationDecl;
+};
+
+/** 설정 정의 묶음. 키는 이름 부분(F.wire-settings.spec §3.8.3 SettingDefInput) */
+export type OrchestrationSettingDefs = Readonly<Record<string, SettingDefInput>>;
+/** 내장 플러그인은 "l3.<이름>", 외부 플러그인은 "ext.<이름>"(F.wire-settings.spec §3.8.3 규칙 3) */
+export type OrchestrationSettingNamespace = `l3.${string}` | `ext.${string}`;
+/**
+ * 설정이 없는 플러그인의 D. 키가 하나도 없는 형태를 뜻하는 `{}`다. 스펙 시그니처의 기본값(Record<never, never>)과 같다.
+ */
+// oxlint-disable-next-line typescript/no-generated-empty-object-type -- 설정이 없는 플러그인의 D 기본값은 키가 없는 객체 형태 자체다 (L3.group-sdk.spec §3.2)
+export type NoSettings = Record<never, never>;
+export type OrchestrationSettingValues<D extends OrchestrationSettingDefs> = {
+  readonly [K in keyof D & string]: Static<D[K]["type"]>;
+};
+
+export interface OrchestrationDef<S = never, D extends OrchestrationSettingDefs = NoSettings> {
+  /** 저장소 안 플러그인은 defineManifest 상수, 외부 플러그인은 orchestrationManifest(plugin.json 값) */
+  readonly manifest: OrchestrationManifest;
+  /**
+   * 구성 선언(X-16, F.extensions.spec §3.1.2). `defineOrchestration`이 만든 모듈의 매니페스트 `orchestration.composition`을 채운다.
+   * 매니페스트에도 `orchestration.composition`이 있고 둘이 다르면 `composition_conflict`다. 없으면 구성기는 "구성 정보 없음" 블록 하나로 본다
+   */
+  readonly composition?: CompositionDecl;
+  /**
+   * 비공개 상태 문서. F StateDecl(schema, initial, version).
+   * 생략하면 상태 없는 플러그인이다(정책 플러그인 등). 이때 g.state()·g.commit()은 X가 state_undeclared로 거부한다(X.primitives.spec §4.6.1 1번)
+   */
+  readonly state?: StateDecl<S>;
+  /** state.version이 2 이상이면 1..version-1 모든 키가 있어야 한다(§4.7). state가 없으면 두지 않는다 */
+  readonly migrations?: StateMigrations;
+  /** defineSettings("l3.<이름>", …) 또는 defineSettings("ext.<이름>", …)의 결과 */
+  readonly settings?: SettingGroup<OrchestrationSettingNamespace, D>;
+  readonly setup: (g: OrchestrationApi<S, D>) => void | Promise<void>;
+  /**
+   * 구성원 정의. 키는 매니페스트 `plugins[]`에서 id가 있는 플러그인의 id다(`orchestration.members`가 있으면 그 안에 든 id만).
+   * 선언된 구성원마다 정의가 하나 있어야 한다(`member_missing`). 구성원은 `<이름>/<id>` Registration으로 올라가고 자기 상태와 setup을 가진다.
+   * `defineOrchestrationMember`로 만든 값만 받는다.
+   */
+  readonly members?: Readonly<Record<string, OrchestrationMember>>;
+}
+
+/** 구성원 정의의 검사 모양. OrchestrationDefShape와 같은 이유로 S를 `unknown`으로 넓힌다 */
+export interface OrchestrationMemberShape {
+  /** 구성원 자기 상태 선언. 뿌리 상태와 따로 있고 구성원 Registration에만 속한다 */
+  readonly state?: StateDecl<unknown>;
+  /** state.version이 2 이상이면 1..version-1 모든 키가 있어야 한다 */
+  readonly migrations?: StateMigrations;
+}
+
+/** `defineOrchestrationMember`의 인자. 구성원 setup은 뿌리와 같은 OrchestrationApi를 받는다 */
+export interface OrchestrationMemberDef<S = never> {
+  readonly state?: StateDecl<S>;
+  readonly migrations?: StateMigrations;
+  readonly setup: (g: OrchestrationApi<S>) => void | Promise<void>;
+}
+
+/**
+ * `defineOrchestrationMember`가 만든 구성원 정의. 불투명 값이다. S는 `mount` 클로저 안에 갇히고 값에는 검사에 필요한 모양만 보인다.
+ * 다른 방법으로 만든 객체는 `defineOrchestration`이 Bug로 거부한다.
+ */
+export interface OrchestrationMember extends OrchestrationMemberShape {
+  /**
+   * 엔트리 안에서 구성원 Registration 하나를 등록한다. `registrationId`는 `registrationIdOf(manifest, id)`, `plugin`은
+   * 매니페스트의 그 구성원 선언이다. 구성원 setup은 이 등록에서 실행된다
+   */
+  readonly mount: (
+    register: RegistrationFn,
+    registrationId: RegistrationId,
+    manifest: ExtensionManifest,
+    plugin: PluginDecl,
+  ) => void;
+}
+
+/** 주도 시작 요청의 결과 값. X `RegistrationHostApi.startDrive`가 약속으로 주는 값과 같은 모양이다. 거부는 값으로 돌아온다 */
+export type OrchestrationStartDriveResult = Result<void, RegistrationStartDriveError>;
+
+/**
+ * `g.runScript(name, options)`의 옵션. `stdin`을 생략하면 빈 문자열이고, 상한은 `SCRIPT_LIMITS.stdinBytes`(256 KiB)다
+ * (F.extensions.spec §3.1.4). 생략과 빈 문자열은 같은 호출이다.
+ */
+export interface RunScriptOptions {
+  readonly stdin?: string;
+}
+
+/** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
+export interface OrchestrationApi<
+  S,
+  D extends OrchestrationSettingDefs = NoSettings,
+> extends RegistrationApi<S> {
+  /**
+   * 이 scope를 주도 시작 요청으로 낸다(drive-isolation.md 2.2, 사용자 명령과 같은 trigger). thread는 호출하는 도구·명령·메서드 문맥의 것이다.
+   * 요청은 큐에 들어가고 다음 경계에서 부여된다. 스택이 차 있으면 전환 정책이 정한다. 문맥이 없으면(setup, 화면 등) `no_context`다.
+   */
+  startDrive(input?: JsonValue): Promise<OrchestrationStartDriveResult>;
+  /**
+   * 주도 단계 함수 등록(F `ExtensionOps.drive`, 계약은 `DriveStep`). 엔진이 단계마다 입력을 주면 명령 하나를 돌려받는다.
+   * wrap이 돌려준 명령을 검사하고 계측한 뒤 그대로 엔진에 넘긴다(`spawn`은 spawns, `commit`은 g.commit과 같은 검사와 commits). setup 안에서만
+   */
+  drive(step: DriveStep<S>, options?: DriveOptions): void;
+  /** 마지막으로 읽은 이 플러그인 설정의 유효 값. 동기, 순수 조회 */
+  settings(): OrchestrationSettingValues<D>;
+  /** L1-g 백그라운드 위임 래퍼(§3.4). 소유는 이 scope, requestId 멱등. on 핸들러와 drive 함수에서 부를 수 있다 */
+  delegate(spec: DelegateSpec, options?: DelegateCallOptions): Promise<DelegateResult>;
+  /** 위임 상태 조회(효과 없음). drive 함수에서 부를 수 있고 on 핸들러에서는 `orchestration.effectNotAllowed`다(ADR-0015 §3.2) */
+  delegateStatus(
+    requestId: string,
+    options?: Pick<DelegateCallOptions, "threadId">,
+  ): DelegateStatusResult;
+  /**
+   * 이 scope가 소유한 진행 중 위임을 모두 취소한다(§4.10). `onDispose`와 명령 처리기에서만 부른다.
+   * on 핸들러와 drive 함수에서는 `orchestration.effectNotAllowed`다
+   */
+  cancelDelegates(reason?: string): Promise<CancelDelegatesResult>;
+  /** 이 플러그인의 계측 조회(§3.12). 2차 전까지 snapshot()은 메모리 집계만 돌려준다 */
+  readonly metrics: OrchestrationMetricsHandle;
+  /** 플러그인 전용 모델 도구 등록. X hostOf(g).registerTool을 그대로 부른다. setup 안에서만. scope가 꺼지면 해제된다 */
+  registerTool(def: ToolResourceDef): void;
+  /** 명령 등록. X hostOf(g).registerCommand를 그대로 부른다. setup 안에서만. 이름은 플러그인 이름과 같게 둔다 [제안] */
+  registerCommand(name: string, def: CommandResourceDef): void;
+  /**
+   * 확장 메서드 처리기 등록(X-3). X `hostOf(g).registerMethod`를 그대로 부른다. setup 안에서만. 동사는 매니페스트 `methods`에 선언되어 있어야 한다.
+   * scope가 꺼지면 해제된다. thread 안의 호출이면 `g.state()`를 명령 처리기처럼 읽을 수 있다
+   */
+  registerMethod(verb: string, def: ExtMethodResourceDef): void;
+  /** 모델 provider 등록. X hostOf(g).registerProvider를 그대로 부른다(config는 JSON 표현). setup 안에서만. scope가 꺼지면 해제된다 */
+  registerProvider(name: string, config: ProviderResourceDef): void;
+  /**
+   * 매니페스트 `scripts`에 선언된 이 플러그인 폴더의 스크립트를 부른다(F.extensions.spec §3.1.4, X.loading-trust.spec §3.8).
+   * 격리 자식에서는 엔진이 샌드박스 아래에서 띄운다. 선언 없음, 파일 없음, 초안, 샌드박스 없음 같은 거절과 기동 실패는
+   * 던지지 않고 `error` 값으로 온다. 엔진 안(내장) 등록에는 실행기가 없어 `sandbox_unavailable`(reason `in_engine_registration`)을 준다.
+   */
+  runScript(
+    name: string,
+    options?: RunScriptOptions,
+  ): Promise<Result<ScriptRunResult, ScriptRunFailure>>;
+}
+
+export interface OrchestrationModule {
+  readonly manifest: OrchestrationManifest;
+  /** X 로더가 부르는 엔트리. F ExtensionEntry */
+  readonly entry: ExtensionEntry;
+  /** 설정 카탈로그에 넣을 묶음. 조립 루트가 buildCatalog 입력({ owner, namespace, defs })으로 옮긴다 */
+  readonly settings?: OrchestrationModuleSettings;
+  /** 상태 이벤트 업캐스터(§4.7). 길이 = state.version - 1. 상태가 없으면 빈 배열 */
+  readonly stateUpcasters: readonly Upcaster[];
+  /** 상태가 없으면 0 */
+  readonly stateVersion: number;
+}
+
+/** OrchestrationModule.settings. SettingGroup의 키별 타입을 지운 모양이라 어떤 D의 플러그인이든 담는다 */
+export interface OrchestrationModuleSettings {
+  readonly namespace: OrchestrationSettingNamespace;
+  readonly defs: readonly SettingDef[];
+}
+
+export type OrchestrationDefIssueCode =
+  | "orchestration_missing" // `orchestration` 선언이 없거나 layer가 "L3"인 루트 플러그인이 없음
+  | "orchestration_name" // ORCHESTRATION_NAME_PATTERN 위반 또는 RESERVED_ORCHESTRATION_NAMES
+  | "settings_namespace" // 설정 namespace가 l3.<이름>(trust.level builtin) 또는 ext.<이름>이 아님
+  | "state_version" // version이 1 이상의 정수가 아니거나, state가 없는데 migrations가 있음
+  | "composition_conflict" // def.composition이 매니페스트 orchestration.composition과 다름
+  | "state_initial_invalid" // initial이 schema를 통과하지 못함
+  | "state_migration_missing" // version ≥ 2인데 migrations에 빠진 출발 버전이 있음
+  | "member_unknown" // members의 키가 매니페스트 plugins[]의 id가 아니거나 orchestration.members에 없음
+  | "member_missing" // 매니페스트가 선언한 구성원 id인데 members에 정의가 없음
+  | "delegate_capability" // delegate를 쓰는데 매니페스트 requires/optional에 위임 기능이 없음(M3, checkOrchestration)
+  | "setup_threw"; // checkOrchestration이 setup을 실행하다 예외를 만남(스펙 코드 목록에 더한 값)
+
+export interface OrchestrationDefIssue {
+  readonly severity: "error" | "warning";
+  readonly code: OrchestrationDefIssueCode;
+  /** JSON Pointer */
+  readonly path: string;
+  readonly message: string;
+}
+
+/**
+ * validateOrchestrationDef가 읽는 정의의 좁은 모양. OrchestrationDef<S, D>는 setup 인자의 공변이 맞지 않아
+ * OrchestrationDef<unknown, …>에 대입할 수 없으므로 검사에 필요한 필드만 받는다(스펙 시그니처에서 넓힌 값).
+ * 구성원도 같은 이유로 OrchestrationMemberShape로 받는다.
+ */
+export interface OrchestrationDefShape {
+  readonly manifest: ExtensionManifest;
+  readonly composition?: CompositionDecl;
+  readonly state?: StateDecl<unknown>;
+  readonly migrations?: StateMigrations;
+  readonly settings?: { readonly namespace: string };
+  readonly members?: Readonly<Record<string, OrchestrationMemberShape>>;
+}

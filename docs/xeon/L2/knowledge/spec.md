@@ -48,7 +48,7 @@ L2-d "지식과 기억(저장소)"의 서비스 API, 모델 도구, 저장 규�
 | 데이터 디렉터리와 작업 폴더 설정 디렉터리 경로 | `L0.os.spec` | `_research/decisions-log.md` 2026-10-19 설계 규칙 |
 | 공유 메모리 저장소 | 보류 | `_research/packages.md` §4.4 L2-d, `_research/item-catalog.md` L2 공유 메모리 행 |
 
-L3 그룹은 이 기능의 서비스 API로만 읽고 쓴다. `cap-knowledge`를 import하지 않고 `g.capability(<ServiceKey>)`로 API를 얻는다(`eng.context-map.design` CM-05, CM-06). 학습 정책을 가진 L3 그룹은 스킬·메모리 파일을 파일 도구로 직접 쓰지 않는다(L3 문서 소관).
+L3 플러그인은 이 기능의 서비스 API로만 읽고 쓴다. `cap-knowledge`를 import하지 않고 `g.capability(<ServiceKey>)`로 API를 얻는다(`eng.context-map.design` CM-05, CM-06). 학습 정책을 가진 L3 플러그인은 스킬·메모리 파일을 파일 도구로 직접 쓰지 않는다(L3 문서 소관).
 
 ## 2. 용어
 
@@ -116,9 +116,9 @@ export const KnowledgeActorSchema = Type.Union([
 ]);
 export type KnowledgeActor = Static<typeof KnowledgeActorSchema>;
 
-/** 확장(L3 그룹 등)이 자기 대기열에서 사람이 승인했음을 알리는 증거 */
+/** 확장(L3 플러그인 등)이 자기 대기열에서 사람이 승인했음을 알리는 증거 */
 export const ApprovalEvidenceSchema = Type.Object({
-  /** "<확장 이름>.<대기열 이름>". 예: "<그룹 이름>.queue". 첫 마디는 F.extensions.spec EXTENSION_NAME_PATTERN(review.decisions-2 U-18) */
+  /** "<확장 이름>.<대기열 이름>". 예: "<플러그인 이름>.queue". 첫 마디는 F.extensions.spec EXTENSION_NAME_PATTERN(review.decisions-2 U-18) */
   source: Type.String({ pattern: "^[a-z][a-z0-9-]{1,31}\\.[a-z][a-z0-9-]{0,31}$" }),
   /** 예: "<proposalId>:<revision>" */
   ref: Type.String({ minLength: 1, maxLength: 128 }),
@@ -170,7 +170,7 @@ const writeExtras = {
 export const UNTRUSTED_SESSION_OPEN = "<untrusted_session_content";
 ```
 
-- 행위자는 입력 필드가 아니다. 서비스는 `CallOptions.context.caller`(`CallerInfo`, `L2.readme` §5.8의 L2 공통 `F.capabilities.spec` 변경 요청)에서 행위자를 만든다. 이 문서에서 `caller.kind`, `caller.afterUntrusted`로 짧게 쓴 것은 이 필드다. `caller.kind = "model"`이면 `agent`, `extension`이면 `extension`, `host`이면 `user`다. 호출자가 행위자를 꾸며 승인 게이트를 건너뛰지 못하게 하기 위해서다. 그룹·확장 경로의 호출 문맥은 X의 capability 래퍼가 채운다(`F.capabilities.spec` §3.2 `CallOptions.context`, `X.primitives.spec` §4.4.7). 래퍼는 `caller { kind: "extension", extension: <호출 확장 이름> }`과 `threadId`를 싣고, L1.tools 어댑터가 이미 채운 문맥은 덮지 않는다. 그래서 확장이 `g.capability`로 부른 쓰기는 `extension` 행위자로 §4.5 표를 따르고(증거 없음, 대화 없음이면 대기열), 호출 문맥이 아예 없는 호출(래퍼를 거치지 않은 직접 호출)만 `denied`다.
+- 행위자는 입력 필드가 아니다. 서비스는 `CallOptions.context.caller`(`CallerInfo`, `L2.readme` §5.8의 L2 공통 `F.capabilities.spec` 변경 요청)에서 행위자를 만든다. 이 문서에서 `caller.kind`, `caller.afterUntrusted`로 짧게 쓴 것은 이 필드다. `caller.kind = "model"`이면 `agent`, `extension`이면 `extension`, `host`이면 `user`다. 호출자가 행위자를 꾸며 승인 게이트를 건너뛰지 못하게 하기 위해서다. 플러그인·확장 경로의 호출 문맥은 X의 capability 래퍼가 채운다(`F.capabilities.spec` §3.2 `CallOptions.context`, `X.primitives.spec` §4.4.7). 래퍼는 `caller { kind: "extension", extension: <호출 확장 이름> }`과 `threadId`를 싣고, L1.tools 어댑터가 이미 채운 문맥은 덮지 않는다. 그래서 확장이 `g.capability`로 부른 쓰기는 `extension` 행위자로 §4.5 표를 따르고(증거 없음, 대화 없음이면 대기열), 호출 문맥이 아예 없는 호출(래퍼를 거치지 않은 직접 호출)만 `denied`다.
 - `approval`과 `overrideScan`은 호출자 종류가 맞지 않으면 무시하지 않고 `invalid_input`으로 거부한다. 모델 도구 파라미터에는 두 필드가 없다(§3.6).
 - 지원 파일 경로 [결정: KN.1]. `SkillFilePathSchema`의 패턴은 `references/../x`와 `references/.hidden`을 받아들인다. 서비스는 경로를 입력으로 받은 모든 메서드(`view`, `patch`, `writeFile`, `remove`)에서 파일을 열기 전에 F의 `isSkillFilePath`(패턴과 `.`·`..` 마디 거부)를 부른다. 이 패키지는 거기에 점으로 시작하거나 끝나는 마디의 거부를 더한다(`skills/paths.ts` `isAddressableSkillFile`). 트리 해시와 안전 캡처가 점 항목을 보지 않으므로(§4.2.3), 점으로 시작하는 지원 파일을 쓰면 `baseHash`가 그 파일의 변경을 가리지 못하기 때문이다. 끝에 점이 붙은 마디는 Windows가 점을 지워 다른 파일이 되는 것을 막는다.
 - 스키마를 좁힌다 [결정: KN.1, 반영됨: m2 F.8]. F가 받아들였다: `SkillFilePathSchema`의 패턴을 `^(references|templates|scripts|assets)/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?(?:/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?){0,4}$`로 바꾸고 `isSkillFilePath`는 이 패턴과 같은 규칙만 남긴다. 모델에 보이는 JSON Schema가 거부할 경로를 미리 거절하게 하는 것이 목적이다. F가 받아들이기 전까지 `isAddressableSkillFile`이 같은 규칙을 지키고, 받아들이면 그 함수는 `isSkillFilePath` 호출 한 줄이 된다. 이 패키지는 사용자 입력 경로를 디렉터리 경로에 이어 붙여 열지 않는다. `view`는 트리를 읽은 결과(메모리)에서 경로를 찾으므로 입력 경로가 파일 시스템 호출에 쓰이지 않는다.
@@ -553,7 +553,7 @@ export const KnowledgeSearch = defineCapability({
 export const KnowledgeSearchKey = serviceKey(KnowledgeSearch);
 ```
 
-- 네 형태(발견, 스크롤, 읽기, 목록)는 Hermes `session_search`의 형태를 메서드로 나눈 것이다(`_research/refs/hermes.md` §3.10.2). `list`는 모델 도구를 두지 않는다. 대화 목록은 L4 화면과 그룹이 쓴다.
+- 네 형태(발견, 스크롤, 읽기, 목록)는 Hermes `session_search`의 형태를 메서드로 나눈 것이다(`_research/refs/hermes.md` §3.10.2). `list`는 모델 도구를 두지 않는다. 대화 목록은 L4 화면과 플러그인이 쓴다.
 - 모델 도구 파라미터에는 `includeHidden`, `sessionIds`, `scope`가 없다. 숨긴 대화(크론, 서브에이전트)을 모델이 찾지 않게 하기 위해서다.
 
 ### 3.5 `knowledge.ledger`
@@ -671,7 +671,7 @@ export const KnowledgeLedger = defineCapability({
 export const KnowledgeLedgerKey = serviceKey(KnowledgeLedger);
 ```
 
-- `knowledge.ledger`는 모델 도구가 없다. 원장 열람, 되돌림, 대기열 결정은 사람(L4 화면·명령)과 그룹이 한다. 도구 없는 기능의 허용 여부는 `F.capabilities.spec` §10 [미결]을 따른다. 허용되지 않으면 읽기 전용 도구 `knowledge_ledger_list`를 더한다(§10 미결 8).
+- `knowledge.ledger`는 모델 도구가 없다. 원장 열람, 되돌림, 대기열 결정은 사람(L4 화면·명령)과 플러그인이 한다. 도구 없는 기능의 허용 여부는 `F.capabilities.spec` §10 [미결]을 따른다. 허용되지 않으면 읽기 전용 도구 `knowledge_ledger_list`를 더한다(§10 미결 8).
 - `rollback`과 `decide`는 행위자가 `user`일 때 바로 적용한다. 행위자가 `extension`이면 `ApprovalEvidence`가 없을 때 승인 요청을 낸다(§4.5).
 
 ### 3.6 도구 요약
@@ -705,7 +705,7 @@ export interface KnowledgeService {
 export const KnowledgeServiceName = "fresnel.knowledge";
 ```
 
-- `eng.context-map.design` CM-06 예시의 `knowledge.search({ query, kinds, limit })`는 이 묶음에서 `knowledge.search.query({ query, kinds, limit })`다. 그룹 코드는 `g.capability(KnowledgeSearchKey).query(...)`로 쓴다.
+- `eng.context-map.design` CM-06 예시의 `knowledge.search({ query, kinds, limit })`는 이 묶음에서 `knowledge.search.query({ query, kinds, limit })`다. 플러그인 코드는 `g.capability(KnowledgeSearchKey).query(...)`로 쓴다.
 
 ### 3.8 저장 테이블
 
@@ -1111,7 +1111,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.4.5 멱등
 
-- [결정: 2026-10-28 리뷰] 멱등 키는 (대화, 메서드, `CallOptions.requestId`)다. 원장과 대기열의 `request_id`에 `<threadId 또는 ->:<메서드>:<requestId>`로, 입력 지문(sha256)은 `request_fp`에 저장된다(마이그레이션 4단계). 같은 키·같은 입력의 두 번째 호출은 저장된 `outcome`을 돌려주고, 같은 키에 다른 입력이 오면 첫 결과를 돌려주지 않고 `invalid_input`(`detail.reason: "key_reused"`)으로 거부한다. 다른 대화나 다른 메서드의 같은 `requestId`는 다른 쓰기다. `skills.manage`·`memory.manage`는 안쪽 메서드(`skills.create` 등)의 키 공간을 쓴다. 제안 결정이 다시 실행하는 쓰기의 키는 `proposal:<제안 ID>`이고 지문이 없다. L3 그룹이 승인 증거와 함께 쓰는 적용 키(예: `<그룹 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
+- [결정: 2026-10-28 리뷰] 멱등 키는 (대화, 메서드, `CallOptions.requestId`)다. 원장과 대기열의 `request_id`에 `<threadId 또는 ->:<메서드>:<requestId>`로, 입력 지문(sha256)은 `request_fp`에 저장된다(마이그레이션 4단계). 같은 키·같은 입력의 두 번째 호출은 저장된 `outcome`을 돌려주고, 같은 키에 다른 입력이 오면 첫 결과를 돌려주지 않고 `invalid_input`(`detail.reason: "key_reused"`)으로 거부한다. 다른 대화나 다른 메서드의 같은 `requestId`는 다른 쓰기다. `skills.manage`·`memory.manage`는 안쪽 메서드(`skills.create` 등)의 키 공간을 쓴다. 제안 결정이 다시 실행하는 쓰기의 키는 `proposal:<제안 ID>`이고 지문이 없다. L3 플러그인이 승인 증거와 함께 쓰는 적용 키(예: `<플러그인 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
 - `requestId`가 없으면 멱등을 보장하지 않는다.
 
 #### 4.4.6 사용자 범위 만들기와 검토 싱크
@@ -1140,9 +1140,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 승인 요청은 `fresnel.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)으로 낸다 [결정: KN.2]. `ports/approvals.ts`의 `createWriteApprovals`가 `open`으로 요청을 커밋하고(같은 `requestKey`면 기존 요청과 현재 해결 상태를 돌려받는다) 해결이 없으면 `wait`로 기다린다. 요청 키는 호출의 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼 값이다(1~48자). 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다 [결정: 통합 검토 L6, 이전 `kw_` 접두 함수를 지움]. `requestId`가 없으면 `knp` ID를 키로 써서 멱등을 보장하지 않는다. 본문은 `{ toolName, capability: { id, method }, risk: "write", args, argsHash, ruleId: null }`이고 `toolName`은 스킬 쓰기면 `skill_manage`, 메모리 쓰기면 `memory_manage`, 롤백이면 `knowledge.ledger`다. `args`는 `{ op, target, baseHash, preview, scan, afterUntrusted }`이고 `preview`는 현재 내용 기준 통합 diff를 20,000자에서 자른 것, `scan`은 규칙 이름과 판정(`<규칙>:<block|warn>`)만 담는다. 사람이 한 허용(`resolvedBy: "user"`의 `allow`)만 허용으로 센다. 취소, 대체, 비대화형 해결은 거부다. 거부의 `answer.feedback`은 오류 `approval_denied`의 `detail.feedback`으로 돌려준다.
 - 묻지 못하는 경우 [제안: KN.2]: `ask` 판정이어도 승인 포트가 없거나, 호출 문맥에 `threadId`가 없거나, `interactive`가 `false`(크론·헤드리스)이면 묻지 않고 제안 대기열로 보낸다. 닫힌 쪽으로 실패하고 정본 파일은 바뀌지 않는다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 기능에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
-- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다. 첫 마디가 아니라 `<확장 이름>.` 접두로 맞춘다. 신뢰하는 출처의 확장은 `ApprovalEvidence`의 `ref`와 `decidedAt`을 스스로 증언한다. L2는 그 내용을 대기열 원본과 대조하지 않으므로 신뢰 목록에 올리는 것은 그 확장을 사람 승인의 대리인으로 믿는 일이다 [결정: 2026-10-28 리뷰, 문서화].
-  - [제안: M3-REQ-104] 내장 그룹이 채우는 길은 조립 루트가 플러그인 옵션 `KnowledgePluginOptions.trustedEvidenceSources`(`<확장 이름>.<대기열 이름>` 목록)로 넘기는 것이다. 효과가 있는 신뢰 목록은 설정 값과 이 옵션의 합집합(`withTrustedEvidence`)이다. 학습 그룹을 내장으로 올리는 조립 루트가 `["learning.queue"]`를 넘기면 학습 대기열의 사람 승인이 증거가 되어 L2는 승인 요청을 내지 않는다(승인이 한 번이다). 이 패키지는 그룹 이름을 기본값으로 갖지 않고 옵션을 비우면 신뢰 목록은 설정 값 그대로다. 합쳐도 위 유효성 규칙(첫 마디가 호출 확장 이름과 같음)은 그대로라 다른 확장이 `learning.queue`를 빌려 쓸 수 없다.
-  - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 작업 폴더 범위를 고르면 학습 그룹이 증거와 함께 `scope: "project"`로 부른다.
+- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 플러그인 이름을 쓰지 않는다. 증거를 낼 L3 플러그인의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다. 첫 마디가 아니라 `<확장 이름>.` 접두로 맞춘다. 신뢰하는 출처의 확장은 `ApprovalEvidence`의 `ref`와 `decidedAt`을 스스로 증언한다. L2는 그 내용을 대기열 원본과 대조하지 않으므로 신뢰 목록에 올리는 것은 그 확장을 사람 승인의 대리인으로 믿는 일이다 [결정: 2026-10-28 리뷰, 문서화].
+  - [제안: M3-REQ-104] 내장 플러그인이 채우는 길은 조립 루트가 플러그인 옵션 `KnowledgePluginOptions.trustedEvidenceSources`(`<확장 이름>.<대기열 이름>` 목록)로 넘기는 것이다. 효과가 있는 신뢰 목록은 설정 값과 이 옵션의 합집합(`withTrustedEvidence`)이다. 학습 플러그인을 내장으로 올리는 조립 루트가 `["learning.queue"]`를 넘기면 학습 대기열의 사람 승인이 증거가 되어 L2는 승인 요청을 내지 않는다(승인이 한 번이다). 이 패키지는 플러그인 이름을 기본값으로 갖지 않고 옵션을 비우면 신뢰 목록은 설정 값 그대로다. 합쳐도 위 유효성 규칙(첫 마디가 호출 확장 이름과 같음)은 그대로라 다른 확장이 `learning.queue`를 빌려 쓸 수 없다.
+  - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 작업 폴더 범위를 고르면 학습 플러그인이 증거와 함께 `scope: "project"`로 부른다.
 
 #### 4.5.2 제안 대기열
 
@@ -1155,11 +1155,11 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
   - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다. `statuses`(여럿)와 `before`(`(createdAt, proposalId)` 키셋 위치)로 합친 목록의 쪽 나누기를 돕는다.
   - [결정: M3-REQ-91, D-M3-09] `decide({ approve, scope })`: 사용자가 승인 때 범위를 고르면 새 스킬(`skills.create`) 제안만 그 범위로 적용한다. 범위가 제안의 범위와 같으면 그대로이고, 메모리 제안이나 기존 스킬을 고치는 제안에 다른 범위를 주면 `invalid_input`(`detail.reason: "scope_not_allowed"`)이며 제안은 `pending`으로 남는다. 사용자가 고른 범위는 증거가 필요 없다(사람의 승인이다).
   - [결정: M3-REQ-91] 제안과 원장 행은 `afterUntrusted`(제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔는지)를 가진다. 승인하면 원장 행이 제안의 값을 이어받는다.
-  - [결정: M3-REQ-91, D-M3-32 a] 대기열은 둘(학습 그룹, 이 기능)이고 승인 화면이 한 목록으로 합친다. 이 기능의 몫은 `createKnowledgeProposalWire(ledgerApi)`다. `list({ status, limit, before })`가 제안을 합친 목록의 행(`ProposalRow`, `source: "knowledge"`)으로 옮기고, `decide(params)`가 `ledger.decide`의 오류를 결정 실패 이유(`not_found`, `closed`, `base_stale`, `scan_failed`, `approval_required`, `scope_not_allowed`, `revision_mismatch`, `unsupported`, `unavailable`)로 옮긴다. `edit`와 `revert`는 학습 대기열만 받으므로 `unsupported`이고 지식 제안의 `revision`은 1이다. 행의 `destructive`는 기준 해시를 요구하는 연산과 롤백이다. 호스트의 `proposal.list`·`proposal.decide` 처리기는 이 어댑터를 부른다(처리기는 이 패키지의 몫이 아니다).
+  - [결정: M3-REQ-91, D-M3-32 a] 대기열은 둘(학습 플러그인, 이 기능)이고 승인 화면이 한 목록으로 합친다. 이 기능의 몫은 `createKnowledgeProposalWire(ledgerApi)`다. `list({ status, limit, before })`가 제안을 합친 목록의 행(`ProposalRow`, `source: "knowledge"`)으로 옮기고, `decide(params)`가 `ledger.decide`의 오류를 결정 실패 이유(`not_found`, `closed`, `base_stale`, `scan_failed`, `approval_required`, `scope_not_allowed`, `revision_mismatch`, `unsupported`, `unavailable`)로 옮긴다. `edit`와 `revert`는 학습 대기열만 받으므로 `unsupported`이고 지식 제안의 `revision`은 1이다. 행의 `destructive`는 기준 해시를 요구하는 연산과 롤백이다. 호스트의 `proposal.list`·`proposal.decide` 처리기는 이 어댑터를 부른다(처리기는 이 패키지의 몫이 아니다).
 - `decide({ reject })`: 상태를 `rejected`로 바꾸고 파일은 건드리지 않는다.
 - 만료: 생성 뒤 `l2.knowledge.write.proposalExpiryDays`(기본 14일)가 지난 `pending`은 시작 정리 때 `expired`가 된다.
 - 승인 전에는 파일이 바뀌지 않는다. `pending`, `rejected`, `stale`, `expired` 제안은 정본 파일에 아무 효과가 없다(수용 기준 1, `product.scope.spec` §4.4 M3 UC-3).
-- 자기 대기열을 가진 L3 그룹(테이블 접두 `x_<그룹 이름>_`, U-18)은 사람의 결정을 받은 뒤 증거와 함께 쓰기 메서드를 부른다. 그래서 그 그룹의 제안은 이 대기열을 거치지 않는다. 두 대기열을 하나로 합칠지는 [미결]이다(`L3.learning.spec` §10 미결 9, §10 미결 3).
+- 자기 대기열을 가진 L3 플러그인(테이블 접두 `x_<플러그인 이름>_`, U-18)은 사람의 결정을 받은 뒤 증거와 함께 쓰기 메서드를 부른다. 그래서 그 플러그인의 제안은 이 대기열을 거치지 않는다. 두 대기열을 하나로 합칠지는 [미결]이다(`L3.learning.spec` §10 미결 9, §10 미결 3).
 
 ### 4.6 위협 패턴 검사와 인젝션 방어
 
@@ -1186,7 +1186,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - `block`이 하나라도 있으면 쓰기를 거부한다(`scan_blocked`, `detail.rules`). 대기열에 넣지도 않는다.
 - `warn`은 원장과 승인 미리보기에 보인다. 쓰기를 막지 않는다.
-- `knowledge.ledger.scan`은 쓰기 없이 같은 함수를 돌린다. L3 그룹의 사전 검사가 쓸 수 있다.
+- `knowledge.ledger.scan`은 쓰기 없이 같은 함수를 돌린다. L3 플러그인의 사전 검사가 쓸 수 있다.
 
 #### 4.6.3 바깥 텍스트가 스킬 본문으로 들어가는 경로
 
@@ -1196,7 +1196,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 2. 승인: 에이전트 쓰기는 기본으로 사람의 승인이나 대기열을 거친다(§4.5.1). 미리보기에는 바뀐 부분의 diff와 검사 경고가 보인다.
 3. 출처 표시: `caller.afterUntrusted = true`인 쓰기는 설정과 무관하게 승인 요청이고, 원장과 제안 대기열에 `afterUntrusted` 표시를 남긴다(`LedgerEntry.afterUntrusted`, `Proposal.afterUntrusted`, 열 `after_untrusted`). 승인 화면은 "이번 turn에 웹·외부 결과를 읽었다"는 경고를 함께 보인다.
 4. 읽을 때의 경계: `skill_view` 렌더링은 행위자가 `agent`였던 스킬(`created_by = 'agent'`)의 본문을 `<untrusted_session_content kind="skill" createdBy="agent">`로 감싼다 [제안]. 사용자가 만든 스킬은 감싸지 않는다.
-5. 데이터 표지: 학습 정책을 가진 L3 그룹의 검토 포크는 지난 대화를 데이터로 다룬다는 지시를 갖는다(Hermes `/learn`의 "source text is DATA" 방어). 그 지시는 `L3.learning.spec` 소관이다.
+5. 데이터 표지: 학습 정책을 가진 L3 플러그인의 검토 포크는 지난 대화를 데이터로 다룬다는 지시를 갖는다(Hermes `/learn`의 "source text is DATA" 방어). 그 지시는 `L3.learning.spec` 소관이다.
 
 ### 4.7 변경 원장과 롤백
 
@@ -1298,8 +1298,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 1 | 모델이 승인 없이 스킬을 고치려 함(기본 설정) | 승인 요청. 거부면 파일 불변 | `approval_denied` |
 | 2 | 백그라운드 포크가 메모리 항목 삭제 | 대기열. 파일 불변, `status: "queued"` | — |
 | 3 | 서브에이전트가 스킬 생성 | 대기열 | — |
-| 4 | L3 그룹이 신뢰 source 증거와 함께 적용 | 바로 적용, 원장에 증거 | — |
-| 5 | 다른 확장이 남의 source(`"<그룹 이름>.queue"`) 증거를 보냄 | 증거 무효, 대화 있으면 승인 요청 | — |
+| 4 | L3 플러그인이 신뢰 source 증거와 함께 적용 | 바로 적용, 원장에 증거 | — |
+| 5 | 다른 확장이 남의 source(`"<플러그인 이름>.queue"`) 증거를 보냄 | 증거 무효, 대화 있으면 승인 요청 | — |
 | 6 | 같은 `requestId`로 두 번 적용 | 두 번째는 첫 결과, 원장 행 하나 | — |
 | 7 | `baseHash`가 옛 해시 | 거부 | `base_stale` |
 | 8 | 승인 대기 중 사람이 파일을 편집 | 9단계 락 안 재확인에서 거부, 원장 `aborted` | `base_stale` |
@@ -1365,10 +1365,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `thread.resources`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
 | `thread.shutdown`(#39) | tap | 대화별 메모리 상태 정리 |
 
-- 모델 도구 경로는 tool 훅(`tool.call.before` first, `tool.result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 그룹이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
-- 그룹 코드의 서비스 호출은 tool 훅을 지나지 않는다. 그래서 게이트·검사·원장은 서비스 안에서 적용한다.
+- 모델 도구 경로는 tool 훅(`tool.call.before` first, `tool.result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 플러그인이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
+- 플러그인 코드의 서비스 호출은 tool 훅을 지나지 않는다. 그래서 게이트·검사·원장은 서비스 안에서 적용한다.
 - cap-knowledge는 drive와 post를 쓰지 않는다. L2 전체는 drive를 쓰지 않는다(`L2.readme` §4.2).
-- 학습 정책(카운터 트리거, 검토 포크 스폰, 큐레이터 주기)은 L3 그룹이 자기 `on` 핸들러로 구현한다. 이 기능은 그 정책을 위한 훅을 따로 두지 않는다.
+- 학습 정책(카운터 트리거, 검토 포크 스폰, 큐레이터 주기)은 L3 플러그인이 자기 `on` 핸들러로 구현한다. 이 기능은 그 정책을 위한 훅을 따로 두지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1415,7 +1415,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 3. 같은 이벤트 배치를 소비자에 두 번 넣어도 `cap_knowledge_sessiondocs`와 `cap_knowledge_sessionfts`의 행 수가 늘지 않는다. 커서 갱신과 행 삽입 사이에 고장을 주입하면 둘 다 반영되지 않는다(같은 트랜잭션).
 4. 쓰기 뒤 크기가 한도를 넘는 메모리 쓰기는 `memory_full`로 거부되고 파일이 그대로이며, 오류 `detail`에 현재 항목 목록이 있다.
 5. `defs/knowledge.ts`의 네 정의는 각각 `validateCapability` 이슈 0건이고, 네 정의를 함께 넣은 `validateCapabilitySet`도 0건이다(도구 이름 충돌 없음). 도구 없는 기능이 허용되지 않으면 `knowledge.ledger`에 읽기 도구를 더한 뒤 같은 기준을 지킨다.
-6. L3 순위 패키지에 `@fresnel/cap-knowledge` import가 0이고, L3 그룹은 `KnowledgeSkillsKey` 등 ServiceKey로만 호출한다(`check-layers.ts` DR-02·DR-14 검사와 테스트 그룹 호출 테스트).
+6. L3 순위 패키지에 `@fresnel/cap-knowledge` import가 0이고, L3 플러그인은 `KnowledgeSkillsKey` 등 ServiceKey로만 호출한다(`check-layers.ts` DR-02·DR-14 검사와 테스트 플러그인 호출 테스트).
 7. 백그라운드 포크의 파괴적 연산은 `l2.knowledge.write.approval = false`에서도 대기열로 간다.
 8. 2글자 한국어 질의(`검색`)는 LIKE 경로로 `검색을`이 든 메시지를 찾고, 3글자 질의(`검색을`)는 FTS 경로로 찾는다. NFD로 들어온 메시지도 NFC 질의로 찾는다.
 9. FTS5 trigram 프로브가 실패하는 가짜 저장소에서 시작이 막히지 않고, `query({ kinds: ["session"] })`는 `unavailable`, 기본 `query`는 `degraded: ["session"]`이다.
@@ -1428,7 +1428,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 1. [미결] 메모리 정본의 위치. 제안은 "정본 파일 + DB 색인·원장·대기열"이다. `eng.context-map.design` §4.1 표는 메모리를 `cap_knowledge_`에 두고, `_research/item-catalog.md`는 git 추적 파일을 권한다(§4.1).
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(`L2.web.spec` §3.7과 같다).
-3. [미결] 제안 대기열의 소유와 중복. 이 문서는 `cap_knowledge_proposals`(에이전트 쓰기용)를 두고 학습 정책을 가진 L3 그룹은 자기 대기열을 갖는다. 하나로 합칠지(`L3.learning.spec` §10 미결 9, `eng.context-map.design` §4.1 "제안 대기열").
+3. [미결] 제안 대기열의 소유와 중복. 이 문서는 `cap_knowledge_proposals`(에이전트 쓰기용)를 두고 학습 정책을 가진 L3 플러그인은 자기 대기열을 갖는다. 하나로 합칠지(`L3.learning.spec` §10 미결 9, `eng.context-map.design` §4.1 "제안 대기열").
 4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. 첫 turn 기록 메시지로 넣고 컴팩션 뒤 재주입은 L1이 한다(§4.2.5, §4.2.8, `L1.context.spec` §4.9a). 시스템 프롬프트 영역에 둘지는 남는다.
 5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 기능 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6). M3-REQ-91이 정하라고 했지만 도구 등록 정책(`ToolPolicyMeta`)에 도구별 기본 승인 결정을 담는 필드가 없고 일반 승인 규칙은 L1.tools 설정이라 이 기능만으로는 닫을 수 없다. 증거가 신뢰되는 쓰기(§4.5.1)는 기능 게이트가 승인 요청을 내지 않아 이중화가 없다. 도구 경로의 이중화는 L1.tools 요청(§8)이 닫힐 때까지 남는다.
 6. [미결] 원장 보존 기간과 오래된 blob 정리. 지우지 않으면 원장 blob이 계속 늘어난다(`L2.knowledge.plan` §7).
@@ -1439,7 +1439,6 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 11. [미결] 2글자 질의 LIKE 경로의 탐색 범위(`likeScanLimit`)와 성능 목표(`_research/notes/L2-3.md` §5).
 12. [미결] L3 학습 정책의 `kind: "script"(반복 작업 스크립트) 저장 위치. 2차(§3.9).
 13. [미결] 작업 폴더 스킬(`.fresnel/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
-14. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).
 14. [미결] 되감긴 가지의 메시지를 대화 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).
@@ -1448,4 +1447,5 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
 21. 닫음 [결정: M3-REQ-91]: 원장 `afterUntrusted` 표시. F `LedgerEntry.afterUntrusted?`와 `Proposal.afterUntrusted?`가 들어왔고 열 `after_untrusted`(마이그레이션 3단계)에 남긴다.
-22. 닫음 [결정: M3-REQ-91, D-M3-32 a]: 확장의 제안 결정. 대기열은 둘을 유지하고 `decide`는 호스트(사용자) 전용이다(§4.5.2). 확장이 이 대기열을 결정하는 길은 두지 않는다. 학습 그룹은 자기 대기열을 결정하고 이 기능의 쓰기를 증거와 함께 부른다.
+22. 닫음 [결정: M3-REQ-91, D-M3-32 a]: 확장의 제안 결정. 대기열은 둘을 유지하고 `decide`는 호스트(사용자) 전용이다(§4.5.2). 확장이 이 대기열을 결정하는 길은 두지 않는다. 학습 플러그인은 자기 대기열을 결정하고 이 기능의 쓰기를 증거와 함께 부른다.
+23. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).

@@ -79,28 +79,28 @@ test("x.primitives.* are read into the primitives source: default caps, no ceili
 });
 
 // X.primitives.spec: 기본값 true는 "플러그인 그룹만 drive를 등록한다"이다. 끄면 그룹이 아닌 플러그인도 drive를 등록한다
-test("x.primitives.driveRequiresGroup defaults to true, reads false when the user turns it off, and stays true for other values", async () => {
-  expect(primitivesSource(await engineWith({})).driveRequiresGroup()).toBe(true);
+test("x.primitives.driveRequiresOrchestration defaults to true, reads false when the user turns it off, and stays true for other values", async () => {
+  expect(primitivesSource(await engineWith({})).driveRequiresOrchestration()).toBe(true);
   expect(
     primitivesSource(
-      await engineWith({ "x.primitives.driveRequiresGroup": true }),
-    ).driveRequiresGroup(),
+      await engineWith({ "x.primitives.driveRequiresOrchestration": true }),
+    ).driveRequiresOrchestration(),
   ).toBe(true);
   expect(
     primitivesSource(
-      await engineWith({ "x.primitives.driveRequiresGroup": false }),
-    ).driveRequiresGroup(),
+      await engineWith({ "x.primitives.driveRequiresOrchestration": false }),
+    ).driveRequiresOrchestration(),
   ).toBe(false);
   // 불리언이 아닌 값은 엔진이 기본값으로 바꾼다. 어느 쪽이든 가장 안전한 true다
   expect(
     primitivesSource(
-      await engineWith({ "x.primitives.driveRequiresGroup": "no" }),
-    ).driveRequiresGroup(),
+      await engineWith({ "x.primitives.driveRequiresOrchestration": "no" }),
+    ).driveRequiresOrchestration(),
   ).toBe(true);
   expect(
     primitivesSource(
-      await engineWith({ "x.primitives.driveRequiresGroup": 0 }),
-    ).driveRequiresGroup(),
+      await engineWith({ "x.primitives.driveRequiresOrchestration": 0 }),
+    ).driveRequiresOrchestration(),
   ).toBe(true);
 });
 

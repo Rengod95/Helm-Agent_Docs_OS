@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Copies the Fresnel Guide skills (scripts/release-bundle.json `guide`, the same folder the release archive ships as guide/skills)
 // into <out>. The Electron app packaging (apps/desktop-shell/scripts/package.ts) takes the parent of <out> as an extra resource, so the
-// packaged engine finds the skills at Resources/guide/skills (group-guide locateGuideSkills). `just desktop-build-electron` runs it for
+// packaged engine finds the skills at Resources/guide/skills (plugin-guide locateGuideSkills). `just desktop-build-electron` runs it for
 // the development build and the release. The copy goes file by file the way scripts/release.ts copyTree does, so the staged tree matches
 // the archive. Process execution stays out of desktop-shell (DR-07), and this file imports no workspace package.
 //   guide-skills --out <dir>

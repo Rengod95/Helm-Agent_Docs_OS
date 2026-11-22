@@ -142,12 +142,10 @@ export function AboutCardView(props: AboutCardViewProps): ReactNode {
       <div data-slot="settings-about" className="grid gap-3">
         <div className="grid grid-cols-3 gap-4">
           <SummaryCell term={t("desktop.settings.about.appVersion")}>
-            <span className="truncate font-mono text-mono-sm text-text-primary">
-              {props.appVersion}
-            </span>
+            <span className="truncate text-ui text-text-primary">{props.appVersion}</span>
           </SummaryCell>
           <SummaryCell term={t("desktop.settings.about.engineVersion")}>
-            <span className="truncate font-mono text-mono-sm text-text-primary">
+            <span className="truncate text-ui text-text-primary">
               {props.engineVersion ?? t("desktop.settings.about.engineUnknown")}
             </span>
           </SummaryCell>

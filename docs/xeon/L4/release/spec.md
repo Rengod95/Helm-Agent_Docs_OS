@@ -14,7 +14,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 
 ### 1.1 정하는 것
 
-- 릴리즈 아카이브의 구성과 배치(§3.1). 실행 파일, 그룹 템플릿, 기본 플러그인, 번들 바이너리, 고지, 체크섬이 어디에 놓이는지 정합니다.
+- 릴리즈 아카이브의 구성과 배치(§3.1). 실행 파일, 플러그인 템플릿, 기본 플러그인, 번들 바이너리, 고지, 체크섬이 어디에 놓이는지 정합니다.
 - 자원 디렉터리 탐색과 소비처(§3.2). 실행 파일이 든 폴더를 자원 디렉터리로 보고, 세 소비처가 그 안에서 어떻게 찾는지 정합니다.
 - 번들 바이너리의 버전, 라이선스, 출처와 Linux의 시스템 요구(§3.3). 대상 플랫폼은 §3.4입니다.
 - 서명과 공증 단계, 시크릿이 없을 때의 미서명 상태(§4).
@@ -37,7 +37,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | M3-REQ-54 (L0.os, F.wire-settings) | 제품 이름에 묶인 값을 소비처에서 확인합니다 | 릴리즈 스크립트는 workspace 패키지를 import하지 않으므로 이름 `fresnel`을 스크립트에 적습니다(`release.ts`, `release-smoke.ts`, `release-smoke.sh`). 소비처 목록은 §8 미결 9 | X11의 `run.version`과 환경 변수 없는 `fresnel group new` |
 | M3-26 | macOS의 sops·age·rg 번들과 서명, Linux의 bwrap·socat 시스템 요구와 doctor 안내 | `xeon/scripts/release-bundle.json`, `xeon/scripts/release.ts`(버전 확인과 복사), `xeon/scripts/release-sign.sh` | `xeon/scripts/release.test.ts`(설정 값, 버전 고정 일치, 고지), X11 |
 | M3-27 | 단일 아카이브 릴리즈, 서명과 공증, 업데이트 절차, 공급망과 고지 | §3, §4, §5, §6의 산출물. `release.ts`가 `SHA256SUMS`와 `.sha256`을 씁니다 | `xeon/scripts/release.test.ts`(sumsBody, noticesBody, archiveName), X11의 `archive.sha256`과 `sums.match` |
-| M3-new-22 | 기본 플러그인 번들을 `default-plugins/<이름>/`에 싣습니다 | `xeon/scripts/release.ts`(`packages/group-helm`의 build-plugin 실행. 계정 회전은 싣지 않는다 [결정: 2026-11-04 사용자]), `xeon/apps/host/src/state-paths.ts`(`defaultPluginsDir`) | `xeon/scripts/release.test.ts`(빌드 스크립트 경로 존재), X11의 `layout`(`.fresnel-plugin/plugin.json`) |
+| M3-new-22 | 기본 플러그인 번들을 `default-plugins/<이름>/`에 싣습니다 | `xeon/scripts/release.ts`(`packages/plugin-helm`의 build-plugin 실행. 계정 회전은 싣지 않는다 [결정: 2026-11-04 사용자]), `xeon/apps/host/src/state-paths.ts`(`defaultPluginsDir`) | `xeon/scripts/release.test.ts`(빌드 스크립트 경로 존재), X11의 `layout`(`.fresnel-plugin/plugin.json`) |
 | M3-30 | `.github/workflows/fresnel-*.yml`의 액션을 40자리 SHA로 고정하고 `# v<버전>` 주석을 붙입니다 | `.github/workflows/fresnel-ci.yml`, `fresnel-macos.yml`, `fresnel-release.yml` | `xeon/scripts/workflow-pins.test.ts`(실제 파일과 판정 함수) |
 | DR-07 `@swc/core` | 릴리즈 바이너리에 `@swc/core`가 들어가지 않습니다 | `xeon/scripts/release-smoke.ts`의 `swc.absent` 검사 | X11. 바이너리 안의 문자열을 확인합니다 |
 | 템플릿 패키징(`L4.cli.spec` §10 29번) | 컴파일 바이너리가 `fresnel group new`의 템플릿을 찾습니다 | `xeon/apps/cli/src/group/fs-port.ts`(`locateGroupTemplates`의 `resourceDir`), `xeon/apps/cli/src/runtime.ts` | `xeon/apps/cli/test/group-templates-locate.test.ts`, X11의 `run.group-new` |
@@ -52,7 +52,7 @@ fresnel-<버전>-<triple>/
 ├── fresnel                          컴파일된 엔진 (Windows는 fresnel.exe)
 ├── fresnel-web                      웹 게이트웨이 (Windows는 fresnel-web.exe). 서비스가 `fresnel` 옆에서 찾는다 (`L4.remote.spec` §5.1)
 ├── ui/                           게이트웨이가 내는 화면 번들 (`apps/desktop/dist/ui`)
-├── group-sdk/templates/          `fresnel group new`의 템플릿과 index.json
+├── orchestration-sdk/templates/          `fresnel group new`의 템플릿과 index.json
 ├── guide/skills/                 Fresnel Guide 스킬(`L3.guide.spec`). `locateGuideSkills`가 이 자리로 찾는다
 ├── default-plugins/
 │   └── helm/                     .fresnel-plugin/plugin.json과 엔트리 번들
@@ -74,13 +74,13 @@ fresnel-<버전>-<triple>/
 |---|---|---|---|
 | 번들 바이너리 목록 | `binaries.lock.json` | 번들 후보가 없으므로 시스템 후보를 찾습니다 | `xeon/packages/platform-os/src/binaries/resolve.ts` |
 | 기본 플러그인 | `default-plugins/<이름>/` | 설치하지 않고 `no_bundle`로 알립니다. 오류가 아닙니다 | `xeon/apps/host/src/assembly/default-plugins.ts`, `xeon/apps/host/src/assemble.ts`(`defaultPluginsDir`) |
-| 그룹 템플릿 | `group-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
+| 플러그인 템플릿 | `orchestration-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
 
-그룹 템플릿의 탐색 순서는 `locateGroupTemplates`가 정합니다.
+플러그인 템플릿의 탐색 순서는 `locateGroupTemplates`가 정합니다.
 
 1. 환경 변수 `FRESNEL_GROUP_TEMPLATES_DIR`. 빈 값은 없는 것으로 다룹니다.
-2. `<자원 디렉터리>/group-sdk/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
-3. 시작 폴더 `from`에서 위로 올라가며 찾는 `packages/group-sdk/templates/index.json`. 소스 실행(`bun run`)은 이 자리로 찾습니다.
+2. `<자원 디렉터리>/orchestration-sdk/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
+3. 시작 폴더 `from`에서 위로 올라가며 찾는 `packages/orchestration-sdk/templates/index.json`. 소스 실행(`bun run`)은 이 자리로 찾습니다.
 
 옛 Tauri 구현(커밋 424f338a)에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓여 그 폴더가 자원 디렉터리가 됐습니다. Electron 묶음은 사이드카를 `Resources`에 둡니다(`L4.desktop.spec` §11.7). 템플릿과 기본 플러그인을 같은 폴더에 두는 매핑은 M4 패키징이 맡습니다([미결] §8). [근거: `xeon/apps/desktop-shell/scripts/package.ts`]
 
@@ -147,7 +147,7 @@ fresnel-<버전>-<triple>/
 - [결정: 2026-11-04 사용자] `THIRD-PARTY-NOTICES.txt`는 라이선스별로 한 절씩 묶습니다(B19). 번들 바이너리 sops, age, rg, npm 의존, Bun 런타임이 같은 절에 들어갑니다. 각 절은 라이선스의 SPDX 텍스트 링크를 적고, 표준 라이선스 전문을 한 번만 싣고, 패키지마다 이름, 버전, 저작권 줄, 출처 또는 라이선스 링크를 적습니다. 아카이브에 라이선스 파일이 없는 번들 바이너리는 출처 링크와 SPDX 링크만 적습니다.
 - [결정: 2026-11-04 사용자] npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스, 링크를 적습니다. 링크는 package.json의 저장소나 홈페이지이고, `vendor/`의 패키지는 UPSTREAM.json의 `upstream`입니다. 저작권 줄은 라이선스 파일의 머리말(라이선스 본문이 시작하기 전)에서 읽고, 읽을 수 없으면 적지 않습니다. 패키지의 본문이 절의 표준 전문에 있는 단어 쌍만 가지면 표준 전문으로 갈음하고, 그렇지 않으면 본문 전문을 그 패키지 항목 아래에 싣습니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있거나 라이선스 정보가 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT, 저작권 줄, 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
 - 옛 Tauri 구현(커밋 424f338a)의 데스크톱 앱 번들에는 Rust 크레이트의 고지 `THIRD-PARTY-NOTICES-RUST.txt`가 `tauri.conf.json`의 `bundle.resources`로 들어갔습니다. JS와 Bun의 고지는 아카이브의 `THIRD-PARTY-NOTICES.txt`에 있습니다. 이 파일은 `just desktop-notices`(`xeon/scripts/rust-notices.ts`, 지웠습니다)가 `Cargo.lock`의 정상 의존에서 만들었고, `just desktop-notices --check`가 커밋된 파일이 `Cargo.lock`과 맞는지 검사했습니다. 지금 셸의 고지는 아래 줄의 Electron 묶음 고지입니다.
-- Electron 앱(`L4.desktop.spec` §11.9)의 고지는 앱의 `Resources/licenses/`에 있다: Electron `LICENSE`, `LICENSES.chromium.html`, 셸 npm 고지 `THIRD-PARTY-NOTICES-SHELL.txt`(재인증 애드온 mac-security(MIT)를 싣는다. `just desktop-notices-electron`, `xeon/scripts/shell-notices.ts`, `--check`로 커밋된 파일과 맞는지 본다), 화면 번들 npm 고지 `THIRD-PARTY-NOTICES-UI.txt`(Vite가 번들에 실제로 넣은 모듈의 목록 `apps/desktop/dist/ui-modules.json`에서 `xeon/scripts/ui-notices.ts`가 패키지를 가려 만든다. `build:ui`가 Vite 뒤에 돌리고, `package.ts`는 이 파일이 없으면 종료코드 2로 멈춘다. 허용 라이선스(MIT, ISC, BSD-2/3-Clause, Apache-2.0, 0BSD, BlueOak-1.0.0, CC0-1.0, Unlicense) 밖의 패키지가 있으면 종료코드 1로 실패하고 아무것도 싣지 않는다 [제안: 허용 목록은 관대한 라이선스만]. 화면에 패키지가 늘어도 손으로 고치는 곳은 생기지 않는다), 엔진 사이드카 고지 `THIRD-PARTY-NOTICES.txt`(`notices.ts`).
+- Electron 앱(`L4.desktop.spec` §11.9)의 고지는 앱의 `Resources/licenses/`에 있다: Electron `LICENSE`, `LICENSES.chromium.html`, 셸 npm 고지 `THIRD-PARTY-NOTICES-SHELL.txt`(재인증 애드온 mac-security(MIT)를 싣는다. `just desktop-notices-electron`, `xeon/scripts/shell-notices.ts`, `--check`로 커밋된 파일과 맞는지 본다), 화면 번들 npm 고지 `THIRD-PARTY-NOTICES-UI.txt`(Vite가 번들에 실제로 넣은 모듈의 목록 `apps/desktop/dist/ui-modules.json`에서 `xeon/scripts/ui-notices.ts`가 패키지를 가려 만든다. `build:ui`가 Vite 뒤에 돌리고, `package.ts`는 이 파일이 없으면 종료코드 2로 멈춘다. 허용 라이선스(MIT, ISC, BSD-2/3-Clause, Apache-2.0, 0BSD, BlueOak-1.0.0, CC0-1.0, Unlicense) 밖의 패키지가 있으면 종료코드 1로 실패하고 아무것도 싣지 않는다 [제안: 허용 목록은 관대한 라이선스만]. 화면에 패키지가 늘어도 손으로 고치는 곳은 생기지 않는다), 엔진 사이드카 고지 `THIRD-PARTY-NOTICES.txt`(`notices.ts`), 글꼴 고지 세 개 `LICENSE.font-geist-OFL-1.1.txt`·`LICENSE.font-pretendard-OFL-1.1.txt`·`LICENSE.font-suit-OFL-1.1.txt`(SIL OFL 1.1 본문. 원본은 `apps/desktop/src/fonts/`와 caustic 패키지 `@caustic/tokens`의 SUIT 폴더이고, `package.ts`가 복사하며 없으면 종료코드 2로 멈춘다).
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
 - 시크릿 검사: `fresnel-ci.yml`의 `secrets` 작업이 전체 이력에 `gitleaks git --redact`를 돌립니다. 버전은 로컬 훅과 같은 8.30.1이고 mise로 설치합니다 [결정: 2026-11-04 사용자]. 오탐은 `.gitleaksignore`에 지문으로 적습니다.
 - npm 공개는 없습니다(D-M3-25 행 6).
@@ -173,7 +173,7 @@ fresnel-<버전>-<triple>/
 ### 8.1 결정
 
 - [결정: review.m3-design-inputs D-M3-25 행 1~6] Developer ID 서명과 공증(옛 Tauri 구현(커밋 424f338a)은 Tauri 내장 서명, 지금은 §4.2의 Electron 서명 단계), macOS 14 이상 arm64만 지원, macOS는 sops·age·rg를 번들하고 Linux는 시스템 요구, 단일 아카이브, npm 공개 없음.
-- [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 그룹 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
+- [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 플러그인 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
 - [결정: 오케스트레이터 기본값] 릴리즈 스크립트는 workspace 패키지를 import하지 않습니다(`eng.dependency-rules.guide` §1). 스크립트가 함께 쓰는 값은 `xeon/scripts/release-bundle.json`에 둡니다.
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다(§5).
 - [결정: 2026-11-04 사용자, A2 2안] 앱 안 업데이트는 M4에 확인 줄과 상태 표시만, 내려받기와 교체는 M5.

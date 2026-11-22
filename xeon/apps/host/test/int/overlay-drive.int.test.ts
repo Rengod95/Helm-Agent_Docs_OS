@@ -35,8 +35,8 @@ function writeDrivePlugin(home: EngineHome): void {
       purpose: "One-time drive for the overlay start test",
       defaultEnabled: false,
       entry: "./src/index.ts",
-      // 주도를 선언한 플러그인은 그룹이어야 한다(`drive_requires_group`)
-      group: {},
+      // 주도를 선언한 플러그인은 그룹이어야 한다(`drive_requires_orchestration`)
+      orchestration: {},
       plugins: [{ layer: "plugin", hooks: [], drives: true }],
     }),
   );

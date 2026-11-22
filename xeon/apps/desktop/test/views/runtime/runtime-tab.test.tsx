@@ -3,7 +3,7 @@ import { t } from "@fresnel/client/i18n";
 import type { HandlerFailureEntry, TransitionEntry } from "@fresnel/client/workbench";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DriveFrameView } from "@fresnel/contracts/extensions";
-import type { ExtListEntry, GroupStatusWire } from "@fresnel/contracts/wire";
+import type { ExtListEntry, OrchestrationStatusWire } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { thr, trn } from "../../state/helpers.ts";
 import {
@@ -34,11 +34,9 @@ function itemsUnder(html: string, heading: string): string[] {
   );
 }
 
-/** 보유 줄(`보유` 글 뒤의 문단)의 마크업 */
+/** "지금 Driving 중" 칸(플러그인 순서 표의 첫 칸)의 마크업 */
 function holderLineOf(lock: string): string {
-  const at = lock.indexOf(`>${t("desktop.runtime.lock.holder")}</span>`);
-  if (at === -1) return "";
-  return lock.slice(at, lock.indexOf("</p>", at));
+  return under(lock, t("desktop.runtime.lock.holder"));
 }
 
 /** 구역(section)의 마크업 */
@@ -60,9 +58,9 @@ const at = (hour: number, minute: number, second: number): string =>
 
 function group(
   id: string,
-  drive: GroupStatusWire["drive"],
-  over: Partial<GroupStatusWire> = {},
-): GroupStatusWire {
+  drive: OrchestrationStatusWire["drive"],
+  over: Partial<OrchestrationStatusWire> = {},
+): OrchestrationStatusWire {
   return {
     id,
     displayName: id,
@@ -105,7 +103,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     name,
     displayName: name,
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     version: "1.0.0",
     location: "/x",
     origin: "builtin",
@@ -113,7 +111,7 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     effectiveGrade: "user",
     tier: null,
     status: "enabled",
-    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inGroup: false }],
+    plugins: [{ registrationId: name, layer: "L3", status: "enabled", inOrchestration: false }],
     diagnostics: [],
     autoDisabled: false,
     safeModeExcluded: null,
@@ -363,5 +361,27 @@ describe("런타임 탭 맨 위: 알림 자리는 첫 구역 위에 온다", () 
     expect(html.indexOf("<section")).toBe(
       html.indexOf(`<section aria-label="${t("desktop.runtime.section.lock")}"`),
     );
+  });
+});
+
+describe("런타임 목록의 Drive 역할(lcM6f)", () => {
+  test("역할은 칩이 아니라 띠·카드와 같은 상태 글이다: 쥔 플러그인은 멈춘 무채색 Driving, 기다림은 조용한 글", () => {
+    const html = body(HELM_HOLDER);
+    const roles = [
+      ...html.matchAll(/<span[^>]*data-slot="runtime-drive-role"[^>]*>([^<]*)<\/span>/g),
+    ].map((m) => {
+      const tag = m[0];
+      return [
+        m[1] ?? "",
+        /data-look="([a-z]+)"/.exec(tag)?.[1] ?? null,
+        tag.includes("drive-word"),
+        tag.includes("data-wave"),
+      ];
+    });
+    expect(roles).toEqual([
+      [t("desktop.runtime.role.holder"), "driving", true, false],
+      [t("desktop.runtime.role.waiting"), "quiet", false, false],
+    ]);
+    expect(html).not.toContain('data-slot="chip"');
   });
 });

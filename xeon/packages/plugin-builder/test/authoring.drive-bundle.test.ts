@@ -12,10 +12,10 @@ import {
   type SdkModules,
 } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
-import * as kit from "@fresnel/group-sdk";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import * as kit from "@fresnel/orchestration-sdk";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { packExtension, validateExtensionDir } from "@fresnel/core-authoring";
-import { driveGroupFixture, readManifest, tempRoot, templateDirs } from "./support.ts";
+import { driveOrchestrationFixture, readManifest, tempRoot, templateDirs } from "./support.ts";
 
 // 플러그인 그룹(drive)을 한 파일로 묶고 외부 로더로 실제로 불러 drive가 도는지 본다(Y8). 단일 플러그인 묶음 시험은 validate-pack 시험에 있다.
 
@@ -71,12 +71,12 @@ const realLoaderFs: LoaderFs = {
   realpath: (path) => realpath(path),
 };
 
-const SDK_MODULES: SdkModules = { "@fresnel/group-sdk": kit };
+const SDK_MODULES: SdkModules = { "@fresnel/orchestration-sdk": kit };
 
 test("authoring.drive-bundle: a drive group packed as one file loads from the user location and its drive runs", async () => {
   // 1. 뼈대 → 검사 → 한 파일 묶음
   const dir = root.path("src-group");
-  await driveGroupFixture(NAME, dir, templates);
+  await driveOrchestrationFixture(NAME, dir, templates);
   expect(await validateExtensionDir(dir, { scanDrive: scanDriveSource })).toEqual({
     ok: true,
     value: { ok: true, issues: [] },

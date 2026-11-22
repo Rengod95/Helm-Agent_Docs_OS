@@ -20,7 +20,9 @@ import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { callingModels } from "../fixtures/call-tape.ts";
+import { realTapeClock } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
@@ -49,7 +51,7 @@ function writeDraftFolder(root: string, marker: string): void {
       purpose: "Draft tool for the test run draft test",
       defaultEnabled: false,
       entry: "./src/index.ts",
-      group: {},
+      orchestration: {},
       plugins: [{ layer: "L3", hooks: [], requires: [], optional: [] }],
     }),
   );
@@ -57,15 +59,15 @@ function writeDraftFolder(root: string, marker: string): void {
     join(root, "src", "index.ts"),
     `import { writeFileSync } from "node:fs";
 import { Type } from "typebox";
-import { defineGroup, groupManifest } from "@fresnel/group-sdk";
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
 export const extension = (ctx) => {
-  const group = defineGroup({
-    manifest: groupManifest({
+  const group = defineOrchestration({
+    manifest: orchestrationManifest({
       schemaVersion: 2,
       name: ctx.manifest.name,
       version: "1.0.0",
       entry: "./src/index.ts",
-      group: {},
+      orchestration: {},
       plugins: [{ layer: "L3", hooks: [], requires: [], optional: [] }],
     }),
     setup(g) {
@@ -130,6 +132,33 @@ function isolatedOptions(label: string) {
     pluginHost: isolatedPluginHost(),
     buildModels: callingModels(label, [{ name: TOOL, args: {} }], "done."),
   };
+}
+
+/** 도구를 한 번 부르고 끝나는 턴을 `turns`번 잇달아 하는 모형 응답 */
+function repeatingModels(label: string, turns: number): ReturnType<typeof callingModels> {
+  const entries = Array.from({ length: turns }, (_, index) => [
+    {
+      role: "main" as const,
+      label: `call ${String(index + 1)}`,
+      response: {
+        type: "message" as const,
+        content: [t.toolCall(TOOL, {}, `call_${String(index + 1)}`)],
+        stopReason: "toolUse" as const,
+      },
+    },
+    {
+      role: "main" as const,
+      label: `done ${String(index + 1)}`,
+      response: {
+        type: "message" as const,
+        content: [t.text("done.")],
+        stopReason: "stop" as const,
+      },
+    },
+  ]).flat();
+  return tapeBuildModels(
+    tapeProvider(tapePlayer(tape(label, entries), { clock: realTapeClock() })),
+  );
 }
 
 /** 초안을 만들고 목록에서 식별자와 내용 해시를 읽는다. 검토하지 않는다 */
@@ -253,6 +282,142 @@ realTest(
   180_000,
 );
 
+/** 확장 목록에서 그 이름이 사라질 때까지 기다린다. 사라지면 true다 */
+async function gone(
+  connection: ReturnType<typeof createHostConnection>,
+  name: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    // oxlint-disable-next-line no-await-in-loop -- 내려감을 기다리는 폴링 (eng.testing.guide TS-05)
+    const listed = await connection.request("ext.list", {});
+    if (!listed.extensions.some((entry) => entry.name === name)) return true;
+    // oxlint-disable-next-line no-await-in-loop -- 내려감을 기다리는 폴링 (eng.testing.guide TS-05)
+    await Bun.sleep(25);
+  }
+  return false;
+}
+
+realTest(
+  "two versions of one plugin draft run as separate test runs: B starts while A is open and after A is closed, each version runs its own code, and the internal names differ",
+  async () => {
+    const home: EngineHome = useEngineHome();
+    writeUserSettings(home, { ...TAPE_SETTINGS, "l1.tools.permissionMode": "bypass" });
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-test-run-draft-two-")));
+    const markers = ["a", "b", "c"].map((label) => join(workspace, `tool-${label}.marker`));
+    const folders = ["a", "b", "c"].map((label) => join(workspace, `draft-${label}`));
+    markers.forEach((marker, index) => {
+      const folder = folders[index];
+      if (folder !== undefined) writeDraftFolder(folder, marker);
+    });
+    const previousCwd = process.cwd();
+    process.chdir(workspace);
+    const host = await startInProcessHost({
+      ...isolatedOptions("test-run-draft-two"),
+      buildModels: repeatingModels("test-run-draft-two", 2),
+    });
+    const connection = createHostConnection(host.client);
+    const collector = collectEvents(connection);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      await connection.request("events.subscribe", { from: "head" });
+      await storeBaseProfile(connection);
+      const [folderA, folderB, folderC] = folders;
+      const [markerA, markerB, markerC] = markers;
+      if (
+        folderA === undefined ||
+        folderB === undefined ||
+        folderC === undefined ||
+        markerA === undefined ||
+        markerB === undefined ||
+        markerC === undefined
+      ) {
+        throw new Error("fixture folders are missing");
+      }
+      // 판 셋을 잇달아 만든다(식별자의 앞쪽이 같은 때)
+      const draftA = await createDraft(connection, folderA);
+      const draftB = await createDraft(connection, folderB);
+      const draftC = await createDraft(connection, folderC);
+      const nameA = internalDraftName(DRAFT, draftA.draftId);
+      const nameB = internalDraftName(DRAFT, draftB.draftId);
+      const nameC = internalDraftName(DRAFT, draftC.draftId);
+      expect(new Set([nameA, nameB, nameC]).size).toBe(3);
+
+      // A가 열려 있는 동안 B를 시작한다: 둘이 동시에 실려 있다
+      const runA = await connection.request("testRun.start", {
+        baseProfileId: "work",
+        drafts: [{ plugin: DRAFT, draftId: draftA.draftId }],
+      });
+      const runB = await connection.request("testRun.start", {
+        baseProfileId: "work",
+        drafts: [{ plugin: DRAFT, draftId: draftB.draftId }],
+      });
+      expect(await enabledEntry(connection, nameA)).toMatchObject({ status: "enabled" });
+      expect(await enabledEntry(connection, nameB)).toMatchObject({ status: "enabled" });
+
+      // 각 판은 자기 코드로 돈다: B의 대화는 B의 표지만 쓴다
+      const turnB = await startTurnWhenIdle(connection, {
+        threadId: runB.threadId,
+        input: "use b",
+      });
+      const askedB = await collector.waitFor(
+        (event) => event.kind === "approval.requested" && event.turnId === turnB.turnId,
+        60_000,
+      );
+      await connection.request("approval.respond", { approvalId: askedB.id, decision: "allow" });
+      await collector.waitFor(
+        (event) => event.kind === "turn.completed" && event.turnId === turnB.turnId,
+        60_000,
+      );
+      expect(existsSync(markerB) ? readFileSync(markerB, "utf8") : null).toBe("ran");
+      expect(existsSync(markerA)).toBe(false);
+      const turnA = await startTurnWhenIdle(connection, {
+        threadId: runA.threadId,
+        input: "use a",
+      });
+      const askedA = await collector.waitFor(
+        (event) => event.kind === "approval.requested" && event.turnId === turnA.turnId,
+        60_000,
+      );
+      await connection.request("approval.respond", { approvalId: askedA.id, decision: "allow" });
+      await collector.waitFor(
+        (event) => event.kind === "turn.completed" && event.turnId === turnA.turnId,
+        60_000,
+      );
+      expect(existsSync(markerA) ? readFileSync(markerA, "utf8") : null).toBe("ran");
+      expect(existsSync(markerC)).toBe(false);
+
+      // 둘을 닫으면 둘 다 내려가고, 다음 판 C를 호스트 재시작 없이 시험한다
+      // (같은 엔진 안에서는 연결이 닫혀도 임대를 놓지 않으므로, 서비스 엔진이 대화를 놓을 때 부르는 `forget`을 직접 부른다)
+      host.engine.ports.m4.pluginSet.forget(runA.threadId);
+      host.engine.ports.m4.pluginSet.forget(runB.threadId);
+      expect(await gone(connection, nameA)).toBe(true);
+      expect(await gone(connection, nameB)).toBe(true);
+      const runC = await connection.request("testRun.start", {
+        baseProfileId: "work",
+        drafts: [{ plugin: DRAFT, draftId: draftC.draftId }],
+      });
+      expect(runC.drafts).toEqual([
+        {
+          plugin: DRAFT,
+          draftId: draftC.draftId,
+          versionId: expect.stringContaining(draftC.draftId),
+        },
+      ]);
+      expect(await enabledEntry(connection, nameC)).toMatchObject({ status: "enabled" });
+      // 일반 대화의 도구 목록에는 드래프트의 이름이 없다
+      const listed = await connection.request("ext.list", {});
+      expect(listed.extensions.some((entry) => entry.name === nameA)).toBe(false);
+    } finally {
+      await attemptAsync(() => connection.close());
+      await attemptAsync(() => host.close());
+      process.chdir(previousCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  240_000,
+);
+
 realTest(
   "a draft test run whose draft was discarded while the engine was down reopens without that draft: the thread opens, the draft is not loaded, and the set does not name it",
   async () => {
@@ -327,6 +492,55 @@ realTest(
 );
 
 realTest(
+  "a draft whose code throws when it loads is refused with overlay.draftUnavailable and reason not_active, and nothing stays loaded",
+  async () => {
+    const home: EngineHome = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-test-run-draft-bad-")));
+    const folder = join(workspace, "draft-folder");
+    writeDraftFolder(folder, join(workspace, "tool.marker"));
+    // 싣는 때 던지는 엔트리로 바꾼다
+    writeFileSync(
+      join(folder, "src", "index.ts"),
+      'export const extension = () => { throw new Error("boom"); };\n',
+    );
+    const previousCwd = process.cwd();
+    process.chdir(workspace);
+    const host = await startInProcessHost(isolatedOptions("test-run-draft-bad"));
+    const connection = createHostConnection(host.client);
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      await connection.request("events.subscribe", { from: "head" });
+      await storeBaseProfile(connection);
+      const draft = await createDraft(connection, folder);
+      const refused = await rejectionOf(
+        connection.request("testRun.start", {
+          baseProfileId: "work",
+          drafts: [{ plugin: DRAFT, draftId: draft.draftId }],
+        }),
+      );
+      expect(refused).toMatchObject({
+        data: {
+          kind: "overlay.draftUnavailable",
+          details: { name: DRAFT, reason: "not_active" },
+        },
+      });
+      const listed = await connection.request("ext.list", {});
+      expect(
+        listed.extensions.some((entry) => entry.name === internalDraftName(DRAFT, draft.draftId)),
+      ).toBe(false);
+    } finally {
+      await attemptAsync(() => connection.close());
+      await attemptAsync(() => host.close());
+      process.chdir(previousCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  120_000,
+);
+
+realTest(
   "with no isolated plugin host a draft test run is refused with overlay.draftUnavailable, and no thread is created",
   async () => {
     const home = useEngineHome();
@@ -354,7 +568,12 @@ realTest(
           drafts: [{ plugin: DRAFT, draftId: draft.draftId }],
         }),
       );
-      expect(refused).toMatchObject({ data: { kind: "overlay.draftUnavailable" } });
+      expect(refused).toMatchObject({
+        data: {
+          kind: "overlay.draftUnavailable",
+          details: { name: DRAFT, reason: "isolation_unavailable" },
+        },
+      });
       // 대화는 하나도 늘지 않고, 초안은 어디에도 실리지 않는다
       expect((await connection.request("thread.list", {})).threads.length).toBe(before);
       const listed = await connection.request("ext.list", {});

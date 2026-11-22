@@ -240,7 +240,7 @@ describe("plugin command values and rows", () => {
     expect(rows).toEqual([
       {
         value: "plugin:helm/helm-start",
-        label: "helm · 탐구 시작…",
+        label: "helm의 탐구 시작…",
         description: "helm",
         meta: null,
       },
@@ -252,7 +252,7 @@ describe("plugin command values and rows", () => {
       uiEntryOf({ extension: "aaa", id: "go", placement: "command", title: "‮탐구\u0007 시작" }),
       uiEntryOf({ extension: "aaa", id: "blank", placement: "command", title: "​" }),
     ]);
-    expect(rows.map((row) => row.label)).toEqual(["aaa · 탐구 시작", "aaa · blank"]);
+    expect(rows.map((row) => row.label)).toEqual(["aaa의 탐구 시작", "aaa의 blank"]);
   });
 });
 
@@ -263,19 +263,23 @@ describe("palette screen navigation", () => {
       "screen:chat:schedules",
       "screen:chat:plugins",
       "screen:workbench:overview",
+      "screen:workbench:craftReview",
       "screen:workbench:extensions",
       "screen:workbench:tests",
       "screen:workbench:metrics",
       "screen:workbench:compose",
       "screen:workbench:engine",
+      "screen:workbench:craft-metrics",
     ]);
     expect(screenTargetsOf("workbench").map((t) => t.screen)).toEqual([
       "overview",
+      "craftReview",
       "extensions",
       "tests",
       "metrics",
       "compose",
       "engine",
+      "craft-metrics",
       "proposals",
       "schedules",
       "plugins",

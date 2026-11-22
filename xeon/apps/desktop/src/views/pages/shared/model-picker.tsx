@@ -16,14 +16,14 @@ import { providerNameOf, providerOfRef } from "./provider-names.ts";
 // 날짜 사본 감춤, 제공자순·새 버전순, 카탈로그 밖의 지금 값)를 caustic `Combobox popup`으로 그린다. 제공자 묶음 머리 아래 줄마다
 // 이름과 곁 정보(문맥 창 · 100만 토큰당 입력/출력 가격)다. 트리거는 폼 크기(28px)와 보통 폭(224px)이다.
 
-/** 줄 끝 곁 정보: "200K · $3/$15". 문맥 창이나 가격을 모르면 아는 것만, 둘 다 모르면 null */
-export function modelMetaText(option: ModelOption): string | null {
+/** 줄 끝 곁 정보의 칸: 문맥 창("200K"), 가격("$3/$15")을 따로 놓는다. 문맥 창이나 가격을 모르면 아는 것만, 둘 다 모르면 null */
+export function modelMetaPartsOf(option: ModelOption): readonly string[] | null {
   const parts: string[] = [];
   if (option.contextWindow !== null) parts.push(tokenCountText(option.contextWindow));
   if (option.price !== null && option.price !== "unknown") {
     parts.push(`$${priceNumberText(option.price.input)}/$${priceNumberText(option.price.output)}`);
   }
-  return parts.length === 0 ? null : parts.join(" · ");
+  return parts.length === 0 ? null : parts;
 }
 
 /** 고르기의 묶음: 제공자마다 하나, 줄 순서는 `modelOptionsOf`를 따른다 */
@@ -87,7 +87,7 @@ export function ModelPicker(props: ModelPickerProps): ReactNode {
     (group) => ({
       label: providerNameOf(group.provider),
       options: group.options.map((option) => {
-        const meta = modelMetaText(option);
+        const meta = modelMetaPartsOf(option);
         const denied = props.isDenied?.(option.value) === true;
         return {
           value: option.value,
@@ -105,8 +105,10 @@ export function ModelPicker(props: ModelPickerProps): ReactNode {
             ? {}
             : {
                 meta: (
-                  <span className="font-mono text-mono-sm text-text-tertiary tabular-nums">
-                    {meta}
+                  <span className="flex min-w-0 items-baseline gap-2 text-footnote text-text-tertiary">
+                    {meta.map((part) => (
+                      <span key={part}>{part}</span>
+                    ))}
                   </span>
                 ),
               }),

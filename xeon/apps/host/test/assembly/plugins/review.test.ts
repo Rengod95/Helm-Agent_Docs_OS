@@ -1,8 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, symlinkSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
+import type { CardDependencies } from "@fresnel/contracts/extensions";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
 import {
@@ -65,6 +66,7 @@ function openRig(
   root: string,
   hooks?: ApprovalHooks,
   projectRoots: () => Promise<readonly DiscoverProjectRoot[]> = () => Promise.resolve([]),
+  facts?: () => readonly PluginFact[],
 ): Rig {
   const store = createPluginStore({
     root: join(root, "plugin-store"),
@@ -94,6 +96,7 @@ function openRig(
       return true;
     },
     ...(hooks === undefined ? {} : { approvalHooks: hooks }),
+    ...(facts === undefined ? {} : { facts }),
   });
   const notified: PluginChange[] = [];
   review.onChanged((change) => notified.push(change));
@@ -112,6 +115,13 @@ function rigOf(): Rig {
   const root = tempRoot("plugin-review-");
   roots.push(root);
   return openRig(root);
+}
+
+/** 설치된 플러그인 사실을 시험이 정하는 검토 서비스 한 벌(의존 검사용) */
+function rigWithFacts(facts: () => readonly PluginFact[]): Rig {
+  const root = tempRoot("plugin-review-");
+  roots.push(root);
+  return openRig(root, undefined, undefined, facts);
 }
 
 /** 결과가 값이면 값을 준다. 실패면 시험을 실패시킨다 */
@@ -397,6 +407,44 @@ test("a remove request is an item that stays pending until approved, and approvi
   expect(errorOf(await rig.review.requestRemove("nothing")).kind).toBe("unknown_plugin");
 });
 
+test("a remove request that a hard dependent still needs is refused with the dependent, and makes no item", async () => {
+  // AGE-33: `app`이 `kit`에 hard로 기댄다. 제거 요청은 항목을 만들지 않고 거절 값을 준다
+  const app: PluginFact = {
+    name: "app",
+    version: "1.0.0",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: {
+      schemaVersion: 2,
+      name: "app",
+      version: "1.0.0",
+      plugins: [{ layer: "plugin", hooks: [], dependsOn: [{ plugin: "kit", kind: "hard" }] }],
+    },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+  const rig = rigWithFacts(() => [app]);
+  await approvedKit(rig);
+  expect(errorOf(await rig.review.requestRemove("kit"))).toEqual({
+    kind: "dependency",
+    reason: "required_by",
+    plugin: "kit",
+    items: [
+      {
+        from: "app",
+        target: "kit",
+        kind: "hard",
+        range: null,
+        problem: "depended_on",
+        found: null,
+      },
+    ],
+  });
+  expect(valueOf(await rig.review.list({ state: "pending" })).items).toEqual([]);
+  // 검토본은 그대로 돈다
+  expect(valueOf(await rig.store.current("kit"))).not.toBeNull();
+});
+
 test("a user folder that disappears becomes a remove item, and a discarded remove is not made again", async () => {
   const rig = rigOf();
   writeFiles(join(rig.pluginsDir, "gone"), {
@@ -534,6 +582,187 @@ test("file reads stay inside the reviewed snapshot", async () => {
   );
 });
 
+/** 승인된 `kit`을 `edit`로 고친 초안을 제출해 대기 중인 갱신 항목을 만든다(출처 `assistant`라 승인할 수 있다) */
+async function pendingUpdate(
+  rig: Rig,
+  edit: (folder: string) => void,
+): Promise<{ readonly item: ReviewItem; readonly approved: ReviewItem }> {
+  const approved = await approvedKit(rig);
+  const folder = join(rig.pluginsDir, "kit");
+  edit(folder);
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const itemId = valueOf(await rig.review.submitDraft(draftId)).itemId;
+  return { item: valueOf(await rig.review.get(itemId)).item, approved };
+}
+
+test("an update item lists the base version's files, and file reads the base side and the new side by value", async () => {
+  const rig = rigOf();
+  const { item, approved } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully.", "notes.md": "New file." });
+  });
+  expect(item.kind).toBe("update");
+  expect(item.baseHash).toBe(approved.candidateHash);
+  expect(item.baseFiles?.map((file) => file.path).toSorted()).toEqual([
+    ".fresnel-plugin/plugin.json",
+    "instructions.md",
+  ]);
+  expect(item.files.map((file) => file.path).toSorted()).toEqual([
+    ".fresnel-plugin/plugin.json",
+    "instructions.md",
+    "notes.md",
+  ]);
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md", "base"))).toEqual({
+    path: "instructions.md",
+    text: "Use kit.",
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md"))).toEqual({
+    path: "instructions.md",
+    text: "Use kit, carefully.",
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md", "candidate")).text).toBe(
+    "Use kit, carefully.",
+  );
+  // 새 파일은 지난 판에 없고, 지난 판에만 있는 파일은 새 판에 없다
+  expect(errorOf(await rig.review.file(item.itemId, "notes.md", "base")).kind).toBe("path_invalid");
+  expect(valueOf(await rig.review.file(item.itemId, "notes.md")).text).toBe("New file.");
+});
+
+test("a file only the old version had is readable on the base side and is path_invalid on the new side", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "extra.md": "Extra." });
+  });
+  const removedAfter = await pendingUpdateFrom(rig, item);
+  expect(removedAfter.baseFiles?.map((file) => file.path)).toContain("extra.md");
+  expect(valueOf(await rig.review.file(removedAfter.itemId, "extra.md", "base")).text).toBe(
+    "Extra.",
+  );
+  expect(errorOf(await rig.review.file(removedAfter.itemId, "extra.md")).kind).toBe("path_invalid");
+});
+
+/** 대기 항목을 승인한 뒤 `extra.md`를 지운 새 초안을 제출해 갱신 항목을 만든다 */
+async function pendingUpdateFrom(rig: Rig, first: ReviewItem): Promise<ReviewItem> {
+  valueOf(await rig.review.decide(first.itemId, APPROVE));
+  const folder = join(rig.pluginsDir, "kit");
+  rmSync(join(folder, "extra.md"), { force: true });
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const itemId = valueOf(await rig.review.submitDraft(draftId)).itemId;
+  return valueOf(await rig.review.get(itemId)).item;
+}
+
+test("a new plugin item has no base files and refuses the base side", async () => {
+  const rig = rigOf();
+  writeFiles(join(rig.pluginsDir, "kit"), {
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    "instructions.md": "Use kit.",
+  });
+  const item = valueOf(await rig.review.get(firstOf(valueOf(await rig.review.scan()).queued))).item;
+  expect(item.baseHash).toBeNull();
+  expect(item.baseFiles).toBeUndefined();
+  expect(errorOf(await rig.review.file(item.itemId, "instructions.md", "base")).kind).toBe(
+    "path_invalid",
+  );
+});
+
+test("after approval the new side is read from the approved copy and the base side from the old copy", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully." });
+  });
+  const decided = valueOf(await rig.review.decide(item.itemId, APPROVE)).item;
+  expect(decided.state).toBe("approved");
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md")).text).toBe(
+    "Use kit, carefully.",
+  );
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md", "base")).text).toBe(
+    "Use kit.",
+  );
+});
+
+test("a discarded item's new side and a pruned base are answered as missing, not as an error", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully." });
+  });
+  valueOf(await rig.review.decide(item.itemId, { kind: "discard" }));
+  expect(valueOf(await rig.review.file(item.itemId, "instructions.md"))).toEqual({
+    path: "instructions.md",
+    text: null,
+    truncated: false,
+    missing: true,
+  });
+  // 지난 판이 보관 한도를 넘어 지워지면 base 쪽은 missing이다
+  const folder = join(rig.pluginsDir, "kit");
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const pending = valueOf(
+    await rig.review.get(valueOf(await rig.review.submitDraft(draftId)).itemId),
+  ).item;
+  expect(pending.baseHash).not.toBeNull();
+  await inOrder(6, async (position) => {
+    writeFiles(folder, { "instructions.md": `Use kit, version ${position}.` });
+    const id = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+    valueOf(await rig.review.decide(valueOf(await rig.review.submitDraft(id)).itemId, APPROVE));
+  });
+  expect(valueOf(await rig.review.file(pending.itemId, "instructions.md", "base"))).toEqual({
+    path: "instructions.md",
+    text: null,
+    truncated: false,
+    missing: true,
+  });
+});
+
+test("file applies the same limit to both sides: binary is null text, a large file is cut at 256 KiB and marked truncated", async () => {
+  const rig = rigOf();
+  const big = "x".repeat(262144 + 10);
+  const { item } = await pendingUpdate(rig, () => {});
+  valueOf(await rig.review.decide(item.itemId, APPROVE));
+  const folder = join(rig.pluginsDir, "kit");
+  writeFiles(folder, { "big.txt": big });
+  writeFileSync(join(folder, "bin.dat"), Uint8Array.from([1, 0, 2, 3]));
+  const first = valueOf(
+    await rig.review.submitDraft(valueOf(await rig.review.draftCreate(folder, undefined)).draftId),
+  ).itemId;
+  valueOf(await rig.review.decide(first, APPROVE));
+  writeFiles(folder, { "big.txt": `${big}y` });
+  writeFileSync(join(folder, "bin.dat"), Uint8Array.from([9, 0, 9]));
+  const next = valueOf(
+    await rig.review.get(
+      valueOf(
+        await rig.review.submitDraft(
+          valueOf(await rig.review.draftCreate(folder, undefined)).draftId,
+        ),
+      ).itemId,
+    ),
+  ).item;
+  const base = valueOf(await rig.review.file(next.itemId, "big.txt", "base"));
+  expect(base.truncated).toBe(true);
+  expect(base.text?.length).toBe(262144);
+  const fresh = valueOf(await rig.review.file(next.itemId, "big.txt"));
+  expect(fresh.truncated).toBe(true);
+  expect(valueOf(await rig.review.file(next.itemId, "bin.dat", "base"))).toEqual({
+    path: "bin.dat",
+    text: null,
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.file(next.itemId, "bin.dat")).text).toBeNull();
+});
+
+test("an item card carries the manifest version, and path escapes stay refused on the base side", async () => {
+  const rig = rigOf();
+  const { item } = await pendingUpdate(rig, (folder) => {
+    writeFiles(folder, { "instructions.md": "Use kit, carefully." });
+  });
+  expect(item.card.version).toBe("1.0.0");
+  expect(errorOf(await rig.review.file(item.itemId, "../kit/instructions.md", "base")).kind).toBe(
+    "path_invalid",
+  );
+  expect(errorOf(await rig.review.file(item.itemId, "/etc/hosts", "base")).kind).toBe(
+    "path_invalid",
+  );
+});
+
 test("a symbolic link in a draft folder is refused, and a broken manifest is refused with its issues", async () => {
   const rig = rigOf();
   const linked = join(rig.root, "src", "linked");
@@ -637,7 +866,7 @@ test("the hooks see the candidate facts, the log names the applied profiles, and
     },
     afterCommit: (context) => {
       seen.push(`after:${context.item.name}`);
-      return Promise.resolve(ok(["p1"]));
+      return Promise.resolve(ok({ profileIds: ["p1"], missingPlugins: [] }));
     },
     reflect: (context) => {
       seen.push(`reflect:${context.item.name}`);
@@ -661,4 +890,214 @@ test("the hooks see the candidate facts, the log names the applied profiles, and
   expect(
     valueOf(await rig.store.readLog()).map((entry) => [entry.decision, entry.profileIds]),
   ).toEqual([["approved", ["p1"]]]);
+});
+
+// AGE-35: 초안 한 버전의 파일을 읽기만 하는 길(`draftFiles`, `draftFile`). 초안은 `drafts/<id>/tree`에 남아 있어 검토 항목이 닫혀도 읽힌다.
+const sha256Of = (text: string): string =>
+  new Bun.CryptoHasher("sha256").update(text).digest("hex");
+
+test("a draft version lists its files with sizes and hashes and reads each one, and two versions differ by their hashes", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "cmp-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("cmp-kit", "Compare"),
+    "keep.md": "same",
+    "edit.md": "before",
+    "gone.md": "removed later",
+  });
+  const first = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  rmSync(join(folder, "gone.md"));
+  writeFiles(folder, { "edit.md": "after", "new.md": "added" });
+  const second = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+
+  const one = valueOf(await rig.review.draftFiles(first));
+  const two = valueOf(await rig.review.draftFiles(second));
+  expect(one.name).toBe("cmp-kit");
+  expect(one.files.find((file) => file.path === "edit.md")).toEqual({
+    path: "edit.md",
+    bytes: 6,
+    sha256: sha256Of("before"),
+  });
+  expect(two.files.map((file) => file.path)).toEqual([
+    ".fresnel-plugin/plugin.json",
+    "edit.md",
+    "keep.md",
+    "new.md",
+  ]);
+  expect(valueOf(await rig.review.draftFile(first, "edit.md"))).toEqual({
+    path: "edit.md",
+    text: "before",
+    truncated: false,
+  });
+  expect(valueOf(await rig.review.draftFile(second, "edit.md")).text).toBe("after");
+  expect(valueOf(await rig.review.draftFile(first, "gone.md")).text).toBe("removed later");
+  const hashOf = (files: typeof one.files, path: string): string | undefined =>
+    files.find((file) => file.path === path)?.sha256;
+  expect(hashOf(one.files, "keep.md")).toBe(hashOf(two.files, "keep.md"));
+  expect(hashOf(one.files, "edit.md")).not.toBe(hashOf(two.files, "edit.md"));
+  expect(hashOf(two.files, "gone.md")).toBeUndefined();
+});
+
+test("submitting a later draft closes the earlier item and drops its review snapshot, but both draft versions stay readable", async () => {
+  // m6T2가 본 "리뷰에 올린 버전의 보관 폴더가 비어 있음"의 재현: 다른 버전을 올리면 앞 항목이 superseded가 되고 그 후보 스냅샷이 지워진다
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "snap-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("snap-kit", "Snap"),
+    "notes.md": "v-one",
+  });
+  const first = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  writeFiles(folder, { "notes.md": "v-two" });
+  const second = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+
+  const firstItem = valueOf(await rig.review.submitDraft(first)).itemId;
+  expect(valueOf(await rig.review.file(firstItem, "notes.md")).text).toBe("v-one");
+  const secondItem = valueOf(await rig.review.submitDraft(second)).itemId;
+  expect(valueOf(await rig.review.get(firstItem)).item.state).toBe("superseded");
+  expect(valueOf(await rig.review.file(firstItem, "notes.md"))).toEqual({
+    path: "notes.md",
+    text: null,
+    truncated: false,
+    missing: true,
+  });
+  expect(valueOf(await rig.review.file(secondItem, "notes.md")).text).toBe("v-two");
+  // 초안 쪽은 그대로다
+  expect(valueOf(await rig.review.draftFile(first, "notes.md")).text).toBe("v-one");
+  expect(valueOf(await rig.review.draftFile(second, "notes.md")).text).toBe("v-two");
+});
+
+test("reading a draft refuses unknown drafts, paths outside the list, escapes, absolute paths and links", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "neg-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("neg-kit", "Negative"),
+    "notes.md": "inside",
+  });
+  const other = join(rig.root, "src", "other-kit");
+  writeFiles(other, {
+    ".fresnel-plugin/plugin.json": manifestOf("other-kit", "Other"),
+    "secret.md": "other plugin",
+  });
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const otherId = valueOf(await rig.review.draftCreate(other, undefined)).draftId;
+
+  expect(errorOf(await rig.review.draftFiles("drf_not_there")).kind).toBe("draft_not_found");
+  expect(errorOf(await rig.review.draftFiles("../../etc")).kind).toBe("draft_not_found");
+  expect(errorOf(await rig.review.draftFile("drf_not_there", "notes.md")).kind).toBe(
+    "draft_not_found",
+  );
+  // 다른 플러그인의 파일은 이 초안의 목록에 없다
+  expect(errorOf(await rig.review.draftFile(draftId, "secret.md")).kind).toBe("path_invalid");
+  expect(valueOf(await rig.review.draftFile(otherId, "secret.md")).text).toBe("other plugin");
+  const refused = await Promise.all(
+    ["../notes.md", "../../x", "/etc/passwd", "a\\b", "notes.md/..", ""].map((path) =>
+      rig.review.draftFile(draftId, path),
+    ),
+  );
+  expect(refused.map((result) => errorOf(result).kind)).toEqual([
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+    "path_invalid",
+  ]);
+  // 저장소 안의 스냅샷에 링크가 생겼으면 목록을 주지 않는다(링크를 따라 읽지 않는다)
+  const tree = join(rig.store.draftDir(draftId), "tree");
+  symlinkSync("/etc/hosts", join(tree, "link.md"));
+  expect(errorOf(await rig.review.draftFiles(draftId)).kind).toBe("symlink_refused");
+  expect(errorOf(await rig.review.draftFile(draftId, "link.md")).kind).toBe("symlink_refused");
+});
+
+test("a draft file is cut at 256 KiB, a binary file has no text, and a draft changed on disk is draft_changed", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "big-kit");
+  writeFiles(folder, {
+    ".fresnel-plugin/plugin.json": manifestOf("big-kit", "Big"),
+    "big.md": "a".repeat(262144 + 10),
+  });
+  writeFileSync(join(folder, "data.bin"), new Uint8Array([1, 0, 2, 3]));
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const big = valueOf(await rig.review.draftFile(draftId, "big.md"));
+  expect(big.truncated).toBe(true);
+  expect(big.text?.length).toBe(262144);
+  expect(valueOf(await rig.review.draftFile(draftId, "data.bin"))).toEqual({
+    path: "data.bin",
+    text: null,
+    truncated: false,
+  });
+  writeFileSync(join(rig.store.draftDir(draftId), "tree", "big.md"), "tampered");
+  const changed = errorOf(await rig.review.draftFiles(draftId));
+  expect(changed).toEqual({ kind: "store", code: "draft_changed" });
+});
+
+// AGE-33 enDep: 목록과 항목 응답의 카드 의존 칸은 설치된 사실로 다시 채운다. 저장된 항목은 매니페스트 값 그대로다.
+test("get and list answer the card's dependency cell from the installed facts, and the stored item keeps the manifest values", async () => {
+  const root = tempRoot("plugin-review-deps-");
+  roots.push(root);
+  // `kit`은 2.0.0이라 `^1.0.0`을 어긴다. `tool`은 `app`에 hard로 기댄다
+  const kit: PluginFact = {
+    name: "kit",
+    version: "2.0.0",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: { schemaVersion: 2, name: "kit", version: "2.0.0" },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+  const tool: PluginFact = {
+    name: "tool",
+    version: "1.0.0",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: {
+      schemaVersion: 2,
+      name: "tool",
+      version: "1.0.0",
+      plugins: [{ layer: "plugin", hooks: [], dependsOn: [{ plugin: "app", kind: "hard" }] }],
+    },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+  const rig = openRig(root, undefined, undefined, () => [kit, tool]);
+  writeFiles(join(rig.pluginsDir, "app"), {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "app",
+      version: "1.0.0",
+      purpose: "Uses kit",
+      plugins: [
+        {
+          layer: "plugin",
+          hooks: [],
+          dependsOn: [{ plugin: "kit", kind: "hard", range: "^1.0.0" }, { plugin: "ghost" }],
+        },
+      ],
+    }),
+  });
+  const itemId = firstOf(valueOf(await rig.review.scan()).queued);
+
+  const expected: CardDependencies = {
+    dependsOn: [
+      { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: "range_unmet" },
+      { from: "app", target: "ghost", kind: "soft", range: null, problem: "target_missing" },
+    ],
+    dependents: [{ from: "tool", target: "app", kind: "hard", range: null, problem: null }],
+  };
+  expect(valueOf(await rig.review.get(itemId)).item.card.dependencies).toEqual(expected);
+  expect(
+    valueOf(await rig.review.list({ state: "pending" })).items.map(
+      (item) => item.card.dependencies,
+    ),
+  ).toEqual([expected]);
+
+  // 설치 사실을 주지 않은 서비스는 저장된 값(매니페스트만 본 problem null, dependents 빈 목록)을 그대로 준다
+  const stored = valueOf(await openRig(root).review.get(itemId)).item;
+  expect(stored.card.dependencies).toEqual({
+    dependsOn: [
+      { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: null },
+      { from: "app", target: "ghost", kind: "soft", range: null, problem: null },
+    ],
+    dependents: [],
+  });
 });

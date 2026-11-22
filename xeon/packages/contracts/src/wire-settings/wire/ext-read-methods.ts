@@ -21,9 +21,15 @@ export interface ExtReadSchemas {
   "ext.ui.list": Io<U<Req<r.ExtUiListParams>>, U<r.ExtUiListResult>>;
   "ext.ui.post": Io<U<Req<r.ExtUiPostParams>>, U<r.ExtUiPostResult>>;
   "ext.ui.requestApproval": Io<U<Req<r.ExtUiApprovalParams>>, U<r.ExtUiApprovalResult>>;
-  "group.list": Io<U<Req<r.GroupListParams>>, U<r.GroupListResult>>;
-  "group.metrics": Io<U<Req<r.GroupMetricsParams>>, U<r.GroupMetricsResult>>;
-  "group.promotion": Io<U<Req<r.GroupPromotionParams>>, U<r.GroupPromotionResult>>;
+  "orchestration.list": Io<U<Req<r.OrchestrationListParams>>, U<r.OrchestrationListResult>>;
+  "orchestration.metrics": Io<
+    U<Req<r.OrchestrationMetricsParams>>,
+    U<r.OrchestrationMetricsResult>
+  >;
+  "orchestration.promotion": Io<
+    U<Req<r.OrchestrationPromotionParams>>,
+    U<r.OrchestrationPromotionResult>
+  >;
   "drive.frames": Io<U<Req<r.DriveFramesParams>>, U<r.DriveFramesResult>>;
   "hooks.list": Io<U<Req<r.HooksListParams>>, U<r.HooksListResult>>;
   "hooks.disableConfirm": Io<U<Req<r.HookNameParams>>, U<r.ExtAppliedResult>>;
@@ -60,9 +66,15 @@ export const EXT_READ_METHODS: Table = {
   "ext.ui.list": m4(r.ExtUiListParamsSchema, r.ExtUiListResultSchema),
   "ext.ui.post": m4(r.ExtUiPostParamsSchema, r.ExtUiPostResultSchema),
   "ext.ui.requestApproval": m4(r.ExtUiApprovalParamsSchema, r.ExtUiApprovalResultSchema),
-  "group.list": m4(r.GroupListParamsSchema, r.GroupListResultSchema),
-  "group.metrics": m4(r.GroupMetricsParamsSchema, r.GroupMetricsResultSchema),
-  "group.promotion": m4(r.GroupPromotionParamsSchema, r.GroupPromotionResultSchema),
+  "orchestration.list": m4(r.OrchestrationListParamsSchema, r.OrchestrationListResultSchema),
+  "orchestration.metrics": m4(
+    r.OrchestrationMetricsParamsSchema,
+    r.OrchestrationMetricsResultSchema,
+  ),
+  "orchestration.promotion": m4(
+    r.OrchestrationPromotionParamsSchema,
+    r.OrchestrationPromotionResultSchema,
+  ),
   "drive.frames": m4(r.DriveFramesParamsSchema, r.DriveFramesResultSchema),
   "hooks.list": m4(r.HooksListParamsSchema, r.HooksListResultSchema),
   "hooks.disableConfirm": m4(r.HookNameParamsSchema, r.ExtAppliedResultSchema),

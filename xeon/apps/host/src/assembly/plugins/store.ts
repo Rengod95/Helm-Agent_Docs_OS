@@ -75,6 +75,11 @@ export interface PluginReviewMeta {
   readonly decisionId: string;
   readonly origin: ReviewOrigin;
   readonly inferredManifest: boolean;
+  /**
+   * 승인한 검토 항목의 출처가 마이그레이션(`provenance: "migration"`)이면 참(AGE-58 [제안]). 환경 모드 스크립트(`scripts[].env`)를 받을 자격의 유일한 근거다.
+   * 매니페스트와 검토본 내용에서는 읽지 않는다. 호스트가 승인할 때만 쓴다. 없으면 거짓이다
+   */
+  readonly importedScripts?: boolean;
   readonly card: PluginCard;
 }
 
@@ -86,6 +91,7 @@ const MetaShape = Type.Object({
   decisionId: Type.String(),
   origin: Type.Union(REVIEW_ORIGINS.map((origin) => Type.Literal(origin))),
   inferredManifest: Type.Boolean(),
+  importedScripts: Type.Optional(Type.Boolean()),
   card: PluginCardSchema,
 });
 const MetaSchema: TUnsafe<PluginReviewMeta> = Type.Unsafe<PluginReviewMeta>(
@@ -253,6 +259,12 @@ export interface PluginStore {
     contentHash: string,
     path: string,
   ): Promise<Result<Uint8Array, PluginStoreError>>;
+  /** 보관된 검토본(키와 해시) 안 파일의 바이트. 그 버전이 보관소에 없거나 파일이 없으면 `not_found`다 */
+  readReviewedFile(
+    key: string,
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>>;
   /**
    * 원본 폴더를 초안 스냅샷(`drafts/<draftId>/tree`)으로 복사하고 `meta(contentHash)`를 `meta.json`으로 쓴다.
    * 복사 중 원본이 바뀌면 `source_unstable`이다. 원본은 읽기만 한다
@@ -262,6 +274,10 @@ export interface PluginStore {
     draftId: string,
     meta: (contentHash: string) => DraftInfo,
   ): Promise<Result<DraftInfo, PluginStoreError>>;
+  /**
+   * 초안 스냅샷(`drafts/<draftId>/tree`) 안 파일의 바이트(읽기만). 경로가 폴더 밖이거나, 없거나, 일반 파일이 아니면(링크 포함) `not_found`다
+   */
+  readDraftFile(draftId: string, path: string): Promise<Result<Uint8Array, PluginStoreError>>;
   /** 초안 정보 파일을 다시 쓴다(검토 항목을 연결할 때) */
   writeDraft(info: DraftInfo): Promise<Result<void, PluginStoreError>>;
   /** 초안 정보 하나. 없으면 `not_found`, 깨졌으면 `corrupt`다 */
@@ -1055,6 +1071,24 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     return ok(new Uint8Array(bytes.value));
   }
 
+  async function readReviewedFile(
+    key: string,
+    contentHash: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>> {
+    const tree = await treePath(key, contentHash);
+    if (!tree.ok) return err(tree.error);
+    if (escapesFolder(path)) return err({ kind: "not_found", what: `reviewed file ${path}` });
+    const file = join(tree.value, path);
+    const bytes = await attemptAsync(() => readFile(file));
+    if (!bytes.ok) {
+      return codeOf(bytes.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `reviewed file ${path}` })
+        : err(ioOf(file, bytes.error.cause));
+    }
+    return ok(new Uint8Array(bytes.value));
+  }
+
   function draftPathOf(draftId: string): string {
     return join(draftsDir, draftId);
   }
@@ -1095,6 +1129,29 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
       if (!written.ok) return err(written.error);
       return ok(info);
     });
+  }
+
+  async function readDraftTreeFile(
+    draftId: string,
+    path: string,
+  ): Promise<Result<Uint8Array, PluginStoreError>> {
+    if (!localIdOk("drf", draftId)) return err({ kind: "not_found", what: `draft ${draftId}` });
+    if (escapesFolder(path)) return err({ kind: "not_found", what: `draft file ${path}` });
+    const file = join(draftPathOf(draftId), "tree", path);
+    const meta = await attemptAsync(() => lstat(file));
+    if (!meta.ok) {
+      return codeOf(meta.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `draft file ${path}` })
+        : err(ioOf(file, meta.error.cause));
+    }
+    if (!meta.value.isFile()) return err({ kind: "not_found", what: `draft file ${path}` });
+    const bytes = await attemptAsync(() => readFile(file));
+    if (!bytes.ok) {
+      return codeOf(bytes.error.cause) === "ENOENT"
+        ? err({ kind: "not_found", what: `draft file ${path}` })
+        : err(ioOf(file, bytes.error.cause));
+    }
+    return ok(new Uint8Array(bytes.value));
   }
 
   async function writeDraft(info: DraftInfo): Promise<Result<void, PluginStoreError>> {
@@ -1181,7 +1238,9 @@ export function createPluginStore(deps: PluginStoreDeps): PluginStore {
     clearCurrent,
     candidateTree: candidateTreeOf,
     readCandidateFile,
+    readReviewedFile,
     saveDraft,
+    readDraftFile: readDraftTreeFile,
     writeDraft,
     readDraft,
     listDrafts,

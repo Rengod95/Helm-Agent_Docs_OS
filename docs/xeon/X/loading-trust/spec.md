@@ -32,7 +32,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 확장 설정 연결과 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, X 층 키 `x.loading-trust.*`
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 작업 폴더 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
-- SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
+- SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/orchestration-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
 - `thread.trust.before`, `thread.resources` 훅의 발화 시점(F.extensions.spec §7)
 - Plugin UI 기여(매니페스트 `ui`)의 파일과 정책 검사, Plugin App 파일 풀이, `x.ui.*` 키(§4.3.4, §3.10)
 
@@ -58,7 +58,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
 | 격리 확장 | 실효 격리 값이 `process`인 확장(§4.9.0). 플러그인 호스트 프로세스에서 실행된다 |
 | 프록시 | 격리 확장 대신 호스트 프로세스에서 훅 핸들러와 리소스를 등록하는 대리 객체 |
-| SDK 가상 모듈 | 플러그인 번들이 import하는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
+| SDK 가상 모듈 | 플러그인 번들이 import하는 `@fresnel/contracts`, `@fresnel/orchestration-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
 | 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인(Helm, §4.4.7) |
 
 ## 3. 인터페이스
@@ -97,7 +97,7 @@ export interface TrustPermissions {
   /** project_trust 지점에 on을 걸 수 있는가 */
   readonly onProjectTrust: boolean;
   readonly post: boolean;
-  /** 플러그인의 `drives`가 참이고 정책 `x.primitives.driveRequiresGroup`(X.primitives.spec §4.4.1)이 허용할 때 */
+  /** 플러그인의 `drives`가 참이고 정책 `x.primitives.driveRequiresOrchestration`(X.primitives.spec §4.4.1)이 허용할 때 */
   readonly drive: boolean;
   /** 도구·명령·provider 등록(X.primitives.spec 리소스 등록) */
   readonly resources: boolean;
@@ -203,7 +203,7 @@ export type LoadDiagnosticCode =
   | "manifest_missing" | "manifest_parse" | "manifest_invalid"
   | "name_conflict" | "trust_exceeds_source" | "trust_denied" | "trust_undecided" | "trust_store_corrupt"
   | "settings_rejected" | "settings_reserved_key" | "config_required"
-  | "capability_missing" | "capability_provider_failed"
+  | "capability_missing" | "capability_provider_failed" | "dependency_missing" | "dependency_provider_failed" | "dependency_cycle"
   | "tier_rejected"
   | "entry_not_found" | "entry_import_failed" | "entry_not_function" | "entry_threw"
   | "setup_threw" | "setup_timeout" | "setup_action" | "reload_failed" | "reload_rejected"
@@ -284,7 +284,7 @@ export interface LoadOptions {
    */
   readonly projects?: "cwd" | "on_demand";
   /**
-   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다.
+   * `projects: "cwd"`에서 판정한 프로젝트 루트의 프로젝트 id [결정: 2026-11-18, 사용자, AGE-41 (2)]. 프로젝트 출처 검토본은 id가 같은 것만 싣는다(다른 프로젝트의 같은 이름 승인본이 실리지 않는다. 구분 키는 `프로젝트/이름` 문자열이 아니라 `projectId` 칸이다).
    * 없으면 시작 때 프로젝트 검토본을 싣지 않는다. 조립이 루트에서 id를 정한다(호스트의 `projectIdOf`)
    */
   readonly projectIdOf?: (projectRoot: string) => Promise<string | undefined>;
@@ -309,7 +309,7 @@ export interface LoadProjectOptions {
   /** 호출자가 이미 정한 판정(저장하지 않는다) */
   readonly trustOverride?: boolean;
   /**
-   * 이 프로젝트 루트의 프로젝트 id [제안, AGE-41]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
+   * 이 프로젝트 루트의 프로젝트 id [결정: 2026-11-18, 사용자, AGE-41 (2)]. 프로젝트 출처 검토본은 `projectId`가 같은 것만 싣는다.
    * 없으면 프로젝트 검토본을 하나도 싣지 않는다
    */
   readonly projectId?: string;
@@ -412,7 +412,7 @@ export interface LoaderDeps {
   readonly clock: { now(): number };
   /**
    * 플러그인 번들에 줄 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@fresnel/contracts`와
-   * 하위 경로, `typebox`는 X가 등록한다. `@fresnel/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
+   * 하위 경로, `typebox`는 X가 등록한다. `@fresnel/orchestration-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
    */
   readonly sdkModules?: SdkModules;
   /** `thread.trust.before` 발화(§4.7.3 4번). 없으면 결정 없음으로 본다 */
@@ -567,7 +567,7 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 
 | 모듈 | 내용 |
 |---|---|
-| `isolation/framing.ts` | 줄 단위 프레임 읽기·쓰기. 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값 |
+| `isolation/framing.ts`(`frame-line.ts`, `framing-types.ts`, `transfer-read.ts`, `transfer-write.ts`) | 줄 단위 프레임 읽기·쓰기와 큰 줄의 조각 전송(§4.9.3). 줄 상한 `PLUGIN_HOST_MAX_FRAME_BYTES`(16 MiB), 넘으면 `frame_too_large` 값. 옵션을 주면 조각으로 보낸다 |
 | `isolation/child-runtime.ts`, `child-api.ts`, `params.ts` | 호스트 프로세스 안의 실행기 `runPluginHost`. 엔트리를 import하고 `g`와 `hostOf(g)`의 얇은 대리 객체를 만든다. 요청마다 실려 온 상태·설정 스냅샷을 즉시 읽기(`g.state()`, `settingValue`)에 쓴다 |
 | `isolation/supervisor.ts` | 엔진 쪽 프로세스 관리: 처음 불릴 때 띄우기, 한동안 안 불리면 내리기(`idleMs`), 시간 초과 때 프로세스 종료(`process_killed`), 비정상 종료(`process_exit`)와 재시작 한도, 표준오류 수집 |
 | `isolation/engine-calls.ts` | 호스트가 보내는 `engine.call`(`commit`, `record`, `post`, `capability`, `runScript` 등)을 엔진의 실제 `g`로 잇는 길. `replay`면 쓰기는 버리고 `capability`는 `replay_mode_denied` |
@@ -586,22 +586,34 @@ export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, Isolation
 
 1. 선언: 매니페스트 `scripts`에 이름이 있어야 한다. 없으면 `script_not_declared`.
 2. 위치: 파일 이름이 절대 경로, `..`, 백슬래시, NUL이면 `script_outside_tree`. 실제 위치(심볼릭 링크를 푼 것)가 확장 폴더 밖이면 `script_outside_tree`. 찾지 못하거나 일반 파일이 아니면(폴더 포함) `script_missing`. 파일 시스템 오류도 찾지 못한 것으로 본다.
-3. 승인: 검토된 버전은 바로 뜬다. 초안은 승인 문(`ScriptRunnerDeps.draftGate`, 조립 루트가 `LoaderIsolation.scriptGate`로 준다)이 있고 호출한 대화(`ScriptRunRequest.threadId`, 훅이나 주도의 문맥에서 엔진이 붙인다)가 있을 때만 호출마다 승인 카드를 거쳐 뜬다. 그 밖에는 `script_not_approved`다(문이 없음, 대화 없음). 순서는 선언, 위치, 승인 문 유무, replay, 실행기, (초안만) 격리 가능 여부, 카드다. 격리를 쓸 수 없으면 카드를 열지 않고 `sandbox_unavailable`이다. 카드 내용(`ScriptCard`)은 실행기 절대 경로, 인자(스크립트 절대 경로 포함), 자식에게 실제로 넘어가는 환경 변수 이름, 표준 입력 바이트 수와 앞 200자(가림 규칙을 지난 값, 가림 수단이 없으면 빈 값)다. 구현 승인 문은 `apps/host/src/assembly/plugins/script-gate.ts`다(L4.host-service §4.27 (c)). [결정: 2026-11-19, 사용자, AGE-58 (3)]
+3. 승인: 검토된 버전은 바로 뜬다. 초안은 승인 문(`ScriptRunnerDeps.draftGate`, 조립 루트가 `LoaderIsolation.scriptGate`로 준다)이 있고 호출한 대화(`ScriptRunRequest.threadId`, 훅이나 주도의 문맥에서 엔진이 붙인다)가 있을 때만 승인 카드를 거쳐 뜬다(드래프트 승인 `auto`인 테스트 런은 카드 없음, 그 밖에는 스크립트마다 처음 한 번만 묻고 같은 초안 내용의 같은 스크립트는 그 테스트 런 동안 다시 묻지 않는다. `[결정: 2026-11-19, 사용자, AGE-58]`, L1.tools §4.6.1 6c). 그 밖에는 `script_not_approved`다(문이 없음, 대화 없음). 순서는 선언, 위치, 승인 문 유무, replay, 실행기, (초안만) 격리 가능 여부, 카드다. 격리를 쓸 수 없으면 카드를 열지 않고 `sandbox_unavailable`이다. 카드 내용(`ScriptCard`)은 실행기 절대 경로, 인자(스크립트 절대 경로 포함), 자식에게 실제로 넘어가는 환경 변수 이름, 표준 입력 바이트 수와 앞 200자(가림 규칙을 지난 값, 가림 수단이 없으면 빈 값)다. 카드는 `uses`도 싣는다. 열린 정책의 스크립트(승인된 플러그인, 설정을 끈 승인 전 드래프트)는 `sandbox_full_access`(셸 도구와 같이 읽고 쓰고 시스템 도구를 쓴다, 막는 것은 보호 셋뿐), `user_environment`(자식 env는 사용자 환경에서 `FRESNEL_` 이름만 뺀 것), `network`(차단 목록 밖 전체)다. 설정 `narrowDrafts`를 켠 승인 전 드래프트의 좁은 길은 `system_tools`(`/bin`, `/usr/bin`의 도구를 읽고 실행)와 `network`뿐이고, 쓰기와 폴더 밖 읽기는 없다 [결정: 2026-11-21, 사용자, AGE-63; 제안, AGE-58]. 구현 승인 문은 `apps/host/src/assembly/plugins/script-gate.ts`다(L4.host-service §4.27 (c)). 스크립트 실행기가 도는 샌드박스는 도구를 막아도 네이티브 호출로 열리는 길(다른 프로세스 정보, IOKit 속성, 전원 관리, 배포 알림, LaunchServices 데이터베이스)을 프로필에서 닫았고, `launchd` 직접 통신은 막을 수 없어 열려 있다(L0.sandbox §4.9, 미결 13). 카드의 "코드 실행" 안내가 이 열림을 사용자에게 알리는 자리다 [결정: 2026-11-19, 사용자, AGE-58 "1-다 2-가": 이 길은 지금대로 두고 카드 안내와 승인에 기댄다. 더 강한 격리는 후속 이슈]. 검토 카드의 스크립트 줄(`CardScript.uses`)도 같은 `uses`를 싣는다. 실행기 `python3`는 PATH의 shim을 푼 실제 인터프리터의 설치 폴더를 읽기로 열어(`ScriptRunnerDeps.runnerReadRoots`, `IsolationSpawnSpec.runtimeReadRoots`) 돌고, 스크립트 환경에 `PYTHONDONTWRITEBYTECODE=1`을 준다(L0.sandbox §4.9). 가져온 훅 플러그인의 끝까지 시험(훑기 → 적용 → 승인 → 격리 자식의 실제 훅 → 막기·통과, 256 KiB 초과 입력은 묻기 카드)은 `apps/host/test/int/migration-hook-run.int.test.ts`다. [결정: 2026-11-19, 사용자, AGE-58 (3)]
 4. 돌려 보기: `replay`면 띄우지 않고 `replay_mode_denied`다. 후보 실행기(`candidate-runner.ts`)도 같은 값으로 거부한다.
 5. 실행기 이름: 조립 루트가 준 `runner(name)`이 절대 경로를 돌려야 한다. 없으면 `spawn_failed`(`code: runner_unavailable`).
-6. 띄우기: `IsolationProcessPort.spawn`이 전부다. 명령은 실행기 절대 경로, 인자는 `[검사를 통과한 실제 파일, ...args]`, `readRoot`는 확장 폴더, 라벨은 `script:<확장>:<스크립트>`다. 환경은 선언된 `envNames` 가운데 허용 값이 있고 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리지 않는 것뿐이다. 샌드박스 프로필을 넓히지 않는다(쓰기 없음, 읽기는 확장 폴더와 실행 파일). 샌드박스를 쓸 수 없으면 `sandbox_unavailable`이고 격리 없이 띄우지 않는다.
+6. 띄우기: `IsolationProcessPort.spawn`이 전부다. 정책은 호출이 고른다: `narrow`(승인 전 드래프트이고 설정 `l0.sandbox.narrowDrafts`가 켜졌을 때만. 드래프트의 플러그인 프로세스도 같다: `createIsolatedEntry`의 `narrow()`가 호출마다 읽는다)면 쓰기 없음 프로필과 읽기 허용 목록이고, 그 밖의 호출은 열린 정책이다(셸 도구와 같이 읽고 쓰고, 보호 셋만 막는다) [결정: 2026-11-21, 사용자, AGE-63]. 명령은 실행기 절대 경로, 인자는 `[검사를 통과한 실제 파일, ...args]`, `readRoot`는 확장 폴더, 라벨은 `script:<확장>:<스크립트>`다. 환경은 선언된 `envNames` 가운데 허용 값이 있고 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리지 않는 것을 `spec.env`로 싣는다. 부모 값은 어느 정책이든 셸 도구와 같은 허용 목록(`BASE_ENV_PASS_NAMES`)만 자식에 가고 `FRESNEL_` 값은 가지 않는다 [결정: 2026-11-22, 사용자, AGE-63]. 샌드박스를 쓸 수 없으면 `sandbox_unavailable`이고 격리 없이 띄우지 않는다.
 7. 표준 입력: UTF-8로 쓰고 닫는다. 상한 `SCRIPT_LIMITS.stdinBytes`(256 KiB)를 넘으면 라우터가 `invalid_params`로 거절한다(호출하는 쪽의 오류이고 값이 아니다). [제안]
 8. 표준 출력과 표준 오류: 각각 `SCRIPT_LIMITS.outputBytes`(64 KiB)까지 모으고 넘는 부분은 버린다(`truncated`). 종료는 자식이 끝나고 표준 출력이 닫힌 뒤다.
 9. 기한: `timeoutMs`(생략하면 10초, 상한 60초)가 지나면 프로세스 트리를 `SIGKILL`로 죽이고 `timedOut: true`, `exitCode: null`, `signal: "SIGKILL"`로 답한다.
 10. 값: 거절과 기동 실패는 모두 `Result`의 `error` 값이다. 엔진 호출 자체의 오류(`invalid_params`, `unknown_target`)만 응답의 `error`다. 자식의 `runScript`는 응답 모양이 맞지 않으면 `invalid_result` 엔진 오류로 던진다.
-11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `GroupApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 group-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
+11. 공개 타입: 자식 대리 객체의 `ChildScriptApi`는 공개 이름이 아니다. 공개 타입은 P 층 `OrchestrationApi.runScript`(L3.group-sdk.spec §3.2)다. 같은 모양이고 값은 `Result<ScriptRunResult, ScriptRunFailure>`다. F `RegistrationApi`에는 더하지 않았다 [제안]. 엔진 안 등록에는 실행기가 없으므로 orchestration-sdk의 `wrap`이 `sandbox_unavailable`(reason `in_engine_registration`) 값을 준다 [제안].
+
+**환경 모드 [결정: 2026-11-20, 사용자, AGE-58 원칙 가("가져온 스크립트는 원래 돌던 환경에서 돈다"); 아래 세부는 [제안]].** 선언에 `env`(F.extensions §3.1)가 있는 스크립트는 위 1~11 대신 다음 순서로 돈다. 구현은 `script-runner.ts`의 `runEnv`다.
+
+1. **자격(가장 중요한 안전 조건).** `ScriptTarget.envGrant.granted`가 참이고 검토된 버전(초안 아님)일 때만 돈다. `envGrant`는 로더가 `ExtensionCandidate.importedScripts`(검토본 후보만 가진다)에서 만들고, 그 값은 호스트가 승인한 검토본의 기록(`meta.json`의 `importedScripts`, 승인한 검토 항목의 출처가 `migration`일 때만 `review.ts`가 쓴다)에서만 온다. 매니페스트의 `env`는 권한이 아니다. 초안, 사용자 폴더 플러그인, 빌더가 만든 플러그인, 손으로 만든 선언은 `script_env_not_granted`이고 좁은 모드로 바꿔 돌지 않는다(초안은 승인 문도 열지 않는다). 프로젝트 폴더가 정해지지 않아도(`ScriptRunnerDeps.projectDirOf(threadId)`가 대화의 프로젝트 루트, 없으면 대화 폴더를 준다. `envGrant.projectDir`가 대체값) 같은 실패다.
+2. 동반 파일(`file`)이 플러그인 폴더 안의 일반 파일이어야 한다(위치 검사 3~4번). 돌려 보기는 `replay_mode_denied`다. 옛 길(설정 `l0.sandbox.sandboxImportedHooks`를 켰을 때)에서 격리를 쓸 수 없으면 `sandbox_unavailable`이다. 기본 길은 격리를 쓰지 않으므로 이 검사가 없다 [근거: `xeon/packages/ext-host/src/isolation/script-runner.ts`의 `runEnv`는 기본 길에서 `hookProcess` 포트만 부른다] [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"].
+3. **지문 확인.** `refs`의 지문이 있는 파일마다 실행 직전에 본다. 없으면 `script_ref_changed(missing)`, 읽지 못하면 `unreadable`, 지문이 다르면 `changed`이고 스크립트는 돌지 않는다. 가져올 때 지문을 못 낸(null) 참조는 실행 때 확인하지 않고 돈다. 파일이 있든 없든 막지도 묻지도 않는다. `refsKnown`이 거짓인 선언(참조 파일을 찾지 못한 훅)도 확인 없이 돈다. 이때 카드가 "알 수 없음"이라고 말하는 것이 유일한 안내다 [결정: 2026-11-20, 사용자, AGE-58 "허용 중심"]. 지문이 있는 참조가 바뀌었을 때 묻는 것은 그대로다. 근거는 다른 하네스(Codex CLI, Gemini CLI)도 바뀐 훅을 다시 확인한다는 점이다 [결정: 2026-11-20, 사용자, AGE-58]. 훅은 도구 호출마다 돌므로 비용을 줄인다: 파일마다 크기와 수정 시각을 먼저 `stat`하고, 지난번에 같은 지문으로 확인한 파일과 크기·수정 시각·기대 지문이 모두 같으면 내용을 다시 읽지 않는다(호출당 `stat` 한 번, 바뀐 파일만 한 번 해시). 확인과 띄우기 사이의 틈은 막지 못한다(확인 직후에 파일이 바뀌면 그 호출은 바뀐 파일로 돈다). 명령 문자열 자체가 원래 하네스의 설정에서 바뀐 경우는 이 확인이 보지 못한다: 가져오기를 다시 해야 반영된다.
+4. **환경.** `ScriptRunnerDeps.userEnv()`의 사용자 환경을 그대로 넘긴다. 빼는 것은 Fresnel 자신의 내부 값뿐이다: 이름이 `FRESNEL_*`에 맞는 것(대소문자 무시, 앞 밑줄 포함)과 잘못된 이름이다. 사용자의 `*_TOKEN`, `AWS_*`, `SSH_AUTH_SOCK`, `ANTHROPIC_*`, `NODE_OPTIONS`는 넘긴다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. `CLAUDE_PROJECT_DIR`를 프로젝트 폴더로 채운다. 선언의 `envNames`와 `BASE_ENV_POLICY`는 쓰지 않는다. 옛 길(설정을 켰을 때)은 시크릿 거부 패턴(`SENSITIVE_ENV_PATTERNS`)에 걸리는 이름과 잘못된 이름을 뺀다. 그 목록에는 `FRESNEL_*`, `*_TOKEN`, `AWS_*`, `ANTHROPIC_*`, `NODE_OPTIONS`, `BUN_OPTIONS`가 든다. 앞 밑줄이 붙은 `_FRESNEL_*`는 이 목록에 걸리지 않는다. 제공자 키와 `BUN_OPTIONS`·`NODE_OPTIONS`를 기본 길에서도 뺄지는 [미결](§10 27번)이다 [근거: `review/m5/migration.md` §11 Q17]. 호스트의 `userEnv`는 사용자의 로그인 셸을 한 번 띄워 환경을 읽는다(L4.host-service: `user-env.ts`; 시간 제한 5초, 10분 캐시, 실패하면 엔진 프로세스의 환경, 값은 기록하지 않고 변수 개수와 PATH 항목 개수만 기록한다).
+5. **띄우기.** `<shell> -c "<command>"`(`shell`은 `sh` 또는 `bash`, 실행 파일은 `runner(shell)` 아니면 `/bin/<shell>`), 작업 폴더는 프로젝트 폴더다. 기본 길은 `HookProcessPort.run`(외부 훅 실행 포트)으로 샌드박스 없이 띄운다. 프로세스 트리 정리, 기한, 출력 상한을 포트가 맡고, Linux도 같다(bwrap을 쓰지 않는다). 옛 길(설정을 켰을 때)은 `IsolationProcessPort.spawn`에 `scriptEnv = {projectDir, readCarveOuts}`를 주고 L0.sandbox "스크립트 환경 프로필"로 띄운다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. `readCarveOuts`는 보호 경로 안에 있는 참조 파일의 읽기 예외다(`readCarveOutsOf`: 보호 경로의 하위 폴더에 있으면 그 폴더, 보호 경로 바로 아래면 그 파일 하나). 검토 카드의 `CardScript.uses`는 기본이 `SCRIPT_ENV_USES`(`user_full_access`, `user_environment`, `network`), 옛 길을 켰을 때가 `SCRIPT_ENV_SANDBOXED_USES`(`user_environment`, `read_wide`, `write_project`, `network`)다. 값은 검토 항목을 만들 때의 설정으로 정한다(`review.ts`가 `deps.envSandboxed?.()`를 본다).
+6. **종료 코드와 기록.** 종료 코드의 뜻(0 통과, 2 막기와 표준 오류가 사유, 시간 제한)은 기존 훅 계약대로다. 막지 않는 오류(2가 아닌 비정상 종료, 기한, 신호)는 진행하되 `script.env_failed` 경고로 표준 오류 끝 512자(가림 규칙을 지난 값)와 종료 코드를 로그에 남긴다. 값은 남기지 않는다. 턴 기록의 Hook 행에는 실패 사유를 실을 칸이 없어(`TraceHandlerEntry.reason`은 핸들러가 던진 이유의 닫힌 목록) 새 저장 기록 종류를 만들지 않고 [미결]로 남긴다.
+7. **훅을 돌릴 수 없을 때**: 실행 파일 없음(127), 실행 불가(126), 띄우기 실패(포트의 `spawnError`, 외부 훅 실행 포트가 없으면 `hook_process_unavailable`), 지문이 있는 참조의 불일치·없음·읽기 실패, 환경 모드 자격 없음(`script_env_not_granted`)은 `outcomeOf`가 이들을 "통과"로 두지 않고 `unrunnable`로 바꾸고 `tool.call.before`는 묻기(`ask`, 사유 "훅을 돌릴 수 없어요: …. 계속할까요?")로 답한다(`adapter-hooks@5`, migration.md §4.3.5). 옛 길에서 격리를 쓸 수 없는 `sandbox_unavailable`도 묻는다. 기본 길에는 쓰기 거부나 격리 불가로 묻는 경우가 없다 [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"]. 기한 초과(`timedOut`)는 지금 어댑터가 통과로 둔다. 묻기로 바꿀지는 [미결](§10 28번)이다 [근거: `xeon/packages/plugin-migration/src/adapters/hook-plugin.ts`의 `outcomeOf`]. 결정을 내지 않는 자리는 진행한다(`tool.result`는 결과 뒤에 사유를 붙인다).
+
+환경 모드 훅의 출처(사용자 설정/프로젝트 설정/알 수 없음)는 실행 권한이 아니라 카드 표시다. 값은 호스트가 승인 기록(검토 항목의 카드)에 적은 것만 쓰고 매니페스트에서 읽지 않으며, 출처가 프로젝트여도 자격과 실행은 달라지지 않는다(F.extensions §3.1, migration.md §4.3.5 (자)) [제안, enFp].
 
 ### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 
 ```ts
 // virtual-modules.ts
 /** 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 지정자 */
-export const SDK_MODULE_SPECIFIERS: readonly ["@fresnel/contracts", "@fresnel/group-sdk", "typebox"];
+export const SDK_MODULE_SPECIFIERS: readonly ["@fresnel/contracts", "@fresnel/orchestration-sdk", "typebox"];
 /** 지정자 → 호스트의 모듈 객체(보통 `import * as ns`의 결과) */
 export type SdkModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 export type SdkRegisterError =
@@ -870,7 +882,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 - [제안] 순서 키는 (설치 위치 순서, 내장 층 순서, 이름)이다. `SOURCE_ORDER`는 `builtin` → `managed` → `user` → `project`, 내장 층 순서는 `L1` → `L2` → `L3` → `plugin`이다. 같은 위치·같은 층은 `name`의 코드 포인트 사전순이다.
 - L0 플랫폼 패키지는 매니페스트 층 값(`ExtensionLayerSchema`)에 L0가 없으므로 이 파이프라인 밖에서 조립 루트가 `ExtHost.registerPlatform`(X.primitives.spec §3.2)으로 먼저 등록한다. L0 등록 실패는 시작 실패다.
 - 순서는 파일 시스템 나열 순서, 입력 배열 순서와 무관하게 같아야 한다. 이 순서는 디스패치 순서의 두 번째 키다(F.extensions.spec §4.2).
-- 설치 순서는 로드 순서와 따로 정한다. 7단계 설치는 `requires`를 만족시키는 공급자를 소비자보다 먼저 설치하도록 로드 순서를 안정 정렬한 순서로 한다(로드 순서와 `loadIndex`는 바뀌지 않는다). 순환 의존은 풀 수 없어 로드 순서대로 설치하고, 관련 확장은 모두 `capability_missing`으로 `error`가 된다. 같은 묶음 안에서 이름이 앞선 소비자가 공급자 때문에 영구 실패하는 일을 막는다.
+- 설치 순서는 로드 순서와 따로 정한다. 7단계 설치는 `requires`를 만족시키는 공급자를 소비자보다 먼저 설치하도록 로드 순서를 안정 정렬한 순서로 한다(로드 순서와 `loadIndex`는 바뀌지 않는다). `dependsOn`의 `hard` 대상도 같은 정렬에서 소비자보다 먼저 설치한다(AGE-33). 순환 의존은 풀 수 없어 로드 순서대로 설치하고, 관련 확장은 모두 `capability_missing`으로 `error`가 된다. 같은 묶음 안에서 이름이 앞선 소비자가 공급자 때문에 영구 실패하는 일을 막는다.
 
 ### 4.3 로드 파이프라인
 
@@ -886,9 +898,10 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | 4 | 신뢰 판정 | 설치 위치, `trust.level`, 작업 폴더 신뢰 → `TrustLevel` | `rejected` | `trust_exceeds_source`, `trust_denied`, `trust_undecided`, `trust_store_corrupt` |
 | 5 | 설정 연결 | `settingsFromManifest` + 예약 키 → 설정 그룹 | `rejected` | `settings_rejected`, `settings_reserved_key` |
 | 5a | 켜짐 확인 | `ext.<name>.enabled`, 필수 userConfig, `LoadOptions.startup`(`policy.startupFilter`, 2차) | `disabled` | `disabled_by_setting`, `config_required`, `safe_mode`, `disabled_flag` |
-| 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없으면 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다("기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다) | `disabled` | `lazy_deferred` |
+| 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없으면 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다("기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다). 기본 집합의 플러그인이 hard로 기대는 대상(그 대상의 hard 대상까지)은 미루지 않고 기본 집합에 더해 싣는다(AGE-33 enDep: 미루면 기대는 쪽이 `dependency_missing`으로 멈춘다). soft로만 기대는 대상은 그대로 미룬다 | `disabled` | `lazy_deferred` |
 | 5b | 화면 검사 | `checkUiDecl`(§4.3.4): 거부되지 않은 확장의 `ui`를 파일과 정책으로 본다 | 확장 상태는 그대로다. 항목만 `invalid`나 `disabled`가 된다 | `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported` |
 | 6 | 기능 요구 충족 | `requires` × 집합의 `provides`·코어 기능 | `error` | `capability_missing` |
+| 6 | 의존 확인 | `dependsOn` × 집합의 살아 있는 확장(대상 확장, 구성원, `range`)(AGE-33) | `hard`면 `error`, `soft`면 `warning`(확장은 실패하지 않음) | `dependency_missing` |
 | 6a | tier 등록 | `policy.admit`(X.operations.spec §3.8) | `error` | `tier_rejected` |
 | 7 | 설치 | 엔트리 import(외부) → `ExtensionUnit` → `ExtHost.install` → `InstallResult` | `error` | `entry_not_found`, `entry_import_failed`, `entry_not_function`, `entry_threw`, `setup_threw`, `setup_timeout`, `setup_action` |
 | 8 | 사용 대조 결과 반영 | `InstallResult.setups[].issues`(primitives가 부른 `validateUsage`) → 진단 | `error`(오류만) | `usage_invalid`, `usage_warning` |
@@ -896,7 +909,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 
 - 2단계의 `unknown_key` 경고는 진단에 남기고 계속한다(F.extensions.spec §4.7).
 - `ui`의 모양 오류(`validateUi`의 `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `ui_duplicate`, `ui_reason_empty`, `widgets_required`)는 2단계에서 매니페스트 거부(`manifest_invalid`)가 된다. 5b단계의 `ui_*` 진단은 파일과 정책을 본 결과이고 확장을 거부하지 않는다(§4.3.4).
-- 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 그룹이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 작업 폴더 위치를 탐색하지도, 작업 폴더 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
+- 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 플러그인이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 작업 폴더 위치를 탐색하지도, 작업 폴더 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
 - 같은 이름이 여러 위치에 있을 때 위치가 다르면 낮은 순위의 것만 `rejected`이고, 같은 위치 안이면 둘 다 `rejected`다(§4.2.2).
 - 3단계는 두 번 실행한다. 첫 번째는 작업 폴더 신뢰 전 집합(내장, 관리, 사용자), 두 번째는 작업 폴더 후보를 더한 집합이다. 두 번째에서 새로 생긴 오류는 작업 폴더 확장만 `rejected`로 만든다.
 - `drive_conflict`, `capability_unprovided` 경고는 진단만 남긴다. 실행 중 drive 락은 X.primitives가 하나만 준다.
@@ -908,15 +921,16 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 #### 4.3.2 실패 격리
 
 - [제안] 내장 필수가 아닌 확장 하나의 실패는 그 확장만 멈춘다. 다른 확장의 단계 진행과 엔진 시작은 계속한다. 이 규칙은 모든 단계에 적용된다(항목 카탈로그 X절 실패 격리 행, .
-- 예외 1: `essential: true` 내장 확장이 `rejected`, `disabled`, `error` 중 하나가 되면 `loadAll`은 `essential_failed` 진단과 함께 `LoadAbortError`를 던진다. 조립 루트는 연 자원을 닫고 시작을 거부한다(L4.host-service.spec §4.1). [제안] L1 코어 패키지(`core-*`)의 확장 모듈은 필수다. L2 기능과 L3 그룹은 필수가 아니다.
+- 예외 1: `essential: true` 내장 확장이 `rejected`, `disabled`, `error` 중 하나가 되면 `loadAll`은 `essential_failed` 진단과 함께 `LoadAbortError`를 던진다. 조립 루트는 연 자원을 닫고 시작을 거부한다(L4.host-service.spec §4.1). [제안] L1 코어 패키지(`core-*`)의 확장 모듈은 필수다. L2 기능과 L3 플러그인은 필수가 아니다.
 - 예외 2: 로더 자신이 쓰는 주입 의존이 없으면 시작 실패다(architecture.layers.spec §4.3.3 1번). 대상은 `host`, `policy`, `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`다. `TrustPrompter`가 없으면 headless로 보고, `IsolationProcessPort`가 없으면 격리 설정 확장만 `error`(`isolation_unavailable`)다.
+- 의존 연쇄(AGE-33): `hard` 대상이 활성화되지 못했으면 그 대상에 기대는 확장도 `error`(`dependency_provider_failed`)가 된다. `soft`는 영향이 없다. 대화가 확장을 처음 쓸 때(`ensureLoaded`)는 `hard` 대상을 먼저 싣는다.
 - 기능 연쇄: 6단계는 매니페스트의 `provides`로 정적으로 판정한다. 9단계 뒤 실제로 활성화되지 못한 provider가 있으면, 그 기능을 `requires`로 선언한 확장도 `error`(`capability_provider_failed`)로 바꾼다. `optional`은 영향이 없다. 작업 폴더 신뢰 전 집합의 확장이 작업 폴더 확장만 제공하는 기능을 `requires`하면 `capability_missing`이다 [제안].
 - 같은 이유로 확장 A의 실패가 B의 setup을 막지 않도록 각 단계는 확장마다 `try`로 감싸고, 진단 레코드만 모은다.
 
 #### 4.3.3 진단 레코드
 
 - 모든 실패와 경고는 `LoadDiagnostic` 하나로 남는다. `issues`에는 `validate*`가 돌려준 `ManifestIssue`를 그대로 담는다.
-- 진단은 메모리에 두고 `ExtensionLoader.diagnostics()`로 읽는다. L4는 설정 화면 "플러그인과 그룹" 탭과 `host.status`에서 보인다(L4.settings-ui.spec, L4.host-service.spec). 보관 상한은 최근 256개이며, 넘치면 가장 오래된 진단부터 버린다.
+- 진단은 메모리에 두고 `ExtensionLoader.diagnostics()`로 읽는다. L4는 설정 화면 "플러그인" 탭과 `host.status`에서 보인다(L4.settings-ui.spec, L4.host-service.spec). 보관 상한은 최근 256개이며, 넘치면 가장 오래된 진단부터 버린다.
 - 진단을 내구 이벤트로 남길지는 [미결]이다(§10 미결 6). 현재 ext-host가 발행하는 코어 kind 영역은 `scope.`, `lease.`, `post.`이다(F.records.spec §3.3, X.primitives.spec §7). 확장 kind는 `x.`/`grp.` 접두다([결정: review.decisions-2 T-21]).
 - `message`에는 시크릿 값, 설정 값, 파일 내용을 넣지 않는다. 경로와 코드만 넣는다.
 - 5b단계 진단은 `stage`가 `ui`이고 `path`는 매니페스트 위치(`/ui/items/<i>/...`)다. 화면 트리 안의 위치는 `#` 뒤에 JSON Pointer로 붙인다. `message`는 `ui item "<id>": …` 꼴이다.
@@ -929,7 +943,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 
 항목마다 아래 순서로 본다(`checkUiDecl`).
 
-1. `placement`가 `card`이면 먼저 `forKind`의 주인을 본다(ADR-0021 §3.3, 보고 1). 주인은 자기 kind 접두(그룹은 `grp.<확장 이름>.`, 그 밖은 `x.<확장 이름>.`)의 kind와 매니페스트 `readsRecordKinds`가 덮는 kind(끝의 `*`는 접두 일치)입니다. 어느 것도 아니면 항목은 `invalid`이고 `ui_invalid`(위치 `/ui/items/<i>/forKind`)가 붙으며, 파일과 앱을 보지 않고 항목은 `forKind`를 싣지 않는다. 매니페스트 검사(F)는 kind의 주인을 보지 않으므로 이 검사가 맡는다. `placement`가 `command`면 화면이 없으므로 파일과 앱을 보지 않는다. 상태는 `ok`다.
+1. `placement`가 `card`이면 먼저 `forKind`의 주인을 본다(ADR-0021 §3.3, 보고 1). 주인은 자기 kind 접두(Drive를 맡는 플러그인은 `grp.<확장 이름>.`, 그 밖은 `x.<확장 이름>.`)의 kind와 매니페스트 `readsRecordKinds`가 덮는 kind(끝의 `*`는 접두 일치)입니다. 어느 것도 아니면 항목은 `invalid`이고 `ui_invalid`(위치 `/ui/items/<i>/forKind`)가 붙으며, 파일과 앱을 보지 않고 항목은 `forKind`를 싣지 않는다. 매니페스트 검사(F)는 kind의 주인을 보지 않으므로 이 검사가 맡는다. `placement`가 `command`면 화면이 없으므로 파일과 앱을 보지 않는다. 상태는 `ok`다.
 2. `native`(`mode` 생략 포함)는 `file`을 확장 루트 안에서 찾는다. 없거나 종류가 다르면 `ui_file_missing`, 밖을 가리키면 `ui_path_invalid`다. 본문이 1 MiB(`UI_FILE_MAX_BYTES`)를 넘으면 `ui_limit`이다. LoaderFs에 크기를 묻는 함수가 없어 다 읽은 뒤에 잰다. JSON이 아니면 `ui_invalid`다(파서 원문은 싣지 않는다). 앞의 BOM은 건너뛴다. `validateUiTree`가 실패하면 그 이슈를 옮긴다(`ui_invalid`, `ui_limit`, 위치는 `#` 뒤 JSON Pointer). 통과하면 `tree`를 붙인다.
 3. `app`은 정책을 먼저 본다. `x.ui.apps`가 거짓이면 전체가 막힌다. 설치 위치가 `project`이고 `x.ui.allowProjectApps`가 거짓이면 작업 폴더 확장이 막힌다. 막히면 앱 파일은 보지 않는다. `fallback`이 있으면 그 파일을 2번처럼 native 화면으로 읽고 검사한다. 모드는 `native`가 되고 정보 진단 `ui_mode_not_allowed`(severity `info`)가 붙는다. `fallback`이 없으면 상태는 `disabled`이고 경고 진단 `ui_mode_not_allowed`(severity `warning`)가 붙는다.
 4. 정책이 허용하면 `app.root`가 확장 안의 폴더인지 보고(없으면 `ui_file_missing`, 밖이면 `ui_path_invalid`), `app.entry`가 `app.root` 안의 파일인지 본다. 그다음 `app.bridge`가 다리 버전 `1.0.0`을 포함하는지 본다(아니면 `bridge_unsupported`, 위치 `/ui/items/<i>/app/bridge`).
@@ -1007,7 +1021,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 엔트리 import(외부 확장) | 로더(Bun `import()`) | 해당 없음(install 전) | `entry_not_found`, `entry_import_failed`, `entry_not_function` | `error` |
 | 엔트리 본문 예외 | 확장 코드 예외, `PrimitiveError`(`registration_foreign_id`, `registration_duplicate`, `registration_unknown_plugin`. 마지막은 `usage_invalid`가 아니라 `entry_threw`의 issues로 코드를 싣는다) | `entryError` | `entry_threw` | `error` |
 | 엔트리가 Registration을 만들지 않음 | 없음 | `registrations` 빈 배열 | `usage_invalid` | `error` |
-| setup 안의 선언 밖 연산 | `PrimitiveError`(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `drive_requires_group`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`) | `setups[].failure`(`threw`, `code`) | `usage_invalid`(issues에 같은 코드) | `error` |
+| setup 안의 선언 밖 연산 | `PrimitiveError`(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `drive_requires_orchestration`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`) | `setups[].failure`(`threw`, `code`) | `usage_invalid`(issues에 같은 코드) | `error` |
 | setup 본문의 thread 맥락 연산 | `PrimitiveError("no_thread")` | `setups[].failure`(`threw`, `code: "no_thread"`) | `setup_action` | `error` |
 | setup의 그 밖 예외 | 확장 코드 예외, 그 밖의 `PrimitiveError` | `setups[].failure`(`threw`) | `setup_threw` | `error` |
 | setup 시간 초과 | primitives(`setupBudgetMs`) | `setups[].failure`(`timeout`) | `setup_timeout` | `error` |
@@ -1025,7 +1039,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - `ExtensionLoader.reload(name, signal, options?)` 순서: (1) 매니페스트를 다시 읽고 검증한다. (2) 이름이 같아야 한다(이름이 바뀌면 재시작). (3) 집합 검사를 다시 한다(다른 확장과 이름·기능 충돌). (4) 신뢰 상한을 다시 계산한다. 설치 위치가 줄 수 있는 등급이어야 하고 지금 등급과 같아야 한다(바뀌면 재시작). (5) 엔트리를 새 세대로 import한다. (6) `replaceUnit`이 새 엔트리를 호스트 상태 밖에서 실행해 검사한다. 여기까지 하나라도 실패하면 `rejected`(진단 `reload_rejected` 또는 `entry_import_failed`, `entry_not_function`, `entry_threw`, `plugin_not_registered`)이고 옛 버전이 그대로 돈다. 로더 기록(`manifest`, `generation`)도 바뀌지 않는다.
 - 통과하면 `ReloadStarted`를 돌려준다. `appliesAt`은 `now`(실행 중인 thread가 없어 이 호출이 돌아오기 전에 적용을 끝냈다)이거나 `nextStepBoundary`(실행 중인 turn의 step이 끝난 경계를 기다린다)다. `applied`는 적용이 끝나면 정해진다. `applied`(`status: "applied"`)가 되면 그때 로더 기록의 `manifest`와 `generation`이 새 것으로 바뀐다. 경계에서 새 세대가 열리지 못하면 `failed`다: 옛 정의로 되돌려 다시 열었고(`restored`), 진단 `reload_failed`가 확장의 진단과 로더 진단에 남는다. 이 실패는 `nextStepBoundary`로 돌려준 호출에서는 나중에 `applied`로만 알 수 있다.
-- 새 이름 싣기 [결정: 2026-11-03 사용자 (a), M4 T-RELOAD; 2026-11-04 사용자: 새 이름 플러그인도 재시작 없이 바로 불러온다]: `ExtensionLoader.loadInstalled(name, signal)`가 앱 안 설치(`ext.install`, HS-111)와 제작 그룹의 `link`가 방금 복사한 `<userDir>/extensions/<name>` 하나를 싣는다. 시작 때(`loadAll`)와 같은 묶음 처리(`processBatch`)를 한 후보로 돌리므로 매니페스트 검증, 집합 검사, 신뢰 상한(사용자 위치의 `user`), 켜짐 확인, `assignTier`와 운영 정책 `admit`, 엔트리 import, `ExtHost.install`을 모두 거친다. 우회하는 길은 없다. 사용자 위치만 대상이라 프로젝트와 관리 위치의 확장은 싣지 않는다.
+- 새 이름 싣기 [결정: 2026-11-03 사용자 (a), M4 T-RELOAD; 2026-11-04 사용자: 새 이름 플러그인도 재시작 없이 바로 불러온다]: `ExtensionLoader.loadInstalled(name, signal)`가 앱 안 설치(`ext.install`, HS-111)와 제작 플러그인의 `link`가 방금 복사한 `<userDir>/extensions/<name>` 하나를 싣는다. 시작 때(`loadAll`)와 같은 묶음 처리(`processBatch`)를 한 후보로 돌리므로 매니페스트 검증, 집합 검사, 신뢰 상한(사용자 위치의 `user`), 켜짐 확인, `assignTier`와 운영 정책 `admit`, 엔트리 import, `ExtHost.install`을 모두 거친다. 우회하는 길은 없다. 사용자 위치만 대상이라 프로젝트와 관리 위치의 확장은 싣지 않는다.
   - 결과 `Ok`는 `appliesAt`과 `info`다. 실행 중인 turn이 없으면 `now`, 있으면 켜기가 `ExtHost`의 시작 적용 규칙(`deferred`, X.primitives.spec §4.5.6)대로 다음 단계 경계로 미뤄져 `nextStepBoundary`다. 단계 경계 규칙은 이 로더가 바꾸지 않는다.
   - 실패는 `already_loaded`(같은 이름이 이미 실려 있다. 새 판은 `reload`), `safe_mode`(안전 모드는 사용자 위치를 싣지 않는다), `not_found`, `not_active`(`state`는 `rejected`, `error`, `disabled`와 진단)다. 실패하면 호스트에 아무것도 남지 않는다. `rejected`와 `error` 기록은 지워 같은 이름을 고쳐 다시 설치할 수 있고, `disabled`(설정으로 꺼졌거나 필수 설정이 비어 있음)는 기록을 남겨 설정으로 켤 때 `ensureLoaded`가 싣는다.
   - `unload(name)`은 외부 확장을 `ExtHost.uninstall`로 내리고 정책 표에서 뺀다(`policy.forget`). 로더 기록은 `disabled`로 남기고 세대를 올린다 [제안, M5c §4.1.11]. 그래서 목록에는 꺼진 채 보이고, 같은 이름의 `ensureLoaded`가 `unknown_extension` 없이 새 세대로 다시 싣는다. 이 해제는 §4.4.5처럼 경계 없이 즉시다. 기록을 지우는 제거 흐름은 이 함수가 아니다.
@@ -1052,8 +1066,8 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.4.6 SDK 가상 모듈
 
-- [제안] 플러그인 번들은 `@fresnel/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@fresnel/group-sdk`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
-- `@fresnel/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@fresnel/group-sdk`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
+- [제안] 플러그인 번들은 `@fresnel/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@fresnel/orchestration-sdk`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
+- `@fresnel/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@fresnel/orchestration-sdk`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
 - 등록은 `Bun.plugin`이라 프로세스 전역이고 첫 import 뒤에는 바꿀 수 없다. 같은 지정자에 같은 객체를 다시 등록하면 아무 일도 하지 않고, 다른 객체를 등록하려 하면 `conflict`다. 이 오류는 외부 확장의 `entry_import_failed`로 보인다. Bun이 아닌 런타임에서는 `unavailable`이다.
 - 등록한 지정자는 같은 프로세스의 Fresnel 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
 
@@ -1114,7 +1128,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
 - `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 작업 폴더 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 값 `none`은 엔진 안에서 돌리기를 허락하는 예외이고 매니페스트 `isolation`은 설정 값이 없을 때의 요청이다(§4.9.0, F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
-- 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `group.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
+- 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `orchestration.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
 - `ui`: 두 키 모두 `tab: "plugins"`. `enabled`는 `toggle`, `isolation`은 `select`다.
 
 #### 4.5.3 `foreignNamespace`와 로딩
@@ -1125,7 +1139,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.5.4 카탈로그 재조립
 
-- 외부 확장 그룹이 자기 설정을 읽는 길은 `RegistrationHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineGroup`).
+- 외부 확장 플러그인이 자기 설정을 읽는 길은 `RegistrationHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 플러그인 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineOrchestration`).
 - 카탈로그는 시작 때 한 번 만들고 외부 확장이 낸 키는 적재 뒤에야 알려진다. 그래서 조립 루트가 적재 전에 키를 알아야 하는 확장(기본 플러그인 Helm)은 `reservedExtensionSettings(manifest, source)`를 X 루트에서 import해 예약 키(`enabled`, `isolation`)를 만들고, 자기 설정 그룹(`ext.<id>.*`)은 그 그룹의 `defineSettings` 값을 함께 카탈로그에 넣는다. 확장이 선언한 `userConfig` 키는 적재 뒤 `settingsFromManifest(manifest)`가 만든 정의를 조립 루트가 카탈로그에 더한다(앱 안에서 설치한 사용자 플러그인이 설정 읽기·쓰기를 쓰려면 키가 있어야 한다). 설정 스키마 산출물(`schema/`)은 정적 카탈로그만 쓴다 [결정: 2026-11-07 시나리오 작업, 기본값].
 - `LoadReport.settingGroups`는 `rejected`가 아닌 확장의 그룹(`ext.<name>`)만 담는다. `x.*` 설정 그룹(`primitivesSettings`, `loadingTrustSettings`, `operationsSettings`)은 조립 루트(L4 host)가 코어 그룹, `LoadReport.settingGroups`와 함께 `buildCatalog`에 넣는다.
 - 확장 그룹끼리 `duplicateKey`가 나면(같은 이름은 3단계에서 막히므로 [가정] 생기지 않는다) 로드 순서가 뒤인 확장을 `rejected`로 바꾸고 다시 조립한다. 다시 조립한 결과도 `ok: false`이면 남은 이슈는 코어 키 문제이므로 조립 루트가 시작을 거부한다(L4.host-service.spec §4.1 5번).
@@ -1148,7 +1162,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | `project` | 예 | 예 | 아니오 | 예 | 예 | 예 | prefix | optional |
 | `untrusted` | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | none | notLoaded |
 
-- `drive`는 그 위에 F 규칙(`plugins[].drives: true`와 정책 `x.primitives.driveRequiresGroup`, F.extensions.spec §4.6)을 함께 만족해야 한다. 정책을 풀어도 `untrusted`는 로드되지 않으므로 `drive`를 못 쓴다.
+- `drive`는 그 위에 F 규칙(`plugins[].drives: true`와 정책 `x.primitives.driveRequiresOrchestration`, F.extensions.spec §4.6)을 함께 만족해야 한다. 정책을 풀어도 `untrusted`는 로드되지 않으므로 `drive`를 못 쓴다.
 - `project` 등급의 `thread.trust.before` 금지는 순서 때문이기도 하다. 작업 폴더 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `plugins[].hooks`에 `thread.trust.before`가 있는 작업 폴더 매니페스트를 `usage_invalid`로 거부한다.
 - 격리 `forbidden`: 내장 확장은 L0~L2 서비스를 같은 프로세스에서 제공하므로 격리하지 않는다.
 - 저장 `prefix`는 X.operations.spec의 확장 접두 테이블 API를 쓸 수 있다는 뜻이다. 격리 확장은 등급과 무관하게 직접 접근이 없다(§4.9.6).
@@ -1166,7 +1180,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 #### 4.6.4 외부 확장이 공급하는 기능의 `idempotent` 선언 [결정: M3-REQ-31]
 
 - 값 집합: `trust.level`은 `builtin`, `user`, `project`, `untrusted` 넷이다(§4.6.1). 새 값을 더하지 않는다.
-- 외부 플러그인 그룹(`group` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 작업 폴더 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
+- 외부 플러그인(`orchestration` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 작업 폴더 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
 - `idempotent` 선언은 F 기능 정의(`MethodDef.idempotent`)에 있고 공급자가 그 약속을 지키는지는 적합성 시험(ADR-0015 §3.6)으로만 확인된다. 외부 확장은 시험을 강제할 수 없다.
 - 그래서 기능의 현재 공급자가 내장 확장(`builtin: true`, 저장소의 적합성 시험을 통과한 코드)일 때만 `idempotent` 선언을 믿는다. 공급자가 외부 확장(`user`, `project`)이면 X 기능 래퍼는 그 기능의 `idempotent` 메서드를 선언 없음으로 본다. on 핸들러와 drive 함수처럼 재실행되는 문맥에서는 `effect_not_allowed`이고 공급자를 부르지 않는다. 재실행되지 않는 문맥(도구 `execute`, 명령 처리기)에는 영향이 없다.
 - 판정은 호출마다 현재 바인딩된 공급자로 한다. 공급자가 바뀌면 다음 호출부터 새 공급자의 등급을 쓴다. 바인딩이 없으면 믿지 않는다(닫힌 쪽).
@@ -1322,9 +1336,9 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.9.3 직렬화와 취소
 
-모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘으면 보내지 않고 `frame_too_large`로 실패한다(나눠 보내기와 참조 넘기기는 하지 않는다).
+모든 값은 JSON이다. 프레임이 상한(`PLUGIN_HOST_MAX_FRAME_BYTES`, 16 MiB, 줄 끝 제외)을 넘는 줄은 두 쪽이 조각 칸(`transfer`)을 주고받아 협상했을 때만 조각 전송(`frame.begin`과 `frame.part`, 아래 단락)으로 보낸다. 협상이 안 된 쪽으로 넘는 줄은 보내지 않고 `frame_too_large`로 실패한다. 참조 넘기기(블롭 참조를 넘기고 조각을 따로 읽는 길)는 하지 않는다. 조각은 통신 층이 나누고 합치므로 플러그인 API, `OrchestrationApi`, `RegistrationApi`, 매니페스트는 바뀌지 않는다.
 
-**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 한 줄 상한에서 뼈대 몫 64 KiB를 뺀 값(`ISOLATED_DRIVE_INPUT_MAX_BYTES`, 16 MiB - 64 KiB) 안인지 **기록하기 전에** 본다 [제안: 뼈대 몫 64 KiB]. 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
+**입력 상한과의 관계.** 엔진이 받는 입력 상한(`DRIVE_INPUT_MAX_BYTES`, 기본 512 MiB, X.primitives §4.4.1)은 프레임 상한보다 크다. 엔진 안의 등록은 그 상한까지 받는다. 받는 쪽이 격리 등록이면 엔진이 그 등록의 입력 상한을 **기록하기 전에** 본다. 상한은 협상된 엔진 → 자식 조각 상한(엔진 값 `l0.store.maxBlobBytes`와 자식 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`, 128 MiB, 가운데 작은 값)에서 뼈대 몫 64 KiB를 뺀 값이다 [제안: 뼈대 몫 64 KiB]. 협상이 안 된 격리 등록(조각 칸이 없는 자식, 엔진 값이 없는 조립)은 옛 값 16 MiB − 64 KiB(`ISOLATED_DRIVE_INPUT_MAX_BYTES`)를 쓴다. 표의 "16 MiB를 넘으면"은 협상되지 않은 쪽의 동작이고, 협상된 쪽에서는 같은 자리의 협상된 상한을 넘을 때 같은 규칙이다. 등록마다 상한을 읽는 함수는 `markIsolatedStep`이 단계 함수에 단다(`isolation/mark.ts`). 넘으면 기록하지 않고 거절한다: 사용자 명령의 `startDrive`는 오류 `input_too_large`, `handoff`는 결과 `{ kind: "refused", code: "input_too_large" }`(받는 쪽이 격리 등록일 때), `done`은 맡긴 쪽이 격리 등록이면 `result_too_large`다. 주도 중인 격리 플러그인이 가로챌 사용자 메시지가 이 상한을 넘으면 가로채지 않고 코어 루프가 평소대로 받는다(기록하지 않는다). 그래서 등록은 `driveError`가 되지 않고 주도 프레임도 내려가지 않는다. 아래 표의 `frame_too_large`는 상한 안의 입력에 다른 칸(`last`, 상태 등)이 더해져 한 줄이 넘는 경우의 안전망이다. 격리 여부는 엔진 쪽 대리 등록이 자기 단계 함수에 다는 표시(`isolation/mark.ts`)로 안다(플러그인 API 변화 없음). 실리는 길은 다음과 같다.
 
 | 길 | 싣는 값 | 16 MiB를 넘으면 |
 |---|---|---|
@@ -1335,9 +1349,64 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 맡긴 입력을 싣지 않는 길은 `host.init`, `command.run`(인자는 명령 줄 글), `hook.invoke`(훅의 `payload`와 `current`), `method.call`, `tool.execute`, `event.notify`, `state.migrate`다. 같은 상한을 받지만 주도 입력과 무관하다. 상태 문서는 상한 안에 든다(X.primitives §5의 `state_too_large`).
 
-[제안] 격리 플러그인이 16 MiB를 넘는 입력을 조각으로 읽는 호출(블롭 참조를 넘기고 `blob.read`로 조각을 받는 길)은 아직 없다 [근거: `packages/contracts/src/extensions/isolation-protocol.ts`의 `PLUGIN_HOST_REQUESTS`와 `PLUGIN_ENGINE_CALLS`에 조각 읽기 호출이 없다]. 플러그인 API의 변화라 사용자 결정이 필요하다(AGE-59 설계 메모 §5 7번). 그때까지 격리 플러그인에는 16 MiB를 넘는 입력이 닿지 않고, 위 규칙대로 받는 시점에 거절한다(`test/isolation/isolated-drive.test.ts`).
+조각 전송으로 격리 플러그인은 협상된 상한 안의 큰 입력을 받는다. 블롭 참조를 넘기고 `blob.read`로 조각을 받는 길(플러그인 API의 변화)은 여전히 없다. 협상이 안 된 격리 등록에는 16 MiB − 64 KiB가 닿고, 넘는 입력은 기록하기 전에 거절한다(`test/isolation/isolated-drive.test.ts`). 협상된 상한의 시험은 `test/isolation/transfer-drive.test.ts`다.
+
+**큰 줄의 조각 전송(프레이밍) [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8].** 쓰는 쪽은 `createFrameWriter`에 `transfer.maxBytes`를 주면 상한을 넘고 그 안인 줄을 시작 알림 `frame.begin`과 조각 알림 `frame.part`로 나눠 보낸다(모양은 `F.extensions.spec` 부록). 한 방향에서 큰 줄은 들어온 순서대로(FIFO) 한 번에 하나씩 나가고, 그 사이에 쓴 작은 줄도 뒤에서 기다린다. 조각을 하나 쓴 뒤에는 `drained()`를 기다리고, `PLUGIN_HOST_TRANSFER_STALL_MS`(30 s)를 넘으면 그 프레임의 전송을 접고 `transfer_stalled`를 알린다. `write`는 줄 세운 프레임에도 `ok`를 돌려주므로, 나중에 나가지 못한 프레임은 `onTransferFailed`로 알린다. `abort`는 프로세스가 죽었을 때 나가지 못한 프레임을 모두 알린다.
+
+받는 쪽은 `createFrameReader`에 `maxTransferBytes`를 주면 시작 알림마다 한 전송만 모아 합치고, 합친 줄을 한 프레임으로 낸다. 조각 알림은 결과로 나오지 않는다. 옵션이 없으면 시작 알림은 `disabled`로 실패한다. 실패는 `transfer_failed` 값 하나이고, `reason`은 다음 가운데 하나다.
+
+| 이유 | 뜻 |
+|---|---|
+| `disabled` | 받는 쪽이 조각 전송을 켜지 않았다 |
+| `too_large` | 시작 알림의 `size`가 받을 수 있는 크기를 넘는다. 조각을 모으기 전에 버린다 |
+| `busy` | 받는 중인 전송이 있는데 새 시작 알림이 왔다. 받던 것과 새 것을 모두 버린다 |
+| `order` | 전송 번호나 순번이 어긋났다. 조각이 빠지거나 두 번 오거나 시작 없이 오거나, 전송 가운데 조각이 아닌 줄이 왔다 |
+| `size` | 조각의 UTF-8 바이트 합이 `size`와 다르다. 넘는 순간 버린다 |
+| `hash` | 합친 줄의 `sha256`이 다르다 |
+| `truncated` | 전송 중에 입력이 끝났다 |
+
+`frameId`는 시작 알림이 가진 값만 싣는다(`busy`는 새 시작 알림의 값이다). 실패 뒤 그 전송의 남은 조각은 다음 정상 줄이 올 때까지 조용히 버리므로, 실패 하나에 값 하나가 난다. 합친 줄이 JSON이 아니면 `parse_json`, 프레임 모양이 아니거나 조각 알림 메서드를 가지면 `invalid_frame` 값이다. 오류 값에는 줄 글과 해시를 싣지 않는다.
 
 훅의 취소 신호가 서면 `request.cancel` 알림을 보낸다. 시간 초과로 선 신호면 프로세스를 종료하고(SIGTERM, `killGraceMs` 뒤 SIGKILL) 그 요청은 `process_killed`, 같은 프로세스의 다른 요청은 `process_exit`로 끝난다. 취소된 요청의 늦은 응답은 버린다.
+
+**조각 전송의 협상과 상한 [결정: 2026-11-19 사용자, AGE-59 설계 메모 §8.2·§8.4].** 엔진은 띄울 때마다 설정 `l0.store.maxBlobBytes`를 읽는다(맡기기 입력 상한과 같은 값, live). 절대 최대 `PLUGIN_HOST_TRANSFER_HARD_MAX_BYTES`(1 GiB)로 자르고 `host.init` 요청의 `transfer: {maxBytes}`로 알리며, 자식 읽기의 상한으로도 쓴다. 자식은 자기 상한 `PLUGIN_HOST_CHILD_TRANSFER_MAX_BYTES`(128 MiB)를 응답의 `transfer`로 알린다. 엔진 → 자식의 조각 상한은 둘 가운데 작은 값이다. 응답에 칸이 없으면(옛 자식) 조각을 끈다. 자식 → 엔진 방향은 자식이 엔진의 값과 자기 상한 가운데 작은 값으로 나눈다. 엔진의 받는 쪽 상한은 엔진이 알린 값이다.
+
+| 경우 | 호출의 결과 | 프로세스 |
+|---|---|---|
+| 답(또는 자식의 요청)의 조각이 어긋남: `order`, `size`, `hash`, `busy`, `too_large`, `disabled`, `invalid_frame` | 엔진이 기다리던 요청은 `invalid_response`(메시지에 이유를 싣는다). 자식의 `engine.call`이 깨졌으면 엔진은 `invalid_params` 오류로 답하고, 자식은 `engine.call`을 그 오류로 끝낸다 | 산다 |
+| 같은 실패인데 프레임 `id`가 없다(알림) | 기록만 남긴다(`plugin_host.transfer_failed`, 이유만) | 산다 |
+| 전송 중에 입력이 끝났다(`truncated`) | 답을 기다리던 요청은 `process_exit`(프로세스가 답을 다 쓰기 전에 끝났다) | 끝났다(죽음으로 센다) |
+| 보내는 쪽의 쓰기가 끊겼다(프로세스가 죽었다) | 기다리던 요청은 `process_exit`. 보내던 전송은 멈춘다 | 끝났다 |
+| 받는 쪽이 비우지 않는다: 조각 하나를 쓴 뒤 `transferStallMs`(기본 `PLUGIN_HOST_TRANSFER_STALL_MS`, 30 s) 안에 비워지지 않는다 | 요청은 `process_killed`(메시지에 멈춤을 적는다), 함께 떠 있던 것은 `process_exit` | 멈춘다(SIGTERM, 유예 뒤 SIGKILL). 죽음으로 센다 |
+| 조각 상한을 넘는 줄 | 보내지 않고 `frame_too_large` | 산다 |
+| 큰 줄을 보내는 동안 | 그 요청의 시간 한도 시계는 멈춘다. 전송이 끝나면 남은 시간으로 이어 간다. 엔진이 답을 받는 동안(자식 → 엔진)의 시계는 멈추지 않는다 [미결] [근거: packages/ext-host/src/isolation/supervisor.ts `onFrame`, 읽는 쪽은 호출의 시계를 가리키지 않는다] | — |
+
+기록(`plugin_host.*`)에는 이유(`reason`)와 오류 종류만 싣는다. 조각의 글, 전체 글, 해시, 길이는 싣지 않는다(시험이 본다).
+
+**측정 (AGE-59, 맥, bun 1.4.3, 실제 자식 `bun apps/host/src/main.ts plugin-host --stdio`, 한 조합 한 번 측정이라 ±10~20 %).** 자식 유휴 RSS는 85~92 MiB, 엔진 유휴(측정 도구 제외)는 59~63 MiB다. 자식 최고 RSS는 보내기(값 → 자식, 단계가 값을 다이제스트로 읽는다)와 받기(자식 → 엔진, 같은 크기의 값)를 따로 잰다. 벽시계는 호출 시작부터 답까지이고, 괄호 안은 자식의 단계가 값을 본 시각까지다.
+
+| 크기 | 종류 | 자식 최고 RSS, 보내기 / 받기 (MiB) | 엔진 최고 RSS, 보내기 / 받기 (MiB) | 보내기 벽시계 (단계까지) ms | 받기 벽시계 ms |
+|---|---|---|---|---|---|
+| 20 MiB | ASCII | 216 / 263 | 188 / 168 | 120 (106) | 76 |
+| 20 MiB | 한글 | 211 / 258 | 130 / 125 | 109 (92) | 78 |
+| 20 MiB | 객체(1 KB 글 항목) | 204 / 239 | 177 / 131 | 113 (92) | 86 |
+| 100 MiB | ASCII | 656 / 836 | 554 / 459 | 506 (435) | 353 |
+| 100 MiB | 한글 | 579 / 709 | 303 / 204 | 441 (359) | 354 |
+| 100 MiB | 객체 | 773 / 812 | 455 / 404 | 499 (393) | 396 |
+| 128 MiB | ASCII | 807 / 863 | 695 / 551 | 638 (552) | 462 |
+| 128 MiB | 한글 | 709 / 813 | 376 / 367 | 737 (595) | 715 |
+| 128 MiB | 객체 | 903 / 946 | 392 / 326 | 654 (521) | 522 |
+| 256 MiB | ASCII | 1479 / 1826 | 1061 / 563 | 1270 (1099) | 906 |
+| 256 MiB | 한글 | 1299 / 1515 | 811 / 580 | 1113 (902) | 904 |
+| 256 MiB | 객체 | 1611 / 1652 | 1025 / 505 | 1304 (1023) | 1400 |
+| 512 MiB | ASCII | 2790 / 3505 | 1913 / 1140 | 2553 (2208) | 1831 |
+| 512 MiB | 한글 | 2591 / 3615 | 590 / 704 | 2235 (1816) | 1831 |
+
+- 100 MiB 행은 받는 쪽 조립의 `texts` 참조를 합친 뒤 놓는 줄임(`transfer-read.ts`)을 넣기 전에 잰 것이다. 그 줄임으로 받기만 한 최고 RSS는 358 → 352 MiB로 거의 줄지 않았다. 최고점은 파싱이 글 사본을 하나 더 만드는 순간이라 조각 참조를 놓는 것으로는 내려가지 않는다. 512 MiB의 객체 행은 시간 때문에 재지 않았다.
+- 자식 최고 RSS는 받는 쪽이 줄 크기의 약 2.6배, 보내는 쪽이 약 6~7.5배다(100 MiB 측정에서 보내는 쪽은 V8 글 사본과 줄 글이 겹친다). 엔진 쪽은 보내는 동안 최고 RSS가 측정 도구가 든 값보다 줄 크기의 1.1배쯤 늘었다(100 MiB ASCII: 448 → 554 MiB). 기준 1.5배 아래다.
+- 판단. 자식 최고 RSS 기준(512 MiB에서 2 GiB 이하, 아니면 256·128 MiB에서 1.5 GiB 이하)에 따라 512 MiB(최고 2.6~3.6 GiB)는 넘고 256 MiB(최고 1.3~1.8 GiB)도 받기 쪽이 넘는다. 그래서 자식 상한은 128 MiB(최고 0.7~0.95 GiB)다. 엔진 설정이 1 GiB여도 실제 상한은 자식 상한으로 줄어든다. 128 MiB 자식 상한이면 입력 상한은 128 MiB − 64 KiB다.
+- 측정 값은 `docs/xeon/X/loading-trust/spec.md`에만 싣는다(재현 도구는 저장소 밖이다).
+
 
 #### 4.9.4 격리 가능 훅
 
@@ -1361,7 +1430,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - 격리는 강제다. 설정 `ext.<이름>.isolation`, 매니페스트 `isolation`, 기본 규칙을 보지 않고 언제나 `process`다. 띄우기 포트와 띄우기 설정이 없으면 `isolation_unavailable`로 싣지 않는다. 엔진 안에서 도는 경로가 없다. 매니페스트에 `entry`가 없으면 띄울 코드가 없으므로 `draft_entry_missing`(단계 `isolation`)으로 거부한다.
 - 출처는 사용자 등급(`source: "user"`)이고 신뢰 상한은 §4.6을 따른다.
-- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자의 소문자 영숫자 앞 여섯 글자 + `-` + 플러그인 이름. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
+- 내부 이름: `internalDraftName(plugin, draftId)` = `d` + 초안 식별자(`drf_` 접두를 뗀 ULID)의 소문자 영숫자 끝 여섯 글자 + `-` + 플러그인 이름. 앞쪽은 시간이라 같은 때 만든 판끼리 겹치므로 무작위인 끝을 쓴다 [구현 2026-11-20, enTr]. 플러그인 이름 부분은 전체가 32자가 되도록 자른다. 검토본과 등록이 겹치지 않게 하려는 것이다(`registration_duplicate` 방지). 매니페스트 `name`은 검증 전에 내부 이름으로 바꾼다. 그래서 등록 id, 테이블 접두와 도구 접두가 내부 이름을 따르고, 엔트리는 `manifest.name`으로 등록해야 한다(고정 이름이면 `plugin_not_registered`). 초안 매니페스트가 다른 플러그인 이름을 적으면 `manifest_invalid`다. 자른 이름이 겹치면 `name_taken`이다.
 - 판 식별자(`versionId`)는 `draft:<draftId>:<내용 해시 앞 8자>`다. 격리 라벨은 `ext:<내부 이름>:<versionId>`다.
 - `LoadedExtensionInfo`는 `isolation: "process"`이고 `name`은 내부 이름이며 `draft: { plugin, draftId }`를 더한다.
 - 로더는 싣기에 성공한 초안을 내부 이름 표로 든다(`loadDraftsOf()`, `draftOf(내부 이름)`). 초안은 이 표로만 구분하고 이름 모양으로 판단하지 않는다.
@@ -1424,11 +1493,12 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
+- [결정: 2026-11-18, 사용자, AGE-9] 격리 플러그인 프로세스 재시작 한도는 10분 안에 3회를 유지한다(`isolation.maxRestarts` 기본 3, `isolation.restartWindowSec` 기본 600). 코드의 기본도 같다(`isolation/supervisor.ts`의 `PLUGIN_HOST_RESTART_DEFAULTS`).
 - `x.loading-trust.*` 키는 작업 폴더 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
 - `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(작업 폴더의 개인 파일)도 작업 폴더가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 작업 폴더가 `local`로 다시 켤 수 없다.
 - [결정: 2026-11-12 dzX] 조립 루트(`apps/host`)는 재시작할 때 `x.ui.apps`, `x.ui.allowProjectApps`를 읽어 로더 `loadAll`의 `uiPolicy`로 싣는다(`apps/host/src/assembly/settings-sources.ts` `uiPolicyOf`, `apps/host/src/assembly/external.ts` `loadAllOptionsOf`). 불리언이 아닌 칸은 싣지 않아 로더 기본(앱 켬, 작업 폴더 앱 끔)을 쓴다. 작업 폴더 앱 끔이 보수적인 쪽이라 모르는 값도 그쪽으로 간다. 앱 정책 칸은 데스크톱 화면이 설정 값을 직접 읽어 항목을 가리는 일도 맡으므로, 화면과 엔진은 다음 시작까지 값이 어긋날 수 있다 [근거: `apps/desktop/src/plugin-ui/placements.ts`(화면 쪽 `appsAllowed`), `packages/ext-host/src/loading-trust/index.ts` `loadAll` `uiPolicy`].
 - 안전 모드 키(`x.operations.safeMode.default`, `x.operations.safeMode.suggestAfter`)는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
-- L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `fresnel config`로 같은 키를 다룬다.
+- L4 노출: 설정 화면 "플러그인" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `fresnel config`로 같은 키를 다룬다.
 
 ## 7. 훅
 
@@ -1495,13 +1565,13 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 14. 이 문서 §4.6.2 표의 각 행·열과 `TRUST_MATRIX` 상수가 같다(문서 대조 테스트).
 15. 외부 확장 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source`로 거부된다.
 16. 외부 확장의 `entry`가 없는 파일이거나 함수 export가 없거나 import 중 던지면 그 확장만 `error`(`entry_not_found`, `entry_not_function`, `entry_import_failed`)이고 다른 확장의 로드는 계속된다.
-17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.fresnel-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@fresnel/contracts`, `typebox`, `@fresnel/group-sdk`은 호스트가 넘긴 값과 같다.
+17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.fresnel-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@fresnel/contracts`, `typebox`, `@fresnel/orchestration-sdk`은 호스트가 넘긴 값과 같다.
 18. 격리 자식이 `restartWindowSec` 안에 `maxRestarts + 1`번 끝나면 상태가 `error`(`isolation_restart_limit`)다.
 19. 로더는 Cordis를 import하지 않는다. 확장 엔트리는 `ExtHost.install`로만 실행되고(가짜 `ExtHost`의 호출 기록으로 확인), scope setup 본문의 `post`는 `setup_action`, 엔트리 본문 예외는 `entry_threw`가 된다.
 20. `policy.admit`이 `TierError`를 내면 그 확장은 install되지 않고 진단이 `tier_rejected`다.
 21. `previewRemoval`은 아무것도 바꾸지 않고 테이블 목록만 돌려준다. `remove(name, { dropTables: true })`는 `uninstall`, `forget`, `dropExtension(name, true)`를 이 순서로 부른다. `dropTables: false`면 테이블이 남는다.
 22. `LoadOptions.startup`의 `disabled`에 든 외부 확장은 엔트리가 import되지 않고 상태가 `disabled`, 진단이 `disabled_flag`다. 내장 확장이면 `install`이 불리지 않는다.
-23. 안전 모드에서는 사용자 위치 외부 확장이 `disabled`(`safe_mode`)이고 엔트리가 import되지 않으며, L3 내장 그룹이 `disabled`이고 L1·L2 내장은 `active`다. 작업 폴더 위치는 탐색하지 않고 `LoadReport.projectTrust`는 null이다.
+23. 안전 모드에서는 사용자 위치 외부 확장이 `disabled`(`safe_mode`)이고 엔트리가 import되지 않으며, L3 내장 플러그인이 `disabled`이고 L1·L2 내장은 `active`다. 작업 폴더 위치는 탐색하지 않고 `LoadReport.projectTrust`는 null이다.
 24. 깨진 `plugin.json`(JSON 아님, 스키마 위반, 파일 없음)은 진단(`manifest_parse`, `manifest_invalid`, `manifest_missing`)만 남기고 다른 확장은 로드된다.
 25. `installDefaultPlugin`은 없는 대상에 복사하고(`installed`), 같은 버전은 그대로 두며(`kept`), 번들이 더 높은 버전이거나 설치본 매니페스트가 손상이면 교체한다(`replaced`). 번들 매니페스트가 잘못되면 `source_invalid`이고 대상은 바뀌지 않는다.
 26. 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패한 항목은 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`)이고, 확장은 `active`이며 훅이 실행된다. 진단의 `stage`는 `ui`, `path`는 `/ui/items/0/file`이다(`ui-loader.int.test.ts`).
@@ -1544,3 +1614,5 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.
 25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 값 스키마는 §6 표에 있고(`x.ui.apps` 기본 `true`), 로더는 `LoadOptions.uiPolicy`로 받는다 [근거: `xeon/packages/ext-host/src/loading-trust/index.ts:181`]. §3.6 `loadingTrustSettings` 키 집합에 들어갔는지는 이 감사에서 확인하지 않았다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.
 26. 승인이 새 이름의 코드를 싣지 않는다 [결정: 2026-11-18 사용자, AGE-41 "승인은 적재가 아니다"]. `loadInstalled(name, signal, { deferStart: true })`는 같은 파이프라인으로 검토본을 검증하고 기록만 꺼진 채(`disabled`, 진단 `lazy_deferred`) 남기며 엔트리를 import하지도 `ExtHost.install`을 부르지도 않는다(결과는 `not_active`의 `disabled`). 호스트의 승인 `reflect`(`apps/host/src/assembly/plugins/approval.ts`)가 이것으로 기록을 만들어 목록과 프로필 검사가 이름을 알게 하고, 처음 대화의 E(T)에 들 때(참조 0→1)와 덧씌우기가 `ensureLoaded`로 싣는다. 기록 없는 이름이 대화에 먼저 들면 `plugin-lifecycle.ts`가 `loadInstalled`로 싣는다 [근거: 2026-11-18 사용자 결정].
+27. [미결] 환경 모드 기본 길의 환경 변수 거부 목록. 지금은 `FRESNEL_*`(앞 밑줄 포함)와 잘못된 이름만 뺀다. 제공자 키(`ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`), `BUN_OPTIONS`, `NODE_OPTIONS`를 더 뺄지 사용자가 정한다. 옛 길은 이것들을 뺀다(migration.md §11 Q17) [근거: `xeon/packages/ext-host/src/isolation/script-runner.ts`의 `userEnvOfDefault`와 `xeon/packages/contracts/src/services/exec.ts`의 `SENSITIVE_ENV_PATTERNS`] [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해 무조건"].
+28. [미결] 환경 모드의 기한 초과(`timedOut`)를 묻을지 통과시킬지. 지금 어댑터는 통과로 둔다. 사용자 결정 목록은 시간 초과를 묻는 행으로 적었다 [결정: 2026-11-20, 사용자, AGE-58]. 어느 쪽인지 정한다(migration.md §11 Q16). [근거: `xeon/packages/plugin-migration/src/adapters/hook-plugin.ts`의 `outcomeOf`]

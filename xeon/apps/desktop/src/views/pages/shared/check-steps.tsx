@@ -101,23 +101,21 @@ function StepRow(props: { readonly step: CheckStep; readonly disabled: boolean }
           <CheckIcon state={step.state} />
         </span>
         <span className="sr-only">{t(STATE_LABEL[step.state])}</span>
-        <span className="min-w-0 flex-1 text-ui">
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-ui">
           <span
             className={`font-medium ${step.state === "waiting" || step.state === "skipped" ? "text-text-tertiary" : "text-text-primary"}`}
           >
             {step.label}
           </span>
           {step.detail === undefined || step.detail === null ? null : (
-            <span className="text-text-secondary">
-              <span aria-hidden className="mx-1.5 text-text-tertiary">
-                ·
-              </span>
-              {step.detail}
-            </span>
+            <>
+              {" "}
+              <span className="min-w-0 text-text-secondary">{step.detail}</span>
+            </>
           )}
         </span>
         {done && step.elapsedMs !== undefined && step.elapsedMs !== null ? (
-          <span className="flex-none pt-px font-mono text-mono-sm text-text-tertiary tabular-nums">
+          <span className="flex-none pt-px text-footnote text-text-tertiary">
             {elapsedText(step.elapsedMs)}
           </span>
         ) : null}
@@ -230,7 +228,7 @@ export function CheckInline(props: CheckInlineProps): ReactNode {
             {result.state !== "running" &&
             result.elapsedMs !== undefined &&
             result.elapsedMs !== null ? (
-              <span className="flex-none font-mono text-mono-sm text-text-tertiary tabular-nums">
+              <span className="flex-none text-footnote text-text-tertiary">
                 {elapsedText(result.elapsedMs)}
               </span>
             ) : null}

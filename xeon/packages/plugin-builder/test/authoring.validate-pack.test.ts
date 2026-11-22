@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
+import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import {
   looksSecret,
   packExtension,
@@ -9,7 +9,13 @@ import {
   validateCompositionReport,
   validateExtensionDir,
 } from "@fresnel/core-authoring";
-import { driveGroupFixture, readManifest, readRecord, tempRoot, templateDirs } from "./support.ts";
+import {
+  driveOrchestrationFixture,
+  readManifest,
+  readRecord,
+  tempRoot,
+  templateDirs,
+} from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
@@ -20,7 +26,7 @@ async function scaffolded(
 ): Promise<string> {
   const dir = root.path(name);
   if (fixture === "drive-group") {
-    await driveGroupFixture(name, dir, templates);
+    await driveOrchestrationFixture(name, dir, templates);
   } else {
     const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
     if (!made.ok) throw new Error(made.error.message);
@@ -108,7 +114,7 @@ test("authoring.validate: without a drive scanner a driving extension gets one A
           code: "AU-012",
           path: "",
           message:
-            "the replay discipline scan did not run in this build; run scanDriveSource from @fresnel/group-sdk/testing to check the drive",
+            "the replay discipline scan did not run in this build; run scanDriveSource from @fresnel/orchestration-sdk/testing to check the drive",
         },
       ],
     },
@@ -180,7 +186,7 @@ test("authoring.pack: bundles the entry into one file, the same input packs to t
   // 한 파일: 상대 import가 남지 않고, SDK는 외부 import로 남는다
   const bundle = readFileSync(join(packed.value.path, "dist", "index.js"), "utf8");
   expect(bundle).not.toMatch(/from\s*["']\.{1,2}\//);
-  expect(bundle).toContain("@fresnel/group-sdk");
+  expect(bundle).toContain("@fresnel/orchestration-sdk");
   // 같은 입력은 같은 해시
   const again = await packExtension({ dir });
   if (!again.ok) throw new Error(again.error.message);

@@ -721,7 +721,7 @@ export function PluginInside(props: {
         zoomOnDoubleClick={false}
         minZoom={0.3}
         maxZoom={1.8}
-        proOptions={{ hideAttribution: true }}
+        attributionPosition="bottom-left"
         aria-label={t("desktop.craft.canvas.cv3.inside.label", { name: p.name })}
       />
       <div className="cv6-chrome absolute top-3 left-3 z-10 flex h-11 items-center gap-2.5 ps-1.5 pe-3.5">

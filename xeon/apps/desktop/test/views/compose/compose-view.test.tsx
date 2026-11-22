@@ -100,7 +100,7 @@ describe("NoComposition과 FlowBody", () => {
     expect(html).toContain("시작");
     expect(html).toContain("done");
     expect(html).toContain("끝");
-    expect(html).toContain("설치된 그룹은 고칠 수 없어요. 복제해서 초안으로 고쳐요");
+    expect(html).toContain("설치된 플러그인은 고칠 수 없어요. 복제해서 초안으로 고쳐요");
   });
   test("단계 선언이 없으면 안내 문장이다", () => {
     const html = renderToString(
@@ -148,6 +148,8 @@ describe("그룹 캔버스 모델", () => {
       title: "A",
       stage: "s",
       op: "on" as const,
+      plugin: null,
+      memberTitle: null,
       summary: null,
       hooks: [],
       consumes: ["cap.x"],
@@ -161,6 +163,8 @@ describe("그룹 캔버스 모델", () => {
       title: "B",
       stage: "s",
       op: "post" as const,
+      plugin: null,
+      memberTitle: null,
       summary: null,
       hooks: [],
       consumes: [],

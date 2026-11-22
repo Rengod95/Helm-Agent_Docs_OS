@@ -210,8 +210,8 @@ function SettingsSlot(props: {
   return (
     <section aria-label={props.entry.title} className="grid gap-1 pt-3">
       <div className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
-        <span>{t("desktop.workbench.detail.settings.slot")}</span>
-        <span>{`· ${t("desktop.workbench.detail.settings.readOnly")}`}</span>
+        <span>{t("desktop.workbench.detail.settings.slot")}</span>{" "}
+        <span>{t("desktop.workbench.detail.settings.readOnly")}</span>
       </div>
       {props.children}
     </section>

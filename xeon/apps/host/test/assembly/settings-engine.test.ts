@@ -144,6 +144,37 @@ test("a stored key the catalog no longer has loads without failing and is kept, 
   expect(settings.diagnostics).toEqual([]);
 });
 
+test("the old group setting keys are not read: they load as unknown keys, and the renamed keys are in the catalog", async () => {
+  const built = buildEngineCatalog();
+  if (!built.ok) throw new Error("the core catalog must build");
+  const settings = createSettingsEngine(built.catalog);
+  await settings.loadUserFile(
+    fileWith(
+      "old-group-keys.json",
+      JSON.stringify({
+        "l3.orchestration-sdk.instrumentation": false,
+        "l3.orchestration-sdk.statusLine": false,
+        "x.primitives.driveRequiresGroup": false,
+        "l3.orchestration.instrumentation": false,
+      }),
+    ),
+  );
+  for (const old of [
+    "l3.orchestration-sdk.instrumentation",
+    "l3.orchestration-sdk.statusLine",
+    "x.primitives.driveRequiresGroup",
+  ]) {
+    expect(built.catalog.has(old)).toBe(false);
+    expect(settings.value(old)).toBeUndefined();
+  }
+  // 새 이름은 같은 값을 읽는다
+  expect(built.catalog.has("l3.orchestration.instrumentation")).toBe(true);
+  expect(built.catalog.has("x.primitives.driveRequiresOrchestration")).toBe(true);
+  expect(settings.value("l3.orchestration.instrumentation")).toBe(false);
+  // 옛 값은 새 키의 기본값에 영향을 주지 않는다
+  expect(settings.value("x.primitives.driveRequiresOrchestration")).toBe(true);
+});
+
 test("the session scope is added for a thread once the session store is bound", () => {
   const settings = engineOver();
   const threadId = fixedIdFactory().next("thr");

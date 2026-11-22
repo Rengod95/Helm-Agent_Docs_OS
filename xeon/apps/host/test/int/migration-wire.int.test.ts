@@ -85,11 +85,15 @@ function fixtureOf(root: string): Fixture {
 
 /** Hook 시험의 시크릿 가짜 값. 두 번째 훅의 스크립트에만 든다 */
 const HOOK_SECRET = "sk-test-VALUE-4c7e1b9d";
-/** 첫 훅의 스크립트 바이트(한글 주석이 있어 UTF-8 바이트가 그대로 복사되는지 본다) */
+/** 첫 훅의 참조 스크립트 바이트(한글 주석이 있다). 옮기지 않고 지문(sha256)만 적는다, 그 지문은 이 바이트의 해시다 */
 const GUARD_TEXT =
   '#!/bin/sh\n# 위험한 명령을 막는다\ninput=$(cat)\ncase "$input" in\n  *"rm -rf"*) echo "rm -rf is blocked" >&2; exit 2 ;;\nesac\nexit 0\n';
+/** 참조 스크립트 본문에 시크릿 가짜 값이 든다. 환경 모드는 이 본문을 옮기지 않으므로 어디에도 복사되지 않는다 */
 const LEAK_TEXT = `#!/bin/sh\nexport API_KEY=${HOOK_SECRET}\nexit 0\n`;
-/** 프로젝트 설정의 Hook: PreToolUse 훅 하나(옮긴다), PostToolUse 훅 하나(스크립트에 시크릿 값이 있어 옮기지 않는다) */
+/**
+ * 프로젝트 설정의 Hook 셋. PreToolUse(가드 스크립트, 환경 모드로 옮긴다), PostToolUse 둘: 참조 스크립트에 시크릿이 든 훅(환경 모드로 옮긴다,
+ * 본문은 복사하지 않는다), 명령 글 자체에 시크릿 값이 든 훅(옮기지 않는다, 리터럴 시크릿)
+ */
 const HOOK_SETTINGS = {
   hooks: {
     PreToolUse: [
@@ -101,7 +105,10 @@ const HOOK_SETTINGS = {
     PostToolUse: [
       {
         matcher: "",
-        hooks: [{ type: "command", command: "sh $CLAUDE_PROJECT_DIR/.claude/hooks/leak.sh" }],
+        hooks: [
+          { type: "command", command: "sh $CLAUDE_PROJECT_DIR/.claude/hooks/leak.sh" },
+          { type: "command", command: `echo ${HOOK_SECRET}` },
+        ],
       },
     ],
   },
@@ -483,7 +490,8 @@ scanTest(
         reportId: applied.reportId,
       });
       expect(report.report).toEqual(proposal.report);
-      expect(report.rulesVersions["claude-code"]).toBe("2026-11-18");
+      // 규칙 버전은 `claude-code.json`의 `rulesVersion`과 같다(환경 모드 규칙 개정이 2026-11-20이다)
+      expect(report.rulesVersions["claude-code"]).toBe("2026-11-20");
 
       // 같은 계획을 한 번 더 적용하면 대기 중인 폴더와 겹쳐 거절한다. 폴더는 그대로다
       const before = bytesOf(join(pluginsDir, applied.drafts[0]?.name ?? ""));
@@ -532,7 +540,7 @@ scanTest(
 );
 
 scanTest(
-  "a Claude Code hook config becomes one hook plugin draft: the guard script is copied byte for byte, the hook with a secret in its script is reported not_ported, and no secret value or original file changes",
+  "a Claude Code hook config becomes one hook plugin draft in environment mode: each command is kept as text with its referenced files' hashes, no script is copied, a secret in a referenced script body is never copied, and a secret in the command text is not_ported",
   async () => {
     const home: EngineHome = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
@@ -548,20 +556,20 @@ scanTest(
       const scanned = await connection.request("migration.scan", {
         roots: [{ path: fixture.proj, scope: "project", label: "proj" }],
       });
-      // 훅 항목은 두 개다. 응답에는 시크릿 값이 없다
-      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(2);
+      // 훅 항목은 셋이다(PreToolUse 하나, PostToolUse 둘). 응답에는 시크릿 값이 없다
+      expect(scanned.items.filter((item) => item.kind === "hook").length).toBe(3);
       expect(JSON.stringify(scanned)).not.toContain(HOOK_SECRET);
 
       const proposal = await connection.request("migration.proposal", { scanId: scanned.scanId });
       expect(proposal.questions).toEqual([]);
       expect(proposal.plugins.length).toBe(1);
-      // 보고 줄: 옮긴 PreToolUse는 차이가 있고, 시크릿 값이 든 PostToolUse는 옮기지 않는다
+      // 보고 줄: 가드와 참조 스크립트의 훅은 환경 모드로 옮긴다(차이). 명령 글에 시크릿이 든 훅만 옮기지 않는다
       const hookLines = proposal.report.filter((line) => line.kind === "hook");
       expect(
         hookLines
           .map((line) => `${line.status}:${line.reason?.code ?? "-"}`)
           .toSorted((a, b) => a.localeCompare(b)),
-      ).toEqual(["differs:-", "not_ported:secret_in_script"]);
+      ).toEqual(["differs:-", "differs:-", "not_ported:literal_secret_in_source"]);
 
       const applied = await connection.request("migration.apply", {
         proposalId: proposal.proposalId,
@@ -572,7 +580,7 @@ scanTest(
       const draft = applied.drafts[0];
       if (draft === undefined) throw new Error("expected one hook plugin draft");
 
-      // 드래프트 폴더: 매니페스트, 이식 기록, 생성 코드, 데이터, 스크립트 복사본 하나
+      // 드래프트 폴더: 매니페스트, 이식 기록, 생성 코드, 데이터, 명령 원문 파일 둘. 스크립트 복사본은 없다
       const folder = join(pluginsDir, draft.name);
       const onDisk = bytesOf(folder);
       expect(Object.keys(onDisk).toSorted()).toEqual([
@@ -580,42 +588,85 @@ scanTest(
         ".fresnel-plugin/plugin.json",
         "hooks.data.json",
         "plugin.js",
-        "scripts/guard.sh",
+        "scripts/guard.cmd",
+        "scripts/leak.cmd",
       ]);
-      // 스크립트 복사본은 원본 바이트 그대로다
-      expect(Buffer.from(onDisk["scripts/guard.sh"] ?? new Uint8Array())).toEqual(
-        Buffer.from(GUARD_TEXT, "utf8"),
+      // 명령 원문 파일은 명령 글과 줄바꿈 하나다
+      expect(Buffer.from(onDisk["scripts/guard.cmd"] ?? new Uint8Array()).toString("utf8")).toBe(
+        "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh\n",
       );
+      expect(Buffer.from(onDisk["scripts/leak.cmd"] ?? new Uint8Array()).toString("utf8")).toBe(
+        "sh $CLAUDE_PROJECT_DIR/.claude/hooks/leak.sh\n",
+      );
+      // 시크릿이 든 참조 스크립트의 본문은 어디에도 복사되지 않는다(드래프트 폴더 안에서도)
+      expect(holdsValue(onDisk, HOOK_SECRET)).toBe(false);
+
       const manifestParsed = parseJson(
         readFileSync(join(folder, ".fresnel-plugin/plugin.json"), "utf8"),
       );
       if (!manifestParsed.ok) throw new Error("the manifest is not JSON");
+      const guardPath = join(fixture.proj, ".claude", "hooks", "guard.sh");
+      const leakPath = join(fixture.proj, ".claude", "hooks", "leak.sh");
       expect(manifestParsed.value).toMatchObject({
         schemaVersion: 2,
         name: draft.name,
         entry: "./plugin.js",
-        scripts: [{ name: "guard", runner: "sh", file: "scripts/guard.sh", timeoutMs: 29_000 }],
+        // 선언 순서는 원본 훅의 순서(이벤트 이름순 뒤 설정 안의 순서)를 따른다: PostToolUse의 leak이 먼저다
+        scripts: [
+          {
+            name: "leak",
+            runner: "sh",
+            file: "scripts/leak.cmd",
+            // PostToolUse의 지점 예산은 10초이고, 여기서는 예산에서 1초를 뺀 9초다
+            timeoutMs: 9_000,
+            env: {
+              command: "sh $CLAUDE_PROJECT_DIR/.claude/hooks/leak.sh",
+              shell: "sh",
+              refs: [{ path: leakPath, hash: sha256Of(Buffer.from(LEAK_TEXT, "utf8")) }],
+              refsKnown: true,
+            },
+          },
+          {
+            name: "guard",
+            runner: "sh",
+            file: "scripts/guard.cmd",
+            timeoutMs: 29_000,
+            env: {
+              command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh",
+              shell: "sh",
+              refs: [{ path: guardPath, hash: sha256Of(Buffer.from(GUARD_TEXT, "utf8")) }],
+              refsKnown: true,
+            },
+          },
+        ],
+        purpose: "Claude Code 프로젝트 훅(가져옴)",
         plugins: [
           {
             layer: "plugin",
-            hooks: ["tool.call.before"],
+            hooks: ["tool.call.before", "tool.result"],
             hookDecides: [{ hook: "tool.call.before", decides: ["ask", "block"] }],
           },
         ],
       });
 
-      // 검토 항목: 대기 중이고 출처가 가져오기다. 카드의 스크립트 줄에 실행될 명령이 실린다
+      // 검토 항목: 대기 중이고 출처가 가져오기다. 카드의 스크립트 칸에 원래 명령과 참조 파일이 실린다. 실행 권한은 환경 모드 자격으로 정해진다
       const item = (await connection.request("pluginReview.get", { itemId: draft.itemId })).item;
       expect(item.provenance).toBe("migration");
       expect(item.state).toBe("pending");
       expect(item.card.enforcement).toBe("enforced");
-      expect(item.card.does.hook?.hooks.map((hook) => hook.name)).toEqual(["tool.call.before"]);
-      expect(item.card.does.inject?.scripts).toEqual([
-        {
-          name: "guard",
-          launch: { command: "sh", args: ["scripts/guard.sh"], envNames: [], cwd: null },
-          timeoutMs: 29_000,
-        },
+      expect(item.card.does.hook?.hooks.map((hook) => hook.name)).toEqual([
+        "tool.call.before",
+        "tool.result",
+      ]);
+      expect((item.card.does.inject?.scripts ?? []).map((script) => script.name)).toEqual([
+        "leak",
+        "guard",
+      ]);
+      // 기본(샌드박스 설정 꺼짐): 사용자 권한 그대로. 읽기·쓰기·도구를 막지 않는다
+      expect(item.card.does.inject?.scripts?.[0]?.uses).toEqual([
+        "user_full_access",
+        "user_environment",
+        "network",
       ]);
       expect(item.card.runs).toEqual({ code: true, isolated: true });
 
@@ -634,11 +685,14 @@ scanTest(
         expect(text).not.toContain(HOOK_SECRET);
       }
       expect(holdsValue(bytesOf(home.root), HOOK_SECRET)).toBe(false);
-      // 대조: 같은 검색은 원본의 `leak.sh`에서 값을 찾는다(검색이 값을 볼 수 있다는 확인)
+      // 대조: 같은 검색은 원본의 `leak.sh`와 설정 파일에서 값을 찾는다(검색이 값을 볼 수 있다는 확인)
       expect(holdsValue(projectBefore, HOOK_SECRET)).toBe(true);
 
       // 원본 폴더 두 곳은 시험 전후로 파일 목록과 바이트가 같다
       expect(bytesOf(fixture.proj)).toEqual(projectBefore);
+      // 훑기 프로세스(Bun)는 자기 트랜스파일 캐시를 홈(~/Library/Caches/bun)에 쓴다. 훑기가 쓸 수 있게 열린 뒤(AGE-63)의
+      // 런타임 캐시이고 원본이 아니다. 자식 환경은 허용 목록만 받아 시험에서 끌 수 없으니, 그 폴더만 치우고 나머지를 바이트로 견준다
+      rmSync(join(fixture.home, "Library"), { recursive: true, force: true });
       expect(bytesOf(fixture.home)).toEqual(homeBefore);
     } finally {
       await connection.close();

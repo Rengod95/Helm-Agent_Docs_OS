@@ -11,16 +11,29 @@ const storedAsk = (key: string): unknown =>
   key === "l0.sandbox.onUnavailable" ? "ask" : undefined;
 
 describe("sandbox settings", () => {
+  test("sandboxImportedHooks is off by default and only managed and user scopes may set it", () => {
+    const def = SANDBOX_SETTING_DEFS.find((d) => d.key === "l0.sandbox.sandboxImportedHooks");
+    expect(def?.default).toBe(false);
+    expect(def?.allowedScopes).toEqual(["managed", "user"]);
+  });
+
+  test("narrowDrafts is off by default, takes effect next turn, and only managed and user scopes may set it", () => {
+    const def = SANDBOX_SETTING_DEFS.find((d) => d.key === "l0.sandbox.narrowDrafts");
+    expect(def?.default).toBe(false);
+    expect(def?.allowedScopes).toEqual(["managed", "user"]);
+    expect(def?.runtimeChange).toBe("nextTurn");
+    expect(def?.ui).toMatchObject({ tab: "permissions", widget: "toggle", order: 109 });
+  });
+
   test("declares the l0.sandbox keys under l0.sandbox with valid definitions", () => {
     expect(SANDBOX_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
       "l0.sandbox.protectedPaths.extra",
-      "l0.sandbox.writeRoots.extra",
-      "l0.sandbox.escapeRetry",
       "l0.sandbox.network.blockedDomains",
-      "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
+      "l0.sandbox.sandboxImportedHooks",
+      "l0.sandbox.narrowDrafts",
       "l0.sandbox.selfTestIntervalMin",
     ]);
     for (const def of SANDBOX_SETTING_DEFS) {
@@ -38,9 +51,6 @@ describe("sandbox settings", () => {
     for (const key of [
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
-      "l0.sandbox.writeRoots.extra",
-      "l0.sandbox.escapeRetry",
-      "l0.sandbox.credentialFiles",
       "l0.sandbox.nestedNamespaces",
     ]) {
       expect(byKey.get(key)?.allowedScopes).not.toContain("project");
@@ -61,10 +71,7 @@ describe("sandbox settings", () => {
       enabled: true,
       onUnavailable: "disable_execute",
       protectedPathsExtra: [],
-      writeRootsExtra: [],
-      escapeRetry: false,
       blockedDomains: [],
-      credentialFiles: "allow",
       nestedNamespaces: false,
       selfTestIntervalMin: 60,
     });
@@ -76,10 +83,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.enabled": false,
       "l0.sandbox.onUnavailable": "run_unsandboxed",
       "l0.sandbox.protectedPaths.extra": ["/a", "~/b"],
-      "l0.sandbox.writeRoots.extra": ["/w"],
-      "l0.sandbox.escapeRetry": true,
       "l0.sandbox.network.blockedDomains": ["bad.example"],
-      "l0.sandbox.credentialFiles": "deny",
       "l0.sandbox.nestedNamespaces": true,
       "l0.sandbox.selfTestIntervalMin": 0,
     };
@@ -87,10 +91,7 @@ describe("sandbox settings", () => {
       enabled: false,
       onUnavailable: "run_unsandboxed",
       protectedPathsExtra: ["/a", "~/b"],
-      writeRootsExtra: ["/w"],
-      escapeRetry: true,
       blockedDomains: ["bad.example"],
-      credentialFiles: "deny",
       nestedNamespaces: true,
       selfTestIntervalMin: 0,
     });
@@ -98,10 +99,7 @@ describe("sandbox settings", () => {
       "l0.sandbox.enabled": "yes",
       "l0.sandbox.onUnavailable": "turn_it_off",
       "l0.sandbox.protectedPaths.extra": [1, 2],
-      "l0.sandbox.writeRoots.extra": "/w",
-      "l0.sandbox.escapeRetry": 1,
       "l0.sandbox.network.blockedDomains": "bad.example",
-      "l0.sandbox.credentialFiles": "maybe",
       "l0.sandbox.nestedNamespaces": "yes",
       "l0.sandbox.selfTestIntervalMin": 99999,
     };

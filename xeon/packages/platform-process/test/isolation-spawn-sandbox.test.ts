@@ -121,6 +121,19 @@ function eventsOf(log: MemoryLogger, event: string): MemoryLogger["records"] {
   return log.records.filter((record) => record.event === event);
 }
 
+/** 자식이 첫 줄로 쓴 환경 변수 JSON을 기다려 값으로 옮긴다(`mcp-child.ts`의 `env` 방식) */
+async function envOf(child: IsolatedChild): Promise<Record<string, unknown>> {
+  const lines = collectLines(child);
+  if (!(await waitFor(() => lines.length > 0, 5000))) {
+    throw new Error("the child did not print its environment");
+  }
+  const parsed = parseJson(lines[0] ?? "");
+  if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null) {
+    throw new Error("the child did not print its environment");
+  }
+  return { ...parsed.value };
+}
+
 /** stdout 줄을 계속 모은다. 돌려준 배열은 줄이 올 때마다 늘어난다 */
 function collectLines(child: IsolatedChild): string[] {
   const lines: string[] = [];
@@ -135,11 +148,14 @@ function collectLines(child: IsolatedChild): string[] {
 }
 
 describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () => {
-  test("the policy is the no-write profile with a read allow-list, no allow-listed network and no escape", async () => {
+  test("narrow: true asks for the no-write profile with a read allow-list, no allow-listed network and no escape", async () => {
     const dir = tempDirOf();
     const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
     const { port, background } = open({ sandbox: () => sandbox.source });
-    const child = await started(port, specOf({ readRoot: dir, args: [MCP_CHILD, "echo"] }));
+    const child = await started(
+      port,
+      specOf({ readRoot: dir, args: [MCP_CHILD, "echo"], narrow: true }),
+    );
 
     const call = onlyWrapCall(sandbox);
     expect(sandbox.policyInputs).toEqual([
@@ -159,13 +175,41 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     expect(await child.exited).toEqual({ code: 0, signal: null });
   });
 
+  test("by default (no narrow) the policy is open: writes everywhere but protected paths, no profile and no read allow-list; the plugin folder is the only read exception", async () => {
+    const dir = tempDirOf();
+    const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
+    const { port, background } = open({ sandbox: () => sandbox.source });
+    const child = await started(port, specOf({ readRoot: dir, args: [MCP_CHILD, "echo"] }));
+
+    const call = onlyWrapCall(sandbox);
+    // 쓰기 루트 `/`, 프로필 없음, 읽기 허용 목록 없음. 임시 폴더는 쓰기 루트가 아니다(셸 도구와 같다).
+    // 읽기 예외는 `readRoot` 하나다: 검토본 폴더가 보호 경로 안에 있어도 자기 코드를 읽는다 [제안, AGE-63]
+    expect(sandbox.policyInputs).toEqual([
+      { workspaceRoots: [], tempDir: dir, writeEverywhere: true, readCarveOuts: [dir] },
+    ]);
+    expect(call.policy.writeRoots).toEqual(["/"]);
+    expect(call.policy.profile).toBeUndefined();
+    expect(call.policy.readAllow).toBeUndefined();
+    expect(call.request).toEqual({ command: ORIGINAL, args: [MCP_CHILD, "echo"], cwd: dir });
+    expect(call.policy.allowEscape).toBe(false);
+    expect(background.list({ kind: "plugin-host" })).toHaveLength(1);
+
+    child.stdin.end();
+    expect(await child.exited).toEqual({ code: 0, signal: null });
+  });
+
   test("the runtime read roots of the launch are added to the read allow-list", async () => {
     const dir = tempDirOf();
     const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
     const { port } = open({ sandbox: () => sandbox.source });
     const child = await started(
       port,
-      specOf({ readRoot: dir, args: [MCP_CHILD, "echo"], runtimeReadRoots: ["/work/source"] }),
+      specOf({
+        readRoot: dir,
+        args: [MCP_CHILD, "echo"],
+        runtimeReadRoots: ["/work/source"],
+        narrow: true,
+      }),
     );
     expect(sandbox.policyInputs).toEqual([
       {
@@ -177,6 +221,25 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     ]);
     child.stdin.end();
     await child.exited;
+  });
+
+  test("a narrow launch with systemTools asks the sandbox for the system tool paths, and one without it does not", async () => {
+    const dir = tempDirOf();
+    const sandbox = fakeSandbox(ok({ argv: [process.execPath, MCP_CHILD, "echo"] }));
+    const { port } = open({ sandbox: () => sandbox.source });
+    const plain = await started(
+      port,
+      specOf({ readRoot: dir, args: [MCP_CHILD, "echo"], narrow: true }),
+    );
+    const tools = await started(
+      port,
+      specOf({ readRoot: dir, args: [MCP_CHILD, "echo"], systemTools: true, narrow: true }),
+    );
+    expect(sandbox.policyInputs.map((input) => input.systemTools)).toEqual([undefined, true]);
+    plain.stdin.end();
+    tools.stdin.end();
+    await plain.exited;
+    await tools.exited;
   });
 
   test("the policy of the sandbox is handed to wrapArgv unchanged: protected defaults and blocked domains stay", async () => {
@@ -370,7 +433,7 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     expect(sandbox.cleanups()).toBe(1);
   });
 
-  test("the child environment has only the allow-listed parent names, the spec env, and the sandbox env on top", async () => {
+  test("a narrow launch's child environment has only the allow-listed parent names, the spec env, and the sandbox env on top", async () => {
     const sandbox = fakeSandbox(
       ok({
         argv: [process.execPath, MCP_CHILD, "env"],
@@ -380,10 +443,57 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     const parentEnv = {
       PATH: process.env["PATH"],
       HOME: "/home/user",
-      // 허용 목록 밖이고 시크릿 이름 패턴이다. 자식에게 가면 안 된다
+      // 허용 목록 밖이다. 좁은 길의 자식에게 가면 안 된다
+      FAKE_TOKEN_FOR_TEST: "fixture-token-not-real",
+      GITHUB_TOKEN: "fixture-token-not-real",
+      ANTHROPIC_API_KEY: "fixture-key-not-real",
+      MY_API_KEY: "fixture-key-two-not-real",
+      UNLISTED_NAME: "not-passed",
+      FRESNEL_FOO: "fresnel-internal",
+    };
+    const { port } = open({ sandbox: () => sandbox.source, parentEnv });
+    const child = await started(
+      port,
+      specOf({
+        args: [MCP_CHILD, "env"],
+        env: { PLAIN: "kept", SANDBOX_PROXY: "from-spec" },
+        narrow: true,
+      }),
+    );
+    const env = await envOf(child);
+    expect(env["PATH"]).toBe(process.env["PATH"]);
+    expect(env["HOME"]).toBe("/home/user");
+    expect(env["PLAIN"]).toBe("kept");
+    // 샌드박스 값이 정의 값을 이긴다
+    expect(env["SANDBOX_PROXY"]).toBe("from-sandbox");
+    expect(env).not.toHaveProperty("FAKE_TOKEN_FOR_TEST");
+    expect(env).not.toHaveProperty("GITHUB_TOKEN");
+    expect(env).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(env).not.toHaveProperty("MY_API_KEY");
+    expect(env).not.toHaveProperty("UNLISTED_NAME");
+    expect(env).not.toHaveProperty("FRESNEL_FOO");
+    child.stdin.end();
+    await child.exited;
+  });
+
+  test("an open launch's child environment has the same allow-list as a narrow one: only the shell tool's names, the spec env, then the sandbox env [결정: 2026-11-22, 사용자, AGE-63]", async () => {
+    const sandbox = fakeSandbox(
+      ok({
+        argv: [process.execPath, MCP_CHILD, "env"],
+        env: { SANDBOX_PROXY: "from-sandbox" },
+      }),
+    );
+    const parentEnv = {
+      PATH: process.env["PATH"],
+      HOME: "/home/user",
+      USER: "fake-user",
+      TZ: "UTC",
+      // 허용 목록 밖이다. 열린 길의 자식에게도 가면 안 된다
+      FAKE_TOKEN_FOR_TEST: "fixture-token-not-real",
       GITHUB_TOKEN: "fixture-token-not-real",
       ANTHROPIC_API_KEY: "fixture-key-not-real",
       UNLISTED_NAME: "not-passed",
+      FRESNEL_FOO: "fresnel-internal",
     };
     const { port } = open({ sandbox: () => sandbox.source, parentEnv });
     const child = await started(
@@ -393,21 +503,19 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
         env: { PLAIN: "kept", SANDBOX_PROXY: "from-spec" },
       }),
     );
-    const lines = collectLines(child);
-    expect(await waitFor(() => lines.length > 0, 5000)).toBe(true);
-    const parsed = parseJson(lines[0] ?? "");
-    if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null) {
-      throw new Error("the child did not print its environment");
-    }
-    const env: Record<string, unknown> = { ...parsed.value };
+    const env = await envOf(child);
     expect(env["PATH"]).toBe(process.env["PATH"]);
     expect(env["HOME"]).toBe("/home/user");
+    expect(env["USER"]).toBe("fake-user");
+    expect(env["TZ"]).toBe("UTC");
     expect(env["PLAIN"]).toBe("kept");
     // 샌드박스 값이 정의 값을 이긴다
     expect(env["SANDBOX_PROXY"]).toBe("from-sandbox");
+    expect(env).not.toHaveProperty("FAKE_TOKEN_FOR_TEST");
     expect(env).not.toHaveProperty("GITHUB_TOKEN");
     expect(env).not.toHaveProperty("ANTHROPIC_API_KEY");
     expect(env).not.toHaveProperty("UNLISTED_NAME");
+    expect(env).not.toHaveProperty("FRESNEL_FOO");
     child.stdin.end();
     await child.exited;
   });

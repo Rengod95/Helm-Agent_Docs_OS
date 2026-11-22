@@ -276,8 +276,9 @@ function ShellFrame(props: ShellProps): ReactNode {
   const hasRail =
     props.registry.endTabs(railArea, railScreen).length > 0 ||
     props.registry.pluginEndTabs(railArea, railScreen).length > 0;
-  // 크래프트 개요는 캔버스가 무대 가장자리까지 깔린다. 여백과 막대 자리 비우기를 두지 않고, 막대와 겹치는 판은 캔버스가 스스로 비킨다
-  const bleed = railArea === "workbench" && railScreen === "overview" && !props.settingsOpen;
+  // 끝까지 쓰는 화면(등록의 `bleed`, 크래프트 개요와 리뷰)은 무대 가장자리까지 깔린다. 셸은 여백과 막대 자리 비우기를 두지 않고,
+  // 막대와 겹치는 칸은 화면이 스스로 비킨다(`rail-avoid.ts`). 설정 화면은 화면 등록과 따로 그려지므로 늘 셸의 여백을 받는다
+  const bleed = !props.settingsOpen && props.registry.screen(railScreen)?.bleed === true;
   useWindowResize();
   useShellShortcuts(props);
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
@@ -381,7 +382,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               aria-label={t("desktop.shell.stage.label")}
               data-rail={hasRail && !bleed ? "" : undefined}
               // `--stage-rail`: 머리 뒤 본문의 오른쪽 여백(막대 34 + 창 끝 12 → 48, styles.css DP-68). `--shell-rail`: 같은 값을 본문 밖에서 읽는 화면용(플레이그라운드)
-              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:3rem] [--stage-rail:3rem]" : ""}`}
+              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:calc(var(--spacing)*12)] [--stage-rail:calc(var(--spacing)*12)]" : ""}`}
             >
               <Stage
                 registry={props.registry}

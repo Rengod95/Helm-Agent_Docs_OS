@@ -15,8 +15,16 @@ import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
 import * as csel from "./convo-select.ts";
+import { hiddenFromLists } from "./listed.ts";
 import { selectTranscriptShapes, type ItemShape } from "./transcript-shape.ts";
-import type { ApprovalTrail, ConvoMarker, Intervention, ToolProgress } from "./convo.ts";
+import type {
+  AppliedProfile,
+  ApprovalTrail,
+  ConvoMarker,
+  DriveInputRecord,
+  Intervention,
+  ToolProgress,
+} from "./convo.ts";
 import type { AnchoredCompaction } from "./compaction-anchor.ts";
 import type { EngineState } from "../../transport/ipc.ts";
 import type {
@@ -43,9 +51,8 @@ function useEngine<U>(selector: (state: EngineMirror) => U): U {
   return useStore(useEngineStore(), useShallow(selector));
 }
 
-/** 엔진 내부 일로 만든 대화(`spawnedBy.kind === "internal"`)는 목록·이동에서 뺀다 [결정: 오케스트레이터 기본값, rtE R-3] */
-const hiddenFromList = (summary: ThreadSummary | undefined): boolean =>
-  summary?.spawnedBy?.kind === "internal";
+/** 목록·이동에서 뺄 대화(엔진 내부 대화, 테스트 챗). 판정은 `listed.ts` [결정: 오케스트레이터 기본값, rtE R-3] */
+const hiddenFromList = (summary: ThreadSummary | undefined): boolean => hiddenFromLists(summary);
 export const useThreadIds = (): readonly ThreadId[] =>
   useEngine(
     useShallow((s: EngineMirror) =>
@@ -141,6 +148,9 @@ export const useLatestTurnId = (id: ThreadId | null): TurnId | null =>
 export const useRecentTurnIds = (id: string | null): readonly TurnId[] =>
   useEngine((s) => sel.selectRecentTurnIds(s, id));
 export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount);
+/** 이 대화에 시한이 있는 대기 승인이 있는지 */
+export const useApprovalUrgent = (id: ThreadId): boolean =>
+  useEngine((s) => sel.selectApprovalUrgent(s, id));
 /** 받은 확장 핸들러 실패 기록(휘발, 최대 500행). 확장별로 거르는 일은 화면이 한다 */
 export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
   useEngine(sel.selectHandlerFailures);
@@ -191,12 +201,15 @@ export const useNow = (threadId: ThreadId): csel.NowState =>
   useEngine((s) => csel.selectNow(s, threadId));
 export const useConvoMarkers = (threadId: ThreadId): readonly ConvoMarker[] =>
   useEngine((s) => csel.selectMarkers(s, threadId));
+/** 대화에 마지막으로 적용된 프로필(`profile.applied`). 못 봤으면 null */
+export const useAppliedProfile = (threadId: ThreadId): AppliedProfile | null =>
+  useEngine((s) => csel.selectAppliedProfile(s, threadId));
+/** Drive가 받은 사용자 메시지 가운데 대화에 보일 것(M6a) */
+export const useDriveInputs = (threadId: ThreadId): readonly DriveInputRecord[] =>
+  useEngine((s) => csel.selectDriveInputs(s, threadId));
 /** 도구 호출에 묶이지 않은 개입(시크릿 가림, 시크릿 승인) */
 export const useLooseInterventions = (threadId: ThreadId): readonly Intervention[] =>
   useEngine((s) => csel.selectLooseInterventions(s, threadId));
-/** 이 대화에서 샌드박스 밖 쓰기를 계속 허용했는가(DP-205) */
-export const useWriteAccessAllowed = (threadId: ThreadId): boolean =>
-  useEngine((s) => csel.selectWriteAccessAllowed(s, threadId));
 /** 도구 호출 id 없는 승인(계획·질문·검토)의 기록 */
 export const useLooseApprovals = (threadId: ThreadId): readonly ApprovalTrail[] =>
   useEngine((s) => csel.selectLooseApprovals(s, threadId));

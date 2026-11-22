@@ -192,15 +192,13 @@ function FillBlock(props: {
       <div className="flex min-w-0 items-baseline gap-2">
         {fill.kind === "known" ? (
           <>
-            <span className="text-title-3 text-text-primary tabular-nums">{fill.percent}%</span>
-            <span className="text-ui text-text-secondary tabular-nums">
+            <span className="text-title-3 text-text-primary">{fill.percent}%</span>
+            <span className="text-ui text-text-secondary">
               {tokenCountText(fill.used)} / {tokenCountText(fill.limit)}
             </span>
           </>
         ) : fill.kind === "noLimit" ? (
-          <span className="text-title-3 text-text-primary tabular-nums">
-            {tokenCountText(fill.used)}
-          </span>
+          <span className="text-title-3 text-text-primary">{tokenCountText(fill.used)}</span>
         ) : (
           <span className="text-title-3 text-text-tertiary">—</span>
         )}
@@ -463,7 +461,7 @@ function UsageBlock(props: { readonly threadId: ThreadId }): ReactNode {
       title={t("desktop.context.usage.title")}
       info={t("desktop.context.usage.help")}
       end={
-        <span className="text-footnote text-text-tertiary tabular-nums">
+        <span className="text-footnote text-text-tertiary">
           {t("desktop.context.usage.turns", { count: report.turns })}
         </span>
       }
@@ -593,15 +591,15 @@ function LoadedBlock(props: { readonly threadId: ThreadId }): ReactNode {
       <div className="grid grid-cols-1 min-w-0">
         <LoadedRow
           label={t("desktop.context.loaded.tools")}
-          value={
+          values={
             tools === null
-              ? t("desktop.context.loaded.unknown")
+              ? [t("desktop.context.loaded.unknown")]
               : tools.deferred.length === 0
-                ? t("desktop.context.loaded.count", { count: tools.names.length })
-                : t("desktop.context.loaded.toolsDeferred", {
-                    count: tools.names.length,
-                    deferred: tools.deferred.length,
-                  })
+                ? [t("desktop.context.loaded.count", { count: tools.names.length })]
+                : [
+                    t("desktop.context.loaded.count", { count: tools.names.length }),
+                    t("desktop.context.loaded.deferred", { deferred: tools.deferred.length }),
+                  ]
           }
           title={tools === null ? undefined : tools.names.join(", ")}
           onOpen={() => {
@@ -610,15 +608,15 @@ function LoadedBlock(props: { readonly threadId: ThreadId }): ReactNode {
         />
         <LoadedRow
           label={t("desktop.context.loaded.skills")}
-          value={
+          values={
             counts.skills === null
-              ? t("desktop.context.loaded.unknown")
+              ? [t("desktop.context.loaded.unknown")]
               : counts.skills.slash === 0
-                ? t("desktop.context.loaded.count", { count: counts.skills.model })
-                : t("desktop.context.loaded.skillsSplit", {
-                    count: counts.skills.model,
-                    slash: counts.skills.slash,
-                  })
+                ? [t("desktop.context.loaded.count", { count: counts.skills.model })]
+                : [
+                    t("desktop.context.loaded.count", { count: counts.skills.model }),
+                    t("desktop.context.loaded.slashOnly", { slash: counts.skills.slash }),
+                  ]
           }
           onOpen={() => {
             open("tools");
@@ -626,13 +624,13 @@ function LoadedBlock(props: { readonly threadId: ThreadId }): ReactNode {
         />
         <LoadedRow
           label={t("desktop.context.loaded.memory")}
-          value={
+          values={
             counts.memory === null
-              ? t("desktop.context.loaded.unknown")
-              : t("desktop.context.loaded.memoryCounts", {
-                  user: counts.memory.user,
-                  env: counts.memory.env,
-                })
+              ? [t("desktop.context.loaded.unknown")]
+              : [
+                  t("desktop.context.loaded.memoryUser", { user: counts.memory.user }),
+                  t("desktop.context.loaded.memoryEnv", { env: counts.memory.env }),
+                ]
           }
           onOpen={() => {
             open("sessions");
@@ -645,7 +643,8 @@ function LoadedBlock(props: { readonly threadId: ThreadId }): ReactNode {
 
 function LoadedRow(props: {
   readonly label: string;
-  readonly value: string;
+  /** 값의 칸들(개수, 그 밖의 셈). 칸마다 따로 놓고 간격으로 나눈다 */
+  readonly values: readonly string[];
   readonly title?: string | undefined;
   readonly onOpen: () => void;
 }): ReactNode {
@@ -658,8 +657,12 @@ function LoadedRow(props: {
       className="-mx-1.5 flex min-h-8 min-w-0 cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-1.5 text-start outline-none hover:bg-fill-hover focus-visible:focus-ring"
     >
       <span className="flex-none text-ui text-text-primary">{props.label}</span>
-      <span className="min-w-0 flex-1 truncate text-end text-footnote text-text-tertiary tabular-nums">
-        {props.value}
+      <span className="flex min-w-0 flex-1 items-baseline justify-end gap-2 text-footnote text-text-tertiary">
+        {props.values.map((value) => (
+          <span key={value} className="min-w-0 truncate">
+            {value}
+          </span>
+        ))}
       </span>
       <ChevronRight aria-hidden className="size-icon-sm flex-none text-text-tertiary" />
     </button>

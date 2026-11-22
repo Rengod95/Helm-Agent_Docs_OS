@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   closeSync,
   readdirSync,
@@ -18,6 +19,7 @@ import type { IdFactory } from "@fresnel/contracts/conversation";
 import type {
   BlobError,
   BlobRef,
+  BlobStreamSource,
   BlobUsage,
   SqlRow,
   SqlTx,
@@ -79,6 +81,8 @@ export interface BlobGcReport {
 
 export interface BlobStore {
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
+  /** `putBlob`과 같은 결과를 조각으로 받아 쓴다(L0.store.spec §4.9). 같은 해시면 파일을 다시 쓰지 않는다 */
+  putBlobStream(source: BlobStreamSource, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
   readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;
   readBlobByHash(sha256: string): Result<Uint8Array, BlobError>;
@@ -160,14 +164,41 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
   const { conn, blobsDir } = deps;
   const db = createStoreDb(conn, { internal: true });
 
-  const putBlob = (bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError> => {
-    assertNotInWrite(conn.state, "putBlob");
+  /**
+   * putBlob과 putBlobStream이 파일을 쓰기 전에 같은 순서로 본다. 거절할 이유가 있으면 그 값을, 없으면 undefined를 돌려준다.
+   * 읽기 전용 열기에서는 파일만 남는 일이 없게 쓰기 전에 거절하고, 한도를 넘으면 파일도 행도 만들지 않는다(잘라 쓰지 않는다)
+   */
+  const refuseBlobWrite = (what: string, size: number): BlobError | undefined => {
+    assertNotInWrite(conn.state, what);
     if (conn.state.phase !== "open") throw new Bug("store.closed: the store is closed");
-    // 파일을 쓰기 전에 거절한다. 읽기 전용 열기에서 파일만 남는 일이 없게 한다
-    if (conn.state.readOnly) return err(readOnlyRefusal());
+    if (conn.state.readOnly) return readOnlyRefusal();
+    if (size > deps.maxBytes) return { kind: "blob_too_large", size, limit: deps.maxBytes };
+    return undefined;
+  };
+
+  /** sys_blobs 행을 쓴다. 파일이 다 쓰인 뒤에만 부른다. 같은 해시면 last_put_at만 갱신한다 */
+  const recordBlobRow = (
+    sha256: string,
+    size: number,
+    mediaType: string | null,
+  ): Result<BlobRef, BlobError> => {
+    deps.faults.hit("blob_before_row");
+    const now = deps.clock.now();
+    const written = db.write((tx): void => {
+      tx.run(
+        `INSERT INTO sys_blobs (sha256, size, media_type, created_at, last_put_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(sha256) DO UPDATE SET last_put_at = excluded.last_put_at`,
+        [sha256, size, mediaType, now, now],
+      );
+    });
+    if (!written.ok) return err(mapWriteError(written.error));
+    return ok({ type: "blob", sha256, size, mediaType });
+  };
+
+  const putBlob = (bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError> => {
     const size = bytes.byteLength;
-    // 한도를 넘으면 파일도 행도 만들지 않는다. 잘라 쓰지 않는다
-    if (size > deps.maxBytes) return err({ kind: "blob_too_large", size, limit: deps.maxBytes });
+    const refused = refuseBlobWrite("putBlob", size);
+    if (refused !== undefined) return err(refused);
     const sha256 = sha256Hex(bytes);
     const dest = blobPath(blobsDir, sha256);
     try {
@@ -194,17 +225,70 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
       if (mapped === undefined) throw caught;
       return err(mapped);
     }
-    deps.faults.hit("blob_before_row");
-    const now = deps.clock.now();
-    const written = db.write((tx): void => {
-      tx.run(
-        `INSERT INTO sys_blobs (sha256, size, media_type, created_at, last_put_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(sha256) DO UPDATE SET last_put_at = excluded.last_put_at`,
-        [sha256, size, mediaType, now, now],
-      );
-    });
-    if (!written.ok) return err(mapWriteError(written.error));
-    return ok({ type: "blob", sha256, size, mediaType });
+    return recordBlobRow(sha256, size, mediaType);
+  };
+
+  /**
+   * putBlob과 같은 결과를 내되 바이트를 조각으로 받는다. 조각마다 SHA-256을 갱신하고 임시 파일에 바로 쓰므로 입력 전체의 사본을 만들지 않는다.
+   * 해시를 다 안 뒤에 목적 경로를 정한다. 같은 해시의 완전한 파일이 있으면 임시 파일을 버린다. 실패하면 임시 파일을 지운다.
+   */
+  const putBlobStream = (
+    source: BlobStreamSource,
+    mediaType: string | null,
+  ): Result<BlobRef, BlobError> => {
+    const size = source.size;
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new Bug(`store.blob_stream_size: size must be a non-negative integer, got ${size}`);
+    }
+    const refused = refuseBlobWrite("putBlobStream", size);
+    if (refused !== undefined) return err(refused);
+    const hash = createHash("sha256");
+    const tmp = join(blobsDir, "tmp", `${deps.ids.next("evt").slice(4)}.tmp`);
+    let sha256: string;
+    // 임시 파일을 실제로 만들었을 때만 지운다(이름이 겹쳐 남의 파일을 지우지 않게 한다)
+    let created = false;
+    try {
+      const fd = openSync(tmp, "wx", 0o600);
+      created = true;
+      try {
+        let received = 0;
+        source.produce((chunk) => {
+          hash.update(chunk);
+          writeAll(fd, chunk);
+          received += chunk.byteLength;
+        });
+        // 선언한 크기와 다르면 파일을 남기지 않는다(아래 catch가 임시 파일을 지운다)
+        if (received !== size) {
+          throw new Bug(
+            `store.blob_stream_size: the source produced ${received} bytes, declared ${size}`,
+          );
+        }
+        deps.faults.hit("blob_after_tmp_write");
+        fsyncSync(fd);
+        deps.faults.hit("blob_after_fsync");
+      } finally {
+        closeSync(fd);
+      }
+      sha256 = hash.digest("hex");
+      const dest = blobPath(blobsDir, sha256);
+      mkdirSync(dirname(dest), { recursive: true, mode: 0o700 });
+      const present = statOrUndefined(dest);
+      if (present !== undefined && present.isFile() && present.size === size) {
+        // 같은 해시의 완전한 파일이 이미 있다. 목적 파일은 건드리지 않고 임시 파일만 버린다
+        unlinkSync(tmp);
+      } else {
+        renameSync(tmp, dest);
+        deps.faults.hit("blob_after_rename");
+        if (deps.directoryFsync) fsyncDirectory(dirname(dest));
+      }
+    } catch (caught) {
+      // 임시 파일은 지운다. 지우지 못하면 GC가 거둔다. 원래 오류는 그대로 옮기거나 다시 던진다
+      if (created) removeFile(tmp);
+      const mapped = mapFsError(caught);
+      if (mapped === undefined) throw caught;
+      return err(mapped);
+    }
+    return recordBlobRow(sha256, size, mediaType);
   };
 
   /** expectedSize가 undefined이면 크기를 대조하지 않는다(해시만 아는 읽기) */
@@ -442,6 +526,7 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
 
   return {
     putBlob,
+    putBlobStream,
     readBlob,
     readBlobRange,
     readBlobByHash,

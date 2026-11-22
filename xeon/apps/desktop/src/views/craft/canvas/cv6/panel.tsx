@@ -660,8 +660,8 @@ function RiskMeter(props: { readonly level: number }): ReactElement {
 function FactRow(props: { readonly label: string; readonly facts: readonly Fact[] }): ReactNode {
   if (props.facts.length === 0) return null;
   return (
-    <div className="flex items-start gap-3 py-[3px]">
-      <dt className="w-12 shrink-0 pt-[3px] text-ui-sm leading-4 text-text-tertiary">
+    <div className="flex items-start gap-3 py-0.75">
+      <dt className="w-12 shrink-0 pt-0.75 text-ui-sm leading-4 text-text-tertiary">
         {props.label}
       </dt>
       <dd className="m-0 flex min-w-0 flex-1 flex-wrap gap-1">

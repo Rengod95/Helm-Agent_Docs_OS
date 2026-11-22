@@ -1,7 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import { ThreadIdSchema, type ThreadId } from "../../conversation/index.ts";
-import { ExtensionNameSchema } from "../../extensions/index.ts";
+import { ExtensionNameSchema, RegistrationIdSchema } from "../../extensions/index.ts";
 import { SettingKeySchema } from "../settings/index.ts";
 import { StreamPositionSchema, type StreamPosition } from "./cursor.ts";
 import { PROJECT_ID_PATTERN } from "./project.ts";
@@ -171,6 +171,12 @@ export const PROFILE_ISSUE_CODES = [
   "secret_missing",
   "required_unset",
   "requirement_unmet",
+  /** 플러그인 의존(`dependsOn`)의 대상이 설치되어 있지 않거나 가리킨 구성원이 없다. hard면 오류, soft면 경고. `plugin`이 기대는 쪽, `other`가 대상이다 */
+  "dependency_missing",
+  /** 의존 대상이 설치되어 있으나 이 프로필의 목록에 없다(꺼져 있다). hard면 오류, soft면 경고. 화면이 "함께 켤까요"를 물을 모자란 대상이다 */
+  "dependency_disabled",
+  /** 의존 대상의 버전이 `range`를 만족하지 않는다. hard면 오류, soft면 경고 */
+  "dependency_range",
   "managed_forbidden",
   "limit",
 ] as const;
@@ -186,7 +192,7 @@ export interface ProfileIssue {
   readonly severity: "error" | "warning";
   readonly plugin?: string;
   readonly key?: string;
-  /** `replace_conflict`일 때 상대 플러그인 */
+  /** `replace_conflict`일 때 상대 플러그인. `dependency_*`일 때 가리킨 Registration id(`이름` 또는 `이름/id`) */
   readonly other?: string;
   readonly tool?: string;
 }
@@ -195,7 +201,7 @@ const ProfileIssueShape = closed({
   severity: Type.Union([Type.Literal("error"), Type.Literal("warning")]),
   plugin: Type.Optional(ExtensionNameSchema),
   key: Type.Optional(SettingKeySchema),
-  other: Type.Optional(ExtensionNameSchema),
+  other: Type.Optional(RegistrationIdSchema),
   tool: Type.Optional(ToolName),
 });
 export const ProfileIssueSchema: TUnsafe<ProfileIssue> = Type.Unsafe<ProfileIssue>(
@@ -360,10 +366,18 @@ export const ProfileListResultSchema: TUnsafe<ProfileListResult> = Type.Unsafe<P
   ProfileListResultShape satisfies SchemaProof<ProfileListResult, typeof ProfileListResultShape>,
 );
 
+/** 이 프로필(과 공통 묶음)이 가리키지만 지금 이 기기에 없는 플러그인 이름. 없으면 필드를 싣지 않는다 [결정: 2026-11-20, 사용자, AGE-34] */
+const MissingPluginsShape = Type.Array(ExtensionNameSchema, { maxItems: 256 });
+
 export interface ProfileGetResult {
   readonly profile: Profile;
+  /** 프로필이 가리키지만 이 기기에 없는 플러그인. 실행 때 건너뛴다. 없으면 생략한다 */
+  readonly missingPlugins?: readonly string[];
 }
-const ProfileGetResultShape = closed({ profile: ProfileShape });
+const ProfileGetResultShape = closed({
+  profile: ProfileShape,
+  missingPlugins: Type.Optional(MissingPluginsShape),
+});
 export const ProfileGetResultSchema: TUnsafe<ProfileGetResult> = Type.Unsafe<ProfileGetResult>(
   ProfileGetResultShape satisfies SchemaProof<ProfileGetResult, typeof ProfileGetResultShape>,
 );
@@ -385,10 +399,13 @@ export interface ProfilePutResult {
   readonly profile: Profile;
   /** 경고만 싣는다. 오류가 있으면 저장하지 않고 `profile.invalid`를 낸다 */
   readonly issues: readonly ProfileIssue[];
+  /** 저장 전에도 이 프로필이 가리키던, 지금은 이 기기에 없는 플러그인(경고 `plugin_unknown`과 같은 이름). 없으면 생략한다 */
+  readonly missingPlugins?: readonly string[];
 }
 const ProfilePutResultShape = closed({
   profile: ProfileShape,
   issues: Type.Array(ProfileIssueShape, { maxItems: 512 }),
+  missingPlugins: Type.Optional(MissingPluginsShape),
 });
 export const ProfilePutResultSchema: TUnsafe<ProfilePutResult> = Type.Unsafe<ProfilePutResult>(
   ProfilePutResultShape satisfies SchemaProof<ProfilePutResult, typeof ProfilePutResultShape>,
@@ -540,11 +557,17 @@ export interface ProfileRemovePluginParams {
   readonly id: string;
   readonly plugin: string;
   readonly baseRev: number;
+  /**
+   * 참이면 이 플러그인에 hard로 기대는 플러그인도 한 번의 편집으로 같이 뺀다(이어서 기대는 것까지). 생략이나 거짓이면 기대는 플러그인이
+   * 프로필에 남아 있을 때 `dependency_disabled` 오류로 거절한다(AGE-33). 공통 묶음에 든 기대는 플러그인은 같이 뺄 수 없어 거절한다
+   */
+  readonly withDependents?: boolean;
 }
 const ProfileRemovePluginParamsShape = request({
   id: Id,
   plugin: ExtensionNameSchema,
   baseRev: Count,
+  withDependents: Type.Optional(Type.Boolean()),
 });
 export const ProfileRemovePluginParamsSchema: TUnsafe<Req<ProfileRemovePluginParams>> = Type.Unsafe<
   Req<ProfileRemovePluginParams>
@@ -644,13 +667,54 @@ const ThreadSetProfilePreviewShape = closed({
   cacheImpact: Type.Optional(CacheImpactSchema),
 });
 
+/**
+ * 전환 뒤 새 프로필의 시작 Drive가 어떻게 됐는가(AGE-64, 이름은 [제안]).
+ * `requested`: 시작을 걸었다. `deferred`: 도는 turn이나 일하는 Drive가 끝난 뒤 시작한다. `leading`: 새 시작 Drive가 이미 쥐고 있다.
+ * `none`: 새 프로필에 시작 Drive가 없다(메시지를 받지 않은 옛 시작 Drive는 내려갔다). `rejected`: 엔진이 거절했다
+ */
+export const SET_PROFILE_START_DRIVES = [
+  "requested",
+  "deferred",
+  "leading",
+  "none",
+  "rejected",
+] as const;
+export type SetProfileStartDrive = (typeof SET_PROFILE_START_DRIVES)[number];
+const SetProfileStartDriveShape = Type.Union(
+  SET_PROFILE_START_DRIVES.map((value) => Type.Literal(value)),
+);
+
+/**
+ * 스타트 Drive가 거절된 이유(AGE-32, 이름은 [제안]). `startDrive`가 `rejected`일 때만 실린다. 닫힌 목록이라 목록 밖의 이유는 싣지 않는다.
+ * `unknown_thread`: 엔진이 이 대화를 모른다. `child_thread`: 자식 대화라 시작 Drive를 쓰지 않는다.
+ * `unknown_scope`: 프로필의 시작 Drive 플러그인이 지금 엔진에 등록돼 있지 않다. `not_drive`: 그 플러그인이 Drive를 등록하지 않았다.
+ * `drive_error`: 그 Drive가 이전 오류로 꺼져 있다. 내부 경로나 오류 원문은 싣지 않는다
+ */
+export const START_DRIVE_REJECT_REASONS = [
+  "unknown_thread",
+  "child_thread",
+  "unknown_scope",
+  "not_drive",
+  "drive_error",
+] as const;
+export type StartDriveRejectReason = (typeof START_DRIVE_REJECT_REASONS)[number];
+const StartDriveRejectReasonShape = Type.Union(
+  START_DRIVE_REJECT_REASONS.map((value) => Type.Literal(value)),
+);
+
 export interface ThreadSetProfileResult {
   readonly position: StreamPosition;
   readonly preview: ThreadSetProfilePreview;
+  /** 선택. 없으면 알리지 않는 옛 호스트다 */
+  readonly startDrive?: SetProfileStartDrive;
+  /** 선택. `startDrive`가 `rejected`이고 이유가 닫힌 목록 안일 때만 싣는다 */
+  readonly startDriveReason?: StartDriveRejectReason;
 }
 const ThreadSetProfileResultShape = closed({
   position: StreamPositionSchema,
   preview: ThreadSetProfilePreviewShape,
+  startDrive: Type.Optional(SetProfileStartDriveShape),
+  startDriveReason: Type.Optional(StartDriveRejectReasonShape),
 });
 export const ThreadSetProfileResultSchema: TUnsafe<ThreadSetProfileResult> =
   Type.Unsafe<ThreadSetProfileResult>(

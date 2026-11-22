@@ -96,7 +96,7 @@ export function PairPanel(props: PairPanelProps): ReactNode {
                   {pairingCodeDisplay(code.code)}
                 </span>
               </div>
-              <div className="flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
+              <div className="flex min-w-0 items-center gap-3 text-ui-sm text-text-tertiary">
                 <span data-slot="reach-remaining" className="tabular-nums">
                   {expired
                     ? t("desktop.connection.reach.pair.expired")
@@ -104,7 +104,6 @@ export function PairPanel(props: PairPanelProps): ReactNode {
                         time: pairingRemainingLabel(pairingRemainingMs(code, nowMs)),
                       })}
                 </span>
-                <span aria-hidden>·</span>
                 <Button size="xs" variant="ghost" disabled={busy} onClick={props.onIssue}>
                   {t("desktop.connection.reach.pair.newCode")}
                 </Button>

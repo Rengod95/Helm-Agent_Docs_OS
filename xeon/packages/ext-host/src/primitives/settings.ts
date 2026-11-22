@@ -39,7 +39,7 @@ export const primitivesSettings: SettingGroup<
     readonly driveDefaultLimits: SettingDefInput;
     readonly driveLimits: SettingDefInput;
     readonly driveMaxDepth: SettingDefInput;
-    readonly driveRequiresGroup: SettingDefInput;
+    readonly driveRequiresOrchestration: SettingDefInput;
     readonly capabilityProviders: SettingDefInput;
   }
 > = defineSettings("x.primitives", {
@@ -53,7 +53,7 @@ export const primitivesSettings: SettingGroup<
       widget: "table",
       order: 100,
       label: "Default drive limits",
-      help: "Applies to drive leases that set no limits of their own. If a group sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
+      help: "Applies to drive leases that set no limits of their own. If a plugin sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
     },
     since: "0.1.0",
   },
@@ -85,7 +85,7 @@ export const primitivesSettings: SettingGroup<
     },
     since: "0.1.0",
   },
-  driveRequiresGroup: {
+  driveRequiresOrchestration: {
     type: Type.Boolean(),
     default: true,
     runtimeChange: "restart",
@@ -94,8 +94,8 @@ export const primitivesSettings: SettingGroup<
       tab: "plugins",
       widget: "toggle",
       order: 112,
-      label: "Drive only from plugin groups",
-      help: "When on, only members of a plugin group can register a drive. When off, plugins outside a group can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
+      label: "Drive only from Drive plugins",
+      help: "When on, only plugins that declare a Drive can register a drive. When off, plugins that do not declare one can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
     },
     since: "0.1.0",
   },
@@ -119,7 +119,7 @@ export interface StaticPrimitivesSettings {
   readonly driveDefaultLimits?: DriveLimits;
   readonly driveLimits?: DriveLimits;
   readonly driveMaxDepth?: number;
-  readonly driveRequiresGroup?: boolean;
+  readonly driveRequiresOrchestration?: boolean;
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
 }
 
@@ -139,7 +139,7 @@ export function createStaticPrimitivesSettings(
     driveDefaultLimits: (_threadId: ThreadId) => withDriveDefaults(values.driveDefaultLimits ?? {}),
     driveLimits: (_threadId: ThreadId) => values.driveLimits ?? {},
     driveMaxDepth: (_threadId: ThreadId) => values.driveMaxDepth ?? DEFAULT_DRIVE_MAX_DEPTH,
-    driveRequiresGroup: () => values.driveRequiresGroup ?? true,
+    driveRequiresOrchestration: () => values.driveRequiresOrchestration ?? true,
     capabilityProviders: () => values.capabilityProviders ?? {},
   };
 }

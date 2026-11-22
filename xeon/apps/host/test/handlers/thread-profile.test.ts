@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { WireError } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
+import { sequentially } from "../../src/util.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M5c §3.4, §4.1.1: 대화는 프로필 id를 저장한다(thread.create, thread.setProfile). 목록은 저장한 값을 보이고, 프로필을 지우면
@@ -109,5 +110,52 @@ test("profile.delete reports how many open threads referenced the profile", asyn
   expect(await connection.request("profile.delete", { id: "review" })).toMatchObject({
     reassignedThreads: 3,
   });
+  await connection.close();
+});
+
+test("thread.setProfile puts the start drive refusal reason on the wire, and leaves it out when there is none", async () => {
+  const reasons = [
+    "unknown_thread",
+    "child_thread",
+    "unknown_scope",
+    "not_drive",
+    "drive_error",
+  ] as const;
+  await sequentially(reasons, async (reason) => {
+    const host = createFakeHost({
+      overrides: {
+        threads: {
+          switchStartDrive: () =>
+            Promise.resolve({ ok: true, value: { startDrive: "rejected", reason } }),
+        },
+      },
+    });
+    const connection = await open(host);
+    await connection.request("profile.put", { profile: REVIEW, baseRev: null });
+    const created = await connection.request("thread.create", {});
+    const switched = await connection.request("thread.setProfile", {
+      threadId: created.threadId,
+      profileId: "review",
+    });
+    expect(switched.startDrive).toBe("rejected");
+    expect(switched.startDriveReason).toBe(reason);
+    await connection.close();
+  });
+  const host = createFakeHost({
+    overrides: {
+      threads: {
+        switchStartDrive: () => Promise.resolve({ ok: true, value: { startDrive: "rejected" } }),
+      },
+    },
+  });
+  const connection = await open(host);
+  await connection.request("profile.put", { profile: REVIEW, baseRev: null });
+  const created = await connection.request("thread.create", {});
+  const switched = await connection.request("thread.setProfile", {
+    threadId: created.threadId,
+    profileId: "review",
+  });
+  expect(switched.startDrive).toBe("rejected");
+  expect("startDriveReason" in switched).toBe(false);
   await connection.close();
 });

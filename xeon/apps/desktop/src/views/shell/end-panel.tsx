@@ -283,7 +283,7 @@ function PluginMenuRow(props: {
             </span>
           </span>
           {count !== undefined && count > 0 ? (
-            <span className="flex-none rounded-full bg-neutral-track px-1.5 text-ui-sm tabular-nums text-text-secondary">
+            <span className="flex-none rounded-full bg-neutral-track px-1.5 text-ui-sm text-text-secondary">
               {count}
             </span>
           ) : tab.shortcut !== undefined && keyLabel !== undefined ? (
@@ -366,7 +366,7 @@ export function EndPanel(props: {
         show={open}
         variant="pop"
         initial={false}
-        className="pointer-events-auto absolute inset-y-2 end-[calc(100%+0.375rem)] z-30 flex origin-right"
+        className="pointer-events-auto absolute inset-y-2 end-[calc(100%+var(--spacing)*1.5)] z-30 flex origin-right"
       >
         <Card
           variant="well"
@@ -379,13 +379,15 @@ export function EndPanel(props: {
           className="flex max-w-[calc(var(--app-vw)-4.5rem)] flex-col shadow-3 outline-none"
           style={{ width: wellWidthOf(current) }}
         >
-          {/* DP-193 머리 40: 제목 13/600 · 8 · 요약 12 tertiary(말줄임) · 접기 24. 아래 1px 선 */}
-          <div className="flex h-10 flex-none items-center gap-2 border-b border-border-subtle ps-3 pe-2">
+          {/* DP-193 머리 40: 제목 13/600 · 8 · 요약 12 tertiary(말줄임) · 접기 24. 머리 아래에는 선을 긋지 않는다: 바로 밑 본문 판(CardPanel)이
+              제 1px 가장자리와 둥근 모서리로 머리와 본문을 가른다. 머리에 border-b를 더하면 판의 둥근 위 모서리 위로 곧은 선이 하나 더 지나간다
+              (lcMk6 [결정: 2026-11-19 사용자 "받은요청 카드디자인의 헤더 하단에 보더가 생겼는데 이거 의도치않은 부분이라 이거 제거해주고"]) */}
+          <div data-end-head="" className="flex h-10 flex-none items-center gap-2 ps-3 pe-2">
             <h2 className="m-0 flex min-w-0 flex-1 items-baseline gap-2">
               <span className="flex-none text-ui font-semibold text-text-primary">{label}</span>
               <span
                 data-end-summary=""
-                className="flex min-w-0 items-center gap-1.5 truncate text-ui-sm font-normal tabular-nums text-text-tertiary"
+                className="flex min-w-0 items-center gap-1.5 truncate text-ui-sm font-normal text-text-tertiary"
               >
                 <WellSummary tab={current} stored={currentStored} />
               </span>
@@ -410,6 +412,8 @@ export function EndPanel(props: {
       </Presence>
       <FloatingBar
         label={t("desktop.shell.end.label")}
+        // 끝까지 쓰는 화면이 막대의 자리를 재는 표지(`rail-avoid.ts`)
+        data-end-bar=""
         orientation="vertical"
         size="sm"
         shadow="2"

@@ -94,6 +94,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
       controller.notifyFailure(failure);
     },
     ...(deps.putBlob === undefined ? {} : { putBlob: deps.putBlob }),
+    ...(deps.putBlobStream === undefined ? {} : { putBlobStream: deps.putBlobStream }),
     publish: (batch) => {
       feedController.publish(batch);
     },

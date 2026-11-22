@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { hostInternalsOf, registrationToggleSourceOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -133,7 +133,7 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
   const a = t.newThread();
   const b = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "ts-group" }, (g) => {
+    makeOrchestrationUnit({ name: "ts-group" }, (g) => {
       g.drive(async ({ last }) => {
         if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
         return { do: "turn", input: { kind: "user", content: "go" } };
@@ -263,7 +263,7 @@ test("onChange reports toggle requests, their application and lease changes; a t
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(
-    makeGroupUnit({ name: "ts-notify" }, (g) => {
+    makeOrchestrationUnit({ name: "ts-notify" }, (g) => {
       g.drive(() => Promise.resolve({ do: "yield" }));
     }),
   );

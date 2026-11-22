@@ -170,6 +170,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
                     ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
                     ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
                     ...(input.craftChat === undefined ? {} : { craftChat: input.craftChat }),
+                    ...(input.project === undefined ? {} : { project: input.project }),
                   },
                 }),
               ],

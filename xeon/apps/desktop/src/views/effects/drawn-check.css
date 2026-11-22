@@ -1,28 +1,29 @@
-/* 그려지는 체크(`drawn-check.tsx`). 크기는 부모가 정한다(기본 1em). 선 길이를 1로 두고 dashoffset 1 → 0으로 그린다.
-   들어옴 곡선(0.22, 1, 0.36, 1) 220ms. styles.css가 가져온다(셸 CSP가 인라인 <style>을 막는다). */
+/* 그려지는 체크(`drawn-check.tsx`). 크기는 부모가 정한다(기본 1em). 들어옴 곡선(0.22, 1, 0.36, 1) 220ms에 선이 왼쪽에서 오른쪽으로 그려진다.
+   선은 직접 그린 아이콘의 한 벌(화면 1px, non-scaling-stroke, AGE-34)이다. non-scaling-stroke에서는 점선 길이가 pathLength를 따르지 않아
+   (dashoffset 0.37에서 이미 다 그려졌다) 점선 대신 왼쪽에서 오른쪽으로 여는 clip-path로 그린다. 체크의 두 획은 모두 45°라
+   가로 위치가 선 길이와 같은 비율로 늘어, 여는 속도가 전의 점선과 같다. 획은 24칸의 x 4~20(17%~83%)에 있고 둥근 끝을 덮도록
+   88%에서 12%까지 연다. styles.css가 가져온다(셸 CSP가 인라인 <style>을 막는다). */
 .fx-check {
   width: 1em;
   height: 1em;
   flex: none;
 }
-.fx-check[data-draw="true"] path {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 0;
+.fx-check[data-draw="true"] {
   animation: fx-check-draw 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes fx-check-draw {
   from {
-    stroke-dashoffset: 1;
+    clip-path: inset(0 88% 0 0);
   }
   to {
-    stroke-dashoffset: 0;
+    clip-path: inset(0 12% 0 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fx-check[data-draw="true"] path {
+  .fx-check[data-draw="true"] {
     animation: none;
   }
 }
-:root[data-motion="reduce"] .fx-check[data-draw="true"] path {
+:root[data-motion="reduce"] .fx-check[data-draw="true"] {
   animation: none;
 }

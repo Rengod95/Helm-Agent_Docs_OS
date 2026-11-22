@@ -201,6 +201,11 @@ tape-record scenario *flags:
 benchmark *flags:
     cd xeon && just benchmark {{flags}}
 
+# 크리스탈 표시(DP-223) 굽기: 유리 두 조각을 광선 추적해 스프라이트 판과 배치표를 다시 만든다. `--boxes 256 --out <폴더>`는 견본용 큰 판만. just verify 밖 (xeon/scripts/crystal-bake.ts)
+[group('local')]
+desktop-crystal-bake *flags:
+    cd xeon && just desktop-crystal-bake {{flags}}
+
 # 데스크톱 속도·크기(Y17): size, startup, frame, trace, all. 실제 모델 호출 없음. startup은 macOS 화면 있는 로그인 환경 필요 (xeon/scripts/desktop-benchmark.ts)
 [group('local')]
 desktop-benchmark *flags:

@@ -53,10 +53,10 @@
 .convo-prose .convo-code,
 .convo-prose .convo-table,
 .convo-prose hr {
-  margin: 0 0 12px;
+  margin: 0 0 var(--cs-space-3);
 }
 .convo-prose[data-size="compact"] :is(p, ul, ol, blockquote, .convo-code, .convo-table) {
-  margin-bottom: 8px;
+  margin-bottom: var(--cs-space-2);
 }
 .convo-prose h1,
 .convo-prose h2,
@@ -64,7 +64,7 @@
 .convo-prose h4,
 .convo-prose h5,
 .convo-prose h6 {
-  margin: 20px 0 6px;
+  margin: var(--cs-space-5) 0 var(--cs-space-1_5);
   font-weight: 600;
   letter-spacing: var(--md-heading--letter-spacing);
   color: var(--cs-color-text-primary);
@@ -82,13 +82,13 @@
   line-height: var(--md-h3--line-height);
 }
 .convo-prose[data-size="compact"] :is(h1, h2, h3, h4, h5, h6) {
-  margin: 12px 0 4px;
+  margin: var(--cs-space-3) 0 var(--cs-space-1);
   font-size: 13px;
   line-height: 20px;
 }
 .convo-prose ul,
 .convo-prose ol {
-  padding-left: 20px;
+  padding-left: var(--cs-space-5);
 }
 /* Tailwind preflight가 목록 표지를 지운다(list-style: none). 답 본문은 표지를 되살린다 */
 .convo-prose ul {
@@ -98,7 +98,7 @@
   list-style: decimal;
 }
 .convo-prose li {
-  margin: 4px 0 0;
+  margin: var(--cs-space-1) 0 0;
 }
 .convo-prose li > :is(ul, ol) {
   margin-bottom: 0;
@@ -109,24 +109,24 @@
 /* 체크 목록(GFM)은 표지 대신 상자를 쓴다 */
 .convo-prose li:has(> input[type="checkbox"]) {
   list-style: none;
-  margin-left: -20px;
+  margin-left: calc(-1 * var(--cs-space-5));
 }
 .convo-prose input[type="checkbox"] {
-  margin: 0 6px 0 0;
+  margin: 0 var(--cs-space-1_5) 0 0;
   vertical-align: -1px;
 }
 .convo-prose strong {
   font-weight: 600;
 }
 .convo-prose blockquote {
-  padding-left: 12px;
+  padding-left: var(--cs-space-3);
   border-left: 2px solid var(--cs-color-border-default);
   color: var(--cs-color-text-secondary);
 }
 .convo-prose hr {
   border: 0;
   border-top: 1px solid var(--cs-color-border-subtle);
-  margin-block: 20px;
+  margin-block: var(--cs-space-5);
 }
 .convo-link {
   color: var(--cs-color-text-link);
@@ -138,7 +138,7 @@
   text-underline-offset: 2px;
 }
 .convo-inline-code {
-  padding: 1px 4px;
+  padding: var(--cs-space-0_25) var(--cs-space-1);
   border-radius: var(--cs-radius-xs);
   background: var(--convo-chip-bg);
   font-family: var(--font-mono, var(--cs-font-mono));
@@ -158,7 +158,7 @@
   align-items: center;
   justify-content: space-between;
   height: 32px;
-  padding: 0 4px 0 12px;
+  padding: 0 var(--cs-space-1) 0 var(--cs-space-3);
   border-bottom: 1px solid var(--convo-edge);
 }
 .convo-code-lang {
@@ -171,7 +171,7 @@
   margin: 0;
   max-height: 480px;
   overflow: auto;
-  padding: 10px 14px;
+  padding: var(--cs-space-2_5) var(--cs-space-3_5);
   color: var(--cs-color-text-primary);
   font-family: var(--font-mono, var(--cs-font-mono));
   font-size: 12px;
@@ -185,7 +185,7 @@
 }
 /* 멈춰서 닫아 그린 코드 블록의 아래 한 줄(dzG 시안 §5): 12 tertiary */
 .convo-code-foot {
-  padding: 4px 12px;
+  padding: var(--cs-space-1) var(--cs-space-3);
   border-top: 1px solid var(--convo-edge);
   color: var(--cs-color-text-tertiary);
   font-family: var(--font-ui, var(--cs-font-ui));
@@ -200,8 +200,8 @@
   justify-content: center;
   min-width: 16px;
   height: 16px;
-  margin-inline: 1px;
-  padding: 0 4px;
+  margin-inline: var(--cs-space-0_25);
+  padding: 0 var(--cs-space-1);
   border-radius: 4px;
   background: var(--convo-chip-bg);
   color: var(--cs-color-text-secondary);
@@ -244,7 +244,7 @@
 }
 .convo-table th,
 .convo-table td {
-  padding: 6px 12px;
+  padding: var(--cs-space-1_5) var(--cs-space-3);
   border-bottom: 1px solid var(--convo-edge);
   text-align: left;
   vertical-align: top;
@@ -262,8 +262,9 @@
 .convo-thinking-body {
   max-height: 240px;
   overflow-y: auto;
-  margin: 2px 0 0 7px;
-  padding: 2px 0 2px 13px;
+  /* 세로 선(2)의 가운데가 줄 아이콘 칸(14)의 가운데 7에 서고(6 + 1), 글은 줄 글 칸(아이콘 14 + 간격 6 = 20)에서 시작한다(6 + 2 + 12) */
+  margin: var(--cs-space-0_5) 0 0 var(--cs-space-1_5);
+  padding: var(--cs-space-0_5) 0 var(--cs-space-0_5) var(--cs-space-3);
   border-left: 2px solid var(--cs-color-border-subtle);
   color: var(--cs-color-text-tertiary);
 }
@@ -272,11 +273,11 @@
 .convo-line {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   min-width: 0;
   min-height: 28px;
-  margin-inline: -6px;
-  padding: 0 6px;
+  margin-inline: calc(-1 * var(--cs-space-1_5));
+  padding: 0 var(--cs-space-1_5);
   border-radius: var(--cs-radius-sm);
   color: var(--cs-color-text-secondary);
   font-size: 13px;
@@ -305,22 +306,9 @@
   outline: 2px solid var(--cs-color-accent-border);
   outline-offset: -2px;
 }
-/* 생각하는 중(DP-212): 답이 놓일 자리의 말풍선 면. 줄 높이·왼쪽 선은 줄과 같고(구슬이 접힌 "생각" 줄의 chevron 자리), 폭은 글에 맞춘다.
-   기다림 줄과 생각 블록 머리가 같은 면이라 자리가 그대로 잇는다. 생각이 끝나면 면이 빠져 보통 줄이 된다 */
-.convo-line[data-live="true"] {
-  justify-self: start;
-  width: fit-content;
-  max-width: calc(100% + 12px);
-  padding-inline-end: 10px;
-  border-radius: var(--cs-radius-lg);
-  background: var(--cs-color-surface-raised);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-subtle);
-}
-.convo-line[data-live="true"]:has(> .convo-line-hit:hover),
-.convo-line[data-live="true"]:has(> .convo-line-hit:focus-visible) {
-  background: var(--cs-color-surface-raised);
-  box-shadow: inset 0 0 0 1px var(--cs-color-border-default);
-}
+/* 생각하는 중(DP-212, 면은 2026-11-20 사용자 결정 AGE-65로 뺐다): 답이 놓일 자리에 구슬 아이콘과 반짝이는 "생각하는 중" 글만 둔다.
+   면·테두리·글에 맞춘 폭이 없는 보통 줄(`.convo-line`)이라 구슬과 글이 접힌 "생각" 줄·도구 줄과 같은 왼쪽 선에 서고,
+   마우스를 올렸을 때의 면도 다른 줄과 같다. 기다림 줄과 생각 블록 머리가 같은 줄이라 자리가 그대로 잇는다(`data-live`는 표지로만 남는다) */
 .convo-line[data-toggle="true"] > :not(.convo-line-hit) {
   pointer-events: none;
 }
@@ -335,6 +323,14 @@
   height: 14px;
   color: var(--cs-color-text-tertiary);
 }
+/* 생각 구슬(캔버스)은 아이콘 칸 안의 블록이라 칸(14)과 가운데가 같다(lcM6i, 사용자 2026-11-21 "생각하는 중 텍스트랑 좌측 아이콘이
+   align center가 안 맞아"). 앱의 caustic 고리 안전망(attention.css `[data-slot$="-orb"]`)이 `dot-orb` 슬롯에도 걸려 구슬을 글줄 안
+   상자(inline-grid, 세로 middle)로 바꾸면 14 칸 안 18 글줄에 얹혀 2.55 아래로 처졌다. 그래서 여기서 블록으로 되돌린다.
+   묶인 앱의 8배 실측: 칸 가운데 14, 글 잉크 가운데 한글 "생각하는 중" 13.75·영어 "Thinking" 14.25(차이 -0.25·+0.25),
+   도구 줄 아이콘과 같은 자리다. 칸을 0.5 올리는 안은 미리보기 브라우저에서만 맞고 앱에서는 영어가 +0.75로 벌어져 버렸다 */
+.convo-line > .convo-line-icon > .thinking-indicator {
+  display: block;
+}
 .convo-line-verb {
   flex: none;
   font-weight: 500;
@@ -344,7 +340,7 @@
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   min-width: 0;
   overflow: hidden;
 }
@@ -367,7 +363,7 @@
   align-items: center;
   min-width: 0;
   height: 20px;
-  padding: 0 6px;
+  padding: 0 var(--cs-space-1_5);
   border-radius: 5px;
   background: var(--convo-chip-bg);
   color: var(--cs-color-text-secondary);
@@ -389,7 +385,7 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   margin-left: auto;
 }
 .convo-line-chevron {
@@ -425,15 +421,15 @@
 /* 펼친 상세: 아이콘 열 아래로 들여 20 */
 .convo-detail {
   display: grid;
-  gap: 8px;
+  gap: var(--cs-space-2);
   min-width: 0;
-  margin: 2px 0 6px 20px;
+  margin: var(--cs-space-0_5) 0 var(--cs-space-1_5) var(--cs-space-5);
 }
 .convo-output {
   margin: 0;
   max-height: 320px;
   overflow: auto;
-  padding: 10px 12px;
+  padding: var(--cs-space-2_5) var(--cs-space-3);
   border-radius: var(--cs-radius-md);
   background: var(--cs-color-neutral-well);
   color: var(--cs-color-text-secondary);
@@ -452,8 +448,8 @@
 }
 /* bash 실행 중 출력 꼬리: 접혀 있어도 보인다 */
 .convo-tail {
-  margin: 2px 0 6px 20px;
-  padding: 6px 10px;
+  margin: var(--cs-space-0_5) 0 var(--cs-space-1_5) var(--cs-space-5);
+  padding: var(--cs-space-1_5) var(--cs-space-2_5);
   border-radius: var(--cs-radius-md);
   background: var(--convo-chip-bg);
   color: var(--cs-color-text-tertiary);
@@ -479,9 +475,9 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
+  gap: var(--cs-space-1);
   height: 20px;
-  padding: 0 6px;
+  padding: 0 var(--cs-space-1_5);
   border: 1px solid var(--convo-edge);
   border-radius: 5px;
   background: transparent;
@@ -518,7 +514,7 @@
    빨강은 줄 끝 표시 하나가 맡고 요약은 tertiary다(실패가 여럿일 때 빨간 줄이 쌓이지 않게) */
 .convo-fail-line {
   min-width: 0;
-  margin: -4px 0 4px 20px;
+  margin: calc(-1 * var(--cs-space-1)) 0 var(--cs-space-1) var(--cs-space-5);
   overflow: hidden;
   color: var(--cs-color-text-tertiary);
   font-family: var(--font-mono, var(--cs-font-mono));
@@ -529,22 +525,23 @@
 }
 /* 묶음 안 줄의 상태 칸: 표시와 꺾쇠 사이 4 */
 .convo-line-status[data-compact="true"] {
-  gap: 4px;
+  gap: var(--cs-space-1);
 }
 .convo-group-body {
   display: grid;
   min-width: 0;
-  margin-left: 6px;
-  padding-left: 13px;
+  /* 글은 줄 글 칸 20에서 시작한다: 들임 6 + 선 1 + 13. 13은 선 굵기 1을 뺀 값이라 토큰 계산으로 적는다 */
+  margin-left: var(--cs-space-1_5);
+  padding-left: calc(var(--cs-space-5) - var(--cs-space-1_5) - 1px);
   border-left: 1px solid var(--cs-color-border-subtle);
 }
 
 /* ── 카드(하위 에이전트, 계획) ───────────────────────────────────── */
 .convo-card {
   display: grid;
-  gap: 8px;
+  gap: var(--cs-space-2);
   min-width: 0;
-  padding: 12px 14px;
+  padding: var(--cs-space-3) var(--cs-space-3_5);
   border: 1px solid var(--convo-edge);
   border-radius: var(--cs-radius-lg);
   background: var(--cs-color-surface-base);
@@ -552,7 +549,7 @@
 .convo-card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   min-width: 0;
   min-height: 20px;
 }
@@ -570,8 +567,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  margin-inline: -6px;
+  gap: var(--cs-space-1);
+  margin-inline: calc(-1 * var(--cs-space-1_5));
 }
 .convo-clip {
   position: relative;
@@ -601,15 +598,15 @@
 /* 할 일 */
 .convo-tasks {
   display: grid;
-  gap: 2px;
-  margin: 0 0 4px 20px;
+  gap: var(--cs-space-0_5);
+  margin: 0 0 var(--cs-space-1) var(--cs-space-5);
   padding: 0;
   list-style: none;
 }
 .convo-task {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--cs-space-2);
   min-height: 22px;
   color: var(--cs-color-text-tertiary);
   font-size: 13px;
@@ -625,21 +622,21 @@
 }
 .convo-tasks-more {
   justify-self: start;
-  margin: 0 0 4px 14px;
+  margin: 0 0 var(--cs-space-1) var(--cs-space-3_5);
   color: var(--cs-color-text-tertiary);
 }
 .convo-task-glyph {
   flex: none;
   width: 14px;
   height: 14px;
-  margin-top: 3px;
+  margin-top: var(--cs-space-0_75);
 }
 
 /* ── 구분 줄(변화 표지, 압축) ─────────────────────────────────────── */
 .convo-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--cs-space-3);
   min-height: 28px;
   color: var(--cs-color-text-tertiary);
   font-size: 13px;
@@ -674,6 +671,7 @@
   left: 0;
   width: 36%;
   height: 1px;
+  /* 1px 선의 가운데를 50%에 둔다(선 굵기의 반. 간격이 아니라 기하 보정이라 토큰 밖이다) */
   margin-top: -0.5px;
   pointer-events: none;
   opacity: 0;
@@ -688,29 +686,7 @@
   box-shadow: 0 0 6px 0.5px color-mix(in oklch, var(--fx-crystal-b) 45%, transparent);
 }
 
-/* ── 주도 구간 레일 ─────────────────────────────────────────────── */
-.convo-row[data-lead] {
-  position: relative;
-}
-.convo-row[data-lead]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 2px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--cs-color-agent-border);
-  /* 주도 머리가 새로 생길 때 레일이 위에서 아래로 그어진다(ROW_ENTER.leadHead) */
-  transform-origin: top center;
-}
-.convo-lead-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--cs-color-agent-solid);
-}
+/* ── Drive 구간 머리 줄의 한도(lcM6g: 레일과 점을 없앴다. 구간은 머리 줄과 끝 줄의 글로만 보인다) ── */
 .convo-meter-warn {
   color: var(--cs-color-warning-text);
 }
@@ -719,7 +695,7 @@
 .convo-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--cs-space-0_5);
   color: var(--cs-color-text-secondary);
   opacity: 0;
   transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
@@ -834,4 +810,54 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* "Driving" 글(lcM6g, 사용자 2026-11-21 "무지개스럽고 과하다 → 무채색 기반 그라데이션"). 색 없이 밝기만 다르다:
+   - 쉴 때(카드, 런타임 목록, 대화 기록의 머리 줄, 움직임 줄이기)는 text-secondary 한 색이다.
+   - 흐르는 것(`data-wave`)은 한 화면에 한 곳, 입력창 위 띠의 "Driving by"뿐이고 Drive가 턴을 돌리는 동안만이다(drive-stack.tsx `DriveWord`).
+     생각하는 중의 반짝임(thinking-indicator.css `.thinking-shimmer`)과 같은 짜임이다: 무늬 폭 400%, 가운데 20%에 text-primary 빛,
+     오른쪽에서 왼쪽 끝까지 2초. 바탕만 반짝임의 tertiary 대신 secondary라 쉴 때 글보다 어두워지지 않는다.
+     초당 30번만 옮긴다(steps): 다시 그리는 넓이는 글 상자뿐, 쉬는 화면은 0이다.
+   - 움직임 줄이기(시스템 설정, 앱 설정 `data-motion="reduce"`)면 흐르지 않고 secondary 한 색이다 */
+.drive-word {
+  --drive-word-base: var(--cs-color-text-secondary);
+  --drive-word-high: var(--cs-color-text-primary);
+  color: var(--drive-word-base);
+}
+.drive-word[data-wave] {
+  background-image: linear-gradient(
+    90deg,
+    var(--drive-word-base) 0%,
+    var(--drive-word-base) 40%,
+    var(--drive-word-high) 50%,
+    var(--drive-word-base) 60%,
+    var(--drive-word-base) 100%
+  );
+  background-size: 400% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: drive-wave 2s steps(60) infinite;
+}
+/* 왼쪽에서 오른쪽으로(읽는 방향) 지나간다: 무늬의 오른쪽 끝에서 왼쪽 끝으로 옮긴다 */
+@keyframes drive-wave {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drive-word[data-wave] {
+    animation: none;
+    background-image: none;
+    color: var(--drive-word-base);
+  }
+}
+:root[data-motion="reduce"] .drive-word[data-wave] {
+  animation: none;
+  background-image: none;
+  color: var(--drive-word-base);
 }

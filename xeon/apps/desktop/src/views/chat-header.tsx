@@ -28,6 +28,7 @@ import {
   useTranscriptDetail,
   type TranscriptDetail,
 } from "./transcript-detail.ts";
+import { MetaParts } from "./meta-parts.tsx";
 
 // 대화 머리(시안 _chat-rt의 ChatHead): 고른 대화의 제목 한 줄과 오른쪽 도구(L4.desktop-ux DP-103 [결정: 2026-11-11 사용자]).
 // 제목 뒤: 예약이 시작한 대화의 예약 줄, 갈라낸 대화의 "원본" 링크. 오른쪽: 생각·도구 표시 수준 메뉴, 턴별 사용량, ⋯ 메뉴(행 메뉴와 같다).
@@ -83,10 +84,13 @@ function ScheduleOriginLine(props: {
   readonly status: ThreadSummary["status"];
 }): ReactNode {
   const origin = useScheduleOrigin(props.scheduleId, props.threadId, props.status);
-  const text = scheduleOriginTextOf(origin.title, origin.ordinal);
+  const parts = scheduleOriginTextOf(origin.title, origin.ordinal);
   return (
-    <span title={text} className="min-w-0 truncate text-ui text-text-tertiary">
-      {text}
+    <span
+      title={parts.join("\n")}
+      className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary"
+    >
+      <MetaParts parts={parts} className="min-w-0 truncate" />
     </span>
   );
 }
@@ -263,11 +267,13 @@ function UsageButton(props: { readonly threadId: ThreadId }): ReactNode {
     >
       <PopoverTitle>{t("desktop.chatHeader.usage.title")}</PopoverTitle>
       <PopoverDescription>
-        {t("desktop.chatHeader.usage.total", {
-          turns: turns.length,
-          tokens: tokenCountText(total.tokens),
-          cost: turnCostText(total.cost),
-        })}
+        <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
+          <span>{t("desktop.chatHeader.usage.turns", { turns: turns.length })}</span>{" "}
+          <span>
+            {t("desktop.chatHeader.usage.tokens", { tokens: tokenCountText(total.tokens) })}
+          </span>{" "}
+          <span>{turnCostText(total.cost)}</span>
+        </span>
       </PopoverDescription>
       <table className="mt-2 w-full border-collapse text-ui-sm tabular-nums">
         <thead>

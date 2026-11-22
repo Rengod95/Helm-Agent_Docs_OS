@@ -14,7 +14,7 @@ binds: [xeon/**]
 
 Fresnel 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문서다. 층별 세부 규칙은 `architecture.layers.spec`, 한 턴이 실행되는 순서는 `architecture.runtime-flow.design`에 있다. 이 문서는 두 문서와 ADR이 어떤 관계인지 한 장에 정리한다.
 
-- 정하는 것: 구성 단위(엔진, Runtime API, 전송, 층, 그룹)와 그 관계, 핵심 결정 목록, 기존 Helm 저장소·설계 정본과의 관계, 문서 지도.
+- 정하는 것: 구성 단위(엔진, Runtime API, 전송, 층, 플러그인)와 그 관계, 핵심 결정 목록, 기존 Helm 저장소·설계 정본과의 관계, 문서 지도.
 - 다루지 않는 것: 각 층의 인터페이스 세부(층별 `spec.md`), 의존 규칙의 검사 방법(`eng.dependency-rules.guide`), 구현 순서(층별 `plan.md`).
 
 ### 1.1 한 장 요약
@@ -23,8 +23,8 @@ Fresnel 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 �
 2. 엔진은 프로세스 정책(데몬 여부, 전송, 유휴 종료)을 포함하지 않는 라이브러리다. 데몬을 띄울지, 자식 프로세스로 띄울지는 L4 호스트(`xeon/apps/host`)가 정한다 [결정: ADR-0006].
 3. UI는 엔진 객체를 직접 다루지 않고 Runtime API 하나만 쓴다. 계약 스키마는 F5(`xeon/packages/contracts`)에 둔다 [결정: ADR-0006].
 4. 전송은 세 가지다. CLI 기본은 in-process, 데스크톱은 자식 프로세스 stdio JSON-RPC, 공유 서비스는 `fresnel service`다. 전송을 바꿔도 Runtime API와 DB 스키마는 바뀌지 않는다 [결정: ADR-0006, ADR-0008].
-5. 코드는 층 F → X → L0 → L1 → P → L4 순서로 쌓인다(P는 플러그인 등급: 기능과 그룹). 패키지는 자기보다 순위가 낮은 층만 import한다 [결정: `_research/foundation-plan.md` §3].
-6. 확장은 `on`(fold `tap`/`first`/`chain`), `post`, `drive`(배타 drive 락), `scope` 네 연산으로 루프에 붙는다. Helm과 학습 그룹은 이 연산을 쓰는 L3 기본 그룹이다 [결정: ADR-0007].
+5. 코드는 층 F → X → L0 → L1 → P → L4 순서로 쌓인다(P는 플러그인 등급: 기능과 플러그인). 패키지는 자기보다 순위가 낮은 층만 import한다 [결정: `_research/foundation-plan.md` §3].
+6. 확장은 `on`(fold `tap`/`first`/`chain`), `post`, `drive`(배타 drive 락), `scope` 네 연산으로 루프에 붙는다. Helm과 학습 플러그인은 이 연산을 쓰는 L3 기본 플러그인이다 [결정: ADR-0007].
 7. 대화 기록은 SQLite 파일 하나에 저장한다. 불변 이벤트와 조회용 투영, 확장별 접두사 테이블을 단계 경계마다 한 트랜잭션으로 커밋한다 [결정: ADR-0004]. 도구 효과는 호출마다 의도·실행 시작·결과를 따로 커밋한다 [결정: review.decisions-2 U-10].
 8. 스택은 Bun 1.4, TypeScript 7, Cordis 단일 DI다 [결정: ADR-0001, ADR-0002].
 
@@ -37,10 +37,10 @@ Fresnel 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 �
 | Runtime API | UI와 엔진 사이의 JSON-RPC 계약. 스키마는 F5에 하나만 둔다 | `F.wire-settings.spec` |
 | 전송 | Runtime API를 실어 나르는 수단. in-process, stdio, service 셋 | `L4.host-service.spec` |
 | 층 | 의존 순위가 같은 패키지 묶음. F, X, L0, L1, L2, L3, L4 | `architecture.layers.spec` |
-| 그룹 | `scope` 하나로 묶여 단계 경계에서 켜고 끄는 L3 플러그인 단위. Helm, 학습 그룹, 추가 그룹 | `L3.group-sdk.spec` |
+| 플러그인 | `scope` 하나로 묶여 단계 경계에서 켜고 끄는 L3 플러그인 단위. Helm, 학습 플러그인, 추가 플러그인 | `L3.group-sdk.spec` |
 | 기능(cap) | 서비스 API와 모델 도구를 쌍으로 제공하는 L2 단위(`cap-*`). 정의는 F3에 있다 | `F.capabilities.spec` |
 | 훅 | 루프가 확장을 부르는 자리. 각 훅의 fold는 훅 선언이 정한다. 종류를 `input`, `request`, `tool`, `boundary`, `session` 다섯으로 나누는 안은 [제안]이고 사용자 합의 전이다(ADR-0007 3.3) | `F.extensions.spec`, `X.primitives.spec` |
-| drive 락 | `drive`가 얻는 루프 구동 권한. 한 번에 그룹 하나가 갖고 상한 `{maxTurns, maxSpawns, maxTokens}`가 붙는다 | `X.primitives.spec` |
+| drive 락 | `drive`가 얻는 루프 구동 권한. 한 번에 플러그인 하나가 갖고 상한 `{maxTurns, maxSpawns, maxTokens}`가 붙는다 | `X.primitives.spec` |
 | 투영 | 이벤트에서 만든 조회용 테이블(메시지, 파트 등). 이벤트와 같은 트랜잭션에서 갱신한다 | `L1.persistence.spec` |
 | 내구 이벤트 | DB에 커밋되는 이벤트. `seq`, `parentId`, 종류, 버전을 갖는다 | `F.records.spec` |
 | 휘발 이벤트 | 저장하지 않고 연결 중인 구독자에게만 보내는 이벤트. 토큰 델타가 대표 예다 | `F.records.spec`, `eng.events.design` |
@@ -104,10 +104,10 @@ flowchart TB
     desktop["apps/desktop"]
     host["apps/host"]
   end
-  subgraph L3["L3 플러그인 그룹"]
-    ghelm["packages/group-helm"]
-    glearn["packages/group-learning"]
-    gkit["packages/group-sdk"]
+  subgraph L3["L3 플러그인"]
+    ghelm["packages/plugin-helm"]
+    glearn["packages/plugin-learning"]
+    gkit["packages/orchestration-sdk"]
   end
   cap["L2 packages/cap-*<br/>workspace mcp web knowledge<br/>work dialog artifacts schedule"]
   subgraph ENGINE["엔진 (라이브러리)"]
@@ -150,8 +150,8 @@ flowchart TB
 - `apps/host`는 엔진 진입점이다. 모든 층의 패키지를 Cordis 플러그인으로 조립하고, Runtime API를 세 전송 중 하나로 노출한다(`_research/foundation-plan.md` §3).
 - `apps/desktop`은 `apps/host`를 import하지 않는다. `bun build --compile`로 만든 엔진 바이너리를 사이드카로 실행한다(ADR-0008).
 - `apps/cli`의 in-process 전송은 같은 층(L4)인 `apps/host`의 코드를 같은 프로세스에서 쓴다. 같은 층 예외 `DR-10/cli-host`로 허용한다 [결정: review.decisions-2 U-15].
-- `group-helm`·`group-learning`이 `group-sdk`을 import하는 간선도 같은 층 예외 `DR-02/group-sdk`로 허용한다 [결정: review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
-- [결정: 계획 v2 '층 사이 규칙' 2, DR-14] L3 그룹은 `cap-*`를 import하지 않는다. L2 기능은 F3 정의와 Cordis 서비스로만 쓴다(`architecture.layers.spec` 3.1절 2행).
+- `plugin-helm`·`plugin-learning`이 `orchestration-sdk`을 import하는 간선도 같은 층 예외 `DR-02/orchestration-sdk`로 허용한다 [결정: review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
+- [결정: 계획 v2 '층 사이 규칙' 2, DR-14] L3 플러그인은 `cap-*`를 import하지 않는다. L2 기능은 F3 정의와 Cordis 서비스로만 쓴다(`architecture.layers.spec` 3.1절 2행).
 - `cap --> exthost` 간선은 L2의 플러그인 등록 경로다. 하위 층은 `@fresnel/ext-host`의 서비스 등록·주입 API만 import한다(DR-14 예외) [결정: review.decisions-2 U-17].
 - 서비스 주입 점선의 F 서비스 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService` 등)와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 §3 D-04].
 
@@ -206,7 +206,7 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 ## 5. 실패와 경계 사례
 
 - 같은 대화를 다른 프로세스가 실행 중이면 대화 잠금을 얻지 못한다. 이때의 위임, 관찰, 분기는 3절과 `architecture.runtime-flow.design` 4.4절이 정한다.
-- 같은 층 import 금지 규칙의 예외 간선(`apps/cli` → `apps/host`, 그룹 → `group-sdk`)은 허용 목록에 있는 것만 허용한다(4.1절). 목록 밖 같은 층 import는 `check-layers.ts`가 거부한다.
+- 같은 층 import 금지 규칙의 예외 간선(`apps/cli` → `apps/host`, 플러그인 → `orchestration-sdk`)은 허용 목록에 있는 것만 허용한다(4.1절). 목록 밖 같은 층 import는 `check-layers.ts`가 거부한다.
 - 그 밖의 실패 처리는 층별 `spec.md`가 정한다.
 
 ## 6. 설정 노출

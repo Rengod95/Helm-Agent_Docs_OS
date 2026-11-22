@@ -21,6 +21,7 @@ function render(
   width: number,
   start: (model: ShellModel) => ShellModel = (model) => model,
   chat: ReactNode = <p>채팅 화면 내용</p>,
+  chatBleed = false,
 ): string {
   const store = createShellStore(width, start);
   const registry = createShellRegistry();
@@ -29,6 +30,7 @@ function render(
     area: "chat",
     label: "desktop.shell.nav.chat",
     render: () => chat,
+    ...(chatBleed ? { bleed: true } : {}),
   });
   registry.registerEndTab({
     id: "inbox",
@@ -80,7 +82,16 @@ describe("Shell slots", () => {
     const main = /<main[^>]*>/.exec(out)?.[0] ?? "";
     expect(main).not.toMatch(/\bpe-10\b/);
     expect(main).toContain("data-rail");
-    expect(main).toContain("[--shell-rail:3rem]");
+    expect(main).toContain("[--shell-rail:calc(var(--spacing)*12)]");
+  });
+
+  test("a screen registered to run to the edge (bleed) gets no rail inset; it steps around the bar itself (m6R5)", () => {
+    const out = render(1400, (model) => model, <p>끝까지 쓰는 화면</p>, true);
+    const main = /<main[^>]*>/.exec(out)?.[0] ?? "";
+    expect(main).not.toContain("data-rail");
+    expect(main).not.toContain("--stage-rail");
+    expect(out).toContain("끝까지 쓰는 화면");
+    expect(out).toMatch(/<div[^>]*data-slot="floating-bar"[^>]*data-end-bar=""/);
   });
 
   test("the floating bar stands in the vertical middle under the head, not in the head's top right corner (DP-135)", () => {
@@ -119,7 +130,7 @@ describe("Shell slots", () => {
 
   test("the workbench area lists six workbench items, no plugin pages item, and no thread list", () => {
     const out = render(1400, (model) => switchArea(model, "workbench"));
-    for (const label of ["개요", "확장", "테스트", "성능 측정", "구성", "엔진"]) {
+    for (const label of ["개요", "플러그인", "테스트", "성능 측정", "구성", "엔진"]) {
       expect(out).toContain(label);
     }
     expect(out).not.toContain("플레이그라운드");

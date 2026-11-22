@@ -13,6 +13,7 @@ import { err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type {
+  IsolationSpawnSpec,
   LoaderFs,
   ManifestScriptDecl,
   ScriptDraftGate,
@@ -21,6 +22,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { BinaryError, BinaryName, OsDirs, ResolvedBinary } from "@fresnel/contracts/services";
 import { createScriptRunner } from "@fresnel/ext-host";
+import { scriptRunnersOnPath } from "../../src/assembly/plugin-host.ts";
 import {
   createSandboxService,
   readSandboxSettings,
@@ -34,6 +36,7 @@ import {
 } from "@fresnel/platform-process";
 import {
   createLocalIdFactory,
+  readOsRuntime,
   systemClock,
   systemRandom,
   systemScheduler,
@@ -98,8 +101,14 @@ interface RunSpec {
   readonly args?: readonly string[];
   readonly stdin?: string;
   readonly timeoutMs?: number;
+  /**
+   * `false`면 실행기가 켠 시스템 도구 읽기(`systemTools`)를 떼고 띄운다. 넓히기 전의 경계를 같은 시험으로 다시 보는 대조용이다. 기본은 실행기가 정한 대로(켬)다
+   */
+  readonly systemTools?: boolean;
   /** 있으면 초안(검토 전)으로 돌린다: 승인 문을 걸고 호출한 대화를 붙인다 */
   readonly draft?: { readonly gate: ScriptDraftGate };
+  /** 설정 `l0.sandbox.narrowDrafts`를 켰는가. 승인 전 초안의 스크립트만 좁은 길로 돈다(승인된 스크립트는 영향이 없다) [결정: 2026-11-21, AGE-63] */
+  readonly narrowDrafts?: boolean;
 }
 
 /** 실행기 이름을 절대 경로로 푼다. 시험이 쓰는 값이다 */
@@ -117,6 +126,7 @@ function runnerPaths(): RunnerPaths {
 async function createService(
   dirs: OsDirs,
   scheduler: SystemScheduler,
+  extraProtected: readonly string[],
 ): Promise<SandboxServiceHandle> {
   return createSandboxService(
     {
@@ -126,7 +136,11 @@ async function createService(
         logger: () => LOGGER,
         resolveBinary: (name) => resolveOnPath(name),
       },
-      settings: () => readSandboxSettings(() => undefined),
+      // 기본 설정 밖에 시험이 더하는 것은 `protectedPaths.extra`뿐이다(사용자가 막은 경로: 읽기와 쓰기를 모두 거부)
+      settings: () =>
+        readSandboxSettings((key) =>
+          key === "l0.sandbox.protectedPaths.extra" ? [...extraProtected] : undefined,
+        ),
     },
     new AbortController().signal,
   );
@@ -134,6 +148,12 @@ async function createService(
 
 export async function openScriptBox(options?: {
   readonly resolve?: (name: ScriptRunner) => string | undefined;
+  /** `python3`를 찾을 PATH. 기본은 이 프로세스의 PATH다(shim, Homebrew, 개발자 도구 껍데기를 따로 시험할 때 쓴다) */
+  readonly pythonPath?: string;
+  /** 설정 `l0.sandbox.protectedPaths.extra`에 든 것으로 다룬다(읽기·쓰기 거부). 시험이 만든 폴더만 넣는다 */
+  readonly protectedPathsExtra?: readonly string[];
+  /** 자식의 부모 env. 기본은 PATH뿐이다. 시험은 가짜 이름과 가짜 값만 넣는다 */
+  readonly parentEnv?: Readonly<Record<string, string>>;
 }): Promise<ScriptBox> {
   const root = realpathSync(mkdtempSync(join(DISK_TMP, "fresnel-script-box-")));
   const dirs: OsDirs = {
@@ -163,9 +183,10 @@ export async function openScriptBox(options?: {
   for (const dir of dirList) mkdirSync(dir, { recursive: true });
   const scheduler = systemScheduler();
   // srt는 프로세스 전역 싱글턴이다. 먼저 만든 서비스를 끄고 나서 시험 서비스를 만든다
-  const warmup = await createService(dirs, scheduler);
+  const extraProtected = options?.protectedPathsExtra ?? [];
+  const warmup = await createService(dirs, scheduler, extraProtected);
   await warmup.dispose();
-  const service = await createService(dirs, scheduler);
+  const service = await createService(dirs, scheduler, extraProtected);
   const platform = detectProcessPlatform();
   if (!platform.ok) throw new Error("this test needs a supported platform");
   const background: BackgroundRegistryController = createBackgroundRegistry({
@@ -178,11 +199,16 @@ export async function openScriptBox(options?: {
     platform: platform.value,
     background,
     sandbox: () => service,
-    parentEnv: { PATH: process.env["PATH"] },
+    parentEnv: { PATH: process.env["PATH"], ...options?.parentEnv },
     scheduler,
     logger: LOGGER,
   });
   const paths = runnerPaths();
+  // `python3`는 운영과 같은 해석기로 푼다(실제 인터프리터와 설치 폴더 읽기 경로)
+  const pythons = scriptRunnersOnPath(
+    { PATH: options?.pythonPath ?? process.env["PATH"] },
+    readOsRuntime().runSync,
+  );
   const resolve =
     options?.resolve ??
     ((name: ScriptRunner) =>
@@ -192,12 +218,14 @@ export async function openScriptBox(options?: {
           ? paths.bash
           : name === "bun"
             ? paths.bun
-            : undefined);
+            : name === "python3"
+              ? pythons.runner("python3")
+              : undefined);
   let counter = 0;
   const run = async (spec: RunSpec): Promise<ScriptRunResult | string> => {
     counter += 1;
     const name = `s${counter}`;
-    const file = `${name}.${spec.runner === "bun" ? "ts" : "sh"}`;
+    const file = `${name}.${spec.runner === "bun" ? "ts" : spec.runner === "node" ? "mjs" : spec.runner === "python3" ? "py" : "sh"}`;
     writeFileSync(join(tree, file), spec.body);
     const scripts: ManifestScriptDecl[] = [
       {
@@ -208,13 +236,26 @@ export async function openScriptBox(options?: {
         ...(spec.timeoutMs === undefined ? {} : { timeoutMs: spec.timeoutMs }),
       },
     ];
+    const process =
+      spec.systemTools === false
+        ? {
+            spawn: (request: IsolationSpawnSpec) => {
+              const { systemTools: _dropped, ...narrowed } = request;
+              return port.spawn(narrowed);
+            },
+          }
+        : port;
     const runner = createScriptRunner({
-      process: port,
+      process,
       fs: nodeFs,
       target: { extension: "demo", scripts, tree, approved: spec.draft === undefined },
       resolveRunner: resolve,
+      runnerReadRoots: pythons.readRoots,
       allowedEnv: {},
       ...(spec.draft === undefined ? {} : { draftGate: spec.draft.gate }),
+      ...(spec.narrowDrafts === undefined
+        ? {}
+        : { narrowDrafts: () => spec.narrowDrafts === true }),
       setTimer: (ms, fn) => {
         const handle = scheduler.setTimeout(fn, ms);
         return () => scheduler.clearTimeout(handle);

@@ -427,7 +427,7 @@ export function buildChildEnv(input: {
 
 | 구분 | 이름 |
 |---|---|
-| `pass` | `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TMPDIR`, `SHELL` |
+| `pass` | `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TMPDIR`, `SHELL`. 정본은 F 상수 `BASE_ENV_PASS_NAMES`이고 `platform-process`(플러그인 격리, 가져오기 훑기, 플러그인 스크립트, MCP 서버)도 같은 목록을 쓴다 [결정: 2026-11-22, 사용자, AGE-63] |
 | `fixed` | `TERM=dumb`, `NO_COLOR=1`, `CI=1`. `LANG`이 부모에 없으면 `LANG=C.UTF-8` |
 | `deny` | `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `AWS_*`, `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `FRESNEL_*`, `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `NODE_OPTIONS`, `BUN_OPTIONS` |
 

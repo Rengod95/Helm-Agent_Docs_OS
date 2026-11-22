@@ -158,7 +158,7 @@ describe("링크: 맞지 않는 상대는 줄과 실에서 뺀다", () => {
 });
 
 describe("대표 플러그인이 없는 그룹: 구성원 가운데 맞는 것이 있으면 그룹과 그 조각을 남긴다", () => {
-  // 루트 플러그인(그룹 이름과 같은 id)이 없는 그룹 docs-pack. 구성원마다 넣어 주는 것이 다르다.
+  // 루트 플러그인(플러그인 이름과 같은 id)이 없는 그룹 docs-pack. 구성원마다 넣어 주는 것이 다르다.
   const withDocs: CanvasSnapshot = {
     plugins: [
       ...fixture.plugins,

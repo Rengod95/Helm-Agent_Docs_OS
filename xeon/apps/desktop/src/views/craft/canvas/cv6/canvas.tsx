@@ -690,7 +690,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
             onMoveStart={(e) => {
               if (e !== null) autoFit.current = false;
             }}
-            proOptions={{ hideAttribution: true }}
+            attributionPosition="bottom-left"
             aria-label={t("desktop.craft.canvas.cv3.canvas")}
             onPaneClick={() => {
               setSelected(null);
@@ -801,7 +801,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
           {/* 관계 보기를 켜면 선의 문법을 보이게 둔다(그림 옆의 말) */}
           {store.allRelations ? (
-            <div className="glass glass-shadow-3 rounded-xl absolute bottom-15 right-3 z-10 flex flex-col gap-1 px-3 py-2.5">
+            <div className="glass glass-shadow-3 rounded-xl absolute bottom-16 right-3 z-10 flex flex-col gap-1 px-3 py-2.5">
               {REL_KINDS.map((k) => (
                 <span key={k} className="flex items-center gap-2 text-[12px] text-text-secondary">
                   <RelationSwatch kind={k} />

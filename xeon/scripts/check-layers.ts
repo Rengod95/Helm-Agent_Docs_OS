@@ -13,7 +13,7 @@
 //   DR-15 a plugin (P) imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources or runtime dependencies,
 //         except allowlist entries DR-15/<name>; test files and devDependencies are exempt (6.3 P.2)
 //   WEB-R16 no network calls, `Bun.` access or socket construction in packages/cap-web/src/fetch/convert (L2.web.spec 4.9.3)
-// Rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5). plugins/* count as L1, cap-*, group-*, plugin-builder and plugin-migration as P (6.3),
+// Rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5). plugins/* count as L1, cap-*, plugin-*, orchestration-sdk, plugin-builder and plugin-migration as P (6.3),
 // apps/* and packages/client as L4, vendor/* is excluded. A P package may still declare "fresnel": {"layer": "L2"} or "L3" (transition aliases).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
@@ -60,10 +60,10 @@ export interface Violation {
 
 /** One approved exception (guide section 4). TS-NN entries are validated but only DR-NN entries are applied here. */
 export interface AllowEntry {
-  /** "<rule id>/<name>", e.g. DR-02/group-sdk. */
+  /** "<rule id>/<name>", e.g. DR-02/orchestration-sdk. */
   id: string;
   rule: string;
-  /** Package directory on the importing side, or a family pattern "packages/group-*" (a trailing "*" in the last segment). */
+  /** Package directory on the importing side, or a family pattern "packages/plugin-*" (a trailing "*" in the last segment). */
   from: string;
   /** Allowed target: a workspace package name or an external module specifier. */
   to: string;
@@ -125,12 +125,7 @@ export function expectedLayer(dir: string): Layer | "vendor" | undefined {
   if (name === CLIENT_DIR_NAME) return "L4";
   if (name.startsWith("platform-")) return "L0";
   if (name.startsWith("core-")) return "L1";
-  if (
-    name.startsWith("cap-") ||
-    name.startsWith("group-") ||
-    name === "plugin-builder" ||
-    name === "plugin-migration"
-  ) {
+  if (name.startsWith("cap-") || name === "orchestration-sdk" || name.startsWith("plugin-")) {
     return "P";
   }
   return undefined;
@@ -148,7 +143,7 @@ export function rankedLayer(pkg: PackageInfo): string | undefined {
   return declared;
 }
 
-/** routes.yaml layout key that lists the domains of a package (DR-03). cap-* are listed under L2; group-* and plugin-builder have path entries only. */
+/** routes.yaml layout key that lists the domains of a package (DR-03). cap-* are listed under L2; plugin-* and orchestration-sdk have path entries only. */
 function routedLayerOf(dir: string, layer: Layer): RoutedLayer | undefined {
   if (layer === "P") return dir.startsWith("packages/cap-") ? "L2" : undefined;
   if (layer === "L0" || layer === "L1") return layer;
@@ -157,15 +152,16 @@ function routedLayerOf(dir: string, layer: Layer): RoutedLayer | undefined {
 
 /**
  * Domain a package must declare: the directory name without its layer prefix (DR-03).
- * `group-sdk` is the one exception: its domain is the routes.yaml name `group-sdk` (M3-35, L3.group-sdk.spec §10).
+ * `orchestration-sdk` is the one exception: its domain is the routes.yaml name `group-sdk` (M3-35, L3.group-sdk.spec §10).
  */
 export function expectedDomain(dir: string): string | undefined {
   const [root, name = ""] = dir.split("/");
   if (root === "plugins" || root === "apps") return name;
   if (root !== "packages") return undefined;
   if (name === "contracts" || name === "ext-host" || name === CLIENT_DIR_NAME) return name;
-  if (name === "group-sdk") return name;
-  for (const prefix of ["platform-", "core-", "cap-", "group-"]) {
+  if (name === "orchestration-sdk") return "group-sdk";
+  if (name === "plugin-builder" || name === "plugin-migration") return undefined;
+  for (const prefix of ["platform-", "core-", "cap-", "plugin-"]) {
     if (name.startsWith(prefix)) return name.slice(prefix.length);
   }
   return undefined;
@@ -374,7 +370,7 @@ function sameLayerRule(fromDir: string, toDir: string): "DR-02" | "DR-10" {
 
 /**
  * `from` 값이 패키지 디렉터리 `dir`을 가리키는가. 끝의 `*`는 마지막 이름 한 단계를 가리키는 패턴이다.
- * "packages/group-*"는 packages/group-helm, packages/group-sdk 같은 그룹 전부를 가리키고 packages/group-x/sub는 가리키지 않는다.
+ * "packages/plugin-*"는 packages/plugin-helm, packages/orchestration-sdk 같은 그룹 전부를 가리키고 packages/plugin-x/sub는 가리키지 않는다.
  */
 export function matchesFrom(from: string, dir: string): boolean {
   if (!from.endsWith("*")) return from === dir;
@@ -567,7 +563,7 @@ export function analyze(
 
 /**
  * DR-15 (6.3 P.2): a plugin package (P) imports no L0 or L1 package (platform-*, core-*, plugins/*) in its sources or in its
- * runtime dependencies. contracts and ext-host (lower ranks) and group-sdk (same rank, DR-02) are the allowed workspace packages.
+ * runtime dependencies. contracts and ext-host (lower ranks) and orchestration-sdk (same rank, DR-02) are the allowed workspace packages.
  * Test files and devDependencies are exempt. The exceptions are allowlist entries DR-15/<name>; a dependency entry is covered by any entry point.
  */
 export function checkPluginImports(
@@ -594,7 +590,7 @@ export function checkPluginImports(
         rule: "DR-15",
         file: file === undefined ? `${pkg.dir}/package.json` : `${pkg.dir}/${file}`,
         line: line ?? 1,
-        message: `P package ${pkg.name} ${how} ${targetLayer} package ${name}; a plugin imports only contracts, ext-host, group-sdk and external packages`,
+        message: `P package ${pkg.name} ${how} ${targetLayer} package ${name}; a plugin imports only contracts, ext-host, orchestration-sdk and external packages`,
       });
     };
     for (const { spec, file, line } of pkg.imports) {

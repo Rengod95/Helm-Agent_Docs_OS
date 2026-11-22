@@ -1,13 +1,13 @@
 // M1 걷는 골격의 X 쪽 연결: 로더가 테스트용 그룹 하나를 싣고 on/post/drive가 돈다(X.loading-trust.plan L-12).
 import { expect, test } from "bun:test";
-import { createSmokeGroup } from "../../src/testing/index.ts";
+import { createSmokeOrchestration } from "../../src/testing/index.ts";
 import { createLoaderHarness } from "./support/harness.ts";
 import { unsafeInput } from "../primitives/fixtures/support.ts";
 
 test("skeleton: the loader loads the smoke group and its operations run", async () => {
   const harness = await createLoaderHarness();
   const { t } = harness;
-  const { unit, probe } = createSmokeGroup({ ids: t.ids });
+  const { unit, probe } = createSmokeOrchestration({ ids: t.ids });
   const thread = t.newThread();
   const report = await harness.loader.loadAll(
     harness.options([{ manifest: unit.manifest, extension: unit.entry }]),
@@ -46,7 +46,7 @@ test("skeleton: the loader loads the smoke group and its operations run", async 
 test("skeleton: turning the group off through the setting applies at the next step boundary", async () => {
   const harness = await createLoaderHarness();
   const { t } = harness;
-  const { unit } = createSmokeGroup({ ids: t.ids });
+  const { unit } = createSmokeOrchestration({ ids: t.ids });
   const thread = t.newThread();
   await harness.loader.loadAll(
     harness.options([{ manifest: unit.manifest, extension: unit.entry }]),
@@ -68,7 +68,7 @@ test("skeleton: turning the group off through the setting applies at the next st
 test("skeleton: dispose uninstalls in reverse load order and clears the policy table", async () => {
   const harness = await createLoaderHarness();
   const { t } = harness;
-  const { unit } = createSmokeGroup({ ids: t.ids });
+  const { unit } = createSmokeOrchestration({ ids: t.ids });
   await harness.loader.loadAll(
     harness.options([{ manifest: unit.manifest, extension: unit.entry }]),
   );

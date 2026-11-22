@@ -8,7 +8,6 @@ type Terms = Readonly<Record<string, TermDecl>>;
 
 /** 화면(chat) 문자열에 나오면 안 되는 내부 전용 말(설계 §5 C-04 목록) */
 export const CHAT_INTERNAL_WORDS: readonly string[] = [
-  "루프",
   "코어",
   "소켓",
   "tier",
@@ -20,6 +19,14 @@ export const CHAT_INTERNAL_WORDS: readonly string[] = [
   "컴팩션",
   "단계 경계",
 ];
+
+/**
+ * C-04의 예외: 이 키에 한해 이 말을 허용한다(키 하나, 말 하나씩만 늘린다. 범위를 넓히지 않는다).
+ * 근거: 2026-11-20 사용자, AGE-33: "핵심말고 코어". 내부 부품 묶음 이름 `plugin.internal.layer.core`의 한국어는 "코어"다.
+ */
+export const CHAT_INTERNAL_WORD_EXCEPTIONS: Readonly<Record<string, readonly string[]>> = {
+  "plugin.internal.layer.core": ["코어"],
+};
 
 export type Exposure = "chat" | "settings" | "workbench" | "skip";
 
@@ -119,6 +126,8 @@ export function checkCatalogStyle(ko: Catalog, en: Catalog, terms: Terms): Viola
       const where = `locales/${locale}.json ${key}`;
       if (exposure === "chat") {
         for (const word of CHAT_INTERNAL_WORDS) {
+          if (CHAT_INTERNAL_WORD_EXCEPTIONS[key]?.includes(word) === true && locale === "ko")
+            continue;
           if (mentions(text, word)) {
             out.push({
               rule: "C-04",

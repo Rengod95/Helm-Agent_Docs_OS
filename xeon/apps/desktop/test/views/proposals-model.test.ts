@@ -301,7 +301,7 @@ function extEntry(overrides: Partial<ExtListEntry>): ExtListEntry {
     name: "learning",
     displayName: "Learning",
     layer: "L3",
-    isGroup: true,
+    isOrchestration: true,
     version: "0.1.0",
     location: "builtin",
     requestedGrade: "builtin",

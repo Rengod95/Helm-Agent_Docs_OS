@@ -203,8 +203,9 @@ function Header(props: {
       meta={
         back === undefined ? (
           <>
-            <span className="min-w-0 truncate text-ui text-text-tertiary">
-              {entry.extension} · v{entry.version}
+            <span className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
+              <span className="min-w-0 truncate">{entry.extension}</span>{" "}
+              <span className="flex-none">{`v${entry.version}`}</span>
             </span>
             <span className="min-w-0 text-ui text-text-tertiary">
               {t(`client.view.confirm.trust.${trust}`)}
@@ -735,7 +736,7 @@ export function PluginView(props: {
       <div
         className={
           page
-            ? "min-h-0 flex-1 overflow-auto ps-6 pe-[calc(var(--shell-rail,0px)+1.5rem)] pb-6"
+            ? "min-h-0 flex-1 overflow-auto ps-6 pe-[calc(var(--shell-rail,0px)+var(--cs-space-6))] pb-6"
             : "min-h-0 flex-1 overflow-auto px-3 pb-3"
         }
       >

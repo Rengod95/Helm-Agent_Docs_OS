@@ -11,6 +11,7 @@ import {
 import {
   ExecutionError,
   type CancelScope,
+  type ProtectedPathEntry,
   type SandboxPolicy,
   type SandboxRunReport,
   type SandboxStatus,
@@ -41,14 +42,14 @@ export interface WrapShellDeps {
   readonly status: () => SandboxStatus;
   /** 거부 문구를 출력한 실패 명령이 쓰기 거부 줄을 기다리는 최대 시간(ms). 생략하면 600 */
   readonly violationWaitMs?: number;
-  /** l0.sandbox.escapeRetry */
-  readonly escapeRetry: () => boolean;
   /** 호출자 정책에 보호 경로와 설정 추가분을 합쳐 유효 정책을 만든다 */
   readonly resolvePolicy: (policy: SandboxPolicy, baseDir: string) => EffectivePolicy;
   /** srt에 넘길 헬퍼 경로. 검증 후보를 만들 때 쓴다 */
   readonly tools: () => SrtTools;
   /** 읽기 전용 프로필이 호출마다 빈 임시 폴더를 만들 부모 폴더(`os.dirs.tmp`). 생략하면 OS 임시 폴더 */
   readonly readOnlyTempBase?: () => string;
+  /** 보호 경로 항목 전체(기본 + 설정 추가분). script-env의 읽기 예외 검사가 basename 항목을 쓴다 */
+  readonly protectedEntries: () => readonly ProtectedPathEntry[];
   /** exec 때마다 맨 먼저 부른다. 설정 변경(enabled)으로 낡은 탐지 결과를 새로 고치는 자리다 */
   readonly ensureCurrent: (context: CancelScope) => Promise<void>;
 }
@@ -150,13 +151,16 @@ export type ExecutionDecision =
  */
 export function decideExecution(
   status: SandboxStatus,
-  policy: Pick<SandboxPolicy, "allowEscape">,
-  escapeRetry: boolean,
+  policy: Pick<SandboxPolicy, "allowEscape" | "profile">,
 ): ExecutionDecision {
   if (status.reason === "disabled") return { action: "plain", by: "disabled" };
-  if (policy.allowEscape) {
-    return escapeRetry ? { action: "plain", by: "escape" } : { action: "reject", cause: "escape" };
+  // 스크립트 환경은 격리 불가일 때 onUnavailable이 run_unsandboxed여도 샌드박스 밖에서 돌지 않는다(닫힌 실패). 사용자가 끈 경우(disabled)만 위에서 허락한다
+  if (policy.profile === "script-env") {
+    if (policy.allowEscape) return { action: "reject", cause: "escape" };
+    return status.available ? { action: "sandboxed" } : { action: "reject", cause: "unavailable" };
   }
+  // 샌드박스 밖에서 다시 실행하는 길은 없다(설정 escapeRetry는 지웠다). 밖 실행을 요구하는 호출은 거부한다
+  if (policy.allowEscape) return { action: "reject", cause: "escape" };
   if (status.available) return { action: "sandboxed" };
   switch (status.onUnavailable) {
     case "disable_execute":
@@ -200,8 +204,10 @@ export interface SrtWrapRequest {
   readonly cwd: string | undefined;
   readonly abortSignal: AbortSignal | undefined;
   readonly commandId: string;
-  /** 읽기 전용 프로필이 이 호출에 허용하는 유일한 쓰기 루트(호출 전용 빈 임시 폴더) */
+  /** 읽기 전용 프로필이 이 호출에 허용하는 유일한 쓰기 루트(호출 전용 빈 임시 폴더). 스크립트 환경은 이 폴더를 쓰기 루트에 더한다 */
   readonly readOnlyTemp?: string;
+  /** wrapArgv가 이미 풀어 둔 유효 정책(읽기 예외 검사와 같은 값을 쓰려고). 없으면 여기서 푼다 */
+  readonly resolved?: EffectivePolicy;
 }
 
 /**
@@ -219,7 +225,7 @@ export async function srtWrap(
       new ExecutionError("sandbox_failed", "network allow-list policy is not supported yet"),
     );
   }
-  const resolved = deps.resolvePolicy(policy, request.baseDir);
+  const resolved = request.resolved ?? deps.resolvePolicy(policy, request.baseDir);
   const effective: EffectivePolicy =
     policy.profile === "read-only" || policy.profile === "no-write"
       ? {
@@ -236,7 +242,16 @@ export async function srtWrap(
                 ]),
               }),
         }
-      : resolved;
+      : policy.profile === "script-env" && request.readOnlyTemp !== undefined
+        ? // 스크립트 환경: 프로젝트 폴더에 더해 이 호출의 임시 폴더만 쓴다. 읽기 허용 목록은 없다
+          {
+            ...resolved,
+            writeRoots: sortedUnique([
+              ...resolved.writeRoots,
+              canonicalizePath(request.readOnlyTemp),
+            ]),
+          }
+        : resolved;
   const customConfig = toSrtFileConfig(effective);
   const issues = deps.srt.validateConfig(validationCandidate(deps.tools(), customConfig));
   if (issues.length > 0) {
@@ -270,7 +285,7 @@ export async function srtWrap(
   return ok(wrapped);
 }
 
-/** 쓰기 거부를 기다리는 최대 시간(ms). 늦게 도착한 거부 줄이 막힌 경로를 알려 쓰기 허용 질문을 가능하게 한다(L2.workspace.spec §4.3.1) */
+/** 쓰기 거부를 기다리는 최대 시간(ms). 늦게 도착한 거부 줄이 막힌 경로를 `sandbox.write_blocked`로 알려 도구 결과의 막힘 안내에 싣게 한다(L1.tools.spec §4.12.3) */
 const WRITE_VIOLATION_WAIT_MS = 600;
 
 /** 출력이 이 문구를 담으면 쓰기 거부일 수 있다. 막힌 경로를 정하는 근거가 아니라(경로는 위반 보고에서만 읽는다) 위반 줄을 기다릴지 정하는 신호다 */
@@ -345,7 +360,8 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
           ),
         );
       }
-      readOnlyTemp = dir;
+      // 임시 폴더 기반이 심볼릭 링크 아래(macOS의 `/var/folders`는 `/private/var/folders`)면 Seatbelt는 정규 경로로 비교하므로 정규 경로로 풀어 `TMPDIR`에 쓴다(wrapArgv의 `nw-`와 같다)
+      readOnlyTemp = canonicalizePath(dir);
     }
     const removeReadOnlyTemp = (): void => {
       if (readOnlyTemp === undefined) return;
@@ -406,9 +422,15 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
 
   return {
     async exec(command, options, context) {
+      // 스크립트 환경은 wrapArgv로만 쓴다. 여기서는 임시 폴더와 시스템 도구 막기를 더하지 않으므로 돌리지 않는다
+      if (policy.profile === "script-env") {
+        return err(
+          new ExecutionError("sandbox_failed", "script-env profile runs only through wrapArgv"),
+        );
+      }
       await deps.ensureCurrent(context);
       const status = deps.status();
-      const decision = decideExecution(status, policy, deps.escapeRetry());
+      const decision = decideExecution(status, policy);
       // 읽기 전용 프로필은 샌드박스 밖 실행이나 격리 불가 우회를 허용하지 않는다: 돌리지 않고 거부한다
       if (policy.profile === "read-only" && decision.action !== "sandboxed") {
         return err(readOnlyUnavailableError(status));

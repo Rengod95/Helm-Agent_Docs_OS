@@ -150,7 +150,7 @@ test("no caustic spectrum ring (orb) in the app (DP-188)", () => {
 
 test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
   // 사용자 결정(2026-11-13 밤, 영구): 네 꼭지 별·반짝임, 단색 점(LiveDot), 불씨 원, 느낌표 글리프를 표시로 쓰지 않는다.
-  // 진행 표시는 생각 구슬과 같은 점 구슬(dot-orb.tsx: ProgressOrb)이고, 주의 표시는 페이지 그림과 같은 선 그림(RequestArt)이다.
+  // 진행 표시는 생각 구슬과 같은 점 구슬(dot-orb.tsx: ProgressOrb)이고, 확인 필요 표시는 크리스탈(CrystalMark, DP-223)이다.
   const TSX: readonly (readonly [string, RegExp])[] = [
     ["LiveDot", /\bLiveDot\b|live-dot\.tsx/],
     ["solid dot class", /["'`\s]fx-dot(-core)?["'`\s]/],
@@ -178,16 +178,138 @@ test("status marks are dotted orbs, never stars or solid dots (DP-189)", () => {
     true,
     false,
   ]);
-  // 요청 표시는 페이지 그림과 같은 선 그림이다(DP-210): 선(path)만 있고 점 구슬·원 점(circle)이 없다
+  // 요청 그림은 페이지 그림과 같은 선 그림이다(DP-210): 선(path)만 있고 점 구슬·원 점(circle)이 없다
   const request = codeOf(join(SRC, "views/illustrations/request-art.tsx"));
   expect([/<path\b/.test(request), /<DotOrb\b/.test(request), /<circle\b/.test(request)]).toEqual([
     true,
     false,
     false,
   ]);
+  // 확인 필요 표시는 크리스탈(DP-223): 미리 렌더링해 구운 유리 판(crystal-*.png)을 canvas에 겹쳐 그린다. 점 구슬·원·벡터 선 그림이 아니다(lcMk3).
+  // 쓰는 곳은 요청 카드와 제안 내비 줄뿐이고, 대화 줄에는 표시 없이 둥근 면의 수만 둔다(DP-189 [결정: 2026-11-18 사용자 "일반 대화 row 우측에는 아이콘 없어야 할듯함"])
+  const crystal = codeOf(join(SRC, "views/effects/crystal-mark.tsx"));
+  expect([
+    /<canvas\b/.test(crystal),
+    /\bdrawImage\(/.test(crystal),
+    /crystal-(dark|light)\.png/.test(crystal),
+    /<DotOrb\b|\barc\(|\blineTo\(/.test(crystal),
+    /<(svg|path|circle)\b/.test(crystal),
+  ]).toEqual([true, true, true, false, false]);
+  const users = [
+    "views/pages/shared/request-card.tsx",
+    "views/thread-list.tsx",
+    "views/desktop-registry.tsx",
+  ].filter((file) => /<CrystalMark\b/.test(codeOf(join(SRC, file))));
+  expect(users).toEqual(["views/pages/shared/request-card.tsx", "views/desktop-registry.tsx"]);
   // 호박 주의 구슬(AttentionMark)은 없앴다(DP-211). 수 옆에 색 표시를 다시 붙이지 않는다
   const marks = sourceFiles([".tsx", ".ts"]).filter((file) =>
     /\bAttentionMark\b/.test(codeOf(file)),
   );
   expect(marks.map(relative)).toEqual([]);
+});
+
+/** CSS 글의 oklch(L C H) 색상각들 */
+const hues = (text: string): number[] =>
+  [...text.matchAll(/oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s*\)/g)].map((m) => Number(m[1]));
+
+test("attention counts are caustic badges without a gradient, urgent is an inverted colourless badge, attention rows join into one near-neutral squircle wash, and each card kind has its own aurora around its tile hue (DP-189, DP-190)", () => {
+  // 사용자 결정(2026-11-18, lcMk2): "숫자 무채색 바꿔. 호박색 쓰지말고". lcMk3: "숫자의 백그라운드에 동그란 surface". 줄 물듦은 수 면과 겹쳐 과해 뺐다(lcMk3).
+  // lcMk4(2026-11-19): "일반적인 경우는 배경색에 그라데이션이 아닌 caustic 랭귀지에 맞춰서", "더 채도높은 색을 쓰던지 마이크로 모션",
+  // "변경검토나 단순 질문이나, 가드 각각 다른 색이 중심인데, 각 중심색에 맞게 오로라의 색조합들도 각각 다르게"
+  // lcMk5(2026-11-19): "3색없는 버전으로 4.나 가 좋은데, 얘는 border radius를 없애던가 해서, 연속적인 두 row가 확인이 필요할 때 … 이어지게"
+  const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = (selector: string): string => {
+    const at = css.indexOf(`${selector} {`);
+    return at < 0 ? "" : css.slice(at, css.indexOf("}", at));
+  };
+  const count = rule(".fx-attend-count");
+  const pill = rule(".fx-attend-pill");
+  const urgent = rule(".fx-attend-pill[data-urgent]");
+  const cue = css.slice(
+    css.indexOf("@keyframes fx-attend-urgent"),
+    css.indexOf("@media", css.indexOf("@keyframes fx-attend-urgent")),
+  );
+  const wash = rule('[data-slot="list-navigation-item"]:has(> [data-attention])::before');
+  // 물듦 잉크의 다크·라이트 [채도, 불투명도]
+  const washInk = [
+    ...(css.match(/--fx-row-wash:\s*light-dark\(([^;]*)\);/)?.[1] ?? "").matchAll(
+      /oklch\(\s*[\d.]+\s+([\d.]+)\s+[\d.]+\s*\/\s*([\d.]+)\s*\)/g,
+    ),
+  ].map((m) => [Number(m[1]), Number(m[2])] as const);
+  const list = codeOf(join(SRC, "views/thread-list.tsx"));
+  const kinds = ["review", "question", "tool"].map((kind) =>
+    rule(`.fx-attend-glow[data-kind="${kind}"]`),
+  );
+  // 종류마다 중심색(a)과 이웃 색(b·c)이 있고, 따뜻한 색상각(40~100)은 호박 칸인 도구에만 있다. 위험(33) 근처(21~45)는 어디에도 없다
+  const centre = (block: string): number[] => hues(block.slice(0, block.indexOf("--fx-attend-b")));
+  expect([
+    /color:\s*var\(--cs-color-text-secondary\)/.test(count),
+    /oklch|--fx-attend-a|--fx-attend-b/.test(count),
+    /\.fx-attend-row\b/.test(css) || /fx-attend-row/.test(list),
+    /gradient|background/.test(pill),
+    /min-width:\s*var\(--cs-control-compact-2xs\)/.test(pill),
+    kinds.map((block) => ["a", "b", "c"].every((k) => block.includes(`--fx-attend-${k}:`))),
+    kinds.map((block) => centre(block).every((h) => h >= 40 && h <= 100)),
+    kinds.map(centre),
+    hues(css).filter((h) => h > 21 && h < 45),
+    // 급함: 무채색 안에서 뒤집힌 면(글자색 면, 바탕색 숫자)이고 빛깔(info·oklch)이 없다. 한 번의 움직임은 크기만이다
+    /<Badge\b[^>]*className="fx-attend-pill"[^>]*data-urgent=\{props\.urgent \? "" : undefined\}/.test(
+      list,
+    ),
+    [
+      /background-color:\s*var\(--cs-color-text-primary\)/.test(urgent),
+      /color:\s*var\(--cs-color-bg-app\)/.test(urgent),
+      /info|oklch|hsl|rgb/.test(urgent + list.slice(list.indexOf("function ApprovalCount"))),
+      /filter|color|opacity/.test(cue),
+    ],
+    // 확인이 필요한 줄은 물들고(data-attention), 연달아 있으면 아래로 틈을 덮고 맞닿은 모서리를 편다.
+    // 물듦은 거의 무채색 잉크(--fx-row-wash)이고 줄 단추와 같은 반경(lg)·squircle이다(lcMk7: "거의 뉴트럴", "radius가 좀 높은거같아. squircle 적용도")
+    [
+      /data-attention=\{attention \? "" : undefined\}/.test(list),
+      /var\(--fx-row-wash\)/.test(wash),
+      /--fx-crystal/.test(wash),
+      /border-radius:\s*var\(--cs-radius-lg\);\s*corner-shape:\s*squircle;/.test(wash),
+      washInk.map(([chroma, alpha]) => chroma <= 0.08 && alpha <= 0.05),
+      /bottom:\s*calc\(var\(--cs-space-0_5\) \* -1\);\s*border-end-start-radius:\s*0;\s*border-end-end-radius:\s*0/.test(
+        css,
+      ),
+      /\+ \[data-row-menu\]\s*\+ \[data-slot="list-navigation-item"\]:has\(> \[data-attention\]\)::before \{\s*border-start-start-radius:\s*0;\s*border-start-end-radius:\s*0/.test(
+        css,
+      ),
+    ],
+    css.match(/\.fx-attend-count\b/g)?.length,
+  ]).toEqual([
+    true,
+    false,
+    false,
+    false,
+    true,
+    [true, true, true],
+    [false, false, true],
+    [
+      [290, 290],
+      [240, 238],
+      [80, 86],
+    ],
+    [],
+    true,
+    [true, true, false, false],
+    [true, true, false, true, [true, true], true, true],
+    1,
+  ]);
+});
+
+test("the card's top-edge light never reaches the bottom edge of a low card, and tall cards keep the 72px reach (DP-190)", () => {
+  // lcMk7: 받은 요청 맨 위의 낮은 카드(52px)는 세로 72px 빛이 아래 변에 옅은 빛깔 선을 그었다. 빛의 칸을 min(72px, 카드 높이의 70%)로 둔다.
+  // 타원 크기에 길이와 백분율을 섞은 min()을 바로 쓰면 Chromium이 마스크 전체를 버리므로 칸 크기(mask-size)로 준다
+  const css = read(join(SRC, "views/effects/attention.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const at = css.indexOf(".fx-attend-edge {");
+  const edge = css.slice(at, css.indexOf("}", at));
+  expect([
+    edge.match(
+      /radial-gradient\(48% 100% at 50% 0, #000 0, #000 24%, transparent 100%\) 0 0 \/ 100% min\(72px, 70%\)\s+no-repeat,/g,
+    )?.length,
+    /radial-gradient\([^)]*min\(/.test(edge),
+    /48% 72px/.test(edge),
+  ]).toEqual([2, false, false]);
 });

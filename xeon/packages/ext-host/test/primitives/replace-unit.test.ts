@@ -4,7 +4,7 @@ import type { RegistrationDef } from "@fresnel/contracts/extensions";
 import type { ExtensionUnit } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeManifest, makeUnit, snapshotOf } from "./fixtures/support.ts";
+import { makeOrchestrationUnit, makeManifest, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 type ThreadId = ReturnType<Host["newThread"]>;
@@ -332,14 +332,14 @@ test("two idle threads swap together and both switch", async () => {
 
 test("a drive lock held by the old generation continues with the new drive function", async () => {
   const calls: string[] = [];
-  const v1 = makeGroupUnit({ name: NAME }, (g) => {
+  const v1 = makeOrchestrationUnit({ name: NAME }, (g) => {
     g.drive(async ({ last }) => {
       if (last === null) calls.push("v1");
       if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };
       return { do: "turn", input: { kind: "user", content: "go" } };
     });
   });
-  const v2 = makeGroupUnit({ name: NAME }, (g) => {
+  const v2 = makeOrchestrationUnit({ name: NAME }, (g) => {
     g.drive(async ({ last }) => {
       if (last === null) calls.push("v2");
       if (last?.kind === "ok" && last.of === "turn") return { do: "yield" };

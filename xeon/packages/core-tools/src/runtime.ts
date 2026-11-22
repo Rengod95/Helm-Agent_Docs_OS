@@ -1,8 +1,10 @@
 import { Bug, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ToolName } from "@fresnel/contracts/capabilities";
 import type {
   RegistrationId,
   ToolRegisterError,
+  ToolRegisterOptions,
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
 import type {
@@ -78,7 +80,11 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
   });
   // 내장 도구 `tool_search`(순서 키 core.tools). 같은 파이프라인을 지난다
   registry.seed([
-    toolSearchEntry({ session: deps.session, config: deps.config, entries: () => registry.all() }),
+    toolSearchEntry({
+      session: deps.session,
+      config: deps.config,
+      entries: (threadId) => registry.view(deps.exposureOf?.(threadId)).all(),
+    }),
   ]);
 
   const replaceGate = createToolReplaceGate({
@@ -107,10 +113,15 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
   function register(
     first: ToolRegistration | RegistrationId,
     def?: ToolResourceDef,
+    options?: ToolRegisterOptions,
   ): Result<Unregister, ToolRegisterError> {
     if (typeof first === "string") {
       if (def === undefined) throw new Bug("tools.register: a ToolResourceDef is required");
-      if (def.replaces === undefined) return registry.add([resourceEntry(first, def)]);
+      if (def.replaces === undefined) {
+        return registry.add([resourceEntry(first, def)], {
+          perThread: options?.perThread === true,
+        });
+      }
       // 내장 도구 대체(§4.13): 후보로만 두고 사용자가 승인하기 전까지 표는 바뀌지 않는다
       const added = registry.addReplacement(first, resourceEntry(first, def), def.replaces);
       if (!added.ok) return added;
@@ -134,8 +145,8 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
 
   const tools: ToolService = {
     register,
-    meta(name: ToolName): ToolMeta | undefined {
-      const entry = registry.get(name);
+    meta(name: ToolName, threadId?: ThreadId | null): ToolMeta | undefined {
+      const entry = registry.view(deps.exposureOf?.(threadId ?? null)).get(name);
       return entry === undefined ? undefined : toToolMeta(entry, deps.config(null).output);
     },
     replacements: () => registry.replacements(),
@@ -143,7 +154,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       // 승인 전인 대체가 있으면 이 대화에 승인 요청을 올린다. 승인되면 다음 광고부터 대체 도구가 보인다
       await replaceGate.requestPending(input.run.threadId);
       const config = deps.config(input.run.threadId);
-      return advertiseTools(registry.all(), input, {
+      return advertiseTools(registry.view(deps.exposureOf?.(input.run.threadId)).all(), input, {
         rules: config.rules,
         bypassAllowed: config.bypassAllowed,
         deferThreshold: config.deferThreshold,

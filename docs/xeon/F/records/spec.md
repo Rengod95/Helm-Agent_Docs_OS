@@ -31,7 +31,7 @@ binds: [xeon/packages/contracts/src/records/**]
 ### 1.2 다루지 않는 것
 
 - 테이블, DDL, PRAGMA, 잠금, blob 파일 배치: `L0.store.spec`(L0-e)과 `L1.persistence.spec`(L1-f). F는 레코드 형태와 규칙만 정한다.
-- 그룹 간 레코드, 확장 접두사 테이블 스키마: `F.extensions.spec`.
+- 플러그인 간 레코드, 확장 접두사 테이블 스키마: `F.extensions.spec`.
 - 와이어 표현(ISO 시각, 프레임, 커서, 민감 필드 제거): `F.wire-settings.spec`.
 - 대화 모델 이름(ID, item, part, 알림): `F.conversation.spec`.
 
@@ -225,8 +225,8 @@ export interface EventKindRegistry {
 규칙 [제안]:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다(09 §3.3 규칙 1을 따른다).
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 그룹 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
-3. 확장은 접두 없는 kind를 쓸 수 없다. 코어 영역 이름(`CoreArea`)도 접두 뒤에서는 쓸 수 있다(예: `grp.helm.item.tagged`). 예외는 내장 패키지 둘이다. `core-*` 패키지는 코어 영역을, 내장 `cap-*` 패키지는 §3.3.2 소유 카탈로그에 등록된 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 매니페스트가 있는 내장 `cap-*`도 이벤트 kind는 이 예외를 따르고, 그룹 레코드 kind와 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 그대로 쓴다(`F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2). 외부 확장은 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓸 수 없다.
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 플러그인 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
+3. 확장은 접두 없는 kind를 쓸 수 없다. 코어 영역 이름(`CoreArea`)도 접두 뒤에서는 쓸 수 있다(예: `grp.helm.item.tagged`). 예외는 내장 패키지 둘이다. `core-*` 패키지는 코어 영역을, 내장 `cap-*` 패키지는 §3.3.2 소유 카탈로그에 등록된 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 매니페스트가 있는 내장 `cap-*`도 이벤트 kind는 이 예외를 따르고, 플러그인 레코드 kind와 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 그대로 쓴다(`F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2). 외부 확장은 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓸 수 없다.
 4. 벤더 이름(pi, claude, codex)을 코어 kind에 넣지 않는다(09 §3.3 규칙 5).
 5. 이름은 바꾸지 않는다. 의미가 바뀌면 `version`을 올리고 업캐스터를 둔다. 없앤 kind는 카탈로그에 `retired: true`로 남긴다.
 6. `_` 접두 열거형 값 예약 같은 열거형 확장 규칙은 M2 이후 `F.extensions.spec`이 정한다.
@@ -264,14 +264,14 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
 |---|---|---|---|
-| `thread.started` | 예 | `ThreadStartedPayloadSchema` | 제목, 분기 원본(thread, event), 생성 때 고른 프로필 id(`profileId`, 선택. 없으면 `default`), 테스트 대화 표지(`craftChat`, 선택: `{ plugin: string \| null, contexts: ContextRef[] }`. 표지가 있으면 `thread.list` 기본 목록에서 빠진다. [구현 상태, 2026-11-18] M5c §4.8.1, `ContextRef`의 정의는 `review/m5/profile-project-loader.md` §4.8.8 아래 F 블록이고 구현은 `contracts/src/conversation/craft-chat.ts`다) |
+| `thread.started` | 예 | `ThreadStartedPayloadSchema` | 제목, 분기 원본(thread, event), 생성 때 고른 프로필 id(`profileId`, 선택. 없으면 `default`), 테스트 대화 표지(`craftChat`, 선택: `{ plugin: string \| null, contexts: ContextRef[] }`. 표지가 있으면 `thread.list` 기본 목록에서 빠진다. [구현 상태, 2026-11-18] M5c §4.8.1, `ContextRef`의 정의는 `review/m5/profile-project-loader.md` §4.8.8 아래 F 블록이고 구현은 `contracts/src/conversation/craft-chat.ts`다), 대화가 속한 프로젝트(`project`, 선택: `{ id, root }` 또는 null. 속하지 않으면 null. 옛 이벤트에는 없고 없는 값은 `thread.list`의 `project`가 준다. [AGE-34] 계약은 이 필드를 받고, 만들 때 싣는 쓰기는 아직 하지 않는다 [근거: apps/host/src/handlers/thread.ts]) |
 | `thread.updated` | 예 | `ThreadUpdatedPayloadSchema` | 제목·상태 변경, 테스트 대화의 플러그인 묶기(`craftChat`, 선택: `{ plugin }`, 표지의 plugin이 null인 대화에 한 번. [구현 상태, 2026-11-18] M5c §4.8.2) |
 | `thread.closed` | 예 | `ThreadClosedPayloadSchema` | 종료 사유 |
 | `thread.leaf_moved` | 예 | `LeafMovedPayloadSchema` | `{ leafEventId, reason: "branch" \| "rewind" \| "restore" }` |
 | `thread.compacted` | 예 | `CompactedPayloadSchema` | 비파괴 컴팩션 요약(§4.6) |
 | `thread.branch_summarized` | 예 | `BranchSummarizedPayloadSchema` | 떠난 가지 요약 `{ fromEventId, summary, details }` |
 | `thread.resumed` | 예 | `ThreadResumedPayloadSchema` | 이어서 실행 시도(`turnId`, `attempt`, `mode`). 복구 표식 `resume_attempts`의 원천(`L1.persistence.spec` §3.9) |
-| `turn.started` | 예 | `TurnStartedPayloadSchema` | 입력 item id들, `requestId`, `scopeId`(drive turn만, 그 밖은 null), `invoked`(선택: 이 턴에 얹힌 한 턴 덧씌우기 항목 `{plugin, entry, kind}[]`, M5c §4.3.2 [제안]) |
+| `turn.started` | 예 | `TurnStartedPayloadSchema` | 입력 item id들, `requestId`, `scopeId`(drive turn만, 그 밖은 null), `invoked`(선택: 이 턴에 얹힌 한 턴 덧씌우기 항목 `{plugin, entry, kind}[]`, M5c §4.3.2 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]) |
 | `turn.updated` | 아니오 | `TurnUpdatedPayloadSchema` | 상태 |
 | `turn.completed` | 예 | `TurnCompletedPayloadSchema` | 종결 상태, step 수, 사용량, 오류 |
 | `turn.abort_requested` | 예 | `TurnAbortRequestedPayloadSchema` | 취소 의도. `turn.updated`가 휘발이라 따로 둔다(`L1.tasks.spec` §3.8) |
@@ -288,12 +288,12 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `checkpoint.step` | 예 | `StepCheckpointSchema` | 단계 체크포인트(§3.6) |
 | `scope.changed` | 예 | `ScopeChangedPayloadSchema` | Registration 켜기·끄기 적용 |
 | `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림. 선택 필드 `asksDisable`은 이 실패로 "끌까요" 질문이 새로 생겼음을 뜻한다(`X.operations.spec` §4.3.3·§4.3.4) [결정: 2026-11-04 사용자, 필드 모양은 제안] |
-| `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | 배타 drive 락 획득. 선택 필드 `input`(프레임을 연 명령·맡기기의 입력)과 `requestId`(부여를 낳은 `lease.requested`의 id)를 더한다. 입력의 직렬화 크기는 엔진이 200,000바이트로 막고 넘으면 거절한다(envelope 상한 262,144바이트 안에 들어가야 한다) [제안: 이름·상한, AGE-26] |
-| `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 락 해제. 선택 필드 `result`는 사유 `done`일 때 단계 함수가 낸 결과다. 재시작 직전에 끝난 맡기기의 결과를 맡긴 쪽이 받게 한다 [제안: 이름, AGE-26] |
-| `lease.requested` | 예 | `LeaseRequestedPayloadSchema` | 주도 시작 요청 하나의 기록(`{ requestId, scopeId, status: queued\|dropped, trigger: user\|handoff, parent?, input? }`). 사용자 명령과 맡기기가 큐에 들어갈 때 `queued`, 부여 없이 버려질 때 `dropped`다. 부여되면 `lease.acquired.requestId`가 가리킨다. 재시작 때 부여도 `dropped`도 없는 요청을 큐에 되살린다. 프로필 시작은 열 때 다시 만들어지므로 남기지 않는다 [제안: 이름 `lease.requested`, AGE-26] |
-| `lease.user_input` | 예 | `LeaseUserInputPayloadSchema` | 주도 프레임이 가로챈 사용자 메시지 하나의 기록(`{ requestId, scopeId, status: held\|settled, input? }`). `held`는 엔진이 메시지를 받아 "받았다"고 답하기 전에 남기고(`input`은 `PostItem`의 JSON, 직렬화 크기 200,000바이트 상한. 넘으면 가로채지 않고 입력 큐가 받는다), `settled`는 단계 함수가 `turn`으로 처리했거나 코어 루프의 입력 큐로 돌려보낸 뒤 남긴다. 재시작 때 `held`이고 `settled`가 없는 메시지를 되살린다. 커밋 키는 (상태, `requestId`)다. 값은 기록의 다른 입력과 같은 가림 규칙(`/input`)을 지난다 [제안: 이름 `lease.user_input`, AGE-26] |
+| `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | 배타 drive 락 획득. 선택 필드 `input`(프레임을 연 명령·맡기기의 입력)과 `requestId`(부여를 낳은 `lease.requested`의 id)를 더한다. 입력의 직렬화 크기는 엔진이 `DRIVE_INPUT_MAX_BYTES`(기본 512 MiB, `l0.store.maxBlobBytes`의 기본값과 같다. X.primitives §4.4.1)로 막고 넘으면 거절한다. 큰 값은 L1이 블롭으로 분리하므로 envelope 상한과 상관없다 [결정: 2026-11-18, 사용자, AGE-8·AGE-26. 상한은 "널널히"·"100M 컨텍스트 커버", 큰 내용은 따로 저장하고 기록이 가리킨다] 이름 `lease.acquired`의 선택 필드 `input`·`requestId`는 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] |
+| `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 락 해제. 선택 필드 `result`는 사유 `done`일 때 단계 함수가 낸 결과다. 재시작 직전에 끝난 맡기기의 결과를 맡긴 쪽이 받게 한다 이름 `lease.released`의 선택 필드 `result`는 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] |
+| `lease.requested` | 예 | `LeaseRequestedPayloadSchema` | 주도 시작 요청 하나의 기록(`{ requestId, scopeId, status: queued\|dropped, trigger: user\|handoff, parent?, input? }`). 사용자 명령과 맡기기가 큐에 들어갈 때 `queued`, 부여 없이 버려질 때 `dropped`다. 부여되면 `lease.acquired.requestId`가 가리킨다. 재시작 때 부여도 `dropped`도 없는 요청을 큐에 되살린다. 프로필 시작은 열 때 다시 만들어지므로 남기지 않는다 이름 `lease.requested`는 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] |
+| `lease.user_input` | 예 | `LeaseUserInputPayloadSchema` | 주도 프레임이 가로챈 사용자 메시지 하나의 기록(`{ requestId, scopeId, status: held\|settled, input? }`). `held`는 엔진이 메시지를 받아 "받았다"고 답하기 전에 남기고(`input`은 `PostItem`의 JSON, 직렬화 크기는 `DRIVE_INPUT_MAX_BYTES` 이내. 넘으면 가로채지 않고 입력 큐가 받는다), `settled`는 단계 함수가 `turn`으로 처리했거나 코어 루프의 입력 큐로 돌려보낸 뒤 남긴다. 재시작 때 `held`이고 `settled`가 없는 메시지를 되살린다. 커밋 키는 (상태, `requestId`)다. 값은 기록의 다른 입력과 같은 가림 규칙(`/input`)을 지난다 이름 `lease.user_input`은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] |
 | `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 락 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 훅 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
-| `drive.command_settled` | 예 | `DriveCommandSettledPayloadSchema` | 주도 명령 하나의 결과(`{ scopeId, requestId, command, outcome, ref? }`). 단계 함수(`review.m5-drive-isolation` 1.1)의 명령이 정착할 때 남는다. 커밋 키 (scopeId, requestId)라 재시작 뒤 같은 단계가 다시 돌아도 하나만 남는다 [제안: 이름 C0에서 확정, 결정: 2026-11-17 사용자 U1] |
+| `drive.command_settled` | 예 | `DriveCommandSettledPayloadSchema` | 주도 명령 하나의 결과(`{ scopeId, requestId, command, outcome, ref? }`). 단계 함수(`review.m5-drive-isolation` 1.1)의 명령이 정착할 때 남는다. 커밋 키 (scopeId, requestId)라 재시작 뒤 같은 단계가 다시 돌아도 하나만 남는다 이름 `drive.command_settled`는 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] [결정: 2026-11-17 사용자 U1] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 대화 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `review`다. 옛 `plan`은 은퇴했고 옛 행을 읽기만 한다 [결정: 2026-11-13 사용자], [결정: 2026-11-15 사용자]. 승인 id = 이 이벤트 id |
@@ -355,7 +355,7 @@ export interface ScopeHandlerFailedPayload {
 }
 export interface LeaseAcquiredPayload {
   leaseId: string;                // F.extensions.spec DriveLock.leaseId
-  scopeId: string;                // 임대를 받은 그룹의 scope
+  scopeId: string;                // 임대를 받은 플러그인의 scope
   /** 계통 id(필수). `waiting` 반납 바로 뒤 같은 thread·scope의 부여는 앞 drive 락의 값을 이어받고, 그 밖의 부여는 자기 leaseId와 같다. 기본 requestId 재료(X.primitives.spec §4.4.1 11번) */
   lineageId: string;
   limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLock.limits(DriveLimits)
@@ -374,13 +374,13 @@ export interface LeaseAcquiredPayload {
 export interface LeaseReleasedPayload {
   leaseId: string;
   scopeId: string;
-  /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
+  /** disabled: 플러그인 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
    *  done: 단계 함수가 `done` 명령으로 주도권을 내려놓음(M5a E1, `review.m5-drive-isolation` 2.6),
    *  waiting: 옛 기록 읽기용. 더 쓰지 않는다. 질문 대기는 반납이 아니라 프레임 상태 `asking`이다(drive-isolation.md 2.1, 2.6). 맡기기로 아래 프레임이 기다리는 상태도 반납이 아니다. 번호는 F.extensions.spec 절 */
   reason: "done" | "disabled" | "budget" | "error" | "idle" | "revoked" | "restart" | "waiting";
 }
-/** 주도 명령 하나의 결과 [제안: 이름은 C0에서 확정] [결정: 2026-11-17 사용자, U1]. 재시작 뒤 같은 명령을 다시 실행하지 않는 근거다 */
+/** 주도 명령 하나의 결과 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"] [결정: 2026-11-17 사용자, U1]. 재시작 뒤 같은 명령을 다시 실행하지 않는 근거다 */
 export interface DriveCommandSettledPayload {
   scopeId: string;
   requestId: string;              // 엔진이 붙인 명령 요청 id(1~96자). 커밋 키는 (scopeId, requestId)
@@ -390,7 +390,7 @@ export interface DriveCommandSettledPayload {
 }
 /** drive 락 요청이 대기 상한 뒤 거부됐다(옛 기록). E3부터 엔진은 발행하지 않고 읽기 전용으로 남긴다(drive-isolation.md 2.6). 스키마는 옛 기록을 읽으려고 둔다 [결정: adr.0017, M3-REQ-99] */
 export interface LeaseRejectedPayload {
-  groupId: string;                // 요청한 그룹(ExtensionName)
+  groupId: string;                // 요청한 플러그인(ExtensionName)
   reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]
   requestSeq: number;             // 거부된 요청의 순번(0 이상)
 }
@@ -544,7 +544,7 @@ export interface AgentSettledEventPayload {
   usage: Usage | null;            // 자식 사용량은 여기에만 남는다
   error: string | null;
   /**
-   * 자식을 만든 쪽(agent.spawned.owner와 같은 값). 그룹이 자기 scope가 맡긴 위임만 거를 때 쓴다(kind "scope"의 scopeId).
+   * 자식을 만든 쪽(agent.spawned.owner와 같은 값). 플러그인이 자기 scope가 맡긴 위임만 거를 때 쓴다(kind "scope"의 scopeId).
    * 선택이라 version을 올리지 않는다. 없으면(옛 기록) agent.spawned의 owner를 읽는다 [제안: M3-REQ-103, REQ-LN-02]
    */
   owner?: SpawnOwnerJson;
@@ -603,11 +603,11 @@ export interface ToolUntrustedReadPayload {
   | `caller` | `approvalCallerOf(CallContext.caller)`. 형식은 `APPROVAL_CALLER_PATTERN` | 변환 함수 하나 |
 
   - 같은 호출에서 L1.tools가 올린 요청과 L2 어댑터가 올린 요청은 이 규칙으로 같은 값이 된다. E5(M2 종료 조건)의 "같은 승인 요청 레코드"는 `turnId`, `stepId`, `toolCallId`, `caller` 값이 같다는 뜻이다. 키 이름만 같은 것은 통과가 아니다.
-  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 기능을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
+  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·플러그인 코드가 기능을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 대화 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 대화 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
-- [제안] `profile.applied`는 내구 kind이고 생산자는 X(`xh`, `scope.`·`lease.`와 같은 쪽)다. 프로필 적용 경계마다 X가 계산한 켜짐 집합의 차이를 적는다. 상태 사건이라 E §3.1의 관찰값 로그 거부와 겹치지 않는다(`review.m5-profile-project-loader` §3.2). payload 모양은 `ProfileAppliedPayloadSchema`(`src/records/catalog/profile.ts`)가 정하고, 덧씌우기 항목은 최대 4개다.
+- [제안] `profile.applied`(이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"])는 내구 kind이고 생산자는 X(`xh`, `scope.`·`lease.`와 같은 쪽)다. 프로필 적용 경계마다 X가 계산한 켜짐 집합의 차이를 적는다. 상태 사건이라 E §3.1의 관찰값 로그 거부와 겹치지 않는다(`review.m5-profile-project-loader` §3.2). payload 모양은 `ProfileAppliedPayloadSchema`(`src/records/catalog/profile.ts`)가 정하고, 덧씌우기 항목은 최대 4개다.
 - [제안] `tool.untrusted_read`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다. 턴 안에서 웹·MCP 도구 결과를 읽었음을 적어, 재시작 뒤에도 같은 턴의 `afterUntrusted`가 이어지게 한다(`L1.tools.spec` §4.3). 결과 본문은 싣지 않는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
 - [제안] M1 표지: 위 15종은 이 절로 카탈로그에 들어왔다. 그래도 코드(`CORE_EVENT_CATALOG`)와 표를 대조하는 `catalog-doc.test.ts`가 이 15종을 확인하기 전에는 소비 plan(`L1.tools`, `L1.tasks`, `L1.agents`)이 이 kind를 쓰는 테스트를 M1 완료 조건에 넣지 않는다.
@@ -633,7 +633,7 @@ export interface ToolUntrustedReadPayload {
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
-7. [제안] `workspace` 영역(§3.3.3)은 `WORKSPACE_EVENT_CATALOG`(다섯 종, 모두 내구, 버전 1)로 `EVENT_CATALOG`에 병합된다. 파일 되감기의 사실 기록이고 생산자는 `cap.workspace`다.
+7. [제안] `workspace` 영역(§3.3.3)은 `WORKSPACE_EVENT_CATALOG`(다섯 종, 모두 내구, 버전 1)로 `EVENT_CATALOG`에 병합된다. 파일 되감기의 사실 기록이고 생산자는 `cap.workspace`다. 다섯 kind 이름(`workspace.files_captured`, `workspace.rewind_started`, `workspace.rewind_applied`, `workspace.rewind_undone`, `workspace.rewind_overwritten`)은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"].
 8. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구. 그중 `work.plan_submitted`·`work.plan_withdrawn` 두 종은 은퇴해 `retired: true`이고 payload는 `Type.Unknown()`이다 [결정: 2026-11-15 사용자])와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
 
 #### 3.3.3 파일 되감기 영역 `workspace`
@@ -719,7 +719,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 export interface DetachedField {
   pointer: string;                // RFC 6901 JSON Pointer, payload 기준
   ref: BlobRef;
-  encoding?: "json";              // [제안] 없으면 blob은 UTF-8 문자열. "json"이면 blob은 JSON 값의 UTF-8 텍스트다
+  encoding?: "json";              // 이름 `encoding`과 값 `"json"`은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]. [제안] 없으면 blob은 UTF-8 문자열. "json"이면 blob은 JSON 값의 UTF-8 텍스트다
 }
 export const DetachedFieldSchema: Schema<DetachedField>;
 export const BLOB_PLACEHOLDER_PREFIX: string = "blob:sha256:";
@@ -733,7 +733,7 @@ export const BLOB_PLACEHOLDER_PREFIX: string = "blob:sha256:";
 4. 256 KiB를 넘는 값은 쓰기 전에 blob으로 옮긴다(oh-my-pi 방식, `_research/session-storage.md` 권장안). 옮기는 방법은 둘이다.
    - 명시 필드: `effect.intent.args`, `effect.result.blobRef`처럼 스키마가 `BlobRef`를 허용하는 필드.
    - 문자열 분리: 이미지 `data` 같은 큰 문자열은 그 자리를 `blob:sha256:<hex>` 자리표시로 바꾸고 `detached`에 위치를 적는다. 자리표시도 문자열이라 payload 스키마 검증 결과가 바뀌지 않는다. `detached`에 적힌 위치만 blob으로 해석한다.
-   - [제안] JSON 하위 값 분리: 객체·배열 같은 하위 값도 같은 방식으로 옮길 수 있다. 그 자리는 같은 자리표시 문자열이고, `detached` 항목에 `encoding: "json"`을 적는다. blob에는 그 값의 JSON 텍스트(UTF-8)를 쓴다. `encoding`이 없는 항목(옛 기록 포함)의 blob은 UTF-8 문자열 그대로다.
+   - [제안] JSON 하위 값 분리(`encoding: "json"`의 이름은 [결정: 2026-11-20, 사용자, AGE-30 "지금 이름 그대로"]): 객체·배열 같은 하위 값도 같은 방식으로 옮길 수 있다. 그 자리는 같은 자리표시 문자열이고, `detached` 항목에 `encoding: "json"`을 적는다. blob에는 그 값의 JSON 텍스트(UTF-8)를 쓴다. `encoding`이 없는 항목(옛 기록 포함)의 blob은 UTF-8 문자열 그대로다.
 5. payload 스키마 검증은 분리 전 값으로 한다. 읽는 쪽은 `detached`를 되돌린 뒤 소비한다. 되돌리는 구현(blob 읽기)은 L0-e·L1-f 몫이다.
 6. blob 저장 위치, 쓰기 순서(blob 먼저 fsync, 이벤트 나중), 정리 규칙은 `L0.store.spec`이 정한다.
 
@@ -1006,6 +1006,8 @@ export interface BlobUsage {
   readonly total: { readonly blobs: number; readonly bytes: number };
   readonly byThread: readonly BlobUsageByThread[];                  // [제안] owner = 'thread' 참조를 ref_key(대화 id)별로 센다
 }
+/** [제안] 조각으로 쓰는 블롭 원천. `size`는 전체 바이트 수로 미리 알린다. `produce`는 `sink`를 동기로 여러 번 부르고, 조각은 호출 동안만 유효하다 */
+export type BlobStreamSource = { readonly size: number; produce(sink: (chunk: Uint8Array) => void): void };
 export interface StoreService {
   readonly storeId: string;                   // "sto_<ULID>"(F.conversation.spec §3.2.1 ①)
   readonly capabilities: StoreCapabilities;
@@ -1016,6 +1018,8 @@ export interface StoreService {
   readonly leases: LeaseService;
   /** 트랜잭션 밖에서만 부른다(TX-04) */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
+  /** [제안] `putBlob`과 같은 결과를 내되 바이트를 조각으로 받아 해시를 조각마다 갱신하며 쓴다. `source.size`와 다르게 쓰면 Bug(store.blob_stream_size). 트랜잭션 밖에서만 부른다 */
+  putBlobStream(source: BlobStreamSource, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
   /** [제안] `[offset, offset + length)`만 읽는다. 범위가 ref.size를 넘거나 음수면 Bug(store.blob_range_out_of_bounds). 해시는 대조하지 않는다 */
   readBlobRange(ref: BlobRef, offset: number, length: number): Result<Uint8Array, BlobError>;
@@ -1146,7 +1150,7 @@ export interface SessionService {
 // 정본은 이 블록이다. X.primitives.spec §3.6의 블록을 옮겼다. records는 extensions보다 낮아(F.readme §3)
 // RegistrationId·DriveLockId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다(§3.3 extension-ops.ts와 같은 방식).
 // ExtensionName도 import하지 않는다. queryRecords의 reader는 같은 모양(string)으로 적는다.
-// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
+// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ OrchestrationRecord, reader ↔ ExtensionName.
 export interface ExtCommitRequest {
   readonly threadId: ThreadId;
   /** SessionWriter 멱등 키. 같은 키의 두 번째 커밋은 기록된 결과를 돌려준다. 형식은 COMMIT_KEY_PATTERN */
@@ -1234,7 +1238,7 @@ export interface RecordCommitPort {
   /** 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다 */
   loadThread(threadId: ThreadId): Promise<Result<ExtThreadSnapshot, ReadFailure>>;
   /**
-   * 그룹 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName, F.extensions.spec §3.1)이다.
+   * 플러그인 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName, F.extensions.spec §3.1)이다.
    * private 행은 reader가 그 행의 소유 확장일 때만 돌려준다(아래 규칙)
    */
   queryRecords(
@@ -1332,9 +1336,9 @@ export interface RecordCommitPort {
 
 ## 7. 훅
 
-- 확장과 플러그인 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
+- 확장과 플러그인은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
 - X의 네 연산 중 register, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 훅은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
-- 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
+- 플러그인 간 레코드 형식은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
 

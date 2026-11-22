@@ -48,7 +48,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 - pi의 turn은 Fresnel의 step이다. pi의 run(`agent_start`~`agent_end`)이 Fresnel의 turn이다.
 - 훅 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 훅 선언 표). 그래서 `turn_start`·`turn_end` 훅은 Fresnel의 step 경계에서 발화한다. 훅 이름과 Fresnel 계층 이름이 다르다는 점을 훅 선언 표의 설명 열에 적는다.
-- `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 그룹 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 시점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
+- `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 플러그인 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 시점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
 - 이 매핑은 `review.decisions-2` U-01의 결정이다(2026-10-22 사용자 확인). 번복하면 이 절과 §10 1번을 고친다.
 
 ## 3. 인터페이스
@@ -490,6 +490,12 @@ export interface ThreadStartedPayload {
    * 선택 필드라 version은 1 그대로다(F.records.spec §3.2 규칙 5). 투영 `p_threads.profile_id`(core 투영 규칙 버전 9)가 활성 가지의 마지막 값을 든다. 값이 없으면 대화 요약의 `profileId`도 없고 읽는 쪽이 `default`로 본다.
    */
   profileId?: string;
+  /**
+   * 대화가 속한 프로젝트(M5c §4.4.2, AGE-34). 속하면 프로젝트 id와 루트 정규 경로, 속하지 않으면 null이다.
+   * 선택 필드라 version은 1 그대로다. 옛 이벤트에는 없고, 없는 값은 `thread.list`의 `project`(소속 계산 결과)가 준다.
+   * [구현 상태, AGE-33] `thread.create`가 대화를 만들 때 싣는다. 호스트가 대화를 쓰기 전에 소속을 정해 넘긴다(`apps/host/src/assembly/ports.ts`의 `threads.create`, 값은 `projects.attach`와 같다). 예약과 제작 같은 다른 경로는 싣지 않는다. 열기 훅이 작업 폴더를 바꾸면 이 값과 `thread.create` 결과의 소속이 다를 수 있다 [미결] [근거: apps/host/src/handlers/thread.ts].
+   */
+  project?: { id: string; root: string } | null;
 }
 /**
  * `profileId`는 프로필 전환(`thread.setProfile`)이다. `model`과 같은 규칙으로 활성 가지의 마지막 값이 현재 값이다.
@@ -518,7 +524,7 @@ export interface TurnStartedPayload {
   origin?: TurnOrigin;
 }
 /**
- * turn 입력의 출처 [제안: M3-REQ-06. 이름 origin, 값 집합은 학습 그룹 요구 REQ-LN-01의 TurnOrigin].
+ * turn 입력의 출처 [제안: M3-REQ-06. 이름 origin, 값 집합은 학습 플러그인 요구 REQ-LN-01의 TurnOrigin].
  * delegation은 위임 자식 대화의 turn, drive는 drive 함수의 loop.turn, scheduled는 예약 실행, remote는 원격 입력, other는 나머지 확장 post다.
  * 값 목록 상수는 TURN_ORIGINS, 스키마는 TurnOriginSchema다
  */

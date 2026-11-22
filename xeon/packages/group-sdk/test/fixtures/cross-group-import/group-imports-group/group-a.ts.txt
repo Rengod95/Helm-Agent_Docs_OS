@@ -1,3 +1,0 @@
-import { value } from "@fresnel/group-b";
-
-export const fromB: number = value;

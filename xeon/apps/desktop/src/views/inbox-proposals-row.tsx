@@ -12,7 +12,8 @@ export function InboxProposalsRow(props: { readonly count: number }): ReactNode 
   const shell = useShellActions();
   return (
     <RequestCard
-      kind="proposal"
+      count={props.count}
+      markLabel={t("desktop.attention.proposals", { count: props.count })}
       lead={t("desktop.shell.nav.proposals")}
       title={t("desktop.inbox.proposals.waiting", { count: props.count })}
       action={

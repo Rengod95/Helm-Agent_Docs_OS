@@ -370,7 +370,7 @@ function Row(props: {
   const { row, age, selected, onSelect } = props;
   const pending = row.status === "pending";
   const conflicted = row.conflictsWith !== null;
-  const line = [
+  const parts = [
     row.kindLabel,
     pending ? (conflicted ? t("desktop.proposals.conflict") : null) : row.statusLabel,
     row.expiresAt === null
@@ -378,9 +378,7 @@ function Row(props: {
       : t("desktop.proposals.row.expires", {
           date: expiryDateTextOf(row.expiresAt, activeLocale()),
         }),
-  ]
-    .filter((part): part is string => part !== null)
-    .join(" · ");
+  ].filter((part): part is string => part !== null);
   return (
     <li role="option" aria-selected={selected}>
       <Button
@@ -394,14 +392,16 @@ function Row(props: {
         <span className="grid min-w-0 flex-1 gap-0.5">
           <span className="min-w-0 truncate text-ui text-text-primary">{rowTitleOf(row)}</span>
           <span
-            className={`min-w-0 truncate text-ui ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
+            className={`flex min-w-0 items-baseline gap-2 text-ui ${pending && conflicted ? "text-warning-text" : "text-text-tertiary"}`}
           >
-            {line}
+            {parts.map((part) => (
+              <span key={part} className="min-w-0 truncate">
+                {part}
+              </span>
+            ))}
           </span>
         </span>
-        <span className="shrink-0 whitespace-nowrap text-ui-xs tabular-nums text-text-tertiary">
-          {age}
-        </span>
+        <span className="shrink-0 whitespace-nowrap text-ui-xs text-text-tertiary">{age}</span>
       </Button>
     </li>
   );

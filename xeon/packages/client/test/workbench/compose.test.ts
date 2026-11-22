@@ -3,6 +3,7 @@ import type { CompositionDecl, PhasesDecl } from "@fresnel/contracts/extensions"
 import type { Profile, WireManifestIssue } from "@fresnel/contracts/wire";
 import {
   blockRowsOf,
+  blocksByMemberOf,
   compositionOf,
   compositionWithPhases,
   coreLockedOf,
@@ -14,6 +15,9 @@ import {
   driverPicksOf,
   flowDraftOf,
   graphPlacementsOf,
+  memberAddOp,
+  memberIdErrorOf,
+  memberMoveOps,
   graphSizeOf,
   newGroupDraftOf,
   newGroupNameErrorOf,
@@ -82,21 +86,23 @@ const PROFILE: Profile = {
 
 describe("compositionOf", () => {
   test("group.composition이 있으면 선언을 돌려준다", () => {
-    expect(compositionOf({ group: { composition: COMPOSITION } })).toEqual({
+    expect(compositionOf({ orchestration: { composition: COMPOSITION } })).toEqual({
       kind: "declared",
       composition: COMPOSITION,
     });
   });
   test("선언이 없거나 group이 없거나 모양이 틀리면 none이다", () => {
     expect(compositionOf({})).toEqual({ kind: "none" });
-    expect(compositionOf({ group: {} })).toEqual({ kind: "none" });
-    expect(compositionOf({ group: { composition: { blocks: [] } } })).toEqual({ kind: "none" });
+    expect(compositionOf({ orchestration: {} })).toEqual({ kind: "none" });
+    expect(compositionOf({ orchestration: { composition: { blocks: [] } } })).toEqual({
+      kind: "none",
+    });
     expect(compositionOf({ group: "x" })).toEqual({ kind: "none" });
   });
 });
 
 describe("blockRowsOf", () => {
-  test("제목이 없으면 id를 쓰고 비어 있는 선택 값은 빈 목록이다", () => {
+  test("제목이 없으면 id를 쓰고 비어 있는 선택 값은 빈 목록이다. 뿌리 블록은 구성원이 null이다", () => {
     expect(blockRowsOf(COMPOSITION)).toEqual([
       {
         id: "detect",
@@ -110,6 +116,8 @@ describe("blockRowsOf", () => {
           { kind: "state", recordKind: null },
           { kind: "post", recordKind: null },
         ],
+        plugin: null,
+        memberTitle: null,
       },
       {
         id: "drive",
@@ -120,8 +128,97 @@ describe("blockRowsOf", () => {
         hooks: [],
         consumes: [],
         produces: [],
+        plugin: null,
+        memberTitle: null,
       },
     ]);
+  });
+});
+
+/** 구성원이 있는 구성: 뿌리 블록 하나, 제목 있는 구성원 sync의 블록 둘, 제목 없는 구성원 guard, 목록에 없는 ghost */
+const MEMBERED: CompositionDecl = {
+  blocks: [
+    { id: "root-check", stage: "check", op: "on", hooks: ["tool.call.before"] },
+    { id: "sync-run", stage: "sync", op: "on", plugin: "sync", title: "동기화" },
+    { id: "guard-run", stage: "guard", op: "on", plugin: "guard" },
+    { id: "ghost-run", stage: "ghost", op: "on", plugin: "ghost" },
+    { id: "sync-tail", stage: "sync", op: "on", plugin: "sync" },
+  ],
+};
+
+const MEMBERS = [
+  { id: "sync", title: "동기화" },
+  { id: "guard", title: null },
+];
+
+describe("구성원과 블록", () => {
+  test("blockRowsOf fills the member title of a block from the member list, and leaves it null for root, untitled and unknown members", () => {
+    const rows = blockRowsOf(MEMBERED, MEMBERS);
+    expect(rows.map((row) => [row.id, row.plugin, row.memberTitle])).toEqual([
+      ["root-check", null, null],
+      ["sync-run", "sync", "동기화"],
+      ["guard-run", "guard", null],
+      ["ghost-run", "ghost", null],
+      ["sync-tail", "sync", "동기화"],
+    ]);
+    // 알 수 없는 id의 블록도 줄은 남고 지어낸 제목은 없다
+    expect(rows[3]).toMatchObject({ id: "ghost-run", plugin: "ghost", title: "ghost-run" });
+  });
+
+  test("blocksByMemberOf groups by member in first-seen order, root under null, declaration order kept inside a group", () => {
+    const groups = blocksByMemberOf(MEMBERED, MEMBERS);
+    expect([...groups].map(([key, rows]) => [key, rows.map((row) => row.id)])).toEqual([
+      [null, ["root-check"]],
+      ["sync", ["sync-run", "sync-tail"]],
+      ["guard", ["guard-run"]],
+      ["ghost", ["ghost-run"]],
+    ]);
+    expect(groups.get("sync")?.map((row) => row.memberTitle)).toEqual(["동기화", "동기화"]);
+    // 구성원 목록을 주지 않으면 제목은 null이고 묶음은 같다
+    expect(
+      blocksByMemberOf(MEMBERED)
+        .get("sync")
+        ?.map((row) => row.memberTitle),
+    ).toEqual([null, null]);
+    // 블록이 없는 구성원은 키가 없고, 블록이 없는 구성은 빈 지도다
+    expect(groups.has("missing")).toBe(false);
+    expect(blocksByMemberOf({ blocks: [] })).toEqual(new Map());
+  });
+
+  test("memberAddOp sends only the fields it is given, and a blank title is not sent", () => {
+    expect(memberAddOp("sync")).toStrictEqual({ kind: "add", id: "sync" });
+    expect(memberAddOp("sync", { layer: "L3", title: "  동기화  ", mode: "drive" })).toStrictEqual({
+      kind: "add",
+      id: "sync",
+      layer: "L3",
+      title: "동기화",
+      mode: "drive",
+    });
+    expect(memberAddOp("sync", { title: "   " })).toStrictEqual({ kind: "add", id: "sync" });
+  });
+
+  test("memberIdErrorOf checks the plugin id pattern and duplicates, and an empty id is not yet an error", () => {
+    expect(memberIdErrorOf("", [])).toBeNull();
+    expect(memberIdErrorOf("sync", ["plugin-root"])).toBeNull();
+    expect(memberIdErrorOf("ab-c", ["ab"])).toBeNull();
+    expect(
+      ["Sync", "a", "1abc", "sync_2", "a".repeat(33)].map((id) => memberIdErrorOf(id, [])),
+    ).toEqual(["pattern", "pattern", "pattern", "pattern", "pattern"]);
+    // 뿌리 플러그인 id도 중복이다
+    expect(memberIdErrorOf("plugin-root", ["plugin-root", "sync"])).toBe("duplicate");
+    expect(memberIdErrorOf("ab", ["ab"])).toBe("duplicate");
+  });
+
+  test("memberMoveOps makes one move to the final index, and nothing for a no-op or an out-of-range index", () => {
+    const ids = ["a1", "b1", "c1"];
+    expect(memberMoveOps(ids, 0, 2)).toEqual([{ kind: "move", id: "a1", toIndex: 2 }]);
+    expect(memberMoveOps(ids, 2, 0)).toEqual([{ kind: "move", id: "c1", toIndex: 0 }]);
+    expect(memberMoveOps(ids, 1, 1)).toEqual([]);
+    expect(memberMoveOps(ids, 3, 0)).toEqual([]);
+    expect(memberMoveOps(ids, 0, 3)).toEqual([]);
+    expect(memberMoveOps(ids, -1, 0)).toEqual([]);
+    expect(memberMoveOps(ids, 0, 1.5)).toEqual([]);
+    expect(memberMoveOps([], 0, 0)).toEqual([]);
   });
 });
 
@@ -417,7 +514,7 @@ describe("캔버스 자리와 개요", () => {
   });
 });
 
-describe("프로필의 drive 그룹과 코어 잠금", () => {
+describe("프로필의 Drive 플러그인과 코어 잠금", () => {
   test("빈 값은 자동(null)", () => {
     const draft = profileDraftOf(null);
     expect(withDriver(draft, "helm").driver).toBe("helm");
@@ -443,9 +540,9 @@ describe("프로필의 drive 그룹과 코어 잠금", () => {
   test("drive 후보는 그룹만, 이름 순", () => {
     expect(
       driverChoicesOf([
-        { name: "z", isGroup: true },
-        { name: "p", isGroup: false },
-        { name: "a", isGroup: true },
+        { name: "z", isOrchestration: true },
+        { name: "p", isOrchestration: false },
+        { name: "a", isOrchestration: true },
       ]),
     ).toEqual(["a", "z"]);
   });
@@ -497,21 +594,21 @@ describe("블록 이슈의 경로 모양", () => {
     const issue: WireManifestIssue = {
       severity: "error",
       code: "drive_duplicate",
-      path: "/group/composition/blocks/1",
+      path: "/orchestration/composition/blocks/1",
       message: "m",
     };
     expect([...issuesByBlockOf(COMPOSITION, [issue])]).toEqual([["drive", [issue]]]);
   });
 });
 
-describe("저장하지 않은 프로필 바꿈과 drive 그룹 고르기 목록", () => {
+describe("저장하지 않은 프로필 바꿈과 Drive 플러그인 고르기 목록", () => {
   test("저장된 값과 같으면 저장하지 않은 바꿈이 없고, 이름 앞뒤 공백은 바꿈이 아니다", () => {
     const draft = profileDraftOf(PROFILE);
     expect(profileUnsavedOf(draft, PROFILE)).toBe(false);
     expect(profileUnsavedOf({ ...draft, title: "  조용히 " }, PROFILE)).toBe(false);
   });
 
-  test("이름, drive 그룹, 플러그인 목록 중 하나라도 다르면 바꿈이다", () => {
+  test("이름, Drive 플러그인, 플러그인 목록 중 하나라도 다르면 바꿈이다", () => {
     const draft = profileDraftOf(PROFILE);
     expect(profileUnsavedOf({ ...draft, title: "다른 이름" }, PROFILE)).toBe(true);
     expect(profileUnsavedOf(withDriver(draft, null), PROFILE)).toBe(true);
@@ -534,13 +631,13 @@ describe("저장하지 않은 프로필 바꿈과 drive 그룹 고르기 목록"
   });
 });
 
-describe("drive 그룹 고르기 값", () => {
+describe("Drive 플러그인 고르기 값", () => {
   test("자동이 첫 값이고 그 뒤에 설치된 그룹과 저장된 이름이 온다", () => {
     expect(driverPicksOf(null, ["helm", "lens"])).toEqual([AUTO_DRIVER_PICK, "helm", "lens"]);
     expect(driverPicksOf("gone", ["helm"])).toEqual([AUTO_DRIVER_PICK, "helm", "gone"]);
   });
 
-  test("자동 값은 null로 바뀌고, 그룹 이름은 그대로다", () => {
+  test("자동 값은 null로 바뀌고, 플러그인 이름은 그대로다", () => {
     expect(driverOfPick(AUTO_DRIVER_PICK)).toBeNull();
     expect(driverOfPick("helm")).toBe("helm");
     expect(withDriver(profileDraftOf(null), driverOfPick(AUTO_DRIVER_PICK)).driver).toBeNull();

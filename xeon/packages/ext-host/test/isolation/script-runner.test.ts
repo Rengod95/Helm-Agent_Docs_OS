@@ -439,7 +439,59 @@ test("a script that exits with 2 returns its code, stdout and stderr as values, 
     command: "/bin/sh",
     args: [join(tree, "check.sh"), "--strict"],
     readRoot: tree,
+    // 시스템 도구 경로 값은 좁은 길에서만 읽기 허용에 더해진다. 열린 정책에서는 값만 실린다(AGE-58, AGE-63)
+    systemTools: true,
     env: { PATH: "/usr/bin" },
+    label: "script:demo:check",
+  });
+});
+
+test("a python3 script opens its install folders for reading only, never writes bytecode, and the card lists that environment name", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "" });
+  const runner = createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(tree, [
+      { name: "report", runner: "python3", file: "check.sh", envNames: ["PATH"] },
+    ]),
+    resolveRunner: (name) => (name === "python3" ? "/opt/py/bin/python3" : undefined),
+    runnerReadRoots: (name, command) =>
+      name === "python3" && command === "/opt/py/bin/python3" ? ["/opt/py"] : [],
+    allowedEnv: { PATH: "/usr/bin" },
+    setTimer: manualTimers().setTimer,
+  });
+  await runner.run({ registration: "demo", name: "report", stdin: "", replay: false });
+  expect(launched[0]?.spec).toEqual({
+    command: "/opt/py/bin/python3",
+    args: [join(tree, "check.sh")],
+    readRoot: tree,
+    runtimeReadRoots: ["/opt/py"],
+    systemTools: true,
+    env: { PATH: "/usr/bin", PYTHONDONTWRITEBYTECODE: "1" },
+    label: "script:demo:report",
+  });
+});
+
+test("a runner without read roots (sh) gets no runtimeReadRoots even when the resolver is present", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "" });
+  const runner = createScriptRunner({
+    process: port,
+    fs: nodeFs,
+    target: targetOf(tree, [{ name: "check", runner: "sh", file: "check.sh" }]),
+    resolveRunner: SH_RESOLVER,
+    runnerReadRoots: () => [],
+    allowedEnv: {},
+    setTimer: manualTimers().setTimer,
+  });
+  await runner.run({ registration: "demo", name: "check", stdin: "", replay: false });
+  expect(launched[0]?.spec).toEqual({
+    command: "/bin/sh",
+    args: [join(tree, "check.sh")],
+    readRoot: tree,
+    systemTools: true,
+    env: {},
     label: "script:demo:check",
   });
 });
@@ -693,6 +745,8 @@ function draftRunner(
   port: IsolationProcessPort,
   gate: ScriptDraftGate | undefined,
   extra?: {
+    readonly approved?: boolean;
+    readonly narrowDrafts?: () => boolean;
     readonly sandboxAvailable?: () => boolean;
     readonly maskText?: (text: string) => string;
     readonly allowedEnv?: Record<string, string>;
@@ -713,13 +767,14 @@ function draftRunner(
           ...(extra?.envNames === undefined ? {} : { envNames: extra.envNames }),
         },
       ],
-      false,
+      extra?.approved ?? false,
     ),
     resolveRunner: SH_RESOLVER,
     allowedEnv: extra?.allowedEnv ?? {},
     setTimer: manualTimers().setTimer,
     ...(gate === undefined ? {} : { draftGate: gate }),
     ...(extra?.sandboxAvailable === undefined ? {} : { sandboxAvailable: extra.sandboxAvailable }),
+    ...(extra?.narrowDrafts === undefined ? {} : { narrowDrafts: extra.narrowDrafts }),
     ...(extra?.maskText === undefined ? {} : { maskText: extra.maskText }),
   });
 }
@@ -752,8 +807,12 @@ test("a draft script with a gate and a thread opens the card first: the card sho
         command: "/bin/sh",
         args: [join(tree, "check.sh"), "--flag"],
         envNames: ["MARKER"],
+        // 선언했지만 넘기지 않은 이름(허용 목록 밖, 토큰·키 이름)은 카드가 따로 알린다 [AGE-63 enDep 11]
+        envNotPassed: ["ANTHROPIC_API_KEY"],
         stdinBytes: new TextEncoder().encode("token secret-value é").byteLength,
         stdinPreview: "token [masked] é",
+        // 설정을 켜지 않은 승인 전 드래프트는 열린 정책으로 돈다 [결정: 2026-11-21, AGE-63]
+        uses: ["sandbox_full_access", "network"],
       },
     },
   ]);
@@ -771,6 +830,135 @@ test("a draft script with a gate and a thread opens the card first: the card sho
   });
   expect(launched.length).toBe(1);
   expect(launched[0]?.stdinText()).toBe("token secret-value é");
+});
+
+test("a draft card names the declared env names that do not reach the script, and has no such key when every declared name reaches it", async () => {
+  const { tree } = layout();
+  const { port } = fakeProcess({ stdout: "done", exit: { code: 0, signal: null } });
+  const { gate, calls } = fakeGate(true);
+  const runner = draftRunner(tree, port, gate, {
+    allowedEnv: { MARKER: "m" },
+    envNames: ["MARKER", "ANTHROPIC_API_KEY"],
+  });
+  await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  const plain = draftRunner(tree, port, gate, {
+    allowedEnv: { MARKER: "m" },
+    envNames: ["MARKER"],
+  });
+  await plain.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(calls.map((call) => call.card.envNotPassed)).toEqual([["ANTHROPIC_API_KEY"], undefined]);
+  expect(calls.map((call) => "envNotPassed" in call.card)).toEqual([true, false]);
+});
+
+test("narrowDrafts on: an unapproved draft script runs narrow (no write, reads its own folder) and its card says so", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "done", exit: { code: 0, signal: null } });
+  const { gate, calls } = fakeGate(true);
+  const runner = draftRunner(tree, port, gate, { narrowDrafts: () => true });
+  const outcome = await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(outcome).toMatchObject({ ok: true, value: { exitCode: 0, stdout: "done" } });
+  expect(calls.map((call) => call.card.uses)).toEqual([["system_tools", "network"]]);
+  expect(launched.map((entry) => entry.spec)).toEqual([
+    {
+      command: "/bin/sh",
+      args: [join(tree, "check.sh"), "--flag"],
+      readRoot: tree,
+      systemTools: true,
+      narrow: true,
+      env: {},
+      label: "script:demo:check",
+    },
+  ]);
+});
+
+test("narrowDrafts off: an unapproved draft script runs open, with no narrow flag", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "done", exit: { code: 0, signal: null } });
+  const { gate, calls } = fakeGate(true);
+  const runner = draftRunner(tree, port, gate, { narrowDrafts: () => false });
+  await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(calls.map((call) => call.card.uses)).toEqual([["sandbox_full_access", "network"]]);
+  expect(launched.map((entry) => entry.spec)).toEqual([
+    {
+      command: "/bin/sh",
+      args: [join(tree, "check.sh"), "--flag"],
+      readRoot: tree,
+      systemTools: true,
+      env: {},
+      label: "script:demo:check",
+    },
+  ]);
+});
+
+test("narrowDrafts on never narrows an approved script: it runs open with no card", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "done", exit: { code: 0, signal: null } });
+  const runner = draftRunner(tree, port, undefined, { approved: true, narrowDrafts: () => true });
+  const outcome = await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+  });
+  expect(outcome).toMatchObject({ ok: true, value: { exitCode: 0, stdout: "done" } });
+  expect(launched.map((entry) => entry.spec)).toEqual([
+    {
+      command: "/bin/sh",
+      args: [join(tree, "check.sh"), "--flag"],
+      readRoot: tree,
+      systemTools: true,
+      env: {},
+      label: "script:demo:check",
+    },
+  ]);
+});
+
+test("narrowDrafts on does not skip the approval: an unapproved draft without a gate or thread still starts nothing", async () => {
+  const { tree } = layout();
+  const { port, launched } = fakeProcess({ stdout: "done" });
+  const noGate = await draftRunner(tree, port, undefined, { narrowDrafts: () => true }).run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(noGate).toEqual({ ok: false, error: { kind: "script_not_approved" } });
+  const { gate, calls } = fakeGate(false);
+  const declined = await draftRunner(tree, port, gate, { narrowDrafts: () => true }).run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(declined.ok).toBe(false);
+  expect(calls.length).toBe(1);
+  expect(launched.length).toBe(0);
 });
 
 test("a declined card runs nothing: the script is not started and the denial comes back as a value", async () => {

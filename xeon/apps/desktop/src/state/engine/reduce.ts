@@ -207,13 +207,41 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
           recentTurnIds[t.threadId] = withRecentTurn(recentTurnIds[t.threadId], t.lastTurnId);
         }
       }
+      // 엔진의 기본 목록은 테스트 챗을 뺀다. 거울이 이미 아는 테스트 챗 요약은 목록 뒤에 남긴다(플로팅 테스트 챗 창이 제목과 실행 상태를 읽는다)
+      const listedIds = new Set(input.threads.map((t) => t.threadId));
+      const keptIds = state.threads.ids.filter(
+        (id) => !listedIds.has(id) && state.threads.byId[id]?.craftChat !== undefined,
+      );
+      for (const id of keptIds) {
+        const known = state.threads.byId[id];
+        if (known !== undefined) byId[id] = known;
+      }
       return keep(
         {
           ...state,
-          threads: { status: "ready", ids: input.threads.map((t) => t.threadId), byId },
+          threads: {
+            status: "ready",
+            ids: [...input.threads.map((t) => t.threadId), ...keptIds],
+            byId,
+          },
           latestTurnId,
           recentTurnIds,
         },
+        "applied",
+      );
+    }
+    case "craft_chats": {
+      // 표지가 있는 요약만 받는다. 이미 아는 대화는 요약을 바꾸고, 모르는 대화는 목록 뒤에 붙인다(목록 화면은 표지로 거른다)
+      const marked = input.threads.filter((t) => t.craftChat !== undefined);
+      if (marked.length === 0) return keep(state, "stale");
+      const byId: Record<string, ThreadSummary> = { ...state.threads.byId };
+      const added: ThreadId[] = [];
+      for (const t of marked) {
+        if (byId[t.threadId] === undefined) added.push(t.threadId);
+        byId[t.threadId] = t;
+      }
+      return keep(
+        { ...state, threads: { ...state.threads, ids: [...state.threads.ids, ...added], byId } },
         "applied",
       );
     }
@@ -222,8 +250,17 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       let changed = false;
       for (const mark of input.marks) {
         const known = byId[mark.threadId];
-        if (known === undefined || known.spawnedBy !== undefined) continue;
-        byId[mark.threadId] = { ...known, spawnedBy: mark.spawnedBy };
+        if (known === undefined) continue;
+        const spawnedBy =
+          known.spawnedBy === undefined && mark.spawnedBy !== undefined ? mark.spawnedBy : null;
+        const testRun =
+          known.testRun === undefined && mark.testRun !== undefined ? mark.testRun : null;
+        if (spawnedBy === null && testRun === null) continue;
+        byId[mark.threadId] = {
+          ...known,
+          ...(spawnedBy === null ? {} : { spawnedBy }),
+          ...(testRun === null ? {} : { testRun }),
+        };
         changed = true;
       }
       if (!changed) return keep(state, "stale");
@@ -653,6 +690,7 @@ function convoOf(convo: Convo, fact: DurableFact, at: ConvoAt, before: EngineMir
         scopeId: fact.start?.scopeId ?? null,
         requestId: fact.start?.requestId ?? null,
         inputItemIds: fact.start?.inputItemIds ?? [],
+        invoked: fact.start?.invoked ?? [],
         model: before.threads.byId[fact.threadId]?.model ?? null,
       });
     case "turn.completed":
@@ -715,6 +753,10 @@ function applyFactCore(state: EngineMirror, fact: DurableFact): EngineMirror {
         resumable: null,
         queuedInputs: 0,
         pendingApprovals: 0,
+        // 테스트 챗 표지는 목록에서 빼는 기준이다(listed.ts). 없는 대화에는 키를 두지 않는다
+        ...(fact.payload.craftChat === undefined
+          ? {}
+          : { craftChat: { plugin: fact.payload.craftChat.plugin } }),
       };
       return {
         ...state,
@@ -733,6 +775,10 @@ function applyFactCore(state: EngineMirror, fact: DurableFact): EngineMirror {
             title: fact.payload.title !== undefined ? fact.payload.title : t.title,
             status: fact.payload.status ?? t.status,
             updatedAt: fact.at,
+            // 테스트 챗의 플러그인 묶음(한 번만 쓴다). 없으면 그대로 둔다
+            ...(fact.payload.craftChat === undefined
+              ? {}
+              : { craftChat: { plugin: fact.payload.craftChat.plugin } }),
           },
           fact.payload.model,
         ),

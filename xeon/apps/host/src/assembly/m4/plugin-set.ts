@@ -85,7 +85,7 @@ interface Resolved {
 interface Membership {
   readonly sources: ReadonlyMap<string, EnabledSource>;
   readonly resolved: Resolved | undefined;
-  /** 늘 E(T)에 드는 이름: 테스트 챗의 빌더(AGE-60). 관리 잠금, 오류 정지, 드래프트·덧씌우기가 빼지 못한다 */
+  /** E(T)에 드는 이름: 테스트 챗의 빌더(AGE-60). 오류 정지, 드래프트·덧씌우기가 빼지 못한다. 관리 잠금은 뺀다(이유는 `sourceOf`가 `managed`로 읽힌다) */
   readonly pinned: ReadonlySet<string>;
 }
 
@@ -94,7 +94,8 @@ interface Membership {
  * 조립 루트(`ports.ts`)가 로더에 연결한다. 로더에 없는 이름(내장 단위, 아직 설치하지 않은 이름)은 조립이 건너뛴다
  */
 export interface PluginLifecycle {
-  ensureLoaded(name: string): Promise<unknown>;
+  /** 이름을 싣는다(기록이 있으면 hard 대상을 먼저). `signal`을 주면 그 호출의 적재가 쓰고, 없으면 엔진의 수명 신호다 */
+  ensureLoaded(name: string, signal?: AbortSignal): Promise<unknown>;
   unload(name: string): Promise<unknown>;
 }
 
@@ -156,6 +157,11 @@ export interface PluginSetHandle {
   readonly port: PluginSetPort;
   /** 저장된 프로필 목록을 다시 읽는다. 대화를 열기 전에 부른다. 열린 대화마다 적용을 예약한다 */
   refresh(): Promise<void>;
+  /**
+   * 프로필 복사를 읽었는가. 읽기 전의 E(T)는 등록된 모든 확장(드래프트 포함)이라 "그 대화가 실은 것"이 아니다.
+   * 도구 가시성은 이것이 거짓이면 E(T)를 읽지 못한 것으로 본다(L1.tools.spec §3.3.1)
+   */
+  readable(): boolean;
   /**
    * 한 대화의 E(T)가 바뀌었을 수 있음을 알리고 적용을 예약한다. 켜짐 요청은 X가 마지막으로 맞춘 값과의 차이만 낸다,
    * 그래서 엔진이 끈 등록은 E(T)가 바뀌기 전까지 다시 켜지지 않는다(M5c §4.1.5)
@@ -447,10 +453,11 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
     sources: ReadonlyMap<string, EnabledSource>,
     pinned: ReadonlySet<string> = new Set(),
   ): string[] {
-    return [...sources.keys()].filter(
-      (name) =>
-        pinned.has(name) ||
-        (!deps.managedOff(name) && !deps.stopped(name) && !isHookUnitName(name)),
+    return [...sources.keys()].filter((name) =>
+      // 고정 이름(테스트 챗의 빌더)은 오류 정지를 면제받지만 관리 잠금은 면제받지 못한다 [결정: 2026-11-19, 사용자, AGE-60]
+      pinned.has(name)
+        ? !deps.managedOff(name)
+        : !deps.managedOff(name) && !deps.stopped(name) && !isHookUnitName(name),
     );
   }
 
@@ -671,6 +678,7 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       },
     },
     refresh,
+    readable: () => copy !== undefined,
     recompute,
     attachOverlay: async (threadId, marks) => {
       const merged = [...marksOf(threadId)];

@@ -1,0 +1,19 @@
+{
+  "name": "@fresnel/plugin-__ID__",
+  "version": "__VERSION__",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/orchestration-sdk": "workspace:*",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {},
+  "fresnel": {
+    "layer": "L3",
+    "domain": "__ID__"
+  }
+}

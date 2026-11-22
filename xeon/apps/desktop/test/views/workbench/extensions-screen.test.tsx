@@ -193,7 +193,7 @@ describe("확장 화면: 고른 확장과 선택 패널", () => {
 
   test("면제 tier 확장은 스위치가 잠기고 이유를 선택 패널에 쓴다", () => {
     const html = render((s) => pickPlugin(s, "core-loop"));
-    expect(html).toContain("보안·기본 동작이라 끌 수 없어요");
+    expect(html).toContain("보안 동작이거나 기본 동작이라 끌 수 없어요");
   });
 
   test("자동 꺼진 확장은 위 띠에 알림을 두지 않고, 고른 선택 패널에 다시 켜기를 보인다", () => {
@@ -231,7 +231,7 @@ describe("확장 화면: 잠긴 스위치의 이유는 Tooltip으로 보인다",
     ]);
     const rows = rowsOf(renderState(state));
     // core-loop은 카탈로그의 한국어 이름(ext.name.coreLoop)으로 그려진다
-    for (const name of ["에이전트 실행기", "gate"]) {
+    for (const name of ["에이전트 루프", "gate"]) {
       const row = rows.find((r) => r.cells[0]?.includes(name));
       expect(row?.markup).toContain(`aria-description="${t("desktop.workbench.lock.exempt")}"`);
       expect(row?.markup).toContain('data-slot="tooltip-trigger"');
@@ -275,7 +275,7 @@ describe("신뢰 확인(O-10)", () => {
 describe("켜고 끄기 확인의 길(toggleRouteOf)과 Helm 설명", () => {
   test("꺼져 있던 user 확장을 켜면 신뢰 확인, 그룹을 끄면 끄기 확인, 나머지는 바로", () => {
     const user = entry("web", { origin: "user", status: "disabled" });
-    const group = entry("review", { isGroup: true, origin: "builtin", status: "enabled" });
+    const group = entry("review", { isOrchestration: true, origin: "builtin", status: "enabled" });
     const plain = entry("web", { origin: "builtin", status: "enabled" });
     expect(toggleRouteOf(user, true)).toBe("trust");
     expect(toggleRouteOf(group, false)).toBe("off-confirm");
@@ -284,7 +284,7 @@ describe("켜고 끄기 확인의 길(toggleRouteOf)과 Helm 설명", () => {
     expect(toggleRouteOf(undefined, false)).toBe("direct");
   });
 
-  test("Helm의 '이 그룹이 하는 일'은 문단 넷(머리와 세 줄)이고 다른 그룹에는 없다", () => {
+  test("Helm의 '이 플러그인이 하는 일'은 문단 넷(머리와 세 줄)이고 다른 그룹에는 없다", () => {
     const helm = renderToString(<GroupAbout name="helm" />);
     expect(Array.from(helm.matchAll(/<p[^>]*>([^<]*)<\/p>/g), (m) => m[1])).toEqual([
       t("desktop.workbench.trust.about.helm.heading"),

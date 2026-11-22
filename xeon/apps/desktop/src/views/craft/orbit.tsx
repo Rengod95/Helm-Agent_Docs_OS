@@ -285,7 +285,7 @@ const Node = memo(function Node(props: NodeProps): ReactNode {
         {showChip && (
           <div
             className="pointer-events-auto absolute top-0 -translate-y-1/2"
-            style={right ? { left: 19 } : { right: 19 }}
+            style={right ? { left: "var(--cs-space-5)" } : { right: "var(--cs-space-5)" }}
           >
             {/* 이름표는 보기용이다: 키보드는 점에서 간다(점이 이름을 말한다) */}
             <button
@@ -723,10 +723,7 @@ export function Orbit(): ReactNode {
                     data-group=""
                     data-picked={pickedGroup ? "" : undefined}
                     data-lit={groupSel === group.id && !pickedGroup ? "" : undefined}
-                    aria-label={t("desktop.craft.orbit.group.name", {
-                      name: group.name,
-                      term: t("term.pluginGroup"),
-                    })}
+                    aria-label={t("desktop.craft.orbit.group.name", { name: group.name })}
                     aria-pressed={pickedGroup}
                     onClick={() => onPickGroup(group.id)}
                     onPointerMove={spot}
@@ -796,7 +793,7 @@ function StateLegend(props: { readonly plugins: readonly CanvasPlugin[] }): Reac
   return (
     <ul
       aria-label={t("desktop.craft.orbit.legend.label")}
-      className="pointer-events-none absolute bottom-3 right-14 z-20 m-0 flex list-none items-center gap-3 p-0 text-ui-xs text-text-secondary"
+      className="pointer-events-none absolute bottom-3 right-(--craft-float-end) z-20 m-0 flex list-none items-center gap-3 p-0 text-ui-xs text-text-secondary"
     >
       {items.map((item) => (
         <li key={item.key} className="flex items-center gap-1">

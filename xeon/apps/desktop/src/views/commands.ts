@@ -32,8 +32,8 @@ import type {
   ExtListEntry,
   ExtUiEntry,
   ExtVersionsResult,
-  GroupMetricsResult,
-  GroupStatusWire,
+  OrchestrationMetricsResult,
+  OrchestrationStatusWire,
   HookEntry,
   HostClientView,
   NotifyDeliveredParams,
@@ -54,6 +54,9 @@ import type {
   ProfilePutResult,
   ThreadSetProfileResult,
   ProfilePreviewResult,
+  ProfileDefaultResetResult,
+  InvocableEntry,
+  DraftInfo,
   ExtValidateDirResult,
   ExtValidateResult,
   SecretListEntry,
@@ -79,6 +82,7 @@ import type {
   TrustChoice,
   TrustListResult,
   TrustStatus,
+  TurnRecordDeltaParams,
   WireParams,
   WireResult,
   WorkspaceStatusResult,
@@ -148,6 +152,16 @@ export type SwitchMode = "default" | "acceptEdits" | "bypass";
 /** `not_available`로 막는 명령 이름. `ext.remove.dropData`는 `ext.remove`의 저장 데이터 지우기 칸이다 */
 export type NotAvailableCommand = "ext.removePreview" | "ext.remove.dropData";
 
+/** 프로필 검사 문제 한 줄(`pluginReview.profileInvalid`의 `details.issues`). `profile`은 프로필 id 또는 `common`이다 */
+export interface ProfileIssueView {
+  readonly code: string;
+  readonly severity: "error" | "warning" | null;
+  readonly profile: string | null;
+  readonly plugin: string | null;
+  readonly other: string | null;
+  readonly key: string | null;
+}
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -174,6 +188,11 @@ export type CommandError =
       readonly path?: string;
       /** 설치 입력이 검사에서 걸린 사유 목록(`details.reasons`). 화면은 `message` 원문을 보이지 않는다 */
       readonly reasons?: readonly DevkitReason[];
+      /**
+       * 승인의 프로필 반영이 걸린 문제(`pluginReview.profileInvalid` 3656의 `details.issues`). 리뷰 화면이 사람이 읽는 말로 옮긴다.
+       * 모양이 틀린 줄은 버린다
+       */
+      readonly profileIssues?: readonly ProfileIssueView[];
     }
   | { readonly kind: "failed" }
   /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
@@ -340,6 +359,57 @@ export type SkillViewError = CommandError | { readonly kind: "not_found" };
 export interface ReviewCommands {
   /** `review.get`. 리뷰의 파일과 hunk 본문을 읽는다 */
   get(reviewId: string): Promise<Result<WireResult<"review.get">, CommandError>>;
+}
+
+/**
+ * Craft 리뷰 화면(C5, `views/craft/review/`). 항목은 요청 결과라 거울에 넣지 않는다(FS-03).
+ * `list`는 모든 상태의 항목을 읽는다: 대기 항목과, 비교 대상(`baseHash`)을 승인한 지난 항목의 파일 목록이 함께 필요하다.
+ */
+// 프로젝트 패널(C10)과 T7 알림이 부르는 명령(M5c §3.4). 구현은 `app/projects.ts`다.
+// 지우는 명령은 없다: `project.delete`는 목록에서 빼기만 하고 폴더와 대화는 남긴다(엔진 §4.4.2).
+
+export interface ProjectCommands {
+  /** `project.list`: 프로젝트와 그 대화 수 */
+  list(): Promise<Result<WireResult<"project.list">, CommandError>>;
+  /** `project.get`: 프로젝트와 그 프로젝트 출처의 리뷰 대기 수(`pendingReview`) */
+  get(projectId: string): Promise<Result<WireResult<"project.get">, CommandError>>;
+  /** `project.create { root }`. 이름을 주지 않으면 엔진이 루트의 마지막 마디로 짓는다 */
+  create(root: string): Promise<Result<WireResult<"project.create">, CommandError>>;
+  rename(
+    projectId: string,
+    name: string,
+  ): Promise<Result<WireResult<"project.rename">, CommandError>>;
+  /** `project.delete`: 목록에서 뺀다. 폴더와 대화는 지우지 않는다 */
+  remove(projectId: string): Promise<Result<WireResult<"project.delete">, CommandError>>;
+  /** `project.instructions { workspace }`: 그 폴더에서 루트까지 읽히는 `AGENTS.md` */
+  instructions(
+    workspace: WireParams<"project.instructions">["workspace"],
+  ): Promise<Result<WireResult<"project.instructions">, CommandError>>;
+  /** `project.changed`(목록)와 `pluginReview.changed`(리뷰 대기 수)를 듣는다 */
+  onChanged(listener: () => void): () => void;
+}
+
+export interface PluginReviewCommands {
+  /** `pluginReview.list {}` */
+  list(): Promise<Result<WireResult<"pluginReview.list">, CommandError>>;
+  /**
+   * `pluginReview.file`. 파일 하나. `side`를 생략하면 새 판(`candidate`), `base`면 지난 승인 버전이다. 결정한 뒤에도 읽는다.
+   * 그 쪽 스냅샷이 보관소에 없으면 오류가 아니라 `missing: true`로 답한다
+   */
+  file(
+    itemId: string,
+    path: string,
+    side?: WireParams<"pluginReview.file">["side"],
+  ): Promise<Result<WireResult<"pluginReview.file">, CommandError>>;
+  /** `pluginReview.decide` */
+  decide(
+    itemId: string,
+    decision: WireParams<"pluginReview.decide">["decision"],
+  ): Promise<Result<WireResult<"pluginReview.decide">, CommandError>>;
+  /** `profile.list`. 승인할 때 넣을 프로필을 고른다 */
+  profiles(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** `pluginReview.changed`와 `plugin.changed`를 듣는다. 반환값은 구독 해제 */
+  onChanged(listener: () => void): () => void;
 }
 
 /**
@@ -821,7 +891,88 @@ export interface MeasureCommands {
   /** `measure.daily`: 종류와 지표 하나의 일별 집계 */
   daily(kind: string, metric: string): Promise<Result<MeasureDailyResult, CommandError>>;
   /** `group.promotion`: 승격 보고(읽기 전용). 대화가 없으면 인자 없이 보내 호스트가 가장 최근 대화를 고른다 */
-  promotion(threadId: string | null): Promise<Result<WireResult<"group.promotion">, CommandError>>;
+  promotion(
+    threadId: string | null,
+  ): Promise<Result<WireResult<"orchestration.promotion">, CommandError>>;
+}
+
+/**
+ * Craft 메트릭(C9)과 트레이스(C8) 화면의 wire(M5d `review/m5/turn-record-metrics.md` §3.5, §3.8). 결과는 요청의 반환값이라 거울에 넣지 않는다.
+ * 쓰기는 인사이트 닫기, 프로필에서 빼기, 테스트 챗 열기 셋이고 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다.
+ */
+export interface CraftMetricsCommands {
+  /** `metrics.catalog`: 지표 정의(이름, 단위, 정의 문장) */
+  catalog(): Promise<Result<WireResult<"metrics.catalog">, CommandError>>;
+  /** `metrics.query`: 값마다 `state`와 `reason`이 있어 없는 값을 0으로 그리지 않는다 */
+  query(
+    params: WireParams<"metrics.query">,
+  ): Promise<Result<WireResult<"metrics.query">, CommandError>>;
+  /** `findings.list`: 인사이트. 닫은 것은 `state: "dismissed"`로 따로 읽는다 */
+  findings(
+    params: WireParams<"findings.list">,
+  ): Promise<Result<WireResult<"findings.list">, CommandError>>;
+  /** `findings.evidence`: 인사이트 근거 한 쪽 */
+  evidence(
+    findingId: string,
+    cursor: string | null,
+  ): Promise<Result<WireResult<"findings.evidence">, CommandError>>;
+  /** `findings.dismiss`: 닫는다. `until`이 있으면 그때 다시 연다(값이 바뀌어도 엔진이 다시 연다) */
+  dismiss(findingId: string, until: number | null): Promise<Result<null, CommandError>>;
+  /** `profile.list`: 거르기의 프로필 목록 */
+  profiles(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** `plugin.get`: 버전 전후 비교의 버전 목록(`versions`) */
+  plugin(name: string): Promise<Result<WireResult<"plugin.get">, CommandError>>;
+  /** `turnRecord.list`: 한 대화의 턴 목록 한 쪽 */
+  turns(
+    params: WireParams<"turnRecord.list">,
+  ): Promise<Result<WireResult<"turnRecord.list">, CommandError>>;
+  /** `turnRecord.recent`: 모든 대화의 턴을 시작 시각 역순으로 한 쪽씩(기간·프로필·플러그인·범위 거르기). 메트릭의 "최근 턴"이 쓴다 */
+  recent(
+    params: WireParams<"turnRecord.recent">,
+  ): Promise<Result<WireResult<"turnRecord.recent">, CommandError>>;
+  /** `turnRecord.get { detail: "full" }`: 턴 하나의 기록. 없으면 `record`가 null이고 `absent`가 이유다 */
+  turn(
+    threadId: string,
+    turnId: string,
+  ): Promise<Result<WireResult<"turnRecord.get">, CommandError>>;
+  /**
+   * `turnRecord.watch`와 알림 `turnRecord.delta`: 대화의 턴 기록 변화를 받는다. 값은 구독을 닫는 함수다.
+   * 닫은 뒤에는 `onDelta`가 다시 불리지 않는다
+   */
+  watch(
+    threadId: string,
+    onDelta: (params: TurnRecordDeltaParams) => void,
+  ): Promise<Result<() => void, CommandError>>;
+  /** `craftChat.open { reuse: "last", context }`: 근거를 들고 테스트 챗을 연다. 값은 그 대화 id다 */
+  openCraftChat(
+    params: WireParams<"craftChat.open">,
+  ): Promise<Result<WireResult<"craftChat.open">, CommandError>>;
+  /** `profile.removePlugin`: 프로필에서 플러그인 하나를 뺀다. `baseRev`가 다르면 거절된다 */
+  removeFromProfile(
+    profileId: string,
+    plugin: string,
+    baseRev: number,
+  ): Promise<Result<WireResult<"profile.removePlugin">, CommandError>>;
+  /**
+   * `settings.get { keys: ["x.operations.metrics.minSample"] }`: 비율·평균을 내는 엔진의 최소 표본 수.
+   * 정의가 없거나 값이 정수가 아니면 null이다(화면은 "몇 턴 더"를 말하지 않는다)
+   */
+  minSample(): Promise<Result<number | null, CommandError>>;
+}
+
+/**
+ * 테스트 챗 창(C7, `views/craft/test-chat/`)의 쓰기. 창은 대화 화면의 부품을 그대로 쓰므로 창이 떠 있는 동안 그 대화를 고른 대화로
+ * 빌리고(`selectThread`), 창이 숨으면 돌려준다. 돌려줄 대화가 없으면 `leave`로 고른 대화를 비운다
+ */
+export interface TestChatCommands {
+  /** `craftChat.open`: 테스트 챗을 연다(없으면 만든다). 맥락 참조는 열 때 엔진이 한 번 기록한다 */
+  open(
+    params: WireParams<"craftChat.open">,
+  ): Promise<Result<WireResult<"craftChat.open">, CommandError>>;
+  /** `pluginReview.submitDraft { draftId }`: 창의 드래프트를 리뷰로 보낸다. 값은 리뷰 항목 id다 */
+  submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, CommandError>>;
+  /** 고른 대화를 비운다(host의 그 대화 열기도 닫는다). 창이 빌린 대화를 돌려줄 곳이 없을 때만 부른다 */
+  leave(): void;
 }
 
 /** 확장이 소유한 저장 테이블 한 줄 */
@@ -888,7 +1039,7 @@ export interface WorkbenchCommands {
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** `group.list { threadId }`: 그룹마다 켜짐 요청 중인지(`pendingToggle`)와 drive 역할(`drive`) */
-  groups(threadId: ThreadId): Promise<Result<readonly GroupStatusWire[], CommandError>>;
+  groups(threadId: ThreadId): Promise<Result<readonly OrchestrationStatusWire[], CommandError>>;
   /** `drive.frames { threadId }`: 대화의 주도권 스택 프레임(아래에서 위, 맨 아래는 코어 루프) */
   driveFrames(threadId: ThreadId): Promise<Result<readonly DriveFrameView[], CommandError>>;
   /**
@@ -924,6 +1075,22 @@ export interface WorkbenchCommands {
     id: string,
     threadId?: ThreadId,
   ): Promise<Result<ProfilePreviewResult, CommandError>>;
+  /** `profile.defaultFor { workspace? }`: 이 폴더에서 새 대화가 받을 프로필 id(가장 최근 대화의 프로필, 없으면 `default`) */
+  defaultProfileFor(workspace: string | null): Promise<Result<string, CommandError>>;
+  /**
+   * `profile.default.reset { preview }`: 기본 프로필을 처음 주는 플러그인과 설정으로 돌린다. `preview`가 참이면 바꾸지 않고
+   * 바뀔 내용만 돌려준다
+   */
+  resetDefaultProfile(preview: boolean): Promise<Result<ProfileDefaultResetResult, CommandError>>;
+  /** `plugin.invocables { threadId }`: 이 대화가 `/이름`으로 부를 수 있는 항목(프로필 밖의 리뷰된 플러그인 포함) */
+  invocables(threadId: ThreadId): Promise<Result<readonly InvocableEntry[], CommandError>>;
+  /**
+   * `plugin.list { filter: { profileId } }`에서 이 프로필(과 공통 묶음)에 든 플러그인 이름. 원샷 목록이 프로필에 이미 든
+   * 플러그인을 가른다
+   */
+  pluginsInProfile(profileId: string): Promise<Result<ReadonlySet<string>, CommandError>>;
+  /** `plugin.draft.list { name }`: 그 플러그인의 드래프트(새것이 먼저) */
+  drafts(name: string): Promise<Result<readonly DraftInfo[], CommandError>>;
   /** `ext.validateComposition { composition }`(W-47): 구성 선언 검사. 이슈 목록은 비어 있으면 통과다 */
   validateComposition(
     composition: CompositionDecl,
@@ -979,7 +1146,10 @@ export interface WorkbenchCommands {
    */
   settings(name: string, threadId?: ThreadId): Promise<Result<ExtSettingsRead, CommandError>>;
   /** `group.metrics { id, threadId? }`: 그룹 하나의 계측. 계측이 꺼져 있으면 `metrics`가 null이다 */
-  metrics(id: string, threadId?: ThreadId): Promise<Result<GroupMetricsResult, CommandError>>;
+  metrics(
+    id: string,
+    threadId?: ThreadId,
+  ): Promise<Result<OrchestrationMetricsResult, CommandError>>;
   /** `ext.ui.list`(옛 이름 `ext.view.list`): 확장이 기여한 화면 항목 전부. 확장마다 거르는 일은 화면이 한다 */
   views(): Promise<Result<readonly ExtUiEntry[], CommandError>>;
 }
@@ -1170,6 +1340,10 @@ export interface Commands {
   readonly tests: TestCommands;
   /** 성능 측정 화면(P-20)의 측정 읽기 */
   readonly measure: MeasureCommands;
+  /** Craft 메트릭·트레이스 화면(C9, C8)의 읽기와 인사이트 닫기 */
+  readonly craftMetrics: CraftMetricsCommands;
+  /** Craft 테스트 챗 창(C7)의 열기, 드래프트 보내기, 빌린 대화 돌려주기 */
+  readonly testChat: TestChatCommands;
   readonly schedule: ScheduleCommands;
   /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
   readonly pluginUi: PluginUiCommands;
@@ -1188,6 +1362,10 @@ export interface Commands {
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
+  /** Craft 리뷰 화면(C5): 플러그인 검토 항목 */
+  readonly pluginReview: PluginReviewCommands;
+  /** 대화 영역 왼쪽 패널의 프로젝트(C10)와 대화의 T7 알림 */
+  readonly projects: ProjectCommands;
   /** 제안 화면의 충돌 스킬 본문(W-14). 읽기 한 번이다 */
   readonly skills: SkillCommands;
   /** 설정 "대화와 컨텍스트" 탭의 기억 구역(W-19) */

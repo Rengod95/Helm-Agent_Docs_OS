@@ -61,7 +61,7 @@ interface MeasureRecorderDeps {
   /** 모델 호출 합산기(`ModelService.usage`) */
   readonly usage: Pick<UsageMeter, "subscribe">;
   /** 핸들러 계측 링 버퍼 읽기. 없으면 `hook` 기록을 하지 않는다 */
-  readonly trace: Pick<TraceReadPort, "turn"> | undefined;
+  readonly trace: Pick<TraceReadPort, "turn" | "onRecord"> | undefined;
   /** 대화의 프로필 포트를 얻는 함수. 없거나 undefined면 턴 시작의 프로필은 대화 로그의 사건만으로 정한다 */
   readonly pluginSet: (() => Pick<PluginSetPort, "resolve"> | undefined) | undefined;
   readonly store: MeasureStore;
@@ -370,6 +370,11 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   const childOwners = new Map<string, ChildOwner>();
   let pendingCalls = 0;
 
+  // 훅 실행이 끝난 직후의 알림. Hook을 부르는 길 위에서 불리므로 던지지 않는다. 실패는 기록하고 그 알림만 건너뛴다
+  const offHooks = deps.trace?.onRecord?.((event) => {
+    const sent = attempt(() => turns?.hook(event));
+    if (!sent.ok) deps.logger.warn("measure.hook_live_failed", { turnId: event.turnId });
+  });
   const offUsage = deps.usage.subscribe((call) => {
     // 단계의 모델 호출은 턴 기록이 모은다(계측이 켜진 턴만 쓰므로 여기서 거르지 않는다)
     turns?.usage(call);
@@ -578,6 +583,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     stop: () => {
       off();
       offUsage();
+      offHooks?.();
       flush();
     },
     offerBody,

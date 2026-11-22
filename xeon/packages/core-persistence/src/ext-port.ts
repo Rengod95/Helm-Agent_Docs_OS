@@ -84,8 +84,11 @@ function stampDraft(
   }
   if (entry === undefined || !entry.durable || entry.retired === true) return undefined;
   if (draft.version > entry.version || !parse(entry.payload, draft.payload).ok) return undefined;
-  const size = checkEnvelopeSize({ ...draft, seq: 1, recordedAt: 0, parentId: null });
-  if (!size.ok && !(deps.canDetach && needsDetach(draft))) return undefined;
+  // 분리할 수 있는 큰 값은 envelope 전체를 글로 만들지 않는다(needsDetach가 크기를 센다). 그 밖에는 실제 크기를 본다
+  if (!(deps.canDetach && needsDetach(draft))) {
+    const size = checkEnvelopeSize({ ...draft, seq: 1, recordedAt: 0, parentId: null });
+    if (!size.ok) return undefined;
+  }
   const { durable: _durable, version, ...rest } = draft;
   return { stamped: deps.producers.internal(producer).draft({ ...rest, version }), owner };
 }

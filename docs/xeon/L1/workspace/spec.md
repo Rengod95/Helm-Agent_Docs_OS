@@ -16,10 +16,10 @@ binds: [xeon/packages/core-workspace/**]
 
 ### 1.1 정하는 것
 
-- 파일·셸 서비스가 샌드박스와 경로 검사를 거치게 하는 코어 부분. 빠지면 블록의 보장(작업 폴더 밖 쓰기 막기, 샌드박스 래핑, 쓰기 허용 승인)이 깨지므로 코어에 둔다. 판단 기준과 목록은 `hooks-core-boundary` §6.1(결정 B, 2026-11-17 사용자 U4)이 정한다.
+- 파일·셸 서비스가 샌드박스와 경로 검사를 거치게 하는 코어 부분. 빠지면 블록의 보장(작업 폴더 밖 쓰기 막기, 샌드박스 래핑)이 깨지므로 코어에 둔다. 판단 기준과 목록은 `hooks-core-boundary` §6.1(결정 B, 2026-11-17 사용자 U4)이 정한다.
 - 경로 해석과 탈출 검사: 허용 root 조회, 정규 경로 해석, 보호 경로 검사, 잘린 출력 사본 폴더의 읽기 root, 사본 복원(`roots.ts`).
-- 작업 폴더 밖 쓰기 승인: 막힌 경로에서 쓰기 루트 후보를 고르는 순수 함수, 승인 요청과 "이번만·앞으로 전부·거절" 결과, `fresnel.approvals` 어댑터(`write-access.ts`, `write-access-adapter.ts`, `ports/write-access.ts`).
-- 셸 실행 본문: 작업 폴더 기준 실행, 샌드박스 래핑(`fresnel.sandbox`), 무인 제한 시간 상한, 시크릿 참조 전달, 읽기 전용 프로필, 쓰기 거부 뒤의 승인과 재실행(`shell/run.ts`, `shell/unattended.ts`, `shell/upstream/bash.ts`).
+- [결정: 2026-11-21, 사용자, AGE-63] '프로젝트 밖에 쓰기' 승인 카드를 지웠다. 막히면 도구 결과의 막힘 안내만 남는다.
+- 셸 실행 본문: 작업 폴더 기준 실행, 샌드박스 래핑(`fresnel.sandbox`), 무인 제한 시간 상한, 시크릿 참조 전달, 읽기 전용 프로필, 쓰기 거부의 막힘 보고(`shell/run.ts`, `shell/unattended.ts`, `shell/upstream/bash.ts`).
 - 파일 쓰기의 안전 장치: 같은 디렉터리 임시 파일에 쓰고 이름 바꾸기, 동시 변경 감지(`files/atomic.ts`), 같은 프로세스의 같은 파일 변경 줄세우기(`files/queue.ts`).
 - 대화별 작업 폴더의 의존 맞춤과 환경(`scope.ts`, `env.ts`, `ports/threads.ts`).
 - 서비스 실패의 표(`errors.ts`): 내부 실패(`WorkspaceFailure`)를 `CapabilityError`로 바꾸는 규칙과 `guarded` 경계.
@@ -40,8 +40,7 @@ binds: [xeon/packages/core-workspace/**]
 ## 2. 용어
 
 - 작업 폴더(root): 대화가 시작될 때의 cwd이거나 `thread.started.workspace`에 저장된 폴더. 읽기와 쓰기 root 하나가 된다.
-- 보호 경로: 샌드박스가 정한 경로(자격 증명 폴더, Fresnel 데이터와 시크릿, `.env` 등). 묻지 않고 막는다.
-- 쓰기 허용 질문: 샌드박스나 작업 폴더 검사가 막은 쓰기 경로를 사람에게 묻는 일. 선택지는 이번만, 앞으로 전부(이 대화), 거절이다([결정: 2026-11-13 사용자]).
+- 보호 경로: 샌드박스가 정한 경로. Fresnel 데이터와 시크릿, 설정 `extra`의 경로는 읽기와 쓰기를, 자격 증명 폴더와 `.env`는 쓰기만 묻지 않고 막는다(L0.sandbox 3.3절).
 - 무인 호출: `CallContext.interactive === false`인 호출. 묻지 않고, 셸 제한 시간에 상한을 받는다.
 
 ## 3. 인터페이스
@@ -52,9 +51,8 @@ binds: [xeon/packages/core-workspace/**]
 |---|---|---|
 | 실패 | `WorkspaceFailure`, `guarded` | cap-workspace의 도구 메서드 경계 |
 | 의존 | `WorkspaceDeps<S>`, `WorkspaceShellSettings`, `RgResolver`, `scopedDeps`, `envAtCwd`, `WorkspaceEnv` | cap-workspace와 조립 루트 |
-| 포트 | `BlobSink`, `ThreadWorkspaces`, `WriteAccessPort`(요청과 오류 타입 포함) | cap-workspace, 조립 루트 |
+| 포트 | `BlobSink`, `ThreadWorkspaces` | cap-workspace, 조립 루트 |
 | 경로 | `defaultRoots`, `resolveWorkspacePath`, `relativeToRoots`, `AllowedRoots`, `RootsDeps`, `PathAccess`, `ResolvedPath` | cap-workspace 파일 도구 |
-| 쓰기 승인 | `askOutsideWrite`, `createWriteAccessAdapter`, `writeAccessTitle` | cap-workspace 파일 도구, 조립 루트(화면 제목) |
 | 쓰기 실행 | `atomicWrite`, `mutationKey`, `queueInCallOrder` | cap-workspace `write`, `edit` |
 | 셸 | `createShellApi` | cap-workspace 기능 `workspace.shell` 등록 |
 | 포크 함수 | `getOrThrow`, `characterEnd`, `utf8ByteLength` | cap-workspace 읽기 도구 |
@@ -63,21 +61,19 @@ binds: [xeon/packages/core-workspace/**]
 
 ## 4. 동작 규칙
 
-1. 셸 실행(`createShellApi`의 `run`): 작업 폴더를 맞춘 뒤 cwd를 검사한다(읽기 root 안이어야 하고 디렉터리여야 한다). 샌드박스 서비스가 없으면 격리 없이 돌리지 않고 `unavailable`로 거부한다(`sandbox_service_missing`). 정책은 쓰기 root에 허용된 승인 경로를 더해 `fresnel.sandbox.wrapShell`로 감싸 한 번 실행한다.
-2. 쓰기 거부 뒤의 재실행: 샌드박스가 쓰기를 막았고 종료 코드가 0이 아니면 막힌 경로를 모은다(위반 보고가 없으면 거부 문구가 든 출력 줄에서 찾는다). 보호 경로와 루트 밖 후보를 걸러 쓰기 루트 후보를 만들고 승인을 요청한다. 허용이면 같은 명령을 넓힌 root로 다시 실행한다. 한 호출에서 최대 3회다(`MAX_WRITE_ACCESS_ROUNDS`).
-3. 쓰기 허용 질문의 조건: 대화가 있어야 하고(`threadId`), 호출이 사람과 연결되어야 하며(`interactive !== false`), 후보가 비지 않아야 한다. 대화가 이미 "앞으로 전부"를 골랐으면 묻지 않는다(`granted`). 보호 경로는 질문 대상에서 뺀다. 요청 키는 호출 번호와 질문 번호로 만든다(멱등).
-4. 읽기 전용 프로필(`CallContext.sandbox === "read-only"`): 쓰기 root 없이 읽기 전용 정책으로 실행하고 쓰기 질문을 하지 않는다. 막힌 실행의 출력에는 읽기 전용 안내 한 줄을 붙인다.
+1. 셸 실행(`createShellApi`의 `run`): 작업 폴더를 맞춘 뒤 cwd를 검사한다(읽기 root 안이어야 하고 디렉터리여야 한다). 샌드박스 서비스가 없으면 격리 없이 돌리지 않고 `unavailable`로 거부한다(`sandbox_service_missing`). 정책은 쓰기 root를 그대로 써서 `fresnel.sandbox.wrapShell`로 감싸 한 번 실행한다.
+2. 쓰기 거부: 샌드박스가 쓰기를 막으면 막힌 경로(`sandbox.write_blocked`)를 도구 결과의 막힘 안내에 싣는다(L1.tools.spec §4.12.3). 다시 묻거나 같은 명령을 다시 실행하지 않는다. 위반 보고가 비어도 출력의 거부 문구에서 경로를 찾지 않는다.
+3. [결정: 2026-11-21, 사용자, AGE-63] '프로젝트 밖에 쓰기' 승인 카드를 지웠다. 막히면 도구 결과의 막힘 안내만 남는다.
+4. 읽기 전용 프로필(`CallContext.sandbox === "read-only"`): 쓰기 root 없이 읽기 전용 정책으로 실행한다. 막힌 실행의 출력에는 읽기 전용 안내 한 줄을 붙인다.
 5. 무인 호출의 제한 시간: 요청값이 없거나 0 이하이거나 상한보다 길면 상한을 쓴다(`unattendedTimeoutSec`). 상한 값은 호출마다 `unattendedTimeoutMs`에서 읽는다.
 6. 시크릿: `secretEnv`의 값은 이 패키지를 지나지 않는다. 참조(`secret://`)만 `fresnel.exec`에 넘기고, 승인 증거는 `CallContext.approval`을 그대로 옮긴다. 증거가 없으면 `fresnel.secrets`가 거부한다.
 7. 쓰기 원자성: `atomicWrite`는 같은 디렉터리의 임시 파일(`.<이름>.fresnel-tmp-<uuid>`)에 쓰고 `flushFile` 뒤 `renameFile`로 바꾼다. `expectedBefore`가 있으면 이름 바꾸기 직전에 내용을 다시 읽어 다르면 `edit_conflict`로 거부한다. 실패하면 임시 파일을 지운다.
 8. 같은 파일 줄세우기: 같은 파일 시스템의 `write`·`edit`은 경로 해석을 호출 순서대로 하고, 같은 정규 경로의 변경은 한 번에 하나만 돈다. 다른 프로세스나 `bash`에는 효과가 없다(그쪽은 `expectedBefore`가 맡는다).
-9. 작업 폴더 밖 쓰기 질문(`askOutsideWrite`): 파일 도구가 작업 폴더 밖 경로를 받으면 그 경로 하나만 묻는다. 허용이면 이 호출에만 적용하고 root는 넓히지 않는다.
 
 ## 5. 실패와 경계 사례
 
 - 실패는 `WorkspaceFailure`(내부)로 던지고 `guarded` 경계가 `CapabilityError`로 바꾼다. 표는 `FileErrorCode`와 `ExecutionErrorCode`를 공통 코드로 옮긴다(`errors.ts`). 샌드박스가 막은 것은 `denied`에 `detail.by`로 출처를 붙인다.
 - 보호 경로는 허용 root 안에 있어도 `denied`(`protected_path`)다. 루트 밖 경로는 `denied`(`outside_root`)이고, 아직 없는 마디에 `..`가 있으면 `denied`(`parent_traversal`)다.
-- 쓰기 허용 포트가 없으면 묻지 않고 막는다. 승인 요청이 실패하거나 승인 대기가 끊기면 허용하지 않고 `denied`로 막는다(어댑터는 `unavailable`을 내고, 쓰기 질문이 그것을 거절로 읽는다).
 - 셸 제한 시간 초과는 `timeout`이고 그때까지의 출력을 `detail`에 싣는다. 시간 초과 종료 코드는 -1이다.
 
 ## 6. 설정 노출
@@ -86,7 +82,7 @@ binds: [xeon/packages/core-workspace/**]
 
 ## 7. 훅
 
-이 패키지는 훅을 내지도 받지도 않는다. 샌드박스 쓰기 질문은 `fresnel.approvals`의 도구 승인 카드로 올라간다(`hooks-core-boundary` §5.3).
+이 패키지는 훅을 내지도 받지도 않고, 승인 카드를 올리지 않는다(작업 폴더 밖 쓰기 승인 카드는 2026-11-21에 지웠다).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -97,7 +93,7 @@ binds: [xeon/packages/core-workspace/**]
 ## 9. 수용 기준
 
 - `just check packages/core-workspace`가 통과한다(lint, typecheck, test).
-- 이동한 시험 여섯 개(`roots`, `errors`, `output`, `shell`, `write-access`, `fork-records`)가 통과한다(`just check packages/core-workspace`의 test 단계).
+- 이동한 시험 다섯 개(`roots`, `errors`, `output`, `shell`, `fork-records`)가 통과한다(`just check packages/core-workspace`의 test 단계).
 - `cap-workspace`의 기능 id `workspace.files`, `workspace.shell`, `workspace.images`와 `plugin.ts`의 등록 결과가 바뀌지 않는다(`plugin.test.ts`).
 - `core-tools`의 기본 규칙은 기능 id `workspace.files`를 `WorkspaceFiles.id`(F 정의)로 참조한다. 문자열 하드코딩이 없다(D-32).
 

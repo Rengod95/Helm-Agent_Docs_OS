@@ -9,6 +9,7 @@ import {
 } from "@fresnel/contracts";
 import type { ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
 import {
+  WIRE_ERRORS,
   WireError,
   type EventsBatchParams,
   type HostConnection,
@@ -22,6 +23,8 @@ import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
 import { decodeDurable, decodePendingApprovals, decodeVolatile } from "./decode.ts";
 import type { DurableFact } from "./input.ts";
 import type { EngineStore } from "./store.ts";
+
+const INVALID_PARAMS = WIRE_ERRORS["jsonrpc.invalidParams"].code;
 
 /** 열린 thread 스냅샷이 반영한 위치와 item 목록 */
 export type TranscriptSnapshot = {
@@ -121,12 +124,12 @@ export function startLink(deps: LinkDeps): EngineLink {
       caughtUp: p.caughtUp,
       facts,
     });
-    // 대화 시작 사실에는 위임으로 만든 자식인지가 없다. 새 대화가 생기면 첫 쪽 목록에서 표지만 가져온다(rtE R-3)
-    if (facts.some((fact) => fact.type === "thread.started")) detach(loadSpawnedMarks(), report);
+    // 대화 시작 사실에는 위임으로 만든 자식인지, 테스트 런인지가 없다. 새 대화가 생기면 첫 쪽 목록에서 표지만 가져온다(rtE R-3, lcM6e)
+    if (facts.some((fact) => fact.type === "thread.started")) detach(loadListMarks(), report);
   };
 
-  /** 첫 쪽(최근 활동 먼저) 목록의 `spawnedBy`만 거울에 붙인다. 읽지 못하면 표지 없이 둔다 */
-  const loadSpawnedMarks = async (): Promise<void> => {
+  /** 첫 쪽(최근 활동 먼저) 목록의 `spawnedBy`·`testRun` 표지만 거울에 붙인다. 읽지 못하면 표지 없이 둔다 */
+  const loadListMarks = async (): Promise<void> => {
     const listed = await attemptAsync(() => deps.connection.request("thread.list", { limit: 50 }));
     if (!listed.ok) {
       deps.logger.warn("desktop.link.spawned_marks_failed", {
@@ -135,9 +138,15 @@ export function startLink(deps: LinkDeps): EngineLink {
       return;
     }
     const marks = listed.value.threads.flatMap((thread) =>
-      thread.spawnedBy === undefined
+      thread.spawnedBy === undefined && thread.testRun === undefined
         ? []
-        : [{ threadId: thread.threadId, spawnedBy: thread.spawnedBy }],
+        : [
+            {
+              threadId: thread.threadId,
+              ...(thread.spawnedBy === undefined ? {} : { spawnedBy: thread.spawnedBy }),
+              ...(thread.testRun === undefined ? {} : { testRun: thread.testRun }),
+            },
+          ],
     );
     if (marks.length > 0) deps.store.ingest({ type: "spawned", marks });
   };
@@ -321,20 +330,33 @@ export function startLink(deps: LinkDeps): EngineLink {
     }
   };
 
-  /** thread.list의 모든 페이지를 읽은 뒤에 ready로 만든다(F.wire-settings.spec 3.4.6 6번) */
+  /**
+   * thread.list의 모든 페이지를 읽은 뒤에 ready로 만든다(F.wire-settings.spec 3.4.6 6번).
+   * 테스트 챗도 읽는다(`include: "craft"`, M5c §4.8.3). 창이 다시 연 테스트 챗의 요약과 대기 승인 수가 거울에 있어야 승인 카드가 돌아온다.
+   * 목록 화면은 표지(`craftChat`)로 거른다(`listed.ts`)
+   */
   const loadThreads = async (): Promise<void> => {
     const all: ThreadSummary[] = [];
     let cursor: string | undefined;
     let pages = 0;
+    let craft = true;
     const failed = await repeatAsync<boolean>(async () => {
       pages += 1;
+      const include = craft ? { include: "craft" as const } : {};
       const listed = await attemptAsync(() =>
         deps.connection.request(
           "thread.list",
-          cursor === undefined ? { limit: 200 } : { limit: 200, cursor },
+          cursor === undefined ? { limit: 200, ...include } : { limit: 200, cursor, ...include },
         ),
       );
       if (!listed.ok) {
+        // 테스트 챗 인자를 모르는 엔진(인자 검증 실패)이면 인자 없이 처음부터 다시 읽는다
+        const cause = listed.error.cause;
+        if (craft && pages === 1 && cause instanceof WireError && cause.code === INVALID_PARAMS) {
+          craft = false;
+          pages = 0;
+          return undefined;
+        }
         deps.logger.warn("desktop.link.thread_list_failed", {
           error: listed.error.cause instanceof Error ? listed.error.cause.name : "unknown",
         });

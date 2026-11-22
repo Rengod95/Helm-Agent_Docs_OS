@@ -98,6 +98,27 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       daily: () => Promise.resolve(err({ kind: "unsupported" })),
       promotion: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    craftMetrics: {
+      catalog: () => Promise.resolve(err({ kind: "unsupported" })),
+      query: () => Promise.resolve(err({ kind: "unsupported" })),
+      findings: () => Promise.resolve(err({ kind: "unsupported" })),
+      evidence: () => Promise.resolve(err({ kind: "unsupported" })),
+      dismiss: () => Promise.resolve(err({ kind: "unsupported" })),
+      profiles: () => Promise.resolve(err({ kind: "unsupported" })),
+      plugin: () => Promise.resolve(err({ kind: "unsupported" })),
+      turns: () => Promise.resolve(err({ kind: "unsupported" })),
+      recent: () => Promise.resolve(err({ kind: "unsupported" })),
+      turn: () => Promise.resolve(err({ kind: "unsupported" })),
+      watch: () => Promise.resolve(err({ kind: "unsupported" })),
+      openCraftChat: () => Promise.resolve(err({ kind: "unsupported" })),
+      removeFromProfile: () => Promise.resolve(err({ kind: "unsupported" })),
+      minSample: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    testChat: {
+      open: () => Promise.resolve(err({ kind: "unsupported" })),
+      submitDraft: () => Promise.resolve(err({ kind: "unsupported" })),
+      leave: () => {},
+    },
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},
@@ -129,6 +150,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
           }),
         ),
       deleteProfile: () => Promise.resolve(ok(2)),
+      defaultProfileFor: () => Promise.resolve(ok("default")),
+      resetDefaultProfile: () => Promise.resolve(err({ kind: "unsupported" })),
+      invocables: () => Promise.resolve(ok([])),
+      pluginsInProfile: () => Promise.resolve(ok(new Set<string>())),
+      drafts: () => Promise.resolve(ok([])),
       previewProfile: () =>
         Promise.resolve(
           ok({
@@ -264,6 +290,22 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     },
     review: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    pluginReview: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      file: () => Promise.resolve(err({ kind: "unsupported" })),
+      decide: () => Promise.resolve(err({ kind: "unsupported" })),
+      profiles: () => Promise.resolve(err({ kind: "unsupported" })),
+      onChanged: () => () => {},
+    },
+    projects: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      get: () => Promise.resolve(err({ kind: "unsupported" })),
+      create: () => Promise.resolve(err({ kind: "unsupported" })),
+      rename: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
+      instructions: () => Promise.resolve(err({ kind: "unsupported" })),
+      onChanged: () => () => {},
     },
     skills: {
       view: () => Promise.resolve(err({ kind: "unsupported" })),

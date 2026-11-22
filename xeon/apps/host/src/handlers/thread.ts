@@ -63,6 +63,8 @@ export function createThreadCreateHandler(
       ...(storedProfileId === undefined ? {} : { profileId: storedProfileId }),
       // 작업 폴더를 주지 않으면 기본 폴더 아래 대화별 폴더를 쓴다(§4.4.5)
       ...(params.workspace === undefined ? { defaultFolder: true } : {}),
+      // 소속을 이벤트에 싣는다(thread.started.project). 다른 생성 경로는 싣지 않는다
+      attachProject: true,
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
     // 열기 훅의 대화 폴더는 쓰기 소유를 얻은 뒤, 첫 턴 전에 정한다(H-7)
@@ -127,6 +129,9 @@ export function createThreadSetProfileHandler(
     if (!set.ok) throw wireErrorOfLifecycle(set.error, "thread.setProfile");
     // 전환은 다음 단계 경계에서 적용된다. 유휴 대화도 다음 매크로태스크에 맞춘다(M5c §4.1.8)
     engine.ports.m4.pluginSet.recompute(threadId);
+    // 화면의 프로필 칩과 실제 동작을 맞춘다(AGE-64): 새 프로필의 시작 Drive로 바꾸되 이미 일하는 Drive는 끊지 않는다
+    const started = await ports.threads.switchStartDrive(threadId);
+    if (!started.ok) throw wireErrorOfStore(started.error, "thread.setProfile start drive");
     // 미리 본 값을 그대로 싣는다(M5c §3.4). 전환 전의 대화 기준으로 잰 값이다
     const { permission, toolsChanged, cacheImpact } = previewed.value;
     return {
@@ -136,6 +141,8 @@ export function createThreadSetProfileHandler(
         ...(toolsChanged === undefined ? {} : { toolsChanged }),
         ...(cacheImpact === undefined ? {} : { cacheImpact }),
       },
+      startDrive: started.value.startDrive,
+      ...(started.value.reason === undefined ? {} : { startDriveReason: started.value.reason }),
     };
   };
 }

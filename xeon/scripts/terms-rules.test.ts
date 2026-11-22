@@ -77,7 +77,7 @@ test("mentions matches Hangul as substring and Latin as a whole word, ignoring c
 
 test("C-04 flags internal words and forbidden aliases in chat strings, C-05 aliases elsewhere", () => {
   const ko = {
-    "desktop.chat.a": "루프가 돌고 있어요",
+    "desktop.chat.a": "코어가 돌고 있어요",
     "desktop.chat.b": "세션을 열었어요",
     "client.settings.tabs.c": "세션과 컨텍스트",
     "client.settings.tabs.d": "비밀번호를 바꿔요",
@@ -102,6 +102,15 @@ test("C-04 flags internal words and forbidden aliases in chat strings, C-05 alia
     "C-04 locales/ko.json desktop.chat.b",
     "C-04 locales/en.json desktop.chat.b",
   ]);
+});
+
+test("C-04 allows 코어 only in the Korean name of the core layer group (2026-11-20, AGE-33)", () => {
+  const found = checkCatalogStyle(
+    { "plugin.internal.layer.core": "코어", "plugin.internal.layer.capability": "코어 기능" },
+    {},
+    TERMS,
+  );
+  expect(summary(found)).toEqual(["C-04 locales/ko.json plugin.internal.layer.capability"]);
 });
 
 test("C-04 and C-05 tell the user which label to write", () => {

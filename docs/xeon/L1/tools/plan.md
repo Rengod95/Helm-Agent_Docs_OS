@@ -16,7 +16,7 @@ binds: [xeon/packages/core-tools/**]
 
 목표: L1.tools.spec의 `fresnel.tools`, `fresnel.approvals`를 구현한다. M1 스모크에서 bash 호출 한 건이 `effect.intent` → `effect.exec` → `effect.result` 3단으로 기록되고, 강제 종료 뒤 재개가 그 기록으로 이어져야 한다.
 
-마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm(승인 프로토콜 통합 포함), M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
+마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm(승인 프로토콜 통합 포함), M3는 첫 공개 릴리즈 후보(학습 플러그인, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|

@@ -39,22 +39,35 @@ function mcpDetailOf(server: McpServerCard): string {
 /**
  * 스크립트의 비교 값. 실행기, 상대 파일과 인자(JSON 배열), 선언된 환경 변수 이름, 기한이 하나라도 바뀌면 바뀐 것이다.
  * 기한도 넣는 것은 명령이 같아도 오래 도는 쪽으로 바뀐 갱신을 조용히 넘기지 않으려는 것이다.
+ * 선언했지만 넘기지 않은 환경 변수 이름(`envNotPassed`)도 한 줄로 싣는다(AGE-33 enDep 11). 넘기는 이름이 같아도 이 목록이 바뀌면 바뀐 것이다.
  */
 function scriptDetailOf(script: CardScript): string {
   const { launch } = script;
   const parts = [`${launch.command} ${JSON.stringify(launch.args)}`];
   if (launch.envNames.length > 0) parts.push(`[env: ${launch.envNames.join(",")}]`);
+  const notPassed = script.envNotPassed ?? [];
+  if (notPassed.length > 0) parts.push(`[not passed: ${notPassed.join(",")}]`);
   parts.push(`[timeout: ${script.timeoutMs}ms]`);
   return parts.join(" ");
 }
 
-/** 카드를 사실의 지도로 펼친다. 키는 칸과 이름이다 */
-function factsOf(card: PluginCard | null): Map<string, Fact> {
+/** 카드를 사실의 지도로 펼친다. 키는 칸과 이름이다. `withDependencies`가 거짓이면 의존 칸은 펼치지 않는다(옛 카드와 비교하지 않는다) */
+function factsOf(card: PluginCard | null, withDependencies: boolean): Map<string, Fact> {
   const facts = new Map<string, Fact>();
   if (card === null) return facts;
   const add = (row: DiffRow, what: string, detail: string): void => {
     facts.set(`${row}|${what}`, { row, what, detail });
   };
+  // 기대는 줄(`dependsOn`)만 본다. 이 플러그인에 기대는 쪽은 다른 플러그인의 선언이라 이 검토의 변화가 아니다
+  if (withDependencies && card.dependencies !== undefined) {
+    for (const line of card.dependencies.dependsOn) {
+      add(
+        "dependencies",
+        `dependsOn:${line.from}->${line.target}`,
+        `${line.kind}, range ${line.range ?? "any"}`,
+      );
+    }
+  }
   const inject = card.does.inject;
   if (inject !== null) {
     for (const item of inject.instructions.always) {
@@ -132,8 +145,12 @@ function costDeltaOf(
  * 강제력 변화는 두 카드가 모두 있을 때만 적는다. 비용 변화는 `CostFigures`의 항상·필요할 때 값의 차다.
  */
 export function diffCards(prev: PluginCard | null, next: PluginCard | null): WhatItDoesDiff {
-  const before = factsOf(prev);
-  const after = factsOf(next);
+  // 의존 칸은 두 쪽 모두 있을 때만 비교한다. 옛 카드(`dependencies` 없음)와 견주면 없던 줄이 늘어난 것처럼 보인다
+  const withDependencies =
+    (prev === null || prev.dependencies !== undefined) &&
+    (next === null || next.dependencies !== undefined);
+  const before = factsOf(prev, withDependencies);
+  const after = factsOf(next, withDependencies);
   const added: DiffEntry[] = [];
   const removed: DiffEntry[] = [];
   const changed: DiffEntry[] = [];

@@ -1,0 +1,230 @@
+import { describe, expect, test } from "bun:test";
+import {
+  isSampleToggle,
+  SAMPLE_STATE_KEY,
+  sampleSceneOf,
+  sampleScenePartsOf,
+  sampleStateOn,
+  sampleView,
+  withSampleMirror,
+  withSampleScene,
+} from "../../src/app/dev-sample.ts";
+import type { MirrorInput } from "../../src/state/engine/input.ts";
+import { reduceMirror } from "../../src/state/engine/reduce.ts";
+import {
+  selectApprovalUrgent,
+  selectThreadApprovals,
+  selectUnlistedApprovals,
+} from "../../src/state/engine/selectors.ts";
+import { INITIAL_MIRROR, type EngineMirror } from "../../src/state/engine/state.ts";
+import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
+import { STORE, summary, thr } from "../state/helpers.ts";
+
+// 개발 빌드의 표본 보기(lcMk2): 거울에 표본 대화 둘(하나는 시한 있는 승인)을 겹친다. 실제 거울 값은 바꾸지 않는다
+
+const NOW = Date.parse("2026-11-18T09:00:00.000Z");
+
+function realMirror(): EngineMirror {
+  const inputs: MirrorInput[] = [
+    { type: "subscribed", sub: "s1", storeId: STORE, start: 5, live: true, from: "head" },
+    { type: "threads", threads: [summary(thr(1), { workspace: "/w/helm", title: "real" })] },
+  ];
+  return inputs.reduce((state, input) => reduceMirror(state, input).state, INITIAL_MIRROR);
+}
+
+describe("withSampleMirror", () => {
+  test("adds two waiting threads in front, one with a deadline, in the first real folder, with one card of each kind", () => {
+    const real = realMirror();
+    const shown = withSampleMirror(real, NOW);
+    const ids = shown.threads.ids;
+    expect([ids.length, ids[2]]).toEqual([3, thr(1)]);
+    const a = ids[0] ?? thr(9);
+    const b = ids[1] ?? thr(9);
+    expect([
+      selectThreadApprovals(shown, a),
+      selectThreadApprovals(shown, b),
+      selectUnlistedApprovals(shown, a),
+      selectUnlistedApprovals(shown, b),
+      selectApprovalUrgent(shown, a),
+      selectApprovalUrgent(shown, b),
+      shown.threads.byId[a]?.workspace,
+      shown.threads.byId[b]?.workspace,
+    ]).toEqual([2, 1, 0, 0, false, true, "/w/helm", "/w/helm"]);
+    // 세 카드 종류가 하나씩(lcMk4): 질문, 도구, 변경 검토
+    expect(
+      shown.approvals.ids.map((id) => {
+        const request = shown.approvals.byId[id]?.request;
+        if (request === undefined) return [];
+        return [request.expiresAt, request.body.kind];
+      }),
+    ).toEqual([
+      [undefined, "question"],
+      [undefined, "tool"],
+      [NOW + 30 * 60_000, "review"],
+    ]);
+  });
+
+  test("leaves the real mirror untouched and does not add twice", () => {
+    const real = realMirror();
+    const shown = withSampleMirror(real, NOW);
+    expect([real.threads.ids, real.approvals.ids]).toEqual([[thr(1)], []]);
+    expect(withSampleMirror(shown, NOW)).toBe(shown);
+  });
+
+  test("an empty mirror still lists the sample threads (no folder)", () => {
+    const shown = withSampleMirror(INITIAL_MIRROR, NOW);
+    expect([
+      shown.threads.status,
+      shown.threads.ids.length,
+      shown.threads.ids.map((id) => shown.threads.byId[id]?.workspace),
+    ]).toEqual(["ready", 2, [null, null]]);
+  });
+});
+
+function opened(): EngineMirror {
+  return {
+    ...realMirror(),
+    transcript: { status: "loading", threadId: thr(1), sinceSeq: 0, held: [] },
+  };
+}
+
+describe("withSampleScene", () => {
+  // 쌓임 장면(AGE-65): 열린 실제 대화에 질문 승인, 도구 승인, 목표, 대기 입력을 겹쳐 입력창 위 쌓임을 앱에서 본다
+  test("reads known parts once in a fixed order and drops the rest", () => {
+    expect([
+      sampleScenePartsOf(null),
+      sampleScenePartsOf(""),
+      sampleScenePartsOf("goal, ask,nope,ask"),
+      sampleScenePartsOf("queued,tool,askLong"),
+    ]).toEqual([[], [], ["ask", "goal"], ["askLong", "tool", "queued"]]);
+  });
+
+  test("with no stored scene the sample shows the paged three-question card and the goal row (lcQ3)", () => {
+    expect([sampleSceneOf(null), sampleSceneOf(""), sampleSceneOf("tool")]).toEqual([
+      ["ask", "goal"],
+      [],
+      ["tool"],
+    ]);
+  });
+
+  test("puts the cards, the goal and the queued input on the open thread", () => {
+    const shown = withSampleScene(opened(), ["ask", "tool", "goal", "queued"], NOW);
+    expect([
+      shown.approvals.ids.map((id) => shown.approvals.byId[id]?.request.body.kind),
+      shown.approvals.ids.map((id) => shown.approvals.byId[id]?.threadId),
+      shown.approvals.ids.map((id) => {
+        const body = shown.approvals.byId[id]?.request.body;
+        return body?.kind === "question" ? body.question.questions.length : null;
+      }),
+      shown.convo[thr(1)]?.goal?.goal.status,
+      shown.queuedInputs.map((input) => [input.threadId, input.mode]),
+    ]).toEqual([
+      ["question", "tool"],
+      [thr(1), thr(1)],
+      [3, null],
+      "active",
+      [[thr(1), "followUp"]],
+    ]);
+  });
+
+  test("leaves the mirror alone with no open thread or no parts, and does not add a card twice", () => {
+    const real = realMirror();
+    expect(withSampleScene(real, ["ask"], NOW)).toBe(real);
+    const open = opened();
+    expect(withSampleScene(open, [], NOW)).toBe(open);
+    const once = withSampleScene(open, ["ask"], NOW);
+    expect(withSampleScene(once, ["ask"], NOW).approvals.ids).toEqual(once.approvals.ids);
+  });
+});
+
+describe("sampleView", () => {
+  test("returns the same object for the same mirror and follows real changes", () => {
+    const api = manualStore(realMirror());
+    const view = sampleView(api.read, () => NOW);
+    const first = view.getState();
+    expect(view.getState()).toBe(first);
+    const seen: number[] = [];
+    const stop = view.subscribe((state) => {
+      seen.push(state.threads.ids.length);
+    });
+    api.set(
+      reduceMirror(api.read.getState(), {
+        type: "threads",
+        threads: [summary(thr(1)), summary(thr(2))],
+      }).state,
+    );
+    stop();
+    expect([seen, view.getState().threads.ids.length]).toEqual([[4], 4]);
+  });
+});
+
+describe("toggle", () => {
+  test("is off outside a dev build even when stored as on", () => {
+    const storage = localStorageLike();
+    storage.setItem(SAMPLE_STATE_KEY, "1");
+    expect([storage.getItem(SAMPLE_STATE_KEY), sampleStateOn(() => storage)]).toEqual(["1", false]);
+  });
+
+  test("shortcut is ⌘⌥⇧S on macOS and Ctrl+Alt+Shift+S elsewhere", () => {
+    expect([
+      isSampleToggle(key({ metaKey: true }), true),
+      isSampleToggle(key({ ctrlKey: true }), true),
+      isSampleToggle(key({ ctrlKey: true }), false),
+      isSampleToggle(key({ metaKey: true, shiftKey: false }), true),
+      isSampleToggle({ ...key({ metaKey: true }), code: "KeyD" }, true),
+    ]).toEqual([true, false, true, false, false]);
+  });
+});
+
+function localStorageLike(): Storage {
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear: () => {
+      map.clear();
+    },
+    getItem: (k) => map.get(k) ?? null,
+    key: (i) => [...map.keys()][i] ?? null,
+    removeItem: (k) => {
+      map.delete(k);
+    },
+    setItem: (k, v) => {
+      map.set(k, v);
+    },
+  };
+}
+
+type Mods = Partial<Record<"metaKey" | "ctrlKey" | "altKey" | "shiftKey", boolean>>;
+function key(
+  over: Mods,
+): Pick<KeyboardEvent, "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey"> {
+  return { code: "KeyS", metaKey: false, ctrlKey: false, altKey: true, shiftKey: true, ...over };
+}
+
+/** 거울 읽기 면 하나(시험용). `set`이 구독자에게 새 값과 옛 값을 넘긴다 */
+function manualStore(initial: EngineMirror): {
+  readonly read: ReadonlyStore<EngineMirror>;
+  readonly set: (next: EngineMirror) => void;
+} {
+  let state = initial;
+  const listeners = new Set<(state: EngineMirror, previous: EngineMirror) => void>();
+  return {
+    read: {
+      getState: () => state,
+      getInitialState: () => initial,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+    },
+    set: (next) => {
+      const previous = state;
+      state = next;
+      for (const listener of listeners) listener(next, previous);
+    },
+  };
+}

@@ -1,5 +1,6 @@
 import { attemptAsync, err, ok, type LogFields, type Result } from "@fresnel/contracts";
 import { internalDraftName, type ExtensionLoader } from "@fresnel/ext-host";
+import type { DraftUnavailableReason } from "@fresnel/contracts/wire";
 import type { DraftLoadRefusal, DraftRef } from "./overlay.ts";
 
 // 초안 싣기(M5c §4.3.8, X.loading-trust.spec §4.9.8). 초안은 격리 프로세스에서만 돈다. 로더의 `loadDraft`가 격리 포트가 없으면
@@ -75,11 +76,26 @@ async function loadAll(
     if (!attempted.value.ok) {
       // oxlint-disable-next-line no-await-in-loop -- 초안은 차례로 싣는다(앞이 실패하면 뒤는 싣지 않는다) (profile-project-loader §4.3.8)
       await unwind(deps, loader, fresh);
-      return refused(deps, draft.name, attempted.value.error.kind);
+      const failure = attempted.value.error;
+      // `not_active`는 어느 상태로 왜 켜지지 않았는지(첫 진단 코드)를 같이 남긴다
+      const extra =
+        failure.kind === "not_active"
+          ? { state: failure.state, code: failure.diagnostics[0]?.code ?? "none" }
+          : {};
+      return refused(deps, draft.name, failure.kind, extra);
     }
     fresh.push(internalName);
   }
   return ok(undefined);
+}
+
+/** 로더가 준 싣기 실패 종류를 와이어의 사유로 옮긴다. 모르는 종류는 `load_failed`다 */
+function reasonOfLoadKind(kind: string): DraftUnavailableReason {
+  if (kind === "isolation_unavailable" || kind === "loader_unavailable") {
+    return "isolation_unavailable";
+  }
+  if (kind === "safe_mode" || kind === "not_active" || kind === "content_changed") return kind;
+  return "load_failed";
 }
 
 /** 이 호출이 싣은 초안을 내린다. 내리지 못하면 기록만 남기고 계속한다 */
@@ -101,7 +117,9 @@ function refused(
   deps: DraftLoaderDeps,
   name: string,
   kind: string,
+  extra: LogFields = {},
 ): Result<never, DraftLoadRefusal> {
-  deps.report("plugin.overlay.draft_load_failed", { name, kind });
-  return err({ name, kind });
+  const reason = reasonOfLoadKind(kind);
+  deps.report("plugin.overlay.draft_load_failed", { name, kind, reason, ...extra });
+  return err({ name, kind, reason });
 }

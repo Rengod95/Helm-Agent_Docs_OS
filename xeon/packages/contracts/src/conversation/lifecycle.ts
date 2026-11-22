@@ -56,6 +56,7 @@ export const ThreadStartedPayloadSchema: TObject<{
   workspace: TAddOptional<TUnion<[TString, TNull]>>;
   profileId: TAddOptional<TString>;
   craftChat: TAddOptional<typeof CraftChatStartedSchema>;
+  project: TAddOptional<TUnion<[TObject<{ id: TString; root: TString }>, TNull]>>;
 }> = Type.Object(
   {
     title: Nullable(Type.String({ maxLength: 200 })),
@@ -80,6 +81,21 @@ export const ThreadStartedPayloadSchema: TObject<{
      * 맥락 참조(`contexts`)는 이 이벤트와 투영 행의 `craft_contexts` JSON 열에 남는다
      */
     craftChat: Type.Optional(CraftChatStartedSchema),
+    /**
+     * 대화가 속한 프로젝트(M5c §4.4.2, AGE-34). 있으면 그 프로젝트의 id와 루트 정규 경로다. 속하지 않으면 null이다.
+     * 선택 필드라 version을 올리지 않는다. 옛 이벤트에는 없고, 없는 값은 `thread.list`의 `project`가 준다(`workspace`와 같은 규칙)
+     */
+    project: Type.Optional(
+      Nullable(
+        Type.Object(
+          {
+            id: Type.String({ minLength: 1, maxLength: 128 }),
+            root: Type.String({ minLength: 1, maxLength: 4096 }),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
   },
   { additionalProperties: false },
 );

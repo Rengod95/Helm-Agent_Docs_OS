@@ -53,7 +53,8 @@ export function EmptyThread(): ReactNode {
 }
 
 function EmptyThreadFor(props: { readonly threadId: ThreadId }): ReactNode {
-  const workspace = useThread(props.threadId)?.workspace ?? null;
+  const summary = useThread(props.threadId);
+  const workspace = summary?.workspace ?? null;
   const recent = recentWorkspacesOf(useThreadSummaries());
   const folderPick = useFolderPick();
   const [isDismissed, setDismissed] = useState(dismissed.has(props.threadId));
@@ -63,6 +64,8 @@ function EmptyThreadFor(props: { readonly threadId: ThreadId }): ReactNode {
     recent,
     canPick: folderPick !== null,
   });
+  // 테스트 챗(Craft 창)에는 폴더 고르기가 맞지 않다. 창이 제 안내 한 줄을 그린다(`craft/test-chat/test-chat-window.tsx`)
+  if (summary?.craftChat !== undefined) return null;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       {/* 위:아래 여백을 2:3쯤으로 두어 무게가 가운데보다 조금 위에 온다 */}
@@ -230,7 +233,7 @@ function RecentRow(props: {
       <span className="min-w-0 flex-1 truncate font-mono text-footnote text-text-tertiary">
         {tail ?? ""}
       </span>
-      <span className="shrink-0 text-footnote text-text-tertiary tabular-nums">
+      <span className="shrink-0 text-footnote text-text-tertiary">
         {t("desktop.threads.recentCount", { count: item.count })}
       </span>
     </button>

@@ -1,13 +1,14 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { CommonSet, Profile, ProfileIssue, ProfileIssueCode } from "@fresnel/contracts/wire";
 import type { PluginFact } from "./plugin-fact.ts";
-import type { ProfileBody } from "./profile-validate.ts";
+import { previousOf, type ProfileBody, type ProfilePrevious } from "./profile-validate.ts";
 
 // 승인의 프로필 반영 계산(M5c §4.7.3). 순수 함수다: 저장 상태를 받아 바뀔 프로필과 오류만 돌려준다. 쓰기는 호출자가 한다.
 // `add`는 대상 프로필 맨 뒤에 넣는다(이미 있으면 그대로). `profileIds`에 `COMMON_ID`가 있으면 공통 묶음 맨 뒤에 넣는다(이미 있으면 그대로).
 // `remove`는 이름이 든 모든 프로필과 공통 묶음에서 그 이름과 그 플러그인의
 // 설정, 시작 Drive를 뺀다(`profile.removePlugin`과 같은 규칙). `keep`(수정 승인)은 목록을 고치지 않고, 이름이 든 프로필을 새 사실로 검사만 한다.
 // 검사는 바뀌거나 이름이 든 모든 대상 프로필과 공통 묶음에 `validateProfile`을 거친다. 오류가 하나라도 있으면 호출자는 아무것도 쓰지 않는다.
+// 대상 프로필이 저장 전에도 가리키던, 지금은 없는 플러그인은 오류가 아니라 경고다(`missingPlugins`로 돌려준다, AGE-34).
 
 /** 승인 한 번의 프로필 변경 요청 */
 export type PluginEditRequest =
@@ -39,6 +40,8 @@ export interface PluginEditOutcome {
   readonly changed: readonly Profile[];
   /** 공통 묶음이 바뀌었으면 새 값, 아니면 null */
   readonly common: CommonSet | null;
+  /** 대상 프로필이 이미 가리키던, 지금은 이 기기에 없는 플러그인(경고만 한다, AGE-34). 없으면 빈 목록이다 */
+  readonly missingPlugins: readonly string[];
 }
 
 /** 공통 묶음의 이슈에 붙이는 프로필 자리 값 */
@@ -79,7 +82,11 @@ export function planPluginEdit(input: {
   readonly profiles: readonly Profile[];
   readonly common: CommonSet;
   readonly request: PluginEditRequest;
-  readonly validate: (body: ProfileBody, common: CommonSet) => readonly ProfileIssue[];
+  readonly validate: (
+    body: ProfileBody,
+    common: CommonSet,
+    previous: ProfilePrevious,
+  ) => readonly ProfileIssue[];
   readonly updatedAt: string;
 }): Result<
   PluginEditOutcome,
@@ -153,6 +160,17 @@ export function planPluginEdit(input: {
   }
 
   // 2. 대상 프로필을 모두 검사한다. 공통 묶음이 바뀌었거나 이름이 든 공통 묶음이면 공통 묶음 자체도 본다
+  const missing = new Set<string>();
+  const collect = (found: readonly ProfileIssue[]): void => {
+    for (const issue of found) {
+      if (
+        issue.code === "plugin_unknown" &&
+        issue.severity === "warning" &&
+        issue.plugin !== undefined
+      )
+        missing.add(issue.plugin);
+    }
+  };
   if (issues.length === 0) {
     for (const profile of edited.values()) {
       const body: ProfileBody = {
@@ -160,10 +178,16 @@ export function planPluginEdit(input: {
         settings: profile.settings,
         startDrive: profile.startDrive,
       };
-      issues.push(...errorsOf(profile.id, input.validate(body, common)));
+      // "이미 있던 것"은 저장 전의 같은 프로필과 공통 묶음으로 가린다(없으면 전부 새 항목)
+      const stored = input.profiles.find((item) => item.id === profile.id);
+      const found = input.validate(body, common, previousOf(stored, input.common));
+      issues.push(...errorsOf(profile.id, found));
+      collect(found);
     }
     if (commonChanged || (request.kind === "keep" && inCommon)) {
-      issues.push(...errorsOf(COMMON_ID, input.validate(EMPTY_BODY, common)));
+      const found = input.validate(EMPTY_BODY, common, previousOf(undefined, input.common));
+      issues.push(...errorsOf(COMMON_ID, found));
+      collect(found);
     }
   }
   if (issues.length > 0) return err({ kind: "plugin_invalid", issues });
@@ -173,5 +197,5 @@ export function planPluginEdit(input: {
     const stored = input.profiles.find((item) => item.id === profile.id);
     return stored !== profile;
   });
-  return ok({ changed, common: commonChanged ? common : null });
+  return ok({ changed, common: commonChanged ? common : null, missingPlugins: [...missing] });
 }

@@ -1,11 +1,11 @@
 /**
  * Layer rank: F(0) < X(1) < L0(2) < L1(3) < P(4) < L4(5).
  * A package imports only lower ranks. Same-layer packages never import each other.
- * P is the plugin rank (6.3 DR-15): packages/cap-*, packages/group-*, packages/plugin-builder, packages/plugin-migration. plugins/* rank as L1,
+ * P is the plugin rank (6.3 DR-15): packages/cap-*, packages/plugin-*, packages/plugin-builder, packages/plugin-migration. plugins/* rank as L1,
  * apps/* and packages/client (adr.0020) as L4. vendor/* is excluded from the graph.
  * Keep in sync with scripts/check-layers.ts (it reads package.json fresnel.layer; this reads paths).
  */
-const P_RE = "^(packages/cap-|packages/group-|packages/plugin-builder/|packages/plugin-migration/)";
+const P_RE = "^(packages/cap-|packages/plugin-|packages/orchestration-sdk/)";
 const LAYERS = [
   { name: "F", re: "^packages/contracts/" },
   { name: "X", re: "^packages/ext-host/" },
@@ -43,20 +43,20 @@ const sameLayerGroups = [
     to: "^(packages/core-|plugins/)",
     own: "^plugins/$1/",
   },
-  // P (6.3 DR-15): a plugin imports no other plugin. "to" is every P package (cap-*, group-*, plugin-builder).
+  // P (6.3 DR-15): a plugin imports no other plugin. "to" is every P package (cap-*, plugin-*, orchestration-sdk).
   {
     name: "P-cap",
     from: "^packages/(cap-[^/]+)/",
-    to: "^packages/(cap-|group-|plugin-builder/|plugin-migration/)",
+    to: "^packages/(cap-|plugin-|orchestration-sdk/)",
     own: "^packages/$1/",
   },
-  // DR-02/group-sdk and DR-02/plugin-builder-group-sdk (scripts/dependency-allowlist.json): every group and the Plugin Builder may import
-  // the group-sdk entries "." and "./testing" and nothing else of group-sdk or of another plugin.
+  // DR-02/orchestration-sdk and DR-02/plugin-builder-orchestration-sdk (scripts/dependency-allowlist.json): every group and the Plugin Builder may import
+  // the orchestration-sdk entries "." and "./testing" and nothing else of orchestration-sdk or of another plugin.
   {
     name: "P-group",
-    from: "^packages/(group-[^/]+|plugin-builder)/",
-    to: "^packages/(cap-|group-|plugin-builder/|plugin-migration/)",
-    own: ["^packages/$1/", "^packages/group-sdk/src/(index|testing/index)\\.ts$"],
+    from: "^packages/(plugin-(?!migration)[^/]+)/",
+    to: "^packages/(cap-|plugin-|orchestration-sdk/)",
+    own: ["^packages/$1/", "^packages/orchestration-sdk/src/(index|testing/index)\\.ts$"],
   },
   // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @fresnel/host entries ".", "./client" and "./plugin-host" only.
   // DR-10/cli-client, DR-10/desktop-client, DR-10/host-client: apps may import packages/client, so it is not in the "to" of the app groups.
@@ -99,7 +99,8 @@ const pLowerImports = [
   {
     name: "no-l0-or-l1-import-from-P",
     severity: "error",
-    comment: "A plugin imports only contracts, ext-host, group-sdk and external packages (DR-15).",
+    comment:
+      "A plugin imports only contracts, ext-host, orchestration-sdk and external packages (DR-15).",
     from: { path: P_RE, pathNot: P_TEST },
     to: { path: P_LOWER },
   },
