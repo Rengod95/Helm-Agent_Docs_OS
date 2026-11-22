@@ -4265,6 +4265,7 @@
   "desktop.craft.review.place.at": "{place}",
   "desktop.craft.review.row.inject": "지침과 스킬을 모델에 실어요",
   "desktop.craft.review.row.hook": "정해진 자리에서 끼어들어요",
+  "desktop.craft.review.row.dependencies": "기대는 플러그인",
   "desktop.craft.review.row.drive": "대화를 이끌어요",
   "desktop.craft.review.row.runs": "코드를 실행해요",
   "desktop.craft.review.row.setting": "설정",

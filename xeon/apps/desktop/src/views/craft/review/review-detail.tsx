@@ -350,6 +350,7 @@ const ROW_WORD: Readonly<Record<CardDiffRow, MessageId>> = {
   runs: "desktop.craft.review.row.runs",
   setting: "desktop.craft.review.row.setting",
   replaces: "desktop.craft.review.row.replaces",
+  dependencies: "desktop.craft.review.row.dependencies",
 };
 
 const PART_WORD: Readonly<Record<ChangePart, MessageId>> = {

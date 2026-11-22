@@ -4265,6 +4265,7 @@
   "desktop.craft.review.place.at": "{place}",
   "desktop.craft.review.row.inject": "Adds instructions and skills",
   "desktop.craft.review.row.hook": "Steps in at set points",
+  "desktop.craft.review.row.dependencies": "Depends on",
   "desktop.craft.review.row.drive": "Leads the conversation",
   "desktop.craft.review.row.runs": "Runs code",
   "desktop.craft.review.row.setting": "Settings",
