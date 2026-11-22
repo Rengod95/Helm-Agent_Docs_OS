@@ -1,6 +1,6 @@
 // 왼쪽 패널 내비 표(§4.9.3). 항목 id는 화면 id(`AreaPlace.screen`)와 같다.
 // 대화 영역은 셋(제안, 예약, 플러그인 화면)이다. "대화"는 맨 위 고정 "새 대화" 줄과 대화 목록이 맡고, "연결"은 설정으로 갔다(DP-69).
-// 작업대 영역은 일곱이다(옛 여섯과 Craft "메트릭"). 트레이스(`trace`)는 목적 화면이라 내비 줄이 없다.
+// 작업대 영역은 아홉이다(프로필, 옛 여섯, 리뷰, Craft "메트릭"). 트레이스(`trace`)는 목적 화면이라 내비 줄이 없다.
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ActionId } from "./keybindings.ts";
 import type { Area } from "../../state/shell/index.ts";
@@ -19,6 +19,8 @@ const CHAT_NAV: readonly NavItem[] = [
 ];
 
 const WORKBENCH_NAV: readonly NavItem[] = [
+  // 프로필(C3, craft-flows §6.10): 프로필 캔버스. 크래프트 영역을 처음 열면 이 화면이다
+  { id: "profile", label: "desktop.shell.nav.profile" },
   { id: "overview", label: "desktop.shell.nav.overview" },
   { id: "craftReview", label: "desktop.shell.nav.review" },
   { id: "extensions", label: "desktop.shell.nav.extensions" },

@@ -62,6 +62,7 @@ import { createSkillCommands } from "./skills.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createMeasureCommands } from "./measure-commands.ts";
 import { createCraftMetricsCommands } from "./craft-metrics.ts";
+import { createProfileCanvasCommands } from "./profile-canvas-commands.ts";
 import { createTestChatCommands } from "./test-chat-commands.ts";
 import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
@@ -617,6 +618,7 @@ export function createCommands(
     tests: createTestCommands(withConnection, withWriteConnection),
     measure: createMeasureCommands(withConnection),
     craftMetrics: createCraftMetricsCommands(withConnection, withWriteConnection),
+    profileCanvas: createProfileCanvasCommands(withConnection, withWriteConnection),
     testChat: createTestChatCommands({
       withRead: withConnection,
       withWrite: withWriteConnection,

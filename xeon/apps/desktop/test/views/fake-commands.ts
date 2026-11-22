@@ -98,6 +98,14 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       daily: () => Promise.resolve(err({ kind: "unsupported" })),
       promotion: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    profileCanvas: {
+      profiles: () => Promise.resolve(err({ kind: "unsupported" })),
+      cards: () => Promise.resolve(err({ kind: "unsupported" })),
+      blocks: () => Promise.resolve(err({ kind: "unsupported" })),
+      applied: () => Promise.resolve(err({ kind: "unsupported" })),
+      preview: () => Promise.resolve(err({ kind: "unsupported" })),
+      put: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     craftMetrics: {
       catalog: () => Promise.resolve(err({ kind: "unsupported" })),
       query: () => Promise.resolve(err({ kind: "unsupported" })),

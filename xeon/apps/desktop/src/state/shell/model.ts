@@ -29,7 +29,7 @@ export interface ShellModel {
 
 const DEFAULT_PLACES: Readonly<Record<Area, AreaPlace>> = {
   chat: { screen: "chat", scroll: 0, endTab: "inbox" },
-  workbench: { screen: "overview", scroll: 0, endTab: "inbox" },
+  workbench: { screen: "profile", scroll: 0, endTab: "inbox" },
 };
 
 export function initialShell(width: number): ShellModel {

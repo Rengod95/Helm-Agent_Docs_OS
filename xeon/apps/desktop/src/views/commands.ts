@@ -900,6 +900,28 @@ export interface MeasureCommands {
  * Craft 메트릭(C9)과 트레이스(C8) 화면의 wire(M5d `review/m5/turn-record-metrics.md` §3.5, §3.8). 결과는 요청의 반환값이라 거울에 넣지 않는다.
  * 쓰기는 인사이트 닫기, 프로필에서 빼기, 테스트 챗 열기 셋이고 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다.
  */
+/**
+ * 프로필 캔버스(C3, craft-flows §6.10)가 부르는 wire. 프로필 목록과 공통 묶음, 플러그인 카드 전부, 블록 모델, 프로필이 실제로 적용한
+ * 블록(Hook 자리마다 핸들러 순서), 저장 전 미리 보기(충돌 이슈)를 읽고, 순서를 바꾸면 `profile.put`으로 쓴다.
+ */
+export interface ProfileCanvasCommands {
+  /** `profile.list`: 프로필과 공통 묶음(모든 프로필 앞에 선다) */
+  profiles(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** `plugin.list {}`: 설치된 플러그인 카드 전부(`requiredByCore`는 엔진이 필요로 하는 단위에만 있다) */
+  cards(): Promise<Result<WireResult<"plugin.list">, CommandError>>;
+  /** `blocks.describe`: 블록, 경계, Hook 이름마다의 자리 */
+  blocks(): Promise<Result<WireResult<"blocks.describe">, CommandError>>;
+  /** `blocks.applied { profileId }`: 이 프로필(공통 묶음 포함)이 실제로 세운 Hook 자리마다의 핸들러와 순서 */
+  applied(profileId: string): Promise<Result<WireResult<"blocks.applied">, CommandError>>;
+  /** `profile.preview { id }`: 해소된 목록과 이슈(`replace_conflict` 따위). 쓰지 않는다 */
+  preview(profileId: string): Promise<Result<WireResult<"profile.preview">, CommandError>>;
+  /** `profile.put { profile, baseRev }`: 저장. 저장된 `rev`가 `baseRev`와 다르면 `profile.conflict`로 거절된다 */
+  put(
+    profile: ProfileInput,
+    baseRev: number | null,
+  ): Promise<Result<WireResult<"profile.put">, CommandError>>;
+}
+
 export interface CraftMetricsCommands {
   /** `metrics.catalog`: 지표 정의(이름, 단위, 정의 문장) */
   catalog(): Promise<Result<WireResult<"metrics.catalog">, CommandError>>;
@@ -1342,6 +1364,8 @@ export interface Commands {
   readonly measure: MeasureCommands;
   /** Craft 메트릭·트레이스 화면(C9, C8)의 읽기와 인사이트 닫기 */
   readonly craftMetrics: CraftMetricsCommands;
+  /** 프로필 캔버스(C3)의 읽기와 순서 저장 */
+  readonly profileCanvas: ProfileCanvasCommands;
   /** Craft 테스트 챗 창(C7)의 열기, 드래프트 보내기, 빌린 대화 돌려주기 */
   readonly testChat: TestChatCommands;
   readonly schedule: ScheduleCommands;

@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { NAV_BY_AREA, NAV_SHORTCUTS } from "../../../src/views/shell/nav.ts";
 
 describe("nav table", () => {
-  test("the workbench nav lists its seven items, review second, and the Craft metrics line, with no plugin pages entry", () => {
+  test("the workbench nav opens with the profile canvas (C3), then the old items, review third, and the Craft metrics line, with no plugin pages entry", () => {
     expect(NAV_BY_AREA.workbench.map((item) => [item.id, item.label])).toEqual([
+      ["profile", "desktop.shell.nav.profile"],
       ["overview", "desktop.shell.nav.overview"],
       ["craftReview", "desktop.shell.nav.review"],
       ["extensions", "desktop.shell.nav.extensions"],

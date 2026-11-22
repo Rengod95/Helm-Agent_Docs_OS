@@ -1,12 +1,12 @@
 /* 앱이 더하는 색 토큰 셋(AGE-31, 2026-11-22 사용자: "디자인토큰을 리플레이스 하지말고 새로운 토큰 셋을 추가").
    caustic 토큰은 하나도 덮지 않는다: 이름이 `--fr-color-<셋>-<자리>`라 `--cs-color-*`와 겹치지 않고, 있는 토큰을 쓰는 화면은 그대로다.
-   자리는 caustic의 상태 색 한 벌(info·success …)과 같다: tint, soft(+hover, pressed), border(+strong), graphic, solid(+hover), text, on.
-   여기에 `face` 하나를 더한다: 종류 탭·타일처럼 진한 색을 깔고 그 위에 `text`를 올리는 면이다(다크 L0.263, 라이트 L0.82).
-   값은 그 L·H에서 sRGB가 그릴 수 있는 색의 세기(C) 안쪽이다. 무층으로 두는 것은 변수 선언뿐이다.
+   자리는 caustic의 상태 색 한 벌(info, success …)과 같다: tint, soft(+hover, pressed), border(+strong), graphic, solid(+hover), text, on.
+   여기에 `face` 하나를 더한다: 종류 탭과 타일처럼 진한 색을 깔고 그 위에 `text`를 올리는 면이다(다크 L0.263, 라이트 L0.82).
+   값은 그 L와 H에서 sRGB가 그릴 수 있는 색의 세기(C) 안쪽이다. 무층으로 두는 것은 변수 선언뿐이다.
 
    cobalt(H260): Inject의 종류 색. 참고 그림(`cv5-ref/ref-node-canvas.png`)의 파랑 LLM 탭을 잰 값 그대로다:
-   탭 면 L0.263 C0.105 H261, 탭 글 L0.73 C0.104 H263. caustic info·iris(H235, 청록빛 파랑)는 이 밝기의 탭 면에서 C0.056까지만 되어
-   참고의 파랑이 나오지 않는다. info·iris는 바꾸지 않고(알림, 정보 칩 등이 그대로 쓴다) Inject만 이 셋으로 옮긴다.
+   탭 면 L0.263 C0.105 H261, 탭 글 L0.73 C0.104 H263. caustic info와 iris(H235, 청록빛 파랑)는 이 밝기의 탭 면에서 C0.056까지만 되어
+   참고의 파랑이 나오지 않는다. info와 iris는 바꾸지 않고(알림, 정보 칩 등이 그대로 쓴다) Inject만 이 셋으로 옮긴다.
    다크 text는 L0.74(Drive 글 agent-text와 같은 밝기, 참고 탭 글 L0.73 C0.104에 가깝게)다.
    명암비(WCAG): 다크 text/face 6.8(참고 탭 6.5), on/solid 7.5. 라이트 text/face 4.8, text/흰 바탕 8.4, on/solid 4.8.
    이 셋의 graphic, solid(+hover), on, face는 `chroma.css`가 선명한 벌 `--fr-vivid-cobalt-*`로 덮는다(DP-229, AGE-31 다시). 위 값과 명암비는 첫 판 기록이다. */
