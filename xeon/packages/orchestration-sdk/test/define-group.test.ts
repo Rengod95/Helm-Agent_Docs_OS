@@ -7,6 +7,7 @@ import {
   ORCHESTRATION_NAME_PATTERN,
   RESERVED_ORCHESTRATION_NAMES,
   defineOrchestration,
+  defineOrchestrationMember,
   orchestrationManifest,
   isOrchestrationModule,
   validateOrchestrationDef,
@@ -96,6 +97,7 @@ test("define-group.check-group-reports-usage-at-the-root-plugin", async () => {
         { layer: "L3", hooks: [] },
       ],
     },
+    members: { worker: defineOrchestrationMember({ setup() {} }) },
     setup(g) {
       g.on("tool.call.before", () => undefined);
     },
@@ -131,12 +133,13 @@ test("define-group.rejects-manifest-without-orchestration", () => {
   const plugin = pluginManifestOf("not-a-group");
   expect(codes({ manifest: plugin })).toEqual(["orchestration_missing"]);
 
-  // group 선언은 있지만 L3 플러그인에 id가 있다. 루트(id 없음)가 아니면 오케스트레이션이 아니다
+  // group 선언은 있지만 L3 플러그인에 id가 있다. 루트(id 없음)가 아니면 오케스트레이션이 아니다.
+  // id가 있는 플러그인은 구성원이므로 정의가 없으면 member_missing도 난다
   const nonRoot: OrchestrationManifest = {
     ...orchestrationManifestOf({ name: "non-root" }),
     plugins: [{ id: "worker", layer: "L3", hooks: [] }],
   };
-  expect(codes({ manifest: nonRoot })).toEqual(["orchestration_missing"]);
+  expect(codes({ manifest: nonRoot })).toEqual(["orchestration_missing", "member_missing"]);
   expect(
     validateOrchestrationDef({ manifest: nonRoot })
       .filter((found) => found.code === "orchestration_missing")
@@ -154,8 +157,11 @@ test("define-group.accepts-group-with-root-orchestration", () => {
       { layer: "L3", hooks: [] },
     ],
   };
-  expect(codes({ manifest: namedFirst })).toEqual([]);
-  expect(() => defineOrchestration({ manifest: namedFirst, setup() {} })).not.toThrow();
+  // worker는 구성원이라 정의가 있어야 한다(member_missing)
+  const members = { worker: defineOrchestrationMember({ setup() {} }) };
+  expect(codes({ manifest: namedFirst, members })).toEqual([]);
+  expect(codes({ manifest: namedFirst })).toEqual(["member_missing"]);
+  expect(() => defineOrchestration({ manifest: namedFirst, members, setup() {} })).not.toThrow();
 });
 
 test("define-group.accepts-stateless-group", () => {
