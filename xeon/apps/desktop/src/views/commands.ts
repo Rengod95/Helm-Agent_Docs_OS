@@ -365,6 +365,30 @@ export interface ReviewCommands {
  * Craft 리뷰 화면(C5, `views/craft/review/`). 항목은 요청 결과라 거울에 넣지 않는다(FS-03).
  * `list`는 모든 상태의 항목을 읽는다: 대기 항목과, 비교 대상(`baseHash`)을 승인한 지난 항목의 파일 목록이 함께 필요하다.
  */
+// 프로젝트 패널(C10)과 T7 알림이 부르는 명령(M5c §3.4). 구현은 `app/projects.ts`다.
+// 지우는 명령은 없다: `project.delete`는 목록에서 빼기만 하고 폴더와 대화는 남긴다(엔진 §4.4.2).
+
+export interface ProjectCommands {
+  /** `project.list`: 프로젝트와 그 대화 수 */
+  list(): Promise<Result<WireResult<"project.list">, CommandError>>;
+  /** `project.get`: 프로젝트와 그 프로젝트 출처의 리뷰 대기 수(`pendingReview`) */
+  get(projectId: string): Promise<Result<WireResult<"project.get">, CommandError>>;
+  /** `project.create { root }`. 이름을 주지 않으면 엔진이 루트의 마지막 마디로 짓는다 */
+  create(root: string): Promise<Result<WireResult<"project.create">, CommandError>>;
+  rename(
+    projectId: string,
+    name: string,
+  ): Promise<Result<WireResult<"project.rename">, CommandError>>;
+  /** `project.delete`: 목록에서 뺀다. 폴더와 대화는 지우지 않는다 */
+  remove(projectId: string): Promise<Result<WireResult<"project.delete">, CommandError>>;
+  /** `project.instructions { workspace }`: 그 폴더에서 루트까지 읽히는 `AGENTS.md` */
+  instructions(
+    workspace: WireParams<"project.instructions">["workspace"],
+  ): Promise<Result<WireResult<"project.instructions">, CommandError>>;
+  /** `project.changed`(목록)와 `pluginReview.changed`(리뷰 대기 수)를 듣는다 */
+  onChanged(listener: () => void): () => void;
+}
+
 export interface PluginReviewCommands {
   /** `pluginReview.list {}` */
   list(): Promise<Result<WireResult<"pluginReview.list">, CommandError>>;
@@ -1323,6 +1347,8 @@ export interface Commands {
   readonly review: ReviewCommands;
   /** Craft 리뷰 화면(C5): 플러그인 검토 항목 */
   readonly pluginReview: PluginReviewCommands;
+  /** 대화 영역 왼쪽 패널의 프로젝트(C10)와 대화의 T7 알림 */
+  readonly projects: ProjectCommands;
   /** 제안 화면의 충돌 스킬 본문(W-14). 읽기 한 번이다 */
   readonly skills: SkillCommands;
   /** 설정 "대화와 컨텍스트" 탭의 기억 구역(W-19) */

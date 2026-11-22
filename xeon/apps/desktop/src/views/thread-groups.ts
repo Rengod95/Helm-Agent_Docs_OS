@@ -79,6 +79,16 @@ export interface SidebarRow {
 export function sidebarGroupsOf(
   threads: readonly ThreadSummary[],
 ): readonly ThreadGroup<SidebarRow>[] {
+  return groupByWorkspace(sidebarRowsOf(threads)).map((group) => ({
+    workspace: group.workspace,
+    items: group.items.map((row) => ({ thread: row.thread, child: row.child })),
+  }));
+}
+
+/** 사이드바 줄을 묶기 전의 차례(하위 대화는 부모 바로 아래)와 각 줄이 묶일 작업 폴더. 프로젝트 패널도 이 차례를 쓴다 */
+export function sidebarRowsOf(
+  threads: readonly ThreadSummary[],
+): readonly (SidebarRow & { readonly workspace: string | null })[] {
   const visible = threads.filter((thread) => !isInternalThread(thread));
   const ids = new Set(visible.map((thread) => thread.threadId));
   const childrenOf = new Map<string, ThreadSummary[]>();
@@ -107,8 +117,5 @@ export function sidebarGroupsOf(
     };
     walk(top.threadId, new Set([top.threadId]));
   }
-  return groupByWorkspace(rows).map((group) => ({
-    workspace: group.workspace,
-    items: group.items.map((row) => ({ thread: row.thread, child: row.child })),
-  }));
+  return rows;
 }

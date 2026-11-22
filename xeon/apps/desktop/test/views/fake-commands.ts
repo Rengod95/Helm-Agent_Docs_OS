@@ -293,6 +293,15 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       profiles: () => Promise.resolve(err({ kind: "unsupported" })),
       onChanged: () => () => {},
     },
+    projects: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      get: () => Promise.resolve(err({ kind: "unsupported" })),
+      create: () => Promise.resolve(err({ kind: "unsupported" })),
+      rename: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
+      instructions: () => Promise.resolve(err({ kind: "unsupported" })),
+      onChanged: () => () => {},
+    },
     skills: {
       view: () => Promise.resolve(err({ kind: "unsupported" })),
       list: () => Promise.resolve(err({ kind: "unsupported" })),
