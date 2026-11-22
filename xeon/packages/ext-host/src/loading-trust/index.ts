@@ -2474,9 +2474,38 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   function deferredAtStartup(
     record: ExtRecord,
     defaultNames: ReadonlySet<string> | undefined,
+    pinned: ReadonlySet<string>,
   ): boolean {
     if (defaultNames === undefined || record.manifest === undefined) return false;
+    if (pinned.has(record.name)) return false;
     return !defaultNames.has(record.name);
+  }
+
+  /**
+   * 기본 집합의 확장이 hard로 기대는 대상의 닫힘(AGE-33). 이 이름들은 기본 집합 밖이어도 시작 때 싣는다. 미루면 기대는 쪽이
+   * `dependency_missing`(오류)으로 멈추기 때문이다. 대상의 hard 대상까지 따라간다. soft 대상은 닫힘에 들지 않아 그대로 미룬다.
+   * 묶음 안의 기록만 본다(앞 묶음에서 미룬 대상은 이 시작에서 다시 싣지 않는다)
+   */
+  function hardClosureOf(
+    batch: readonly ExtRecord[],
+    defaultNames: ReadonlySet<string> | undefined,
+  ): ReadonlySet<string> {
+    const closure = new Set<string>();
+    if (defaultNames === undefined) return closure;
+    const byName = new Map(batch.map((record) => [record.name, record] as const));
+    const pending = batch
+      .filter((record) => defaultNames.has(record.name))
+      .map((record) => record.name);
+    for (let name = pending.pop(); name !== undefined; name = pending.pop()) {
+      const manifest = byName.get(name)?.manifest;
+      if (manifest === undefined) continue;
+      for (const dependency of dependenciesOf(manifest)) {
+        if (dependency.kind !== "hard" || closure.has(dependency.targetExtension)) continue;
+        closure.add(dependency.targetExtension);
+        pending.push(dependency.targetExtension);
+      }
+    }
+    return closure;
   }
 
   /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 기능 연쇄 실패를 정리한다 */
@@ -2498,8 +2527,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
     throwIfCancelled(signal, "enable check");
     const alive: ExtRecord[] = [];
+    const pinned = hardClosureOf(batch, defaultNames);
     for (const record of batch) {
-      if (record.state === "resolved" && (deferAll || deferredAtStartup(record, defaultNames))) {
+      if (
+        record.state === "resolved" &&
+        (deferAll || deferredAtStartup(record, defaultNames, pinned))
+      ) {
         // 시작 때 싣지 않는다. 기록은 꺼진 채 남고 `ensureLoaded`가 대화의 E(T)에 들 때 싣는다
         fail(
           record,

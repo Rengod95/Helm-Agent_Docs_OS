@@ -140,7 +140,7 @@ import { processPortOf, sandboxSourceOf } from "./plugin-host.ts";
 import { currentSelf, type SelfRunTarget } from "../self-command.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
-import { projectIdOf } from "./m4/project-scope.ts";
+import { deepestRoot, projectIdOf } from "./m4/project-scope.ts";
 import { createAppEditLedger } from "./plugins/app-edits.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { withPendingReview } from "./plugins/pending-overlay.ts";
@@ -664,6 +664,27 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     logger,
   });
 
+  /**
+   * 대화 폴더가 속한 프로젝트와 그 루트(`thread.started.project`). 기본 폴더 대화와 작업 폴더가 없는 대화는 null이다.
+   * 어느 루트에도 없는 폴더면 `attach`가 그 폴더를 루트로 프로젝트를 만든다(§4.4.3). 그래서 대화를 쓰기 전에 부른다
+   */
+  async function projectOfWorkspace(
+    workspace: string | undefined,
+  ): Promise<{ readonly id: string; readonly root: string } | null> {
+    if (workspace === undefined) return null;
+    const attached = await projects.attach(workspace);
+    if (!attached.ok) throw wireErrorOfProject(attached.error);
+    if (attached.value === null) return null;
+    const all = await projects.roots();
+    if (!all.ok) throw wireErrorOfProject(all.error);
+    const deepest = deepestRoot(workspace, all.value);
+    // 확인과 읽기 사이에 프로젝트가 지워졌으면 대화를 만들지 않고 거절한다
+    if (deepest === undefined || deepest.projectId !== attached.value.projectId) {
+      throw wireErrorOfProject({ kind: "root_invalid" });
+    }
+    return { id: deepest.projectId, root: deepest.root };
+  }
+
   const threads: ThreadPort = {
     async create(input) {
       // 작업 폴더는 정규 경로로 저장한다(HS-76). 상대 경로와 없는 폴더는 thread를 만들기 전에 거절한다
@@ -681,6 +702,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         if (!folder.ok) throw wireErrorOfProject(folder.error);
         workspace = folder.value;
       }
+      // 소속은 thread.started가 싣는다(§4.4.2). `thread.create`만 정한다(`attachProject`). 시험 대화는 프로젝트 묶음에서 뺀다(§4.8).
+      // 열기 훅이 폴더를 바꾸면 이 값과 나중의 `attach`가 다를 수 있다 [미결]
+      let project: { readonly id: string; readonly root: string } | null | undefined;
+      if (input.attachProject === true) {
+        project = input.testRun === true ? null : await projectOfWorkspace(workspace);
+      }
       const created = session.threads.create({
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
@@ -688,6 +715,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
         ...(input.craftChat === undefined ? {} : { craftChat: input.craftChat }),
+        ...(project === undefined ? {} : { project }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       if (input.testRun === true) {
@@ -1535,6 +1563,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     report: (event, fields) => log.error(event, fields),
     timeoutMs: OVERLAY_LOAD_TIMEOUT_MS,
   });
+  // 덧씌우기의 적재도 대화의 참조와 같은 길을 쓴다(AGE-33 enDep 5b): 기록이 있는 이름은 hard 대상을 먼저 싣고, 같은 로더의 진행 중인 적재를 함께 쓴다
+  const overlayLifecycle = pluginLifecycleOf({
+    loader: () => deps.extRead.loader(),
+    // 덧씌우기는 내리지 않는다(내리기는 대화의 참조가 맡는다)
+    busy: () => false,
+    signal: deps.signal,
+  });
   const overlay = createOverlayPort({
     targetOf: (name) => pluginService.overlayTarget(name),
     draftOf: (draftId) => pluginReview.draftOf(draftId),
@@ -1549,11 +1584,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           const signal = AbortSignal.timeout(OVERLAY_LOAD_TIMEOUT_MS);
           // 기록이 있으면(시작 때 미룬 것, 내린 것) `ensureLoaded`가 싣는다. 기록이 없으면 검토본에서 새로 설치한다
           if (loader.list().some((info) => info.name === name)) {
-            const attempted = await attemptAsync(() => loader.ensureLoaded(name, signal));
-            if (!attempted.ok || attempted.value.state !== "active") {
+            const attempted = await attemptAsync(() => overlayLifecycle.ensureLoaded(name, signal));
+            // 상태는 적재 뒤의 기록에서 읽는다(`ensureLoaded`의 돌려주는 값은 호출하는 쪽마다 다르다)
+            const state = loader.list().find((info) => info.name === name)?.state;
+            if (!attempted.ok || state !== "active") {
               log.error("plugin.overlay.load_failed", {
                 name,
-                kind: attempted.ok ? attempted.value.state : "thrown",
+                kind: attempted.ok ? (state ?? "missing") : "thrown",
               });
             }
             return;

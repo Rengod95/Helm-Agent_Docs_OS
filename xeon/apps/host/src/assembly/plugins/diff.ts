@@ -39,11 +39,14 @@ function mcpDetailOf(server: McpServerCard): string {
 /**
  * 스크립트의 비교 값. 실행기, 상대 파일과 인자(JSON 배열), 선언된 환경 변수 이름, 기한이 하나라도 바뀌면 바뀐 것이다.
  * 기한도 넣는 것은 명령이 같아도 오래 도는 쪽으로 바뀐 갱신을 조용히 넘기지 않으려는 것이다.
+ * 선언했지만 넘기지 않은 환경 변수 이름(`envNotPassed`)도 한 줄로 싣는다(AGE-33 enDep 11). 넘기는 이름이 같아도 이 목록이 바뀌면 바뀐 것이다.
  */
 function scriptDetailOf(script: CardScript): string {
   const { launch } = script;
   const parts = [`${launch.command} ${JSON.stringify(launch.args)}`];
   if (launch.envNames.length > 0) parts.push(`[env: ${launch.envNames.join(",")}]`);
+  const notPassed = script.envNotPassed ?? [];
+  if (notPassed.length > 0) parts.push(`[not passed: ${notPassed.join(",")}]`);
   parts.push(`[timeout: ${script.timeoutMs}ms]`);
   return parts.join(" ");
 }

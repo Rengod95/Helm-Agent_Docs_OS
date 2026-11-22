@@ -143,7 +143,8 @@ export interface PluginCard {
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
   readonly review: { readonly state: "approved" | "pending" | "draft" | "none"; readonly currentHash: string | null; readonly pendingItemId: string | null; readonly approvedAt: string | null };
   readonly usedBy: readonly string[];                       // 층 3. 프로필 id. 공통 묶음은 "common"
-  readonly dependencies?: { readonly dependsOn: readonly CardDependency[]; readonly dependents: readonly CardDependency[] }; // [제안, AGE-33] 이 플러그인이 기대는 것(매니페스트, problem은 설치된 집합에서 본 값)과 이 플러그인에 기대는 쪽. 선택 필드라 옛 카드도 파싱된다. 목록과 항목 응답은 설치된 사실로 다시 채우고(`withInstalledDependencies`), 검토 차이는 `dependencies` 칸에 기대는 줄의 추가·바뀜으로 보인다
+  readonly dependencies?: { readonly dependsOn: readonly CardDependency[]; readonly dependents: readonly CardDependency[] }; // [제안, AGE-33] 이 플러그인이 기대는 것(매니페스트, problem은 설치된 집합에서 본 값)과 이 플러그인에 기대는 쪽. 선택 필드라 옛 카드도 파싱된다. 목록과 상세 응답은 설치된 레코드로 다시 채우고(`withInstalledDependencies`, `plugin.list`·`plugin.get`과 검토 목록·항목), 검토 차이는 `dependencies` 칸에 기대는 줄의 추가·바뀜으로 보인다
+  readonly requiredByCore?: readonly string[];               // [제안, AGE-33 enDep 10] 엔진이 아직 필요로 하는 단위(M5c §4.1.17)에 기대는 코어 부분의 코드 이름(`REQUIRED_BY_CORE_USERS`, 지금 `cap-workspace`·`cap-dialog`는 `core-tools`). 값이 있을 때만 싣고, 목록과 상세 응답에서 채운다(`withRequiredByCore`). 저장된 카드는 바꾸지 않는다. 프로필 응답은 바꾸지 않는다
 }
 export interface InjectInventory {
   readonly instructions: { readonly always: readonly InstructionEntry[]; readonly skills: readonly SkillEntry[] };
@@ -361,7 +362,7 @@ export interface TestRunStart {
 | `thread.list` (변경) | `include?: "craft"` | 기존 | - |
 | `thread.create` (변경) | `craftChat?: { plugin?: string; contexts?: ContextRef[] }` (`craftChat.open`이 내부에서 쓴다. 클라이언트는 `craftChat.open`만 부른다) | 기존 | `profile.builtinProtected` |
 | `profile.preview` (변경) | 결과에 `dropsDrive: { threadCount: number } \| null`(그 변경이 Drive 중인 플러그인을 빼서 프레임을 내리는 열린 대화 수. 없으면 null) [구현 2026-11-18: 그 프로필을 참조하는 열린 대화의 주도권 스택(`ExtHost.driveFrames`)에 새 목록에 없거나 멈추거나 관리 잠금으로 꺼진 플러그인의 프레임이 있으면 그 대화를 센다(`dropsDriveOf`)] | | |
-| `project.list` (변경) | 결과의 각 프로젝트에 `threadCount: number`, `runningCount: number` | | |
+| `project.list` (변경) | 결과의 각 프로젝트에 `threadCount: number`, `runningCount: number`, `rootMissing: boolean`, `pendingReviewCount: number`(AGE-34) | | |
 
 알림: `craftChat.changed { plugin }`(초안이 생기거나 검토 결과가 오면). 새 오류는 이름만 정하고 숫자는 3600~3649 안에서 구현 때 순서대로 배정한다.
 
@@ -678,7 +679,7 @@ plugin-store/
 | 후보가 `replaces`로 내장 도구를 대체 | 승인은 가능하다. 프로필에 넣을 때 `replace_conflict` 검사와 지금의 사용자 승인 규칙(`F.capabilities.spec` §10)을 거친다 |
 | 같은 이름의 사용자 플러그인과 프로젝트 동반 플러그인 | §4.5.8 `name_conflict` |
 | 승인 대상 프로필이 그 사이 삭제됨 | `profile.notFound` → `pluginReview.profileInvalid` 안에 포함, 아무것도 바뀌지 않는다 |
-| 프로젝트 루트 폴더가 사라짐 | `project.list`는 보이지만 `project.get`에 `rootMissing: true`. 그 프로젝트 대화의 쓰기는 루트가 없으므로 도구가 `not_found`를 낸다. 대화 폴더도 같다(`workspace.status`가 이미 알린다) |
+| 프로젝트 루트 폴더가 사라짐 | `project.list`는 보이지만 그 항목에 `rootMissing: true`(AGE-34로 `project.get`이 아니라 `project.list`에 둔다). 그 프로젝트 대화의 쓰기는 루트가 없으므로 도구가 `not_found`를 낸다. 대화 폴더도 같다(`workspace.status`가 이미 알린다) |
 | 지침 파일이 큼, 읽을 수 없음, 루트 밖 링크 | §4.4.7. 문맥에는 아무것도 싣지 않고 진단만 남긴다 |
 | 덧씌우기를 요청했는데 그 사이 플러그인이 새 검토본으로 바뀜 | 요청 시점의 현재 검토본을 쓴다. `profile.applied.overlay[].contentHash`로 남긴다 |
 | 초안과 같은 이름 검토본이 둘 다 `E(T)`에 있음 | 초안이 그 대화에서 검토본을 대신한다(§4.3.8). 프로필에서는 검토본을 그대로 둔다 |

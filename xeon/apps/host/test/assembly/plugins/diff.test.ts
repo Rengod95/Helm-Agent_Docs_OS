@@ -200,6 +200,22 @@ test("a script the plugin adds or removes is an added or removed row with its co
   expect(removed.changed).toEqual([]);
 });
 
+test("a script's env names that do not reach it are a changed entry on its row, and the same list is not", () => {
+  const prev = cardOf({ ...PLAIN, scripts: [LINT] });
+  expect(diffCards(prev, cardOf({ ...PLAIN, scripts: [{ ...LINT }] })).changed).toEqual([]);
+  const withToken = diffCards(
+    prev,
+    cardOf({ ...PLAIN, scripts: [{ ...LINT, envNames: ["TZ", "API_TOKEN"] }] }),
+  );
+  expect(withToken.changed).toEqual([
+    {
+      row: "inject",
+      what: "script:lint",
+      detail: `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: TZ] [not passed: API_TOKEN] [timeout: 10000ms]`,
+    },
+  ]);
+});
+
 test("a script whose runner, file arguments, env names or time limit changed is a changed entry, and the same line is not", () => {
   const prev = cardOf({ ...PLAIN, scripts: [LINT] });
 

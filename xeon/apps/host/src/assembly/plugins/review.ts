@@ -44,7 +44,7 @@ import { DEFAULT_PROFILE_ID } from "../m4/profile-defaults.ts";
 import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import type { AppEditLedger } from "./app-edits.ts";
-import { buildPluginCard, withInstalledDependencies } from "./card.ts";
+import { buildPluginCard, withInstalledDependencies, withRequiredByCore } from "./card.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
 import { diffCards } from "./diff.ts";
 import {
@@ -396,7 +396,7 @@ function baseFilesOf(
   origin: PluginOriginKind,
 ): { readonly baseFiles?: ReviewItem["files"] } {
   if (reviewed === null) return {};
-  const read = readPluginFolder(reviewed.treePath, { origin });
+  const read = readPluginFolder(reviewed.treePath, { origin, name: reviewed.meta.name });
   return read.ok ? { baseFiles: filesOf(read.value) } : {};
 }
 
@@ -475,9 +475,18 @@ export function requiredByRefusalOf(
   };
 }
 
-/** 항목의 카드 의존 칸을 설치된 사실로 다시 채운 응답 값(AGE-33). 저장된 항목은 바꾸지 않는다 */
-function withInstalledCard(item: ReviewItem, facts: readonly PluginFact[]): ReviewItem {
-  return { ...item, card: withInstalledDependencies(item.card, facts) };
+/**
+ * 카드의 응답 값(AGE-33 enDep 5a, 10): 설치된 사실이 있으면 의존 칸을 다시 채우고, 필수 표시(`requiredByCore`)를 싣는다.
+ * 저장된 카드는 바꾸지 않는다
+ */
+function responseCardOf(card: PluginCard, facts: readonly PluginFact[] | undefined): PluginCard {
+  const withDependencies = facts === undefined ? card : withInstalledDependencies(card, facts);
+  return withRequiredByCore(withDependencies);
+}
+
+/** 항목의 응답 값(카드만 다시 쓴다) */
+function withInstalledCard(item: ReviewItem, facts: readonly PluginFact[] | undefined): ReviewItem {
+  return { ...item, card: responseCardOf(item.card, facts) };
 }
 
 /** 후보 폴더의 카드. 검토 칸은 대기 상태로 적는다. 프로젝트 출처는 프로젝트 id를 싣는다 */
@@ -665,6 +674,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
    */
   async function proposeItem(input: {
     readonly candidateHash: string;
+    /** 플러그인 이름. 후보 스냅샷 폴더는 `tree`라서 매니페스트가 없을 때 이 이름을 쓴다 */
+    readonly name: string;
     readonly origin: PluginOriginKind;
     /** 프로젝트 출처의 프로젝트 id. 다른 출처는 null이다 */
     readonly projectId: string | null;
@@ -678,7 +689,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   }): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
     const tree = store.candidateTree(input.candidateHash);
     if (!tree.ok) return err(storeFailure(tree.error));
-    const read = readPluginFolder(tree.value, { origin: input.origin });
+    const read = readPluginFolder(tree.value, { origin: input.origin, name: input.name });
     if (!read.ok) return err(rejectionFailure(read.error));
     const folder = read.value;
     // 비교 대상은 자기 프로젝트의 키다. 같은 이름이 다른 프로젝트에 승인되어 있어도 섞지 않는다
@@ -788,6 +799,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     }
     const made = await proposeItem({
       candidateHash: snapshot.value.contentHash,
+      name: entry.name,
       origin: entry.origin,
       projectId: entry.projectId,
       provenance:
@@ -982,7 +994,10 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       if (origin === null) return err({ kind: "store", code: "origin_unsupported" });
       const located = store.candidateTree(item.candidateHash);
       if (!located.ok) return err(storeFailure(located.error));
-      const folder = readPluginFolder(located.value, { origin: item.card.origin.kind });
+      const folder = readPluginFolder(located.value, {
+        origin: item.card.origin.kind,
+        name: item.name,
+      });
       if (!folder.ok) return err({ kind: "store", code: "candidate_invalid" });
       read = folder.value;
       candidateRoot = located.value;
@@ -1249,6 +1264,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     }
     const made = await proposeItem({
       candidateHash: candidate.value.contentHash,
+      name: info.value.name,
       origin: "user",
       projectId: null,
       provenance: options.provenance,
@@ -1552,10 +1568,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       // 최신이 앞에 오도록 돌려준다. 카드의 의존 칸은 응답에서만 설치된 사실로 다시 채운다(AGE-33)
       const ordered = oldestFirst(items).toReversed();
       const facts = deps.facts?.();
-      return ok({
-        items:
-          facts === undefined ? ordered : ordered.map((item) => withInstalledCard(item, facts)),
-      });
+      return ok({ items: ordered.map((item) => withInstalledCard(item, facts)) });
     },
 
     get: async (itemId) => {
@@ -1567,11 +1580,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       }
       // 카드의 의존 칸은 응답에서만 설치된 사실로 다시 채운다(AGE-33). 저장된 항목은 그대로다
       const facts = deps.facts?.();
-      const item =
-        facts === undefined
-          ? read.value
-          : { ...read.value, card: withInstalledDependencies(read.value.card, facts) };
-      return ok({ item });
+      return ok({ item: withInstalledCard(read.value, facts) });
     },
 
     file: async (itemId, path, side = "candidate") => {

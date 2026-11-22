@@ -807,6 +807,8 @@ test("a draft script with a gate and a thread opens the card first: the card sho
         command: "/bin/sh",
         args: [join(tree, "check.sh"), "--flag"],
         envNames: ["MARKER"],
+        // 선언했지만 넘기지 않은 이름(허용 목록 밖, 토큰·키 이름)은 카드가 따로 알린다 [AGE-63 enDep 11]
+        envNotPassed: ["ANTHROPIC_API_KEY"],
         stdinBytes: new TextEncoder().encode("token secret-value é").byteLength,
         stdinPreview: "token [masked] é",
         // 설정을 켜지 않은 승인 전 드래프트는 열린 정책으로 돈다 [결정: 2026-11-21, AGE-63]
@@ -828,6 +830,36 @@ test("a draft script with a gate and a thread opens the card first: the card sho
   });
   expect(launched.length).toBe(1);
   expect(launched[0]?.stdinText()).toBe("token secret-value é");
+});
+
+test("a draft card names the declared env names that do not reach the script, and has no such key when every declared name reaches it", async () => {
+  const { tree } = layout();
+  const { port } = fakeProcess({ stdout: "done", exit: { code: 0, signal: null } });
+  const { gate, calls } = fakeGate(true);
+  const runner = draftRunner(tree, port, gate, {
+    allowedEnv: { MARKER: "m" },
+    envNames: ["MARKER", "ANTHROPIC_API_KEY"],
+  });
+  await runner.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  const plain = draftRunner(tree, port, gate, {
+    allowedEnv: { MARKER: "m" },
+    envNames: ["MARKER"],
+  });
+  await plain.run({
+    registration: "demo",
+    name: "check",
+    stdin: "",
+    replay: false,
+    threadId: DRAFT_THREAD,
+  });
+  expect(calls.map((call) => call.card.envNotPassed)).toEqual([["ANTHROPIC_API_KEY"], undefined]);
+  expect(calls.map((call) => "envNotPassed" in call.card)).toEqual([true, false]);
 });
 
 test("narrowDrafts on: an unapproved draft script runs narrow (no write, reads its own folder) and its card says so", async () => {

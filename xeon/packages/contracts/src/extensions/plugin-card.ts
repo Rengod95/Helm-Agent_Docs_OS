@@ -529,6 +529,11 @@ export interface PluginCard {
    * 검토 서비스가 목록과 항목을 줄 때 설치된 사실로 다시 채운다(저장된 항목은 바꾸지 않는다)
    */
   readonly dependencies?: CardDependencies;
+  /**
+   * 엔진이 아직 필요로 하는 단위의 표시(M5c §4.1.17, AGE-33 enDep 10). 이 단위에 기대는 코어 부분의 코드 이름이다. 값이 있을 때만 싣는다(없으면 키가 없다).
+   * 프로필 화면이 미리 잠그는 데 쓴다. 저장된 카드가 아니라 응답 값이다
+   */
+  readonly requiredByCore?: readonly string[];
 }
 const PluginCardShape = Type.Object(
   {
@@ -598,6 +603,7 @@ const PluginCardShape = Type.Object(
     ),
     usedBy: Type.Array(Id, { maxItems: 256 }),
     dependencies: Type.Optional(CardDependenciesShape),
+    requiredByCore: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 })),
   },
   { additionalProperties: false },
 );

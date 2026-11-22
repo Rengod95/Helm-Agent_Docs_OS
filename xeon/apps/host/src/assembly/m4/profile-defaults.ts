@@ -12,11 +12,21 @@ export const FACTORY_PERMISSION_MODE = "bypass";
 export const NEVER_EDITED_ISO: string = new Date(0).toISOString();
 
 /**
+ * 필수 단위마다, 그 단위에 기대는 코어 부분의 코드 이름(`PluginCard.requiredByCore`, AGE-33 enDep 10). 위 사유와 같은 사실이다:
+ * `cap-workspace`는 도구 파이프라인(`core-tools/src/pipeline.ts`)의 파일 서비스에, `cap-dialog`는 사람에게 묻기(`core-tools/src/ask`)에 기댄다.
+ * 엔진이 기대는 쪽을 따로 알려 주지 않아 이 이름은 사유 주석에서 옮긴 것이다 [미결: 기대는 쪽의 정확한 이름]
+ */
+export const REQUIRED_BY_CORE_USERS: ReadonlyMap<string, readonly string[]> = new Map([
+  ["cap-workspace", ["core-tools"]],
+  ["cap-dialog", ["core-tools"]],
+]);
+
+/**
  * 코어 서비스가 아직 이 단위에 기대는 L2 내장 플러그인(M5c §4.1.17, `plugin.requiredByCore`). 도구 파이프라인의 파일 서비스(`cap-workspace`)와
  * 사람에게 묻기(`cap-dialog`)다. 프로필에 남지만 프로필과 무관하게 켜지고(E(T)), 프로필 편집이 이 단위를 빼면 거절한다.
  * E2의 L1 분할이 끝나면 이 표시와 오류를 지운다
  */
-export const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(["cap-workspace", "cap-dialog"]);
+export const REQUIRED_BY_CORE: ReadonlySet<string> = new Set(REQUIRED_BY_CORE_USERS.keys());
 
 /**
  * 숨은 시스템 프로필 `craft`의 id(M5c §4.8.5). 테스트 대화만 쓴다. 사용자가 고르지 않고 목록에 나오지 않으며 저장하지 않는다

@@ -182,3 +182,50 @@ test("a target that is already loading is awaited and loaded only once", async (
   await Promise.all([target, dependent]);
   expect(calls).toEqual(["ensure:zz-lib", "done:zz-lib", "ensure:aa-app", "done:aa-app"]);
 });
+
+// AGE-33 enDep 5b: 덧씌우기의 적재도 같은 길을 쓴다. 호출마다 주는 신호가 대상과 기대는 쪽에 그대로 가고, 같은 로더의 두 수명(대화와 덧씌우기)은 진행 중인 적재를 함께 쓴다.
+
+test("the signal given to ensureLoaded reaches the target and the dependent", async () => {
+  const seen: string[] = [];
+  const mine = new AbortController().signal;
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [recordOf("aa-app", [{ plugin: "zz-lib", kind: "hard" }]), recordOf("zz-lib")],
+      ensureLoaded: (name, signal) => {
+        seen.push(`ensure:${name}:${signal === mine ? "given" : "engine"}`);
+        return Promise.resolve(partial<LoadedExtensionInfo>({ name, state: "active" }));
+      },
+    }),
+  );
+  await lifecycle.ensureLoaded("aa-app", mine);
+  expect(seen).toEqual(["ensure:zz-lib:given", "ensure:aa-app:given"]);
+});
+
+test("two lifecycles over one loader load a shared hard target once while it is in flight", async () => {
+  const calls: string[] = [];
+  const gate = Promise.withResolvers<void>();
+  const loader = partial<ExtensionLoader>({
+    list: () => [
+      recordOf("aa-app", [{ plugin: "zz-lib", kind: "hard" }]),
+      recordOf("bb-app", [{ plugin: "zz-lib", kind: "hard" }]),
+      recordOf("zz-lib"),
+    ],
+    ensureLoaded: async (name) => {
+      calls.push(`ensure:${name}`);
+      if (name === "zz-lib") await gate.promise;
+      return partial<LoadedExtensionInfo>({ name, state: "active" });
+    },
+  });
+  const conversation = lifecycleOf(loader);
+  const overlay = lifecycleOf(loader);
+  const pending = Promise.all([
+    conversation.ensureLoaded("aa-app"),
+    overlay.ensureLoaded("bb-app"),
+  ]);
+  gate.resolve();
+  await pending;
+  expect(calls.filter((call) => call === "ensure:zz-lib")).toEqual(["ensure:zz-lib"]);
+  expect(
+    calls.filter((call) => call.startsWith("ensure:") && call !== "ensure:zz-lib").toSorted(),
+  ).toEqual(["ensure:aa-app", "ensure:bb-app"]);
+});

@@ -551,10 +551,16 @@ export function createScriptRunner(deps: ScriptRunnerDeps): PluginScriptPort {
       if (deps.sandboxAvailable?.() === false) {
         return err({ kind: "sandbox_unavailable", reason: "sandbox_off" });
       }
+      // 선언했지만 넘기지 않은 이름은 카드가 따로 알린다(AGE-33 enDep 11). 넘긴 이름은 `envNames`다
+      const passedNames = new Set(Object.keys(spec.env));
+      const envNotPassed = [...new Set(decl.envNames ?? [])].filter(
+        (name) => !passedNames.has(name),
+      );
       const card: ScriptCard = {
         command: spec.command,
         args: spec.args,
         envNames: Object.keys(spec.env),
+        ...(envNotPassed.length === 0 ? {} : { envNotPassed }),
         stdinBytes: new TextEncoder().encode(request.stdin).byteLength,
         stdinPreview: previewOf(request.stdin, deps.maskText),
         uses: narrow ? SCRIPT_NARROW_USES : SCRIPT_USES,
