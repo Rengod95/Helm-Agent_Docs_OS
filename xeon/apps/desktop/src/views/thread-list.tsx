@@ -36,7 +36,20 @@ import { SIDE_ROW } from "./side-row.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
-import { folderLabel, folderPartsOf, listedThreadsOf, sidebarGroupsOf } from "./thread-groups.ts";
+import {
+  FolderPath,
+  NESTED_CHILD_ROW,
+  NESTED_ROW,
+  ProjectPanel,
+} from "./project/project-panel.tsx";
+import { useProjects } from "./project/project-source.tsx";
+import {
+  folderLabel,
+  folderPartsOf,
+  listedThreadsOf,
+  sidebarGroupsOf,
+  sidebarRowsOf,
+} from "./thread-groups.ts";
 import {
   relativeTimeOf,
   rowBadgeOf,
@@ -82,6 +95,7 @@ function metaOf(
   unsent: boolean,
   now: number,
   urgent: boolean,
+  folder: string | null,
 ): ReactNode {
   const badge = rowBadgeOf(thread, approvals, child, unsent);
   switch (badge) {
@@ -108,6 +122,14 @@ function metaOf(
     case "forked":
       return t("desktop.threads.forkedBadge");
     case null:
+      // 프로젝트 패널의 최근 목록 꼴은 하위 폴더를 꼬리에 둔다(C10, m6Pj)
+      // 칸은 24 단계로 막아 제목이 먼저 보이고, 긴 경로는 가운데를 줄인다(마지막 폴더 이름은 남는다)
+      if (folder !== null)
+        return (
+          <span data-row-folder="" title={folder} className="flex max-w-24 min-w-0">
+            <FolderPath rel={folder} />
+          </span>
+        );
       // 제목 없는 대화는 서로 구분되도록 언제 만들었는지를 꼬리에 둔다
       return rowLabelOf(thread).dim
         ? relativeTimeText(relativeTimeOf(thread.createdAt, now))
@@ -182,6 +204,9 @@ const ThreadRow = memo(function ThreadRow(props: {
   readonly child: boolean;
   /** 지금 시각(ms). 제목 없는 줄의 상대 시각에 쓴다. 목록이 1분마다 올린다 */
   readonly now: number;
+  /** 프로젝트 패널: 줄 끝 하위 폴더(최근 목록 꼴)와 폴더 나무의 들인 줄 */
+  readonly folder?: string | null;
+  readonly nested?: boolean;
 }): ReactNode {
   const commands = useCommands();
   const shell = useShellActions();
@@ -223,7 +248,15 @@ const ThreadRow = memo(function ThreadRow(props: {
         // 줄 끝 한 칸: 꼬리 글이나 승인 수(둥근 면) · 진행 구슬(도는 중). 줄에는 크리스탈 표시를 두지 않는다(DP-189, lcMk3). 꼬리 글과 진행 구슬 사이 6
         meta={
           <span data-slot="row-meta" className="inline-flex items-center gap-1">
-            {metaOf(props.thread, approvals, props.child, unsent, props.now, urgent)}
+            {metaOf(
+              props.thread,
+              approvals,
+              props.child,
+              unsent,
+              props.now,
+              urgent,
+              props.folder ?? null,
+            )}
             {running && !attention ? <ProgressOrb className="ms-0.5" /> : null}
           </span>
         }
@@ -237,7 +270,17 @@ const ThreadRow = memo(function ThreadRow(props: {
           event.preventDefault();
           setMenuOpen(true);
         }}
-        className={[ROW_HEIGHT, label.dim ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
+        className={[
+          ROW_HEIGHT,
+          label.dim ? UNTITLED_LABEL : "",
+          props.nested === true
+            ? props.child
+              ? NESTED_CHILD_ROW
+              : NESTED_ROW
+            : props.child
+              ? CHILD_ROW
+              : "",
+        ]
           .filter((c) => c !== "")
           .join(" ")}
         onSelect={() => {
@@ -425,8 +468,12 @@ function OtherFolder(props: {
  */
 function FolderHeading(props: { readonly path: string }): ReactNode {
   const { name, parent } = folderPartsOf(props.path);
+  // 글 폭이 묶음 머리 칸의 최소 폭을 늘려 사이드바가 옆으로 밀리지 않게(`contain-inline-size`) 한다. 이름은 끝, 부모 경로는 앞을 줄인다
   return (
-    <span className="flex min-w-0 flex-1 items-baseline gap-1.5" title={props.path}>
+    <span
+      className="flex min-w-0 flex-1 items-baseline gap-1.5 contain-inline-size"
+      title={props.path}
+    >
       <span className="max-w-full shrink-0 truncate text-ui font-medium text-text-secondary">
         {name}
       </span>
@@ -493,15 +540,15 @@ export function ThreadList(props: {
   const now = useMinuteClock();
   const shown =
     query.trim() === "" ? threads : threads.filter((thread) => threadMatches(thread, query));
-  const groups = sidebarGroupsOf(shown);
+  const { load: projects } = useProjects();
+  const selected = useSelectedThreadId();
+  // 프로젝트를 읽었으면 프로젝트 패널(C10), 읽는 중이거나 엔진에 `project.*`가 없으면 예전 작업 폴더 묶음이다
+  const placed = sidebarRowsOf(shown);
+  const groups = projects.status === "ready" ? [] : sidebarGroupsOf(shown);
   const recent = recentWorkspacesOf(threads);
   // 새 대화·지운 대화·순서 바뀜은 FLIP으로 잇는다(dzM2 시안 §11). 찾기 글이 바뀐 커밋은 거르기라 움직이지 않는다
   const list = useRef<HTMLDivElement | null>(null);
-  useFlipList(
-    list,
-    groups.map((group) => group.items.map((row) => row.thread.threadId).join(",")).join("|"),
-    query.trim(),
-  );
+  useFlipList(list, placed.map((row) => row.thread.threadId).join(","), query.trim());
   return (
     <div ref={list} className={LIST_COLUMN}>
       {threads.length === 0 ? null : (
@@ -548,11 +595,36 @@ export function ThreadList(props: {
           {t("desktop.threads.search.empty", { query: query.trim() })}
         </p>
       ) : null}
+      {projects.status === "ready" ? (
+        <ProjectPanel
+          rows={placed}
+          projects={projects.projects}
+          pending={projects.pending}
+          searching={query.trim() !== ""}
+          selected={selected}
+          folderPick={props.folderPick}
+          onStart={(path) => {
+            start(path);
+          }}
+          onError={setError}
+          renderRow={(row, folder, nested) => (
+            <ThreadRow
+              key={row.thread.threadId}
+              thread={row.thread}
+              child={row.child}
+              now={now}
+              folder={folder}
+              nested={nested}
+            />
+          )}
+        />
+      ) : null}
       <ListNavigation
         aria-label={t("desktop.threads.listLabel")}
         kind="sessions"
         size="sm"
         as="div"
+        hidden={projects.status === "ready"}
       >
         {groups.map((group) => (
           <ListNavigationGroup

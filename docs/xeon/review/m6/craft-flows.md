@@ -169,7 +169,7 @@ binds: []
 
 | 묶음 | 내용 | 설계 |
 |---|---|---|
-| 프로필과 프로젝트 | 대화가 프로필을 참조, 프로필별 설정 값, 프로젝트(프로필과 독립), 일회 사용 | 설계 있음: `docs/xeon/review/m5/profile-project-loader.md`. 구현 없음 |
+| 프로필과 프로젝트 | 대화가 프로필을 참조, 프로필별 설정 값, 프로젝트(프로필과 독립), 일회 사용 | 설계 있음: `docs/xeon/review/m5/profile-project-loader.md`. 프로젝트는 엔진(`project.*`)과 화면(C10, T7)이 있다 [구현: m6Pj, 2026-11-22] |
 | 로더와 원본 | 폴더를 플러그인으로 인식, 스킬·명령·MCP 선언 불러오기, 검토본 고정과 원본 비교 | 설계 있음: M5c |
 | 기록과 지표 | 턴 기록 저장, 플러그인별 비용과 활동 집계, 지난 턴에 돌려 보기 | 설계 있음: `docs/xeon/review/m5/turn-record-metrics.md` |
 | 주도와 격리 | 단계 함수, 프레임 스택, 플러그인 프로세스 | `docs/xeon/review/m5/drive-isolation.md` |
@@ -535,6 +535,8 @@ P1은 처음부터 보인다. P2는 보이지만 작다. P3은 선택(펼침, �
 | P3 | 폴더 경로, worktree는 플러그인으로 가능하다는 설명 |
 | 경고 | 둘 다 같은 폴더에 쓸 수 있음. 막지 않는다 |
 
+[구현: m6Pj, 2026-11-22] 알림 둘은 대화 화면 입력창 위 카드이고 `L4.desktop-ux.spec` §6.1 "프로젝트 패널"이 층 쪽 정본입니다. 같은 폴더 알림은 `thread.create.sameFolder`(만들 때 한 번, 열린 대화까지 센다) 대신 목록의 `status: running`과 같은 작업 폴더로 정해, 그 대화가 멈추면 사라집니다. 승인 전 알림은 `project.get.pendingReview`이고 "리뷰 열기"로 C5에 갑니다.
+
 #### 6.8 C1 개요
 
 | 위계 | 정보 |
@@ -681,6 +683,8 @@ P1은 처음부터 보인다. P2는 보이지만 작다. P3은 선택(펼침, �
 | P3 | 지침 파일 목록(루트에서 대화 폴더까지), 이름 바꾸기, 삭제(대화는 남는다) |
 | 경고 | 루트 폴더가 사라짐, 같은 폴더 동시 대화 |
 
+[구현: m6Pj, 2026-11-22] 대화 영역의 왼쪽 사이드바 목록이 프로젝트 묶음이 됩니다(`L4.desktop-ux.spec` §6.1 "프로젝트 패널"). 꼴은 폴더 나무(기본)와 최근 목록 둘이고 개발 빌드에서만 바꿔 봅니다. 루트가 사라진 경고는 프로젝트 설정 창에만 있습니다. `project.list`에 루트 상태가 없어 사이드바에서는 알 수 없습니다(7절 "빠진 것"). 지침 파일은 루트의 `AGENTS.md` 하나만 보입니다(대화 폴더까지의 목록은 `project.instructions { workspace }`가 주지만 설정 창은 루트 기준이다).
+
 #### 6.18 C11 플러그인 화면 칸
 
 | 위계 | 정보 |
@@ -712,7 +716,7 @@ P1은 처음부터 보인다. P2는 보이지만 작다. P3은 선택(펼침, �
 | C7 | `craftChat.list`, 대화 읽기 | `craftChat.changed` | `craftChat.open`, 일반 `turn.start` | (M5c §4.8 적용) |
 | C8 | `turnRecord.list/get`(§3.5), `blocks.describe` | `turnRecord.delta` | | (`TurnRecord.children` 적용) |
 | C9 | `findings.list/evidence`, `metrics.catalog/query`, `profileCost.get`(§3.5) | | `findings.dismiss` | 표본 부족 설명 |
-| C10 | `project.list/get/instructions`(M5c §3.4), `thread.list { workspace }` | `project.changed` | `project.create/rename/delete`, `thread.create` | (M5c-11 적용. 기본 프로필은 없다) |
+| C10 | `project.list/get/instructions`(M5c §3.4), `thread.list { workspace }` | `project.changed` | `project.create/rename/delete`, `thread.create` | (M5c-11 적용. 기본 프로필은 없다) `project.list`에 루트를 찾을 수 있는지가 없다 [근거: `xeon/packages/contracts/src/wire-settings/wire/project.ts` `ProjectListItem`]. 이름은 `pluginReview.list`를 `card.origin.projectId`로 걸러 얻는다 |
 | C11 | `ext.ui.list`, `plugin.get` | | | (M5c-6 적용) |
 
 테스트의 기록 분리: C6이 읽는 `scope=test`와 `overlay_draft`는 지표 기본 필터에서 빠진다(M5d §4.6 규칙 33). C9의 필터에서 사용자가 명시로 켤 때만 나온다.

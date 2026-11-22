@@ -27,6 +27,7 @@ import { useNoticeFeed } from "./notices.tsx";
 import { useProposalPending } from "./proposal-pending-context.tsx";
 import { ChatHeader } from "./chat-header.tsx";
 import { ChatLoadError } from "./chat-load-error.tsx";
+import { ProjectNotices } from "./project/project-notices.tsx";
 import { NowStrip } from "./now/now-strip.tsx";
 import { Composer } from "./composer.tsx";
 import { ComposerBeam, ThreadLoadBeam } from "./effects/convo-beam.tsx";
@@ -119,6 +120,7 @@ function ChatScreen(): ReactNode {
             <TrustCard />
             <ApprovalQueue />
             <SafeModeCard />
+            {spawned ? null : <ProjectNotices />}
             {spawned ? null : <NowStrip />}
           </div>
           {/* 대화 맥락 줄(DP-71)은 입력창 바로 위에 붙는다. 폴더가 없어졌다는 경고도 이 줄의 폴더 칸이 보인다 */}

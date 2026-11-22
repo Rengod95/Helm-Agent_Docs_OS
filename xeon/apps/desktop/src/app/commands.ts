@@ -56,6 +56,7 @@ import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
 import { createPluginReviewCommands } from "./plugin-review.ts";
+import { createProjectCommands } from "./projects.ts";
 import { createMemoryCommands } from "./memory.ts";
 import { createSkillCommands } from "./skills.ts";
 import { createSetupCommands } from "./setup.ts";
@@ -641,6 +642,9 @@ export function createCommands(
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
     pluginReview: createPluginReviewCommands(withConnection, withWriteConnection, () =>
+      session.connection(),
+    ),
+    projects: createProjectCommands(withConnection, withWriteConnection, () =>
       session.connection(),
     ),
     skills: createSkillCommands(withConnection),

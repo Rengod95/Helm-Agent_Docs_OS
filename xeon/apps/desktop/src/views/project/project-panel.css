@@ -1,0 +1,15 @@
+/* 프로젝트 패널(project-panel.tsx, C10). 프로젝트 머리의 ⋯와 하위 폴더 머리의 "+"는 그 머리에 올리거나 초점이 있거나 메뉴가 열렸을 때만 보인다
+   (대화 줄 ⋯와 같은 규칙, styles.css [data-row-menu]). 자리는 늘 잡혀 있어 나타나도 글이 밀리지 않는다 */
+@layer components {
+  [data-slot="list-navigation-heading"] [data-project-menu],
+  [data-project-folder] button {
+    opacity: 0;
+  }
+  [data-slot="list-navigation-heading"]:hover [data-project-menu],
+  [data-slot="list-navigation-heading"]:focus-within [data-project-menu],
+  [data-project-menu][aria-expanded="true"],
+  [data-project-folder]:hover button,
+  [data-project-folder]:focus-within button {
+    opacity: 1;
+  }
+}
