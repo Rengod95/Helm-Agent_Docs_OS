@@ -99,7 +99,7 @@ describe("Strata render", () => {
     expect(row).not.toContain("aria-keyshortcuts");
     expect(row).not.toContain("cursor:grab");
     expect(row).not.toContain("group-hover/pill:opacity-100");
-    expect(row).toContain("›");
+    expect(row).toContain('data-icon="ChevronRight"');
   });
 
   test("a collect row with two handlers is read only too", () => {

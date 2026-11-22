@@ -16,7 +16,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@caustic/react";
-import { ChevronLeft } from "@caustic/react/icons";
+import { ChevronLeft, ChevronRight } from "@caustic/react/icons";
 import { Fragment, useState, type ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
 import { HEADER_SEGMENTED_SIZE, ScreenHeader } from "../../shell/screen-header.tsx";
@@ -149,7 +149,8 @@ function TurnRail(props: { readonly data: TraceData; readonly page: TurnPage }):
   const items = props.page.items;
   return (
     <div className="grid min-h-0 content-start gap-2">
-      <div className="flex h-7 items-center gap-2 px-2">
+      {/* 머리와 안내 글은 아래 턴 줄(ListNavigation sm, 안쪽 10)의 글 시작선에 맞춘다. 8이면 2px 왼쪽으로 났다(AGE-32, DP-227) */}
+      <div className="flex h-7 items-center gap-2 px-2.5">
         <h2 className="text-ui font-semibold text-text-primary">
           {t("desktop.craft.trace.rail.title")}
         </h2>
@@ -160,7 +161,7 @@ function TurnRail(props: { readonly data: TraceData; readonly page: TurnPage }):
         </span>
       </div>
       {props.page.off ? (
-        <p className="px-2 text-ui-sm text-text-secondary">{t("desktop.craft.trace.rail.off")}</p>
+        <p className="px-2.5 text-ui-sm text-text-secondary">{t("desktop.craft.trace.rail.off")}</p>
       ) : null}
       <ListNavigation aria-label={t("desktop.craft.trace.rail.label")} size="sm">
         {items.map((turn) => (
@@ -565,9 +566,8 @@ function DriveSection(props: { readonly record: TurnRecord }): ReactNode {
                 key={f.leaseId ?? String(i)}
                 className="flex items-center gap-1.5 text-text-primary"
               >
-                <span aria-hidden="true" className="text-text-tertiary">
-                  ›
-                </span>
+                {/* 글자 "›"는 라틴 x 높이에 앉아 줄 가운데보다 1.4px 낮았다. 아이콘은 줄 가운데에 선다(AGE-32, DP-227) */}
+                <ChevronRight aria-hidden className="size-3 flex-none text-text-tertiary" />
                 <span style={{ color: KIND_COLOR.drive }}>
                   <KindGlyph kind="drive" />
                 </span>

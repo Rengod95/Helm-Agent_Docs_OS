@@ -294,7 +294,8 @@ function indicatorOf(step: StepState): StepIndicator {
   return step.id === "tools" && !step.unknown ? "failed" : "todo";
 }
 
-/** 단계 머리의 원: 끝나면 체크, 필수 도구가 막히면 경고, 그 밖은 번호다(시안 Indicator) */
+/** 단계 머리의 원: 끝나면 체크, 필수 도구가 막히면 경고, 그 밖은 번호다(시안 Indicator).
+ *  번호 줄은 원 안쪽(14 - 선 2 = 12)과 같은 12다. 11px 글에 줄 11(leading-none)이면 기준선이 내림돼 숫자가 0.53px 떴다(AGE-32, DP-227) */
 function Indicator(props: { readonly n: number; readonly status: StepIndicator }): ReactNode {
   if (props.status === "done")
     return (
@@ -309,7 +310,7 @@ function Indicator(props: { readonly n: number; readonly status: StepIndicator }
       </span>
     );
   return (
-    <span className="grid size-full place-items-center rounded-full border border-border-default text-ui-xs leading-none text-text-secondary">
+    <span className="grid size-full place-items-center rounded-full border border-border-default text-ui-xs leading-3 text-text-secondary">
       {props.n}
     </span>
   );
