@@ -86,13 +86,19 @@ function nameOf(choice: TargetChoice): string {
   return choice.kind === "local" ? t("desktop.connection.targets.local") : choice.entry.label;
 }
 
-/** 원격 주소 요약(`SSH · dev@10.0.0.5`). 풀리지 않는 주소는 그대로 보인다 */
+/** 원격 주소의 종류 이름(`SSH`). 풀리지 않는 주소는 종류가 없다(null) */
+export function addressKindOf(address: string): string | null {
+  const badge = hostBadgeOf(address);
+  return badge === null ? null : t(badge);
+}
+
+/** 원격 주소의 글(`dev@10.0.0.5`). 종류는 `addressKindOf`로 따로 보인다. 풀리지 않는 주소는 그대로 보인다 */
 export function addressSummaryOf(address: string): string {
   const parsed = parseTargetAddress(address);
   const badge = hostBadgeOf(address);
   if (!parsed.ok || badge === null) return address;
   const target = parsed.target;
-  const where = ((): string => {
+  return ((): string => {
     switch (target.kind) {
       case "ssh":
         return `${target.user === null ? "" : `${target.user}@`}${target.host}${target.port === null ? "" : `:${target.port}`}`;
@@ -105,7 +111,6 @@ export function addressSummaryOf(address: string): string {
         return assertNever(target, "TargetAddress");
     }
   })();
-  return `${t(badge)} · ${where}`;
 }
 
 /** 이 컴퓨터의 요약 줄. 서비스로 돌면 "앱을 닫아도 계속 돌아요", 앱 안이면 "앱 안에서 돌아요"에 시작 시각을 잇는다 */
@@ -286,6 +291,7 @@ export function ConnectionHero(props: SectionContext & HeroExtras): ReactNode {
   const status = heroStatusOf(state, engine);
   const loading = state.status.kind === "loading";
   const summary = remoteTarget ? null : localSummaryOf(state, locale);
+  const remoteKind = choice.kind === "remote" ? addressKindOf(choice.entry.address) : null;
   const host = state.status.kind === "ready" ? state.status.snapshot.host : null;
   const locked = state.busy || state.pending !== null;
   const lines: string[] = [];
@@ -343,9 +349,14 @@ export function ConnectionHero(props: SectionContext & HeroExtras): ReactNode {
             {choice.kind === "remote" ? (
               <p
                 data-slot="hero-address"
-                className="m-0 truncate font-mono text-mono-sm text-text-tertiary"
+                className="m-0 flex min-w-0 items-baseline gap-2 font-mono text-mono-sm text-text-tertiary"
               >
-                {addressSummaryOf(choice.entry.address)}
+                {remoteKind === null ? null : (
+                  <>
+                    <span className="flex-none">{remoteKind}</span>{" "}
+                  </>
+                )}
+                <span className="min-w-0 truncate">{addressSummaryOf(choice.entry.address)}</span>
               </p>
             ) : loading ? (
               <Skeleton width="40%" height={14} />

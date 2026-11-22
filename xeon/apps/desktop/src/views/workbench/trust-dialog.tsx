@@ -99,10 +99,18 @@ export function TrustDialog(props: {
               {originText(entry.origin)}
             </ListDescriptionRow>
             <ListDescriptionRow term={t("desktop.workbench.detail.grade")}>
-              {t("desktop.workbench.detail.grade.value", {
-                requested: entry.requestedGrade,
-                effective: entry.effectiveGrade,
-              })}
+              <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+                <span>
+                  {t("desktop.workbench.detail.grade.requested", {
+                    requested: entry.requestedGrade,
+                  })}
+                </span>{" "}
+                <span className="text-text-tertiary">
+                  {t("desktop.workbench.detail.grade.effective", {
+                    effective: entry.effectiveGrade,
+                  })}
+                </span>
+              </span>
             </ListDescriptionRow>
             <ListDescriptionRow term={t("desktop.workbench.detail.tab.hooks")}>
               {t("desktop.install.parts.hooks", { count: entry.hookCount })}

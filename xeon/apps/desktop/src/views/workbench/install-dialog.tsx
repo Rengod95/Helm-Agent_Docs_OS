@@ -358,22 +358,34 @@ export function InstallDialog(props: {
                 {t("desktop.install.section.parts")}
                 <InfoTip text={t("desktop.install.info.parts")} />
               </span>
-              <span className="text-ui-dense text-text-secondary">
-                {t("desktop.install.parts.hooks", { count: flow.preview.hooks.length })}
-                {flow.preview.drives ? ` · ${t("desktop.install.parts.drives")}` : ""}
+              <span className="flex flex-wrap items-baseline gap-2 text-ui-dense text-text-secondary">
+                <span>
+                  {t("desktop.install.parts.hooks", { count: flow.preview.hooks.length })}
+                </span>
+                {flow.preview.drives ? (
+                  <>
+                    {" "}
+                    <span>{t("desktop.install.parts.drives")}</span>
+                  </>
+                ) : null}
               </span>
               <InstallHookList hooks={hooksOf(flow.preview)} />
               <span className="text-ui-dense text-text-secondary">
                 {t("desktop.install.parts.screens", { count: flow.preview.screens.length })}
               </span>
               {flow.preview.screens.map((screen) => (
-                <span key={screen.id} className="text-ui text-text-tertiary">
-                  {t(
-                    screen.mode === "app"
-                      ? "desktop.install.parts.screen.app"
-                      : "desktop.install.parts.screen.native",
-                    { title: screen.title },
-                  )}
+                <span
+                  key={screen.id}
+                  className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary"
+                >
+                  <span className="min-w-0">{screen.title}</span>{" "}
+                  <span className="flex-none">
+                    {t(
+                      screen.mode === "app"
+                        ? "desktop.install.parts.screen.app"
+                        : "desktop.install.parts.screen.native",
+                    )}
+                  </span>
                 </span>
               ))}
             </div>
@@ -440,16 +452,14 @@ export function InstallHookList(props: { readonly hooks: readonly InstallHook[] 
         <span
           key={hook.id}
           data-blocks-tools={hook.blocksTools ? "true" : undefined}
-          className={
+          className={`flex min-w-0 items-baseline gap-2 ${
             hook.blocksTools
               ? "text-ui-dense font-medium text-text-primary"
               : "text-ui text-text-tertiary"
-          }
+          }`}
         >
-          {t("desktop.install.hook.line", {
-            event: hookEventText(hook.id),
-            power: t(HOOK_POWER_TEXT[hook.power]),
-          })}
+          <span>{hookEventText(hook.id)}</span>{" "}
+          <span className="flex-none text-text-tertiary">{t(HOOK_POWER_TEXT[hook.power])}</span>
         </span>
       ))}
     </>

@@ -509,19 +509,18 @@ function DetailHead(props: { readonly detail: AddonDetail; readonly ops: DetailO
             {detail.description}
           </p>
         )}
-        <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 text-ui-sm font-normal text-text-tertiary">
+        <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-2 text-ui-sm font-normal text-text-tertiary">
           <span className="font-mono">{row.name}</span>
           {row.version === "" ? null : (
             <>
-              <span aria-hidden>·</span>
-              <span>v{row.version}</span>
+              {" "}
+              <span>{`v${row.version}`}</span>
             </>
-          )}
-          <span aria-hidden>·</span>
+          )}{" "}
           <span>{t(ORIGIN_TEXT[row.trust])}</span>
           {detail.isOrchestration ? (
             <>
-              <span aria-hidden>·</span>
+              {" "}
               <span>{t("desktop.addons.detail.group")}</span>
             </>
           ) : null}
@@ -878,8 +877,13 @@ function DiagnosticRow(props: { readonly item: ExtDiagnostic }): ReactNode {
           </span>
           {item.message}
         </span>
-        <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-          {where === undefined ? item.code : `${where} · ${item.code}`}
+        <span className="flex min-w-0 items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
+          {where === undefined ? null : (
+            <>
+              <span className="min-w-0 truncate">{where}</span>{" "}
+            </>
+          )}
+          <span className="min-w-0 truncate">{item.code}</span>
         </span>
       </span>
     </li>

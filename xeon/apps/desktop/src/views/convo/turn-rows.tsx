@@ -3,7 +3,7 @@ import { TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ItemId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import type { ConvoMarker } from "../../state/engine/convo.ts";
 import {
   useLeadSegments,
@@ -12,6 +12,7 @@ import {
 } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { useModelNameOf } from "../model-usage.ts";
+import { MetaParts } from "../meta-parts.tsx";
 import { ReplyActions } from "./message-actions.tsx";
 import { DrivingBy } from "./drive-stack.tsx";
 import { InvokedMark } from "./one-shot.tsx";
@@ -87,10 +88,10 @@ export function TurnFoot(props: {
   const summary =
     props.turnId === null ? undefined : turns.find((turn) => turn.turnId === props.turnId);
   const stop = summary === undefined ? null : stopNoticeOf(summary);
-  const meta = summary === undefined ? "" : turnMetaOf(summary, nameOf);
+  const meta = summary === undefined ? [] : turnMetaOf(summary, nameOf);
   const lines = summary === undefined ? [] : turnDetailLinesOf(summary);
   const invoked = summary?.invoked.length ?? 0;
-  if (stop === null && meta === "" && props.replyId === null && invoked === 0) return null;
+  if (stop === null && meta.length === 0 && props.replyId === null && invoked === 0) return null;
   return (
     <div className="grid gap-1" data-slot="convo-turn-foot">
       {stop === null ? null : (
@@ -108,8 +109,10 @@ export function TurnFoot(props: {
         {/* 원샷 표지는 턴 값(단계·시간)과 같은 오른쪽 묶음에 선다. 왼쪽 답 동작은 hover 전에도 자리를 차지한다 */}
         <div className="ml-auto flex min-w-0 items-center gap-1">
           {summary === undefined ? null : <InvokedMark invoked={summary.invoked} />}
-          {meta === "" ? null : lines.length === 0 ? (
-            <span className="convo-line-meta px-1.5">{meta}</span>
+          {meta.length === 0 ? null : lines.length === 0 ? (
+            <span className="convo-line-meta inline-flex items-baseline gap-3 px-1.5">
+              <MetaParts parts={meta} />
+            </span>
           ) : (
             <Tooltip
               side="top"
@@ -122,8 +125,11 @@ export function TurnFoot(props: {
                 </span>
               }
             >
-              <span className="convo-line-meta rounded-xs px-1.5" tabIndex={0}>
-                {meta}
+              <span
+                className="convo-line-meta inline-flex items-baseline gap-3 rounded-xs px-1.5"
+                tabIndex={0}
+              >
+                <MetaParts parts={meta} />
               </span>
             </Tooltip>
           )}
@@ -159,7 +165,9 @@ export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
 /**
  * Drive 구간 머리(lcM6g, 사용자 2026-11-21: 보라 점과 왼쪽 띠를 없앴다). 색 없는 조용한 한 줄이다: 지금 Drive 중이면
  * "Driving by authoring"(앞 글 13/400 secondary, 이름 13/500 primary. 물결은 입력창 위 띠만 흐르므로 여기는 멈춰 있다), 끝났으면
- * "authoring의 Drive", 이어서 한도 칸(12 tertiary, 가운데 점으로 나눔). 구간의 시작은 이 줄이, 끝은 끝 줄(`LeadEnd`)이 말한다
+ * "authoring의 Drive". 한도 칸("0/4턴", "토큰 0/40만", "위임 0/8", 12 tertiary)은 줄 오른쪽 끝 묶음에 서고 칸 사이는 12다
+ * (lcDot, 사용자 2026-11-22 "가운뎃점 절대 쓰지마": 가운뎃점 대신 자리와 간격으로 나눈다. 턴 발 줄의 오른쪽 메타와 같은 끝선,
+ * 입력창 위 띠의 턴 수와 같은 문법). 줄들은 28 높이 칸의 세로 가운데에 서고(끝 줄 `LeadEnd`와 같다), 줄 안의 글은 기준선을 맞춘다. 좁으면 한도 묶음이 다음 줄 오른쪽으로 내려간다. 구간의 시작은 이 줄이, 끝은 끝 줄(`LeadEnd`)이 말한다
  */
 export function LeadHead(props: {
   readonly threadId: ThreadId;
@@ -171,7 +179,7 @@ export function LeadHead(props: {
   const meters = leadMetersOf(lead);
   return (
     <div
-      className="flex min-h-7 min-w-0 flex-wrap items-baseline gap-y-1"
+      className="flex min-h-7 min-w-0 flex-wrap content-center items-baseline gap-x-3 gap-y-1"
       data-slot="convo-lead-head"
     >
       {lead.active ? (
@@ -189,15 +197,20 @@ export function LeadHead(props: {
         </span>
       )}
       {meters.length === 0 ? null : (
-        // 칸마다 앞에 가운데 점. 점 양옆은 6으로 같다(글자 빈칸을 쓰지 않아 점이 뒤 글에 붙어 보이지 않는다)
-        <span data-slot="convo-lead-meters" className="convo-line-meta flex items-baseline">
-          {meters.map((meter) => (
-            <span key={meter.text} className="whitespace-nowrap">
-              <span aria-hidden className="px-1.5">
-                ·
+        <span
+          data-slot="convo-lead-meters"
+          className="convo-line-meta ms-auto flex items-baseline gap-3 tabular-nums"
+        >
+          {meters.map((meter, index) => (
+            <Fragment key={meter.text}>
+              {index === 0 ? null : " "}
+              <span
+                data-slot="convo-lead-meter"
+                className={meter.warn ? "convo-meter-warn whitespace-nowrap" : "whitespace-nowrap"}
+              >
+                {meter.text}
               </span>
-              <span className={meter.warn ? "convo-meter-warn" : undefined}>{meter.text}</span>
-            </span>
+            </Fragment>
           ))}
         </span>
       )}

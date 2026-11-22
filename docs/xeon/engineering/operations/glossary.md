@@ -117,7 +117,7 @@ binds: []
 | Driver / drive lock | 주도 | Lead | `drive`, `lease.acquired`, `lease.released`, `lease.rejected` | proposed |
 | Embedded | 이 컴퓨터(앱 안) | This computer (in app) | — | proposed |
 | Extension | 확장 | Extension | `ExtensionManifest` | proposed |
-| fold | 보기·막기·고치기·모으기 | Observe·Block·Modify·Collect | `tap`, `first`, `chain`, `collect` | proposed |
+| fold | 보기, 막기, 고치기, 모으기 | Observe, Block, Modify, Collect | `tap`, `first`, `chain`, `collect` | proposed |
 | Hook(런타임 생애주기 훅) | 훅 | Hook | `HookName`, `HookDecl`, `HookKind`, `HOOKS`, `HOOK_NAMES` | proposed |
 | Hook handler | 핸들러 | Handler | — | proposed |
 | Injection mode | 주입 방식 | Injection mode | `InjectionMode` | proposed |
@@ -132,12 +132,12 @@ binds: []
 | Orchestration | 오케스트레이션 | Orchestration | `L3` | proposed |
 | System | 시스템 | System | `L0` | proposed |
 | Native UI | 기본 UI | Native UI | `declarative`, `native`, `ViewNode` | proposed |
-| Placement | 전체 화면·옆 패널·대화 카드·상태 표시줄·명령·설정 | Page·Side panel·Card·Status bar·Command·Settings | `page`, `well`, `card`, `status`, `command`, `settings` | proposed |
+| Placement | 전체 화면, 옆 패널, 대화 카드, 상태 표시줄, 명령, 설정 | Page, Side panel, Card, Status bar, Command, Settings | `page`, `well`, `card`, `status`, `command`, `settings` | proposed |
 | Plugin | 플러그인 | Plugin | — | proposed |
 | Plugin App | 플러그인 앱 | Plugin app | `frame`, `app`, `FrameDecl`, `AppDecl` | proposed |
 | Plugin Builder | 플러그인 빌더 | Plugin Builder | `plugin-builder` | proposed |
 | Plugin UI | 플러그인 UI | Plugin UI | `views`, `ui`, `ViewContribution`, `UiContribution` | proposed |
-| post | 입력 넣기: 바로·끝난 뒤·다음 요청에 | Post: Now·After·Next request | `steer`, `followUp`, `next` | proposed |
+| post | 입력 넣기: 바로, 끝난 뒤, 다음 요청에 | Post: Now, After, Next request | `steer`, `followUp`, `next` | proposed |
 | Process lock | — | — | `sys_leases` | proposed |
 | Fresnel | 프레넬 | Fresnel | — | proposed |
 | Profile | 프로필 | Profile | `Profile` | proposed |
@@ -146,12 +146,12 @@ binds: []
 | Replay test | 재실행 검사 | Replay test | `replayDrive` | proposed |
 | Runtime API | — | — | — | proposed |
 | Runtime Server | 런타임 서버 | Runtime server | `apps/host`, `host.*` | proposed |
-| Schedule(once / recurring) | 예약: 한 번·반복 | Schedule: Once·Recurring | `once`, `repeat`, `TriggerSpec` | proposed |
+| Schedule(once / recurring) | 예약: 한 번, 반복 | Schedule: Once, Recurring | `once`, `repeat`, `TriggerSpec` | proposed |
 | Scheduler leader | — | — | — | proposed |
 | Secret | 시크릿 | Secret | — | proposed |
 | Secret ref | 시크릿 참조 | Secret ref | `secret://` | proposed |
 | Secret registry | 시크릿 목록 | Secret registry | — | proposed |
-| Stages | 단계 자리: 트리거·펼치기·모으기·적용 | Trigger·Fan-out·Fan-in·Apply | `trigger`, `fanOut`, `fanIn`, `apply` | proposed |
+| Stages | 단계 자리: 트리거, 펼치기, 모으기, 적용 | Trigger, Fan-out, Fan-in, Apply | `trigger`, `fanOut`, `fanIn`, `apply` | proposed |
 | Step | 단계 | Step | `StepId`, `boundary.step.*` | proposed |
 | Step boundary | 단계가 끝나면 | After this step | — | proposed |
 | Task Queue | 작업 큐 | Tasks | — | proposed |

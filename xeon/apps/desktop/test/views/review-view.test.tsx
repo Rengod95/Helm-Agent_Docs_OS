@@ -196,7 +196,9 @@ describe("review screen states", () => {
       "ms 단위 주석 필요",
     );
     const html = render(view({ state: withState({ draft }) }));
-    expect(html).toContain(t("desktop.review.summary", { approved: 1, rejected: 1, pending: 1 }));
+    expect(html).toContain(t("desktop.review.summary.pending", { pending: 1 }));
+    expect(html).toContain(t("desktop.review.summary.approved", { approved: 1 }));
+    expect(html).toContain(t("desktop.review.summary.rejected", { rejected: 1 }));
     expect(html).toContain(t("desktop.review.hunk.decision.approved"));
     expect(html).toContain(t("desktop.review.hunk.decision.rejected"));
     expect(html).toContain("ms 단위 주석 필요");
@@ -245,7 +247,8 @@ describe("review screen states", () => {
 describe("the submit result table, the key hints, and the line comments", () => {
   test("the key hints sit behind the footer's info icon, so the footer shows no hint line of its own", () => {
     const html = render(view({}));
-    expect(html).toContain(t("desktop.review.keys"));
+    expect(html).toContain(t("desktop.review.key.file"));
+    expect(html).toContain(t("desktop.review.key.cancel"));
     expect(html).toContain('aria-label="' + t("desktop.craft.infoTip.label") + '"');
   });
 

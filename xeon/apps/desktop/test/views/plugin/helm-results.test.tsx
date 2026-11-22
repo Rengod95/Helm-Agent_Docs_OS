@@ -138,7 +138,7 @@ describe("탐구 결과 구역: 목록 줄", () => {
     expect(running).not.toContain("적용됨");
     const finished = textOf(rowOf(html, "캐시 무효화"));
     expect(finished).toContain("끝남");
-    expect(finished).toContain("적용됨 · 발견 2개");
+    expect(finished).toContain("적용됨 발견 2개");
   });
 
   test("주제가 빈 탐구는 주제 없음으로 보인다", () => {

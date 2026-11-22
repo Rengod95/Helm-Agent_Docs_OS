@@ -4,6 +4,7 @@ import { t } from "@fresnel/client/i18n";
 import type { ReactNode } from "react";
 import { PresenceItem, PresenceList } from "../../lib/motion-presets.tsx";
 import { BeamBand, type BeamState } from "../effects/beam.tsx";
+import { MetaParts } from "../meta-parts.tsx";
 import {
   driveBandShownOf,
   driveCardOf,
@@ -17,7 +18,7 @@ import {
 
 // Drive 스택 그림 둘(lcM6b~lcM6e, L4 desktop-ux §6.6.1). 둘은 같은 칸을 같은 말(`DriveStep.stateText`)로 말한다.
 // - 띠(`DriveStackBand`): 입력창 윗변에 붙은 얇은 탭(보이는 줄 28). 셋만 있다(lcM6g, 사용자 2026-11-21): "Driving by <플러그인 이름>" 한 구절
-//   ("Driving by"는 무채색 글이고 턴이 도는 동안 밝기 물결, 이름은 또렷하게), 가운뎃점 뒤 턴 수("· 2/4턴", 막대 없음: lcM6i), 멈추기 단추(xs soft).
+//   ("Driving by"는 무채색 글이고 턴이 도는 동안 밝기 물결, 이름은 또렷하게), 오른쪽 끝 묶음의 턴 수("2/4턴", 막대 없음: lcM6i)와 멈추기 단추(xs soft).
 //   기다리는 플러그인 수, 드래프트 표시, 도움말은
 //   오른쪽 패널(런타임 탭의 Drive 카드와 쌓인 판, Drive 제목 옆 정보 아이콘)이 맡는다.
 //   Drive가 턴을 돌리는 동안 입력창의 빛이 띠의 윗변으로 옮겨 온다(`BeamBand`, 입력창 빛은 꺼진다). 좁으면 턴 수를 뺀다(@container).
@@ -249,11 +250,12 @@ const BAND_ROW = "h-[var(--drive-band-h,28px)]";
 
 /**
  * 띠의 한 줄(lcM6g, 사용자 2026-11-21 "Driving by <plugin name>"). 왼쪽부터 한 구절 "Driving by authoring"("Driving by" 12/500 무채색,
- * 턴이 도는 동안 밝기 물결. 이름 13/600 primary), 가운뎃점(양옆 6) 뒤 "2/4턴"(12 tertiary), 남는 폭(24 이상)을 지나 오른쪽 끝 멈추기(xs soft, 띠 끝에서 6).
- * 턴 막대는 없다(lcM6i, 사용자 2026-11-21 "턴 막대는 그냥 제거하자"). 구절과 턴 수는 대화 기록의 Drive 머리 줄("Driving by authoring · 0/4턴 · …")과
- * 같은 문법이다: 한 기준선에 서고 가운뎃점이 둘을 가른다(간격만 둔 안은 턴 수가 이름에서 떨어져 떠 보였다. `_notes/design/lc/lcM6i-shots/band-options-*.png`).
+ * 턴이 도는 동안 밝기 물결. 이름 13/600 primary), 남는 폭(24 이상)을 지나 오른쪽 끝 묶음에 "2/4턴"(12 tertiary)과
+ * 그 뒤 12의 멈추기(xs soft, 띠 끝에서 6). 턴 막대는 없다(lcM6i, 사용자 2026-11-21 "턴 막대는 그냥 제거하자"). 가운뎃점은 쓰지 않는다(lcDot, 사용자
+ * 2026-11-22 "가운뎃점 절대 쓰지마", desktop-ux §13.0 DP-226): 대화 기록의 Drive 머리 줄(왼쪽 구절, 오른쪽 끝 한도 칸)과 같은 문법으로 자리가 둘을 가른다.
+ * 구절 뒤 12에 턴 수를 둔 안(B)과 "턴" 이름표를 나눈 안(C)은 버렸다(`_notes/design/lc/lcDot-shots/band-options-*.png`).
  * 맨 위 칸이 Driving이 아니면(답을 기다림 등) 구절 대신 상태 글과 이름을 8 떨어뜨려 둔다. 줄은 윗변 테두리(1px) 아래 27px의 가운데에 선다(`pt-px`).
- * 구절의 두 글과 턴 수는 한 기준선에 서고, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
+ * 구절, 턴 수, 멈추기 단추는 한 세로 가운데(차 0px, lcDot 실측)에 서고, 네모는 "멈추기"의 한글 가운데에 맞췄다(8배 실측, §6.6.1)
  */
 function BandBody(props: {
   readonly view: DriveStackView;
@@ -310,26 +312,22 @@ function BandBody(props: {
               </span>
             </span>
           )}
-          {turns === undefined ? null : (
-            // 가운뎃점 양옆은 6으로 같다(대화 기록 머리 줄과 같은 점). 점은 꾸밈이라 읽지 않는다
-            <span
-              data-slot="drive-band-turns"
-              className="hidden shrink-0 items-baseline text-footnote tabular-nums @min-[26rem]:inline-flex"
-            >
-              <span aria-hidden data-slot="drive-band-sep" className="px-1.5 text-text-tertiary">
-                ·
-              </span>
-              <span
-                data-slot="drive-band-turns-text"
-                className={turns.warn ? "text-warning-text" : "text-text-tertiary"}
-              >
-                {turns.text}
-              </span>
-            </span>
-          )}
         </span>
         <span className="min-w-6 flex-1" />
-        {props.stop === null ? null : <StopButton stop={props.stop} onSoft />}
+        {/* 오른쪽 묶음: 턴 수와 멈추기. 턴 수는 멈추기 글과 같은 12이고 둘 사이는 12다. 멈추기가 없으면 턴 수가 8 더 들어와 끝 여백이 왼쪽 들임 14와 같다 */}
+        <span data-slot="drive-band-end" className="flex shrink-0 items-center gap-3">
+          {turns === undefined ? null : (
+            <span
+              data-slot="drive-band-turns"
+              className={`hidden text-footnote tabular-nums @min-[26rem]:inline ${
+                props.stop === null ? "pe-2" : ""
+              } ${turns.warn ? "text-warning-text" : "text-text-tertiary"}`}
+            >
+              {turns.text}
+            </span>
+          )}
+          {props.stop === null ? null : <StopButton stop={props.stop} onSoft />}
+        </span>
       </div>
     </div>
   );
@@ -340,7 +338,7 @@ const INSET = ["", "mx-2", "mx-4", "mx-6"] as const;
 
 /**
  * 런타임 탭·검사 탭의 Drive 스택. 맨 위 판이 지금 Drive를 쥔 칸의 카드이고, 아래로 핸드오프하고 기다리는 판, 맨 아래가 "기본"이다.
- * 아래 판은 위 판 뒤로 8px 들어가고 양옆이 8px씩 좁아진다. 플러그인 프레임이 없으면 "기본 · Drive 없음" 판 하나다.
+ * 아래 판은 위 판 뒤로 8px 들어가고 양옆이 8px씩 좁아진다. 플러그인 프레임이 없으면 "기본"과 "Drive 없음" 판 하나다.
  * `leases`는 거울의 임대 기록(어떻게 쥐었나, 언제부터, 갈래)이고 없으면 카드는 그 줄을 비운다. `running`은 이 대화에 도는 턴이 있는가
  */
 export function DriveStackCards(props: {
@@ -386,7 +384,8 @@ export function DriveStackCards(props: {
 }
 
 /** 카드 몸 첫 줄: 지금 무엇을 하나 */
-function activityTextOf(card: DriveCardView): string {
+/** 몸 첫 줄의 조각: 지금 하는 일, 갈래가 있으면 갈래 수(따로 선 조각이고 사이는 간격 12. 가운뎃점을 쓰지 않는다: lcDot) */
+function activityPartsOf(card: DriveCardView): readonly string[] {
   const base =
     card.activity === "turn"
       ? t("desktop.drive.card.turn")
@@ -394,8 +393,8 @@ function activityTextOf(card: DriveCardView): string {
         ? t("desktop.drive.card.asking")
         : t("desktop.drive.card.holding", { name: card.step.name });
   return card.branches === 0
-    ? base
-    : `${base} · ${t("desktop.drive.card.branches", { n: card.branches })}`;
+    ? [base]
+    : [base, t("desktop.drive.card.branches", { n: card.branches })];
 }
 
 /**
@@ -404,7 +403,7 @@ function activityTextOf(card: DriveCardView): string {
  *   오른쪽 끝 상태 글("답을 기다림" 경고색).
  *   넘겨받은 입력이 있으면 그 한 줄을
  *   인용 선과 함께. 어떻게 쥐었나·언제부터의 줄은 없다.
- * - 몸(지금 무엇을): "턴을 돌리는 중 · 갈래 2개", 한도마다 한 줄(이름, 막대, "7/8"). 남은 양을 글로 풀지 않는다. 90%부터 경고색.
+ * - 몸(지금 무엇을): "턴을 돌리는 중"과 12 떨어진 "갈래 2개", 한도마다 한 줄(이름, 막대, "7/8"). 남은 양을 글로 풀지 않는다. 90%부터 경고색.
  * - 발(다음과 행동): "끝나면 helm 차례", 기록 보기, 멈추기(턴이 도는 동안). 기록 보기는 xs ghost, 멈추기는 면이 깔린 xs soft(lcM6f).
  */
 function DriveCard(props: {
@@ -482,9 +481,9 @@ function DriveCard(props: {
       <div className="grid gap-2.5 border-t border-border-subtle px-3.5 pt-2.5 pb-3">
         <p
           data-slot="drive-activity"
-          className={`m-0 text-ui ${asking ? "text-warning-text" : "text-text-secondary"}`}
+          className={`m-0 flex flex-wrap items-baseline gap-x-3 text-ui ${asking ? "text-warning-text" : "text-text-secondary"}`}
         >
-          {activityTextOf(card)}
+          <MetaParts parts={activityPartsOf(card)} />
         </p>
         {step.meters.length === 0 ? (
           <p className="m-0 text-footnote text-text-tertiary">{t("desktop.drive.card.noLimits")}</p>
@@ -555,7 +554,7 @@ const LIMIT_NAME = {
   spawns: "desktop.drive.card.limit.spawns",
 } as const;
 
-/** 아래 판(기다리는 칸) 한 줄, 또는 플러그인 프레임이 없을 때의 "기본 · Drive 없음" 점선 판 */
+/** 아래 판(기다리는 칸) 한 줄, 또는 플러그인 프레임이 없을 때의 "기본"과 "Drive 없음" 점선 판 */
 function StackPlate(props: {
   readonly step: DriveStep;
   readonly level: number;

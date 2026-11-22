@@ -240,7 +240,7 @@ describe("plugin command values and rows", () => {
     expect(rows).toEqual([
       {
         value: "plugin:helm/helm-start",
-        label: "helm · 탐구 시작…",
+        label: "helm의 탐구 시작…",
         description: "helm",
         meta: null,
       },
@@ -252,7 +252,7 @@ describe("plugin command values and rows", () => {
       uiEntryOf({ extension: "aaa", id: "go", placement: "command", title: "‮탐구\u0007 시작" }),
       uiEntryOf({ extension: "aaa", id: "blank", placement: "command", title: "​" }),
     ]);
-    expect(rows.map((row) => row.label)).toEqual(["aaa · 탐구 시작", "aaa · blank"]);
+    expect(rows.map((row) => row.label)).toEqual(["aaa의 탐구 시작", "aaa의 blank"]);
   });
 });
 

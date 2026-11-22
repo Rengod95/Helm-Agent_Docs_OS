@@ -243,11 +243,11 @@ describe("cardOf and provenanceOf", () => {
 describe("originTitleOf", () => {
   test("starts with the extension name, then the title without bidi and control characters", () => {
     expect(originTitleOf(uiEntryOf({ extension: "aaa", title: "‮exe.‬ 실행\u0007" }))).toBe(
-      "aaa · exe. 실행",
+      "aaa의 exe. 실행",
     );
   });
 
   test("a title that is empty after stripping shows the entry id", () => {
-    expect(originTitleOf(uiEntryOf({ extension: "aaa", id: "go", title: "​" }))).toBe("aaa · go");
+    expect(originTitleOf(uiEntryOf({ extension: "aaa", id: "go", title: "​" }))).toBe("aaa의 go");
   });
 });

@@ -103,7 +103,7 @@ test("add --at, add --remote, list, cancel and run agree with the real host", as
   expect(await step(cli, ["schedule", "run", atId])).toBe(EXIT.error);
   expect(out(cli)).toBe("");
   expect(cli.harness.stderrText()).toBe(
-    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
+    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격 예약과 시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
   );
   expect(await step(cli, ["schedule", "run", "sch_nosuchentry"])).toBe(EXIT.error);
   expect(cli.harness.stderrText()).toBe(

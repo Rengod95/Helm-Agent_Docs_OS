@@ -94,7 +94,7 @@ export function failureTextsOf(code: string): FailureTexts {
   return FAILURE_TEXTS.get(code) ?? UNKNOWN_FAILURE;
 }
 
-/** 줄 1의 상태 글. 켜짐은 상태 점 + "실행 중 · 언제부터 · 기기 n대", 꺼짐은 "앱을 닫으면 엔진도 멈춰요." */
+/** 줄 1의 상태 글. 켜짐은 상태 점 + "언제부터 실행 중 (기기 n대)", 꺼짐은 "앱을 닫으면 엔진도 멈춰요." */
 function RunStatus(props: {
   readonly service: ServiceCard;
   readonly count: number | null;

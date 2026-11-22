@@ -56,7 +56,7 @@ export function cacheOwnerText(owner: string): string {
 }
 
 /** 캐시 사건의 "바뀐 부분" 한 줄. 알 수 있는 값만 잇는다 */
-export function cacheDetailText(event: CacheEventVM): string {
+export function cacheDetailPartsOf(event: CacheEventVM): readonly string[] {
   const parts: string[] = [];
   if (event.at !== null) parts.push(t("desktop.measure.cache.at", { at: event.at }));
   if (event.from !== "" || event.to !== "") {
@@ -73,5 +73,5 @@ export function cacheDetailText(event: CacheEventVM): string {
   if (event.gapMs !== null) {
     parts.push(t("desktop.measure.cache.gap", { minutes: (event.gapMs / 60_000).toFixed(1) }));
   }
-  return parts.join(" · ");
+  return parts;
 }

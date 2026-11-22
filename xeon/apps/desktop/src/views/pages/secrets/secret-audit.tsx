@@ -57,10 +57,6 @@ function AuditRow(props: {
   const { entry, nowMs, locale } = props;
   const relative = lastUsedTextOf(entry.at, nowMs, locale);
   const denied = entry.decision === "deny";
-  const how =
-    entry.host === null
-      ? t(auditModeIdOf(entry.mode))
-      : `${t(auditModeIdOf(entry.mode))} · ${entry.host}`;
   return (
     <li
       data-slot="audit-row"
@@ -77,7 +73,10 @@ function AuditRow(props: {
             <ThreadCell threadId={entry.threadId} />
           )}
         </span>
-        <span className="min-w-0 truncate text-ui-sm text-text-tertiary">{how}</span>
+        <span className="flex min-w-0 items-baseline gap-2 text-ui-sm text-text-tertiary">
+          <span className="flex-none">{t(auditModeIdOf(entry.mode))}</span>
+          {entry.host === null ? null : <span className="min-w-0 truncate">{entry.host}</span>}
+        </span>
       </span>
       {denied ? (
         <span className="flex items-center gap-1.5">

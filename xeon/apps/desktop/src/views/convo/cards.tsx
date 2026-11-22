@@ -27,6 +27,7 @@ import { Collapse } from "../../lib/motion-presets.tsx";
 import { checklistOf, type ChecklistRow, type TaskOp } from "./task-checklist-model.ts";
 import { failureLabelOf } from "./tool-view-model.ts";
 import type { CallBlock } from "../transcript-rows.ts";
+import { MetaParts } from "../meta-parts.tsx";
 
 // 결과물 도구의 카드(dzT2a 시안 3.4, 3.5, 3.7). 묶음에 넣지 않고 늘 보인다.
 
@@ -86,7 +87,9 @@ function AgentCard(props: {
   if (toolRowModeOf(detailSetting, rowStatusOf(status)) === "hidden") return null;
   const record = agentRowOf(rows, props.callId);
   const summary = summarizeToolArgs("agent", props.args);
-  const name = summary.kind === "agent" ? summary.agent : agentHeadOf(props.args);
+  const nameParts = (summary.kind === "agent" ? [summary.agent] : agentHeadOf(props.args)).filter(
+    (part) => part !== "",
+  );
   const task = summary.kind === "agent" ? summary.task : "";
   const parsed =
     result?.kind === "toolResult"
@@ -105,8 +108,10 @@ function AgentCard(props: {
       <div className="convo-card-head">
         <Diamond aria-hidden className="convo-line-icon text-agent-text" />
         <span className="text-ui-strong text-text-primary">{t("desktop.convo.agent.title")}</span>
-        {name === "" ? null : (
-          <span className="convo-mono min-w-0 truncate text-text-tertiary">{name}</span>
+        {nameParts.length === 0 ? null : (
+          <span className="convo-mono flex min-w-0 items-baseline gap-2 text-text-tertiary">
+            <MetaParts parts={nameParts} className="min-w-0 truncate" />
+          </span>
         )}
         <span className="ml-auto flex items-center gap-1.5">
           <StatusText status={status} />

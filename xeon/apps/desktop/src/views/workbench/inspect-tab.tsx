@@ -547,8 +547,8 @@ function CompositionSection(props: { readonly load: Load<ExtGetResult> }): React
     <ListDescription variant="ghost" size="xs">
       {blocks.map((block) => (
         <ListDescriptionRow key={block.id} term={block.title ?? block.id}>
-          <span className="font-mono text-mono-sm text-text-tertiary">
-            {`${block.stage} · ${block.op}`}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
+            <span>{block.stage}</span> <span>{block.op}</span>
           </span>
         </ListDescriptionRow>
       ))}
@@ -584,11 +584,16 @@ function FailuresSection(props: {
               </span>
             )}
             {h.lastFailureAt !== null && (
-              <span className="truncate text-ui text-text-tertiary">
-                {t("desktop.inspect.failures.last", {
-                  at: h.lastFailureAt,
-                  error: h.lastError ?? "",
-                })}
+              <span className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
+                <span className="flex-none">
+                  {t("desktop.inspect.failures.last", { at: h.lastFailureAt })}
+                </span>
+                {h.lastError === null ? null : (
+                  <>
+                    {" "}
+                    <span className="min-w-0 truncate">{h.lastError}</span>
+                  </>
+                )}
               </span>
             )}
           </span>
@@ -673,7 +678,7 @@ export function InspectBody(props: {
         </span>
         <p className="m-0 flex flex-wrap items-baseline gap-x-2 text-ui text-text-tertiary">
           <span className="font-mono text-mono-sm">{row.layer}</span>
-          <span>{`${kindText(row.kind)} · ${row.grade} · ${row.version}`}</span>
+          <span>{kindText(row.kind)}</span> <span>{row.grade}</span> <span>{row.version}</span>
         </p>
         <div className="text-ui-dense">
           <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />

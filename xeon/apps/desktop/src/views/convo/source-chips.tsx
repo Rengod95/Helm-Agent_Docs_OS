@@ -52,10 +52,15 @@ export function SourceChips(props: {
               ) : (
                 <span className="convo-source-number">{number}</span>
               )}
-              <span className="min-w-0 truncate">
-                {source.title === source.domain
-                  ? source.domain
-                  : `${source.domain} · ${source.title}`}
+              <span className="flex min-w-0 items-baseline gap-2">
+                {source.title === source.domain ? (
+                  <span className="min-w-0 truncate">{source.domain}</span>
+                ) : (
+                  <>
+                    <span className="min-w-0 truncate">{source.domain}</span>{" "}
+                    <span className="min-w-0 truncate">{source.title}</span>
+                  </>
+                )}
               </span>
             </Button>
           </li>

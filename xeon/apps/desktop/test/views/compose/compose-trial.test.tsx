@@ -238,7 +238,7 @@ describe("실행 줄", () => {
 
   test("멈춘 채면 주도 유지 문장이 보이고, 이어서와 한 경계씩이 눌린다", () => {
     const html = render(trialOf({ run: runOf({ mode: "paused" }) }));
-    expect(html).toContain("단계 경계에서 멈춤 · 주도 유지");
+    expect(html).toContain("단계 경계에서 멈췄어요. 주도는 유지돼요");
     expect(buttonNamed(html, "이어서")?.disabled).toBe(false);
     expect(buttonNamed(html, "한 경계씩")?.disabled).toBe(false);
     expect(buttonsOf(html).some((button) => button.label === "멈춤")).toBe(false);

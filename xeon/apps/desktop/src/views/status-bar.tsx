@@ -821,7 +821,7 @@ export function goalCellOf(goal: GoalWire): {
   );
   return {
     text: t("desktop.status.goal", { judged: goal.judged, max: goal.maxJudgments }),
-    description: `${judged} · ${state}`,
+    description: `${judged} (${state})`,
   };
 }
 

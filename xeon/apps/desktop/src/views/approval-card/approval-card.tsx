@@ -5,6 +5,7 @@ import type { LiveApprovalRequest } from "../../state/engine/input.ts";
 import { Badge, Button, ScrollArea } from "@caustic/react";
 import { ChevronRight, FileText, MessageCircleQuestion, ShieldCheck } from "@caustic/react/icons";
 import {
+  Fragment,
   memo,
   useEffect,
   useId,
@@ -284,26 +285,38 @@ function PendingCard(props: {
   ].filter((part): part is string => part !== null);
   const threadLabel = t("desktop.approvals.card.threadLabel");
   const lead = t(KIND_LEAD[body.kind]);
-  const subtitle: ReactNode =
-    linkTo === null ? (
-      [lead, `${threadLabel}: ${threadName}`, ...meta].join(" · ")
-    ) : (
-      <>
-        {`${lead} · ${threadLabel}: `}
-        {/* 대화 이름 링크는 글 줄 안의 링크다(단추 상자 없이 밑줄 hover). 누르는 영역은 줄 높이 */}
-        <button
-          type="button"
-          data-action="thread"
-          className="cursor-pointer rounded-xs text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:shadow-focus"
-          onClick={() => {
-            linkTo(props.threadId);
-          }}
-        >
-          {threadName}
-        </button>
-        {meta.map((part) => ` · ${part}`)}
-      </>
-    );
+  // 곁 줄의 조각(종류, 대화, 시각·라운드·만료)은 따로 두고 간격으로 가른다. 글은 조각 사이에 공백을 남긴다
+  const subtitle: ReactNode = (
+    <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+      <span>{lead}</span>{" "}
+      <span className="min-w-0">
+        {linkTo === null ? (
+          `${threadLabel}: ${threadName}`
+        ) : (
+          <>
+            {`${threadLabel}: `}
+            {/* 대화 이름 링크는 글 줄 안의 링크다(단추 상자 없이 밑줄 hover). 누르는 영역은 줄 높이 */}
+            <button
+              type="button"
+              data-action="thread"
+              className="cursor-pointer rounded-xs text-text-secondary underline-offset-2 hover:text-text-primary hover:underline focus-visible:shadow-focus"
+              onClick={() => {
+                linkTo(props.threadId);
+              }}
+            >
+              {threadName}
+            </button>
+          </>
+        )}
+      </span>
+      {meta.map((part) => (
+        <Fragment key={part}>
+          {" "}
+          <span>{part}</span>
+        </Fragment>
+      ))}
+    </span>
+  );
 
   // 오른쪽 아래 단추 묶음, 읽는 순서대로: [거부] [주 동작 | (질문 넘김) 다음]. 주 동작만 채움이다
   const answers: Action[] = [

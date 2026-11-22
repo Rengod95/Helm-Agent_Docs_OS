@@ -132,8 +132,8 @@
       "en": "fold"
     },
     "ui": {
-      "ko": "보기·막기·고치기·모으기",
-      "en": "Observe·Block·Modify·Collect"
+      "ko": "보기, 막기, 고치기, 모으기",
+      "en": "Observe, Block, Modify, Collect"
     },
     "surfaces": ["workbench"],
     "ids": ["tap", "first", "chain", "collect"],
@@ -147,8 +147,8 @@
       "en": "post"
     },
     "ui": {
-      "ko": "입력 넣기: 바로·끝난 뒤·다음 요청에",
-      "en": "Post: Now·After·Next request"
+      "ko": "입력 넣기: 바로, 끝난 뒤, 다음 요청에",
+      "en": "Post: Now, After, Next request"
     },
     "surfaces": ["chat", "workbench"],
     "ids": ["steer", "followUp", "next"],
@@ -391,8 +391,8 @@
       "en": "Placement"
     },
     "ui": {
-      "ko": "전체 화면·옆 패널·대화 카드·상태 표시줄·명령·설정",
-      "en": "Page·Side panel·Card·Status bar·Command·Settings"
+      "ko": "전체 화면, 옆 패널, 대화 카드, 상태 표시줄, 명령, 설정",
+      "en": "Page, Side panel, Card, Status bar, Command, Settings"
     },
     "surfaces": ["workbench"],
     "ids": ["page", "well", "card", "status", "command", "settings"],
@@ -469,8 +469,8 @@
       "en": "Stages"
     },
     "ui": {
-      "ko": "단계 자리: 트리거·펼치기·모으기·적용",
-      "en": "Trigger·Fan-out·Fan-in·Apply"
+      "ko": "단계 자리: 트리거, 펼치기, 모으기, 적용",
+      "en": "Trigger, Fan-out, Fan-in, Apply"
     },
     "surfaces": ["workbench"],
     "ids": ["trigger", "fanOut", "fanIn", "apply"],
@@ -517,8 +517,8 @@
       "en": "Schedule"
     },
     "ui": {
-      "ko": "예약: 한 번·반복",
-      "en": "Schedule: Once·Recurring"
+      "ko": "예약: 한 번, 반복",
+      "en": "Schedule: Once, Recurring"
     },
     "surfaces": ["chat", "settings", "workbench"],
     "ids": ["once", "repeat", "TriggerSpec"],

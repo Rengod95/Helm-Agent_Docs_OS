@@ -164,7 +164,7 @@ describe("McpServersView rows", () => {
         rev: 0,
       },
     });
-    expect(markup).toContain("숨은 도구 2개 · 다른 서버와 이름이 같아요");
+    expect(markup).toContain("숨은 도구 2개 (다른 서버와 이름이 같아요)");
     // 접힌 상태라 도구 목록은 보이지 않는다
     expect(markup).not.toContain("read_file");
   });

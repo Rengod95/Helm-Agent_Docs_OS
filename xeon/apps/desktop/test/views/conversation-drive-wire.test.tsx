@@ -456,7 +456,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       {
         id: "yolo",
         checked: "false",
-        text: `빠르게${permissionModeNameOf("bypass")} · ${t("desktop.profileChip.recent")}`,
+        text: `빠르게${permissionModeNameOf("bypass")} ${t("desktop.profileChip.recent")}`,
       },
     ]);
   });
@@ -583,30 +583,20 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     expect(band?.textContent).toContain(t("desktop.convo.lead.turns", { used: 7, max: 8 }));
     // 띠는 넷만 보인다: 이름, 상태 글, 턴 수, 멈추기(도는 턴이 있을 때). 기다리는 수 "+1"과 정보 아이콘은 없다(lcM6d)
     expect(band?.querySelector('[data-slot="drive-band-name"]')?.textContent).toBe("verifier");
-    expect(band?.querySelector('[data-slot="drive-band-turns-text"]')?.textContent).toBe(
+    expect(band?.querySelector('[data-slot="drive-band-turns"]')?.textContent).toBe(
       t("desktop.convo.lead.turns", { used: 7, max: 8 }),
     );
     expect(band?.querySelector('[data-slot="drive-band-below"]')).toBeNull();
     expect(band?.querySelector('[data-slot="info-tip"]')).toBeNull();
     expect(band?.querySelectorAll("[data-drive-step]").length).toBe(0);
-    // 턴 막대는 없다(lcM6i, 사용자 2026-11-21 "턴 막대는 그냥 제거하자"): 턴 수는 가운뎃점 뒤 글 하나이고 점은 읽지 않는다
-    const turnsPart = band?.querySelector('[data-slot="drive-band-turns"]');
+    // 턴 막대는 없다(lcM6i). 가운뎃점도 없다(lcDot, 사용자 2026-11-22 "가운뎃점 절대 쓰지마"): 턴 수는 구절에서 떨어져 오른쪽 묶음에
+    // 멈추기와 함께 서고, 둘 사이는 간격 토큰(gap-3)이다
     expect([
       band?.querySelector('[data-slot="drive-band-track"]') ?? null,
       band?.querySelector('[role="progressbar"]') ?? null,
-      [...(turnsPart?.children ?? [])].map((el) => [
-        el.getAttribute("data-slot"),
-        el.getAttribute("aria-hidden"),
-        el.textContent,
-      ]),
-    ]).toEqual([
-      null,
-      null,
-      [
-        ["drive-band-sep", "true", "·"],
-        ["drive-band-turns-text", null, t("desktop.convo.lead.turns", { used: 7, max: 8 })],
-      ],
-    ]);
+      band?.querySelector('[data-slot="drive-band-sep"]') ?? null,
+      (band?.textContent ?? "").includes("·"),
+    ]).toEqual([null, null, null, false]);
     // 상태 글은 칩이 아니라 글이다(lcM6e). 빛이 꺼져 있으면(턴이 돌지 않음) 흐르지 않는 무채색 글이다(lcM6g)
     const word = band?.querySelector('[data-slot="drive-band-state"]');
     expect([
@@ -616,26 +606,28 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       word?.hasAttribute("data-wave"),
       word?.classList.contains("drive-word"),
     ]).toEqual(["SPAN", null, null, false, true]);
-    // lcM6g: "Driving by 이름" 구절이 먼저, 그 뒤 턴 수. 구절 안은 앞 글과 이름 둘이다
+    // lcM6g: 왼쪽 묶음은 "Driving by 이름" 구절 하나다. 오른쪽 묶음은 턴 수(12 tertiary)와 멈추기이고 세로 가운데로 선다(lcDot)
     const phrase = word?.parentElement;
     const group = band?.querySelector('[data-slot="drive-band-group"]');
-    // lcM6i: 막대를 위해 벌린 간격(24)은 없다. 구절과 턴 수는 한 기준선에 서고 가운뎃점(양옆 6)이 가른다(대화 기록 머리 줄과 같은 문법)
+    const end = band?.querySelector('[data-slot="drive-band-end"]');
     expect([
       [...(phrase?.children ?? [])].map((el) => el.getAttribute("data-slot")),
       [...(group?.children ?? [])].map((el) => el.getAttribute("data-slot")),
-      [...(group?.classList ?? [])].filter(
+      [...(phrase?.classList ?? [])].filter((name) => name.startsWith("gap-")),
+      [...(end?.children ?? [])].map((el) => el.getAttribute("data-slot")),
+      [...(end?.classList ?? [])].filter(
         (name) => name.startsWith("gap-") || name.startsWith("items-"),
       ),
-      [...(phrase?.classList ?? [])].filter((name) => name.startsWith("gap-")),
-      [...(band?.querySelector('[data-slot="drive-band-sep"]')?.classList ?? [])].filter((name) =>
-        name.startsWith("px-"),
+      [...(band?.querySelector('[data-slot="drive-band-turns"]')?.classList ?? [])].filter((name) =>
+        name.startsWith("text-"),
       ),
     ]).toEqual([
       ["drive-band-state", "drive-band-name"],
-      ["drive-driving-by", "drive-band-turns"],
-      ["items-baseline"],
+      ["drive-driving-by"],
       ["gap-1"],
-      ["px-1.5"],
+      ["drive-band-turns"],
+      ["items-center", "gap-3"],
+      ["text-footnote", "text-text-tertiary"],
     ]);
     // 빛을 주지 않으면 꺼져 있다(판이 없다)
     expect(band?.getAttribute("data-beam")).toBe("off");
@@ -997,7 +989,7 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
       false,
       true,
       "결과를 검증해 줘",
-      `${t("desktop.drive.card.turn")} · ${t("desktop.drive.card.branches", { n: 2 })}`,
+      `${t("desktop.drive.card.turn")} ${t("desktop.drive.card.branches", { n: 2 })}`,
       t("desktop.drive.card.next", { name: "helm" }),
       "7/8",
     ]);

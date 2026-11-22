@@ -135,8 +135,9 @@ function relText(key: string): string {
 }
 
 type FactValue = Relation["facts"][number]["value"];
-function valueText(value: FactValue): string {
-  return value.k === "msg" ? value.keys.map(relText).join(" · ") : value.text;
+/** 값의 글 조각. 메시지 키가 여럿이면(방향 목록) 조각마다 따로 놓는다 */
+function valueParts(value: FactValue): readonly string[] {
+  return value.k === "msg" ? value.keys.map(relText) : [value.text];
 }
 
 interface Pt {
@@ -882,16 +883,21 @@ function FloatCard({ rel }: { readonly rel: Relation }): ReactNode {
       <div className="grid gap-2 border-t border-border-subtle pt-2.5">
         {facts.map((f) => {
           const label = relText(f.labelKey);
-          const value = valueText(f.value);
+          const parts = valueParts(f.value);
           return (
             <div key={f.labelKey} className="grid gap-1">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-ui text-text-tertiary">{label}</span>
                 <span className="grid min-w-0 justify-items-end">
-                  <span
-                    className={`max-w-[10rem] truncate text-ui-sm text-text-primary ${f.mono ? "font-mono text-mono-sm" : ""}`}
-                  >
-                    {value}
+                  <span className="flex min-w-0 max-w-[10rem] flex-wrap justify-end gap-x-2 text-ui-sm text-text-primary">
+                    {parts.map((part) => (
+                      <span
+                        key={part}
+                        className={`min-w-0 truncate ${f.mono ? "font-mono text-mono-sm" : ""}`}
+                      >
+                        {part}
+                      </span>
+                    ))}
                   </span>
                   {f.note !== "" && (
                     <span className="font-mono text-mono-sm text-text-tertiary">{f.note}</span>
@@ -904,7 +910,7 @@ function FloatCard({ rel }: { readonly rel: Relation }): ReactNode {
                   value={f.meter.value}
                   max={f.meter.max}
                   label={label}
-                  valueText={value}
+                  valueText={parts.join(", ")}
                 />
               )}
             </div>
