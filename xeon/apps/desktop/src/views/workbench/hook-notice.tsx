@@ -184,13 +184,17 @@ function HookNoticeView(props: {
               // 시각은 기록에 있을 때만 앞에 둔다(없거나 날짜로 읽히지 않으면 글만 남는다)
               const time = failureClockOf(f.at);
               return (
-                <li key={`${f.afterSeq}:${f.point}`} className="text-ui text-text-secondary">
-                  {time !== null && (
+                <li
+                  key={`${f.afterSeq}:${f.point}`}
+                  className="flex min-w-0 items-baseline gap-2 text-ui text-text-secondary"
+                >
+                  {time === null ? null : (
                     <>
-                      <span>{time}</span> ·{" "}
+                      <span className="flex-none">{time}</span>{" "}
                     </>
                   )}
-                  <span className="font-mono">{f.point}</span> · {f.message}
+                  <span className="flex-none font-mono">{f.point}</span>{" "}
+                  <span className="min-w-0">{f.message}</span>
                 </li>
               );
             })}

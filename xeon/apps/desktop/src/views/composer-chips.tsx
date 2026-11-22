@@ -59,7 +59,7 @@ export function permissionModeChipText(mode: PermissionMode): string {
 }
 
 /** 메뉴 줄 안: 이름(13) 아래 설명(12 tertiary). 설명은 자르지 않고 줄을 바꾼다 */
-export function MenuText(props: { readonly title: string; readonly hint: string }): ReactNode {
+export function MenuText(props: { readonly title: string; readonly hint: ReactNode }): ReactNode {
   return (
     <span className="grid min-w-0 gap-0.5 py-0.5 text-start">
       <span className="truncate">{props.title}</span>

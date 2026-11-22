@@ -193,7 +193,7 @@ describe("확장 화면: 고른 확장과 선택 패널", () => {
 
   test("면제 tier 확장은 스위치가 잠기고 이유를 선택 패널에 쓴다", () => {
     const html = render((s) => pickPlugin(s, "core-loop"));
-    expect(html).toContain("보안·기본 동작이라 끌 수 없어요");
+    expect(html).toContain("보안 동작이거나 기본 동작이라 끌 수 없어요");
   });
 
   test("자동 꺼진 확장은 위 띠에 알림을 두지 않고, 고른 선택 패널에 다시 켜기를 보인다", () => {

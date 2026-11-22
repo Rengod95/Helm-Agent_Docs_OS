@@ -181,15 +181,15 @@ function CostValue(props: { readonly line: CostLine }): ReactNode {
         : t("desktop.craft.review.cost.less", { tokens: -change });
   if (tokens === null) return changeText;
   return (
-    <>
-      {t("desktop.craft.review.cost.tokens", { tokens })}
+    <span className="inline-flex flex-wrap items-baseline gap-2">
+      <span>{t("desktop.craft.review.cost.tokens", { tokens })}</span>
       {changeText === null ? null : (
-        <span className="text-text-tertiary">
-          {" · "}
-          {changeText}
-        </span>
+        <>
+          {" "}
+          <span className="text-text-tertiary">{changeText}</span>
+        </>
       )}
-    </>
+    </span>
   );
 }
 

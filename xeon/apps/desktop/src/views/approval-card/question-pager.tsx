@@ -10,15 +10,15 @@ import type { QuestionStep } from "./question-pages.ts";
 // 시안 셋(막대, 번호 단추, 질문 머리 탭)을 앱에서 그려 보고 막대를 골랐다(_notes/design/lc/lcQ1-shots/app-pager-*.png):
 // 번호 단추는 지금 질문의 답 여부가 안 보이고, 머리 탭은 본문 위에 한 줄(28)을 더 써 작은 창에서 선택지를 밀어낸다.
 
-function stepLabelOf(step: QuestionStep, total: number): string {
+/** 단계 단추의 글 조각: 몇째, 머리말(있으면), 답했는지. 읽기 이름은 쉼표로, 보이는 툴팁은 줄을 나눠 잇는다(가운뎃점 금지, DP-226) */
+function stepPartsOf(step: QuestionStep, total: number): readonly string[] {
   const position = t("desktop.approvals.question.position", { n: step.index + 1, total });
-  const name = step.header === null ? position : `${position} · ${step.header}`;
   const state = t(
     step.answered
       ? "desktop.approvals.question.step.answered"
       : "desktop.approvals.question.step.open",
   );
-  return `${name}, ${state}`;
+  return step.header === null ? [position, state] : [position, step.header, state];
 }
 
 function barToneOf(step: QuestionStep): string {
@@ -59,15 +59,15 @@ export function QuestionPager(props: {
       </IconButton>
       <span className="flex items-center">
         {steps.map((step) => {
-          const label = stepLabelOf(step, total);
+          const parts = stepPartsOf(step, total);
           return (
             <button
               key={step.id}
               type="button"
               data-step={step.answered ? "answered" : "open"}
               aria-current={step.current ? "step" : undefined}
-              aria-label={label}
-              title={label}
+              aria-label={parts.join(", ")}
+              title={parts.join("\n")}
               disabled={props.disabled}
               className="group/step grid h-7 cursor-pointer place-items-center rounded-md border-0 bg-transparent px-1 outline-none focus-visible:shadow-focus disabled:cursor-default"
               onClick={() => {

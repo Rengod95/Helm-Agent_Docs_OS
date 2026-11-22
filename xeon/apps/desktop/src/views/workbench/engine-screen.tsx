@@ -173,13 +173,17 @@ export function EngineScreen(): ReactNode {
                 </ListDescriptionRow>
               )}
               <ListDescriptionRow term={t("desktop.workbench.engine.phase")}>
-                <span className="font-mono text-mono-sm">{link.phase}</span>
-                {link.attempt > 0 && (
-                  <span className="text-text-tertiary">
-                    {" · "}
-                    {t("desktop.workbench.engine.attempt", { attempt: link.attempt })}
-                  </span>
-                )}
+                <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+                  <span className="font-mono text-mono-sm">{link.phase}</span>
+                  {link.attempt > 0 && (
+                    <>
+                      {" "}
+                      <span className="text-text-tertiary">
+                        {t("desktop.workbench.engine.attempt", { attempt: link.attempt })}
+                      </span>
+                    </>
+                  )}
+                </span>
               </ListDescriptionRow>
               <ListDescriptionRow term={t("desktop.workbench.engine.state")}>
                 <span className="font-mono text-mono-sm">

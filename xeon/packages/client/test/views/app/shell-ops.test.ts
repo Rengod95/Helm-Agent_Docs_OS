@@ -236,7 +236,7 @@ describe("shell ops: run", () => {
       const sent = await runner.run(actionOf("notify", { title: "t", body: "b" }, context));
       expect(sent.ok).toBe(true);
     }
-    expect(calls.names[0]).toBe("notify:helm · t:b");
+    expect(calls.names[0]).toBe("notify:helm의 t:b");
     const over = await runner.run(actionOf("notify", { title: "t" }, context));
     expect(over).toEqual({ ok: false, error: { kind: "rate_limited" } });
     time.advance(60000);

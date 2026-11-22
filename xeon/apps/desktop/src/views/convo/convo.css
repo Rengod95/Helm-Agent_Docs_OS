@@ -53,10 +53,10 @@
 .convo-prose .convo-code,
 .convo-prose .convo-table,
 .convo-prose hr {
-  margin: 0 0 12px;
+  margin: 0 0 var(--cs-space-3);
 }
 .convo-prose[data-size="compact"] :is(p, ul, ol, blockquote, .convo-code, .convo-table) {
-  margin-bottom: 8px;
+  margin-bottom: var(--cs-space-2);
 }
 .convo-prose h1,
 .convo-prose h2,
@@ -64,7 +64,7 @@
 .convo-prose h4,
 .convo-prose h5,
 .convo-prose h6 {
-  margin: 20px 0 6px;
+  margin: var(--cs-space-5) 0 var(--cs-space-1_5);
   font-weight: 600;
   letter-spacing: var(--md-heading--letter-spacing);
   color: var(--cs-color-text-primary);
@@ -82,13 +82,13 @@
   line-height: var(--md-h3--line-height);
 }
 .convo-prose[data-size="compact"] :is(h1, h2, h3, h4, h5, h6) {
-  margin: 12px 0 4px;
+  margin: var(--cs-space-3) 0 var(--cs-space-1);
   font-size: 13px;
   line-height: 20px;
 }
 .convo-prose ul,
 .convo-prose ol {
-  padding-left: 20px;
+  padding-left: var(--cs-space-5);
 }
 /* Tailwind preflight가 목록 표지를 지운다(list-style: none). 답 본문은 표지를 되살린다 */
 .convo-prose ul {
@@ -98,7 +98,7 @@
   list-style: decimal;
 }
 .convo-prose li {
-  margin: 4px 0 0;
+  margin: var(--cs-space-1) 0 0;
 }
 .convo-prose li > :is(ul, ol) {
   margin-bottom: 0;
@@ -109,24 +109,24 @@
 /* 체크 목록(GFM)은 표지 대신 상자를 쓴다 */
 .convo-prose li:has(> input[type="checkbox"]) {
   list-style: none;
-  margin-left: -20px;
+  margin-left: calc(-1 * var(--cs-space-5));
 }
 .convo-prose input[type="checkbox"] {
-  margin: 0 6px 0 0;
+  margin: 0 var(--cs-space-1_5) 0 0;
   vertical-align: -1px;
 }
 .convo-prose strong {
   font-weight: 600;
 }
 .convo-prose blockquote {
-  padding-left: 12px;
+  padding-left: var(--cs-space-3);
   border-left: 2px solid var(--cs-color-border-default);
   color: var(--cs-color-text-secondary);
 }
 .convo-prose hr {
   border: 0;
   border-top: 1px solid var(--cs-color-border-subtle);
-  margin-block: 20px;
+  margin-block: var(--cs-space-5);
 }
 .convo-link {
   color: var(--cs-color-text-link);
@@ -138,7 +138,7 @@
   text-underline-offset: 2px;
 }
 .convo-inline-code {
-  padding: 1px 4px;
+  padding: var(--cs-space-0_25) var(--cs-space-1);
   border-radius: var(--cs-radius-xs);
   background: var(--convo-chip-bg);
   font-family: var(--font-mono, var(--cs-font-mono));
@@ -158,7 +158,7 @@
   align-items: center;
   justify-content: space-between;
   height: 32px;
-  padding: 0 4px 0 12px;
+  padding: 0 var(--cs-space-1) 0 var(--cs-space-3);
   border-bottom: 1px solid var(--convo-edge);
 }
 .convo-code-lang {
@@ -171,7 +171,7 @@
   margin: 0;
   max-height: 480px;
   overflow: auto;
-  padding: 10px 14px;
+  padding: var(--cs-space-2_5) var(--cs-space-3_5);
   color: var(--cs-color-text-primary);
   font-family: var(--font-mono, var(--cs-font-mono));
   font-size: 12px;
@@ -185,7 +185,7 @@
 }
 /* 멈춰서 닫아 그린 코드 블록의 아래 한 줄(dzG 시안 §5): 12 tertiary */
 .convo-code-foot {
-  padding: 4px 12px;
+  padding: var(--cs-space-1) var(--cs-space-3);
   border-top: 1px solid var(--convo-edge);
   color: var(--cs-color-text-tertiary);
   font-family: var(--font-ui, var(--cs-font-ui));
@@ -200,8 +200,8 @@
   justify-content: center;
   min-width: 16px;
   height: 16px;
-  margin-inline: 1px;
-  padding: 0 4px;
+  margin-inline: var(--cs-space-0_25);
+  padding: 0 var(--cs-space-1);
   border-radius: 4px;
   background: var(--convo-chip-bg);
   color: var(--cs-color-text-secondary);
@@ -244,7 +244,7 @@
 }
 .convo-table th,
 .convo-table td {
-  padding: 6px 12px;
+  padding: var(--cs-space-1_5) var(--cs-space-3);
   border-bottom: 1px solid var(--convo-edge);
   text-align: left;
   vertical-align: top;
@@ -262,8 +262,9 @@
 .convo-thinking-body {
   max-height: 240px;
   overflow-y: auto;
-  margin: 2px 0 0 7px;
-  padding: 2px 0 2px 13px;
+  /* 세로 선(2)의 가운데가 줄 아이콘 칸(14)의 가운데 7에 서고(6 + 1), 글은 줄 글 칸(아이콘 14 + 간격 6 = 20)에서 시작한다(6 + 2 + 12) */
+  margin: var(--cs-space-0_5) 0 0 var(--cs-space-1_5);
+  padding: var(--cs-space-0_5) 0 var(--cs-space-0_5) var(--cs-space-3);
   border-left: 2px solid var(--cs-color-border-subtle);
   color: var(--cs-color-text-tertiary);
 }
@@ -272,11 +273,11 @@
 .convo-line {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   min-width: 0;
   min-height: 28px;
-  margin-inline: -6px;
-  padding: 0 6px;
+  margin-inline: calc(-1 * var(--cs-space-1_5));
+  padding: 0 var(--cs-space-1_5);
   border-radius: var(--cs-radius-sm);
   color: var(--cs-color-text-secondary);
   font-size: 13px;
@@ -339,7 +340,7 @@
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   min-width: 0;
   overflow: hidden;
 }
@@ -362,7 +363,7 @@
   align-items: center;
   min-width: 0;
   height: 20px;
-  padding: 0 6px;
+  padding: 0 var(--cs-space-1_5);
   border-radius: 5px;
   background: var(--convo-chip-bg);
   color: var(--cs-color-text-secondary);
@@ -384,7 +385,7 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   margin-left: auto;
 }
 .convo-line-chevron {
@@ -420,15 +421,15 @@
 /* 펼친 상세: 아이콘 열 아래로 들여 20 */
 .convo-detail {
   display: grid;
-  gap: 8px;
+  gap: var(--cs-space-2);
   min-width: 0;
-  margin: 2px 0 6px 20px;
+  margin: var(--cs-space-0_5) 0 var(--cs-space-1_5) var(--cs-space-5);
 }
 .convo-output {
   margin: 0;
   max-height: 320px;
   overflow: auto;
-  padding: 10px 12px;
+  padding: var(--cs-space-2_5) var(--cs-space-3);
   border-radius: var(--cs-radius-md);
   background: var(--cs-color-neutral-well);
   color: var(--cs-color-text-secondary);
@@ -447,8 +448,8 @@
 }
 /* bash 실행 중 출력 꼬리: 접혀 있어도 보인다 */
 .convo-tail {
-  margin: 2px 0 6px 20px;
-  padding: 6px 10px;
+  margin: var(--cs-space-0_5) 0 var(--cs-space-1_5) var(--cs-space-5);
+  padding: var(--cs-space-1_5) var(--cs-space-2_5);
   border-radius: var(--cs-radius-md);
   background: var(--convo-chip-bg);
   color: var(--cs-color-text-tertiary);
@@ -474,9 +475,9 @@
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
+  gap: var(--cs-space-1);
   height: 20px;
-  padding: 0 6px;
+  padding: 0 var(--cs-space-1_5);
   border: 1px solid var(--convo-edge);
   border-radius: 5px;
   background: transparent;
@@ -513,7 +514,7 @@
    빨강은 줄 끝 표시 하나가 맡고 요약은 tertiary다(실패가 여럿일 때 빨간 줄이 쌓이지 않게) */
 .convo-fail-line {
   min-width: 0;
-  margin: -4px 0 4px 20px;
+  margin: calc(-1 * var(--cs-space-1)) 0 var(--cs-space-1) var(--cs-space-5);
   overflow: hidden;
   color: var(--cs-color-text-tertiary);
   font-family: var(--font-mono, var(--cs-font-mono));
@@ -524,22 +525,23 @@
 }
 /* 묶음 안 줄의 상태 칸: 표시와 꺾쇠 사이 4 */
 .convo-line-status[data-compact="true"] {
-  gap: 4px;
+  gap: var(--cs-space-1);
 }
 .convo-group-body {
   display: grid;
   min-width: 0;
-  margin-left: 6px;
-  padding-left: 13px;
+  /* 글은 줄 글 칸 20에서 시작한다: 들임 6 + 선 1 + 13. 13은 선 굵기 1을 뺀 값이라 토큰 계산으로 적는다 */
+  margin-left: var(--cs-space-1_5);
+  padding-left: calc(var(--cs-space-5) - var(--cs-space-1_5) - 1px);
   border-left: 1px solid var(--cs-color-border-subtle);
 }
 
 /* ── 카드(하위 에이전트, 계획) ───────────────────────────────────── */
 .convo-card {
   display: grid;
-  gap: 8px;
+  gap: var(--cs-space-2);
   min-width: 0;
-  padding: 12px 14px;
+  padding: var(--cs-space-3) var(--cs-space-3_5);
   border: 1px solid var(--convo-edge);
   border-radius: var(--cs-radius-lg);
   background: var(--cs-color-surface-base);
@@ -547,7 +549,7 @@
 .convo-card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
   min-width: 0;
   min-height: 20px;
 }
@@ -565,8 +567,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  margin-inline: -6px;
+  gap: var(--cs-space-1);
+  margin-inline: calc(-1 * var(--cs-space-1_5));
 }
 .convo-clip {
   position: relative;
@@ -596,15 +598,15 @@
 /* 할 일 */
 .convo-tasks {
   display: grid;
-  gap: 2px;
-  margin: 0 0 4px 20px;
+  gap: var(--cs-space-0_5);
+  margin: 0 0 var(--cs-space-1) var(--cs-space-5);
   padding: 0;
   list-style: none;
 }
 .convo-task {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--cs-space-2);
   min-height: 22px;
   color: var(--cs-color-text-tertiary);
   font-size: 13px;
@@ -620,21 +622,21 @@
 }
 .convo-tasks-more {
   justify-self: start;
-  margin: 0 0 4px 14px;
+  margin: 0 0 var(--cs-space-1) var(--cs-space-3_5);
   color: var(--cs-color-text-tertiary);
 }
 .convo-task-glyph {
   flex: none;
   width: 14px;
   height: 14px;
-  margin-top: 3px;
+  margin-top: var(--cs-space-0_75);
 }
 
 /* ── 구분 줄(변화 표지, 압축) ─────────────────────────────────────── */
 .convo-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--cs-space-3);
   min-height: 28px;
   color: var(--cs-color-text-tertiary);
   font-size: 13px;
@@ -669,6 +671,7 @@
   left: 0;
   width: 36%;
   height: 1px;
+  /* 1px 선의 가운데를 50%에 둔다(선 굵기의 반. 간격이 아니라 기하 보정이라 토큰 밖이다) */
   margin-top: -0.5px;
   pointer-events: none;
   opacity: 0;
@@ -692,7 +695,7 @@
 .convo-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--cs-space-0_5);
   color: var(--cs-color-text-secondary);
   opacity: 0;
   transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);

@@ -73,7 +73,7 @@ describe("save-time watch path refusal", () => {
     expect(errors.fields.paths).toEqual(message("desktop.schedules.error.watchPathOutside"));
     expect(errors.form).toBeNull();
     expect(t("desktop.schedules.error.watchPathOutside")).toBe(
-      "이 경로는 감시할 수 없어요. 앱이 허용한 폴더(설정·데이터·상태 폴더) 안의 경로만 감시할 수 있어요.",
+      "이 경로는 감시할 수 없어요. 앱이 허용한 폴더(설정, 데이터, 상태 폴더) 안의 경로만 감시할 수 있어요.",
     );
   });
 

@@ -184,7 +184,9 @@ describe("플레이그라운드 상세의 실제 위험과 진단", () => {
     expect(html).toContain(t("desktop.addons.keepOff.on"));
     expect(html).toContain(t("desktop.addons.risk.toolHooks.title"));
     expect(html).toContain(t("desktop.addons.risk.methods.write", { count: 1 }));
-    expect(html).toContain("src/index.ts:12 · hook_failed");
+    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain(
+      "src/index.ts:12 hook_failed",
+    );
     expect(html).toContain(">느려요<");
     expect(html).toContain(t("desktop.addons.section.diagnostics"));
   });

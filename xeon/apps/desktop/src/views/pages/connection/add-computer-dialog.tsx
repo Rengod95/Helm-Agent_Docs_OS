@@ -173,11 +173,9 @@ function ProbeNoticeView(props: {
     case "version":
       return (
         <div data-slot="version-mismatch" className="grid gap-1">
-          <p className="m-0 font-mono text-mono-sm text-text-primary">
-            {t("desktop.connection.add.version.values", {
-              local: notice.local,
-              remote: notice.remote,
-            })}
+          <p className="m-0 flex min-w-0 flex-wrap items-baseline gap-3 font-mono text-mono-sm text-text-primary">
+            <span>{t("desktop.connection.add.version.local", { local: notice.local })}</span>{" "}
+            <span>{t("desktop.connection.add.version.remote", { remote: notice.remote })}</span>
           </p>
           <p className="m-0 text-ui text-text-secondary">
             {t(
@@ -674,14 +672,14 @@ function SaveStep(props: {
   const save = state.save;
   return (
     <div data-slot="add-save" className="grid content-start gap-5">
-      <p role="status" className="m-0 flex min-w-0 items-center gap-1.5 text-ui text-text-primary">
+      <p role="status" className="m-0 flex min-w-0 items-center gap-2 text-ui text-text-primary">
         <Check aria-hidden className="size-icon-sm flex-none text-success-text" />
         <span className="min-w-0 truncate">
           {t("desktop.connection.add.save.ready", { name: ready.suggested })}
         </span>
         {meta.map((part) => (
           <span key={part} className="flex-none font-mono text-mono-sm text-text-tertiary">
-            · {part}
+            {part}
           </span>
         ))}
       </p>

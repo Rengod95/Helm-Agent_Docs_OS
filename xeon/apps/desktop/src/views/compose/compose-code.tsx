@@ -56,9 +56,19 @@ export function forwardStateOf(link: TabLink, builder: BuilderView | null): Forw
 }
 
 /** 블록 한 줄. 선언된 것만 쓴다: `<id> · <연산> · <단계>`에 훅 이름을 붙인다 */
-export function codeLineOf(row: BlockRow): string {
+export function codeLineOf(row: BlockRow): readonly [string, string, string] {
   const hooks = row.hooks.length === 0 ? "" : ` [${row.hooks.join(", ")}]`;
-  return `${row.id} · ${row.op} · ${row.stage}${hooks}`;
+  return [row.id, row.op, `${row.stage}${hooks}`];
+}
+
+/** 블록 한 줄의 글: id, 연산, 단계(훅 이름 포함)를 각각 한 칸으로 놓는다 */
+function CodeLine(props: { readonly row: BlockRow }): ReactNode {
+  const [id, op, stage] = codeLineOf(props.row);
+  return (
+    <code className="flex min-w-0 flex-wrap items-baseline gap-2 whitespace-pre-wrap break-words text-text-primary">
+      <span>{id}</span> <span>{op}</span> <span>{stage}</span>
+    </code>
+  );
 }
 
 /**
@@ -77,9 +87,7 @@ export function CodeBlocks(props: { readonly composition: CompositionDecl }): Re
             {index + 1}
           </span>
           <div className="grid min-w-0 gap-0.5">
-            <code className="whitespace-pre-wrap break-words text-text-primary">
-              {codeLineOf(row)}
-            </code>
+            <CodeLine row={row} />
             {row.title === row.id ? null : (
               <span className="font-ui text-ui text-text-tertiary">{row.title}</span>
             )}

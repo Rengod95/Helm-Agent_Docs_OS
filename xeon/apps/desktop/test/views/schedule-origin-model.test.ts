@@ -5,15 +5,15 @@ import { scheduleOriginTextOf } from "../../src/views/schedule-origin-model.ts";
 
 describe("scheduleOriginTextOf", () => {
   test("shows the schedule title and the run ordinal", () => {
-    expect(scheduleOriginTextOf("캐시 정리", 2)).toBe("예약 · 캐시 정리 · 2번째 실행");
+    expect(scheduleOriginTextOf("캐시 정리", 2)).toEqual(["예약", "캐시 정리", "2번째 실행"]);
   });
   test("drops the ordinal while the run is not in the run list yet", () => {
-    expect(scheduleOriginTextOf("캐시 정리", null)).toBe("예약 · 캐시 정리");
+    expect(scheduleOriginTextOf("캐시 정리", null)).toEqual(["예약", "캐시 정리"]);
   });
   test("drops the title when there is none, keeping the ordinal", () => {
-    expect(scheduleOriginTextOf(null, 3)).toBe("예약 · 3번째 실행");
+    expect(scheduleOriginTextOf(null, 3)).toEqual(["예약", "3번째 실행"]);
   });
   test("is just the label when the schedule is gone or its list could not be read", () => {
-    expect(scheduleOriginTextOf(null, null)).toBe("예약");
+    expect(scheduleOriginTextOf(null, null)).toEqual(["예약"]);
   });
 });

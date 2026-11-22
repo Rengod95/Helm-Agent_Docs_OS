@@ -55,11 +55,11 @@ export function ruleTitleOf(ruleId: string): string {
   return id === undefined ? t("desktop.craft.metrics.rule.other") : t(id);
 }
 
-/** 대상 글: 플러그인 · 참조. Hook은 내부 이름 대신 자리(블록 + 앞·뒤)로 쓴다 */
-function subjectText(f: Finding): string {
-  const ref =
-    f.subject.ref === null ? "" : subjectRefText(f.subject.kind, f.subject.ref, activeLocale());
-  return ref === "" ? f.subject.plugin : `${f.subject.plugin} · ${ref}`;
+/** 대상의 참조 글(플러그인 이름 뒤에 따로 놓는다). Hook은 내부 이름 대신 자리(블록 + 앞·뒤)로 쓴다. 참조가 없으면 빈 글 */
+function subjectRefOf(f: Finding): string {
+  return f.subject.ref === null
+    ? ""
+    : subjectRefText(f.subject.kind, f.subject.ref, activeLocale());
 }
 
 const UNIT_WORD_SHORT: Readonly<Record<ImpactUnit, MessageId>> = {
@@ -283,6 +283,7 @@ function InsightCard(props: {
   const figures = insightFiguresOf(f, 2);
   const [dismissing, setDismissing] = useState(false);
   const title = ruleTitleOf(f.ruleId);
+  const ref = subjectRefOf(f);
   return (
     <li className="grid min-w-0 grid-cols-1 rounded-2xl border border-border-subtle bg-surface-base">
       <div className="grid min-w-0 grid-cols-1 gap-4 ps-4 pt-3.5 pe-4 pb-4">
@@ -304,7 +305,10 @@ function InsightCard(props: {
                 {title}
               </button>
             )}
-            <div className="truncate text-ui-sm text-text-tertiary">{subjectText(f)}</div>
+            <div className="flex min-w-0 items-baseline gap-2 text-ui-sm text-text-tertiary">
+              <span className="truncate">{f.subject.plugin}</span>
+              {ref === "" ? null : <span className="truncate">{ref}</span>}
+            </div>
           </div>
           <IconButton
             size="sm"
@@ -387,9 +391,9 @@ function InsightRow(props: { readonly finding: Finding; readonly onOpen: () => v
         className="grid h-9 w-full grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border-0 bg-transparent ps-2 pe-2 py-0 text-left text-ui outline-none hover:bg-neutral-hover focus-visible:focus-ring"
       >
         <KindTile kind={kindOfSubject(f.subject.kind)} size={20} />
-        <span className="min-w-0 truncate">
-          <span className="text-text-primary">{ruleTitleOf(f.ruleId)}</span>
-          <span className="text-ui-sm text-text-tertiary"> · {f.subject.plugin}</span>
+        <span className="flex min-w-0 items-baseline gap-3">
+          <span className="truncate text-text-primary">{ruleTitleOf(f.ruleId)}</span>
+          <span className="truncate text-ui-sm text-text-tertiary">{f.subject.plugin}</span>
         </span>
         <span className="viz-figure text-ui-sm text-text-secondary">{impactText(f)}</span>
       </button>
@@ -423,8 +427,9 @@ function Dismissed(props: { readonly findings: readonly Finding[] }): ReactNode 
               data-rail-avoid=""
               className="flex h-8 items-center gap-2 text-ui text-text-secondary"
             >
-              <span className="min-w-0 flex-1 truncate">
-                {ruleTitleOf(f.ruleId)} · {f.subject.plugin}
+              <span className="flex min-w-0 flex-1 items-baseline gap-3">
+                <span className="truncate">{ruleTitleOf(f.ruleId)}</span>{" "}
+                <span className="truncate">{f.subject.plugin}</span>
               </span>
               <span className="viz-figure text-ui-sm text-text-tertiary">{impactText(f)}</span>
             </li>
@@ -569,7 +574,7 @@ export function InsightPanel(props: {
         )}
         <InfoTip text={t("desktop.craft.metrics.insight.info")} />
         {focus === null ? null : (
-          <span className="min-w-0 truncate text-ui-sm text-text-tertiary">· {focus}</span>
+          <span className="min-w-0 truncate text-ui-sm text-text-tertiary">{focus}</span>
         )}
         {props.onClose === undefined ? null : (
           <IconButton
@@ -695,10 +700,15 @@ export function InsightSummary(props: {
         {t("desktop.craft.metrics.insight.title")}
       </span>
       <span className="text-text-tertiary">{countText(findings.length)}</span>
-      <span className="min-w-0 flex-1 truncate text-text-secondary">
-        {top === null
-          ? t("desktop.craft.metrics.insight.none")
-          : `${ruleTitleOf(top.ruleId)} · ${top.subject.plugin}`}
+      <span className="flex min-w-0 flex-1 items-baseline gap-3 text-text-secondary">
+        {top === null ? (
+          <span className="truncate">{t("desktop.craft.metrics.insight.none")}</span>
+        ) : (
+          <>
+            <span className="truncate">{ruleTitleOf(top.ruleId)}</span>{" "}
+            <span className="truncate">{top.subject.plugin}</span>
+          </>
+        )}
       </span>
       <span className="shrink-0 text-ui-sm text-text-tertiary">
         {t("desktop.craft.metrics.insight.openAll")}

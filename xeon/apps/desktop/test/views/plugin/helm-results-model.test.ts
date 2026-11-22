@@ -198,7 +198,7 @@ describe("탐구 결과 글: 출처와 목록 캡션", () => {
 
   test("목록 캡션: 끝난 탐구는 결과와 발견 수, 진행 중 탐구는 발견 수만 보인다", () => {
     const labels = helmResultsLabelsOf();
-    expect(captionOf(FINISHED, labels)).toBe("적용됨 · 발견 2개");
-    expect(captionOf(RUNNING, labels)).toBe("발견 1개");
+    expect(captionOf(FINISHED, labels)).toEqual({ outcome: "적용됨", count: "발견 2개" });
+    expect(captionOf(RUNNING, labels)).toEqual({ outcome: null, count: "발견 1개" });
   });
 });

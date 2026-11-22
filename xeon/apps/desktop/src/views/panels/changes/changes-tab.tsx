@@ -204,17 +204,24 @@ function FileDiffs(props: {
     <div className="grid grid-cols-1 min-w-0 gap-3">
       {props.file.edits.map((edit, index) => {
         const turn = props.view.turns[edit.turnIndex];
-        const label =
-          props.inTurn || turn === undefined
-            ? null
-            : `${turnLabelOf(turn)}${turn.prompt === null ? "" : ` · ${turn.prompt}`}`;
+        const label = props.inTurn || turn === undefined ? null : turn;
         const button = withButton && index === 0 ? wideButton : null;
         return (
           <div key={edit.callId} className="grid grid-cols-1 min-w-0 gap-1.5">
             {label === null && button === null ? null : (
               <div className="flex min-h-6 min-w-0 items-center gap-2">
-                <p className="m-0 min-w-0 flex-1 truncate text-footnote text-text-tertiary">
-                  {label}
+                <p className="m-0 flex min-w-0 flex-1 items-baseline gap-2 text-footnote text-text-tertiary">
+                  {label === null ? null : (
+                    <>
+                      <span className="flex-none">{turnLabelOf(label)}</span>
+                      {label.prompt === null ? null : (
+                        <>
+                          {" "}
+                          <span className="min-w-0 truncate">{label.prompt}</span>
+                        </>
+                      )}
+                    </>
+                  )}
                 </p>
                 {button}
               </div>
@@ -332,7 +339,7 @@ function ageText(at: string | null, nowMs: number): string | undefined {
   return t(age.id, age.args);
 }
 
-function turnDetailOf(turn: ChangeTurn): string {
+function turnDetailOf(turn: ChangeTurn): readonly string[] {
   const parts: string[] = [];
   if (turn.files.length > 0) {
     parts.push(t("desktop.changes.summary.files", { count: turn.files.length }));
@@ -345,7 +352,7 @@ function turnDetailOf(turn: ChangeTurn): string {
   if (turn.untracked.length > 0) {
     parts.push(t("desktop.changes.turn.untracked", { count: turn.untracked.length }));
   }
-  return parts.join(" · ");
+  return parts;
 }
 
 /**
@@ -417,19 +424,25 @@ function TurnChanges(props: {
                   setPicked(selected ? "" : id);
                 }}
               >
-                <span className="min-w-0 truncate">
-                  {turnLabelOf(turn)}
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="flex-none">{turnLabelOf(turn)}</span>
                   {turn.prompt === null ? null : (
-                    <span
-                      className={`font-normal ${selected ? "text-text-primary" : "text-text-secondary"}`}
-                    >
+                    <>
                       {" "}
-                      · {turn.prompt}
-                    </span>
+                      <span
+                        className={`min-w-0 truncate font-normal ${selected ? "text-text-primary" : "text-text-secondary"}`}
+                      >
+                        {turn.prompt}
+                      </span>
+                    </>
                   )}
                 </span>
-                <span className="min-w-0 truncate text-ui-sm font-normal text-text-tertiary">
-                  {turnDetailOf(turn)}
+                <span className="flex min-w-0 items-baseline gap-2 text-ui-sm font-normal text-text-tertiary">
+                  {turnDetailOf(turn).map((part) => (
+                    <span key={part} className="min-w-0 truncate">
+                      {part}
+                    </span>
+                  ))}
                 </span>
               </button>
             }

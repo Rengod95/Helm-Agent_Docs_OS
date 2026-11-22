@@ -173,7 +173,7 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
   }
   if (items.length === 0) return null;
   return (
-    <span className="flex shrink-0 items-center text-ui-sm text-text-tertiary">
+    <span className="flex shrink-0 items-center gap-3 text-ui-sm text-text-tertiary">
       {items.map((item) => (
         <span
           key={item.key}
@@ -181,9 +181,6 @@ function MetaLine(props: { readonly view: NowView }): ReactNode {
           // 좁은 띠(520 이하)에서는 곁 정보(에이전트, 주도)를 숨기고 진행과 승인만 남긴다
           className={`inline-flex items-center ${item.extra ? "@max-[520px]:hidden" : ""}`}
         >
-          <span aria-hidden className="px-2">
-            ·
-          </span>
           {item.node}
         </span>
       ))}

@@ -94,12 +94,10 @@ function ReviewHead(props: {
               </span>
             )}
           </div>
-          <p className="m-0 truncate text-ui text-text-tertiary">
-            {t(ACTION_WORD[entry])}
-            {" · "}
-            {originText(item, props.threadTitle)}
-            {" · "}
-            {agoText(item.createdAt, props.now)}
+          <p className="m-0 flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
+            <span className="shrink-0">{t(ACTION_WORD[entry])}</span>{" "}
+            <span className="min-w-0 truncate">{originText(item, props.threadTitle)}</span>{" "}
+            <span className="shrink-0">{agoText(item.createdAt, props.now)}</span>
           </p>
         </div>
       </div>

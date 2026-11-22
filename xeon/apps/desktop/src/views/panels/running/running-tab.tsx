@@ -145,8 +145,8 @@ function stateText(row: RunRow): string {
   return t("desktop.running.outcome.completed");
 }
 
-/** 둘째 줄: 무엇을 하는지(마지막 동작) · 얼마나 됐는지 */
-function metaOf(row: RunRow, now: number): string {
+/** 둘째 줄의 칸: 무엇을 하는지(마지막 동작), 얼마나 됐는지. 칸마다 따로 놓는다 */
+function metaPartsOf(row: RunRow, now: number): readonly string[] {
   const parts: string[] = [];
   if (row.parentTitle !== null) parts.push(t("desktop.running.parent", { title: row.parentTitle }));
   if (row.state === "waiting") {
@@ -173,7 +173,7 @@ function metaOf(row: RunRow, now: number): string {
           : t("desktop.running.elapsed.hours", { count: elapsed.count }),
     );
   }
-  return parts.join(" · ");
+  return parts;
 }
 
 /** 대화 한 줄(44): 상태 표시 16 · 이름 13/500 + 출처 칩 / 둘째 줄 12 tertiary · 동작 둘까지(xs 24). 자식은 세로선 아래 들여 쓴다 */
@@ -208,8 +208,12 @@ function RunRowView(props: {
               <Badge size="xs">{t("desktop.running.chip.remote")}</Badge>
             ) : null}
           </div>
-          <span className="truncate text-ui-sm font-normal text-text-tertiary">
-            {metaOf(row, now)}
+          <span className="flex min-w-0 items-baseline gap-2 text-ui-sm font-normal text-text-tertiary">
+            {metaPartsOf(row, now).map((part) => (
+              <span key={part} className="min-w-0 truncate">
+                {part}
+              </span>
+            ))}
           </span>
         </div>
         <div className="flex flex-none items-center gap-1">
@@ -255,7 +259,7 @@ function RunRowView(props: {
   );
 }
 
-/** well 머리 요약(DP-193): "2개 도는 중 · 1개 기다림" */
+/** well 머리 요약(DP-193): "2개 도는 중"과 "1개 기다림"을 간격으로 나눠 놓는다 */
 export function RunningSummary(): ReactNode {
   const sources = useRunSources();
   const openId = useOpenThreadId();
@@ -266,5 +270,11 @@ export function RunningSummary(): ReactNode {
     parts.push(t("desktop.running.summary.running", { count: board.runningCount }));
   if (board.waitingCount > 0)
     parts.push(t("desktop.running.summary.waiting", { count: board.waitingCount }));
-  return parts.length === 0 ? null : parts.join(" · ");
+  return parts.length === 0 ? null : (
+    <span className="flex min-w-0 items-baseline gap-2">
+      {parts.map((part) => (
+        <span key={part}>{part}</span>
+      ))}
+    </span>
+  );
 }

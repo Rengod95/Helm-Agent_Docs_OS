@@ -400,10 +400,11 @@ export function StackRows(props: {
     <div className="relative" role="group" aria-label={props.label}>
       {hot === null || hotRow === undefined || hotRow === null || hotValue === null ? null : (
         <Readout>
-          <span className="text-text-secondary">
-            {hotRow.name} · {labelOf(hot.series)}
-          </span>{" "}
-          <span className="viz-figure font-medium">{props.format(hotValue)}</span>
+          <span className="inline-flex items-baseline gap-2">
+            <span className="text-text-secondary">{hotRow.name}</span>{" "}
+            <span className="text-text-secondary">{labelOf(hot.series)}</span>{" "}
+            <span className="viz-figure font-medium">{props.format(hotValue)}</span>
+          </span>
         </Readout>
       )}
       <div className="grid grid-cols-[minmax(7rem,11rem)_1fr_4.5rem] items-center gap-x-3 gap-y-1">

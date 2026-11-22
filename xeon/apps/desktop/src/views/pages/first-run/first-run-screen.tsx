@@ -359,7 +359,8 @@ export function FirstRunScreen(): ReactNode {
         modelChoices={modelChoices}
         keyEntry={keyEntry}
         notice={notice}
-        engineState={`${engineLineOf(shownEngineOf(engine, phase === "live"))} · ${t(linkTextOf(phase))}`}
+        engineState={engineLineOf(shownEngineOf(engine, phase === "live"))}
+        linkState={t(linkTextOf(phase))}
         settingsProblem={firstSettingsProblemOf(notices?.settingsProblems ?? [])}
         handlers={handlers}
       />

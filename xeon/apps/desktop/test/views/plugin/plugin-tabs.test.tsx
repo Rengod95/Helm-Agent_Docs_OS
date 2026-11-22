@@ -56,7 +56,7 @@ describe("plugin tabs", () => {
     );
     expect(html).toContain("Helm 패널");
     // 서버 렌더는 이어 붙인 글 사이에 주석 표지를 넣는다
-    expect(html.replaceAll("<!-- -->", "")).toContain("helm · v0.1.0");
+    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain("helm v0.1.0");
     expect(html).not.toContain("다른 패널");
     expect(html).not.toContain(">쪽<");
   });

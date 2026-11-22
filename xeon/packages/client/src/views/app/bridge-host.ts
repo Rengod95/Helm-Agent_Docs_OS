@@ -19,6 +19,7 @@ import {
   type Scheduler,
   type TimerHandle,
 } from "@fresnel/contracts";
+import { t } from "../../i18n/index.ts";
 import type { LedgerFailure, ScreenLedger } from "../ledger.ts";
 import {
   decide,
@@ -580,7 +581,10 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     const before = stillRunnable();
     if (before !== undefined) return { ok: false, error: before };
     // 알림에 확장 이름이 보인다. 이름은 매니페스트 값이고 프레임이 정할 수 없다
-    const title = `${options.context().extension} · ${action.title}`;
+    const title = t("desktop.plugin.originTitle", {
+      extension: options.context().extension,
+      title: action.title,
+    });
     const result = await attemptAsync(() => backend.notify(title, action.body));
     return result.ok ? result.value : failed("failed");
   }

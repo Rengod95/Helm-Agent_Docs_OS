@@ -38,15 +38,23 @@ export function ContextPicker(props: { readonly profiles: readonly ContextProfil
         className="min-w-0 flex-1"
       >
         <SelectOption value="all">
-          {t("desktop.shell.context.label")} · {t("desktop.shell.context.all")}
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="text-text-tertiary">{t("desktop.shell.context.label")}</span>{" "}
+            <span>{t("desktop.shell.context.all")}</span>
+          </span>
         </SelectOption>
         <SelectGroup>
           <SelectHeading>{t("desktop.shell.context.profile")}</SelectHeading>
           {props.profiles.map((p) => (
             <SelectOption key={p.id} value={`${PROFILE_PREFIX}${p.id}`}>
-              {context.kind === "profile" && context.profileId === p.id
-                ? `${t("desktop.shell.context.profile")} · ${p.title}`
-                : p.title}
+              {context.kind === "profile" && context.profileId === p.id ? (
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="text-text-tertiary">{t("desktop.shell.context.profile")}</span>{" "}
+                  <span className="min-w-0 truncate">{p.title}</span>
+                </span>
+              ) : (
+                p.title
+              )}
             </SelectOption>
           ))}
         </SelectGroup>

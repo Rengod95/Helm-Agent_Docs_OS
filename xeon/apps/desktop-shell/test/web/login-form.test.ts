@@ -22,17 +22,17 @@ describe("formatCodeInput", () => {
 });
 
 describe("defaultDeviceName", () => {
-  test("device · browser", () => {
+  test("browser on device", () => {
     expect(
       defaultDeviceName(
         "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
       ),
-    ).toBe("iPhone · Safari");
+    ).toBe("Safari on iPhone");
     expect(
       defaultDeviceName(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0",
       ),
-    ).toBe("Windows · Edge");
+    ).toBe("Edge on Windows");
     expect(defaultDeviceName("curl/8")).toBe("Browser");
   });
 });

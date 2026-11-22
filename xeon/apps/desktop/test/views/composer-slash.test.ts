@@ -140,10 +140,10 @@ describe("slash menu", () => {
   test("the reason a skill is not loaded is a line of its own, shown for a lone slash or a matching path", () => {
     expect(slashIssuesOf("/", SKILLS)).toEqual([
       "이 폴더를 신뢰하지 않아 프로젝트 스킬을 싣지 않았어요",
-      "싣지 못한 스킬 · skill not indexed: bad frontmatter",
+      "싣지 못한 스킬 (skill not indexed: bad frontmatter)",
     ]);
     expect(slashIssuesOf("/broken", SKILLS)).toEqual([
-      "싣지 못한 스킬 · skill not indexed: bad frontmatter",
+      "싣지 못한 스킬 (skill not indexed: bad frontmatter)",
     ]);
     expect(slashIssuesOf("/zzz", SKILLS)).toEqual([]);
     expect(slashIssuesOf("/", null)).toEqual([]);

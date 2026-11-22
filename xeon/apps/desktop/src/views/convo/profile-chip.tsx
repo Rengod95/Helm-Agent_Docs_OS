@@ -42,6 +42,7 @@ import {
 import { ProfileGlyph } from "./profile-glyph.tsx";
 import { reloadProfiles, useProfiles, type ProfilesRead } from "./profile-listing.ts";
 import { permissionModeNameOf } from "./turn-model.ts";
+import { MetaParts } from "../meta-parts.tsx";
 
 // 입력창 프로필 칩(lcM6a·lcM6b, L4 desktop-ux §6.6.1, craft-flows T1).
 // 칩은 입력창 아래 줄 왼쪽, 첨부(+) 뒤에 선다. 권한 모드 칩과 같은 문법이다: sm ghost(높이 28, 좌우 8), 앞 아이콘 + 글 13 tertiary,
@@ -310,7 +311,14 @@ export function ProfileRows(props: { readonly state: ProfileChipState }): ReactN
         {hints.length === 0 ? (
           <span className="truncate">{row.title}</span>
         ) : (
-          <MenuText title={row.title} hint={hints.join(" · ")} />
+          <MenuText
+            title={row.title}
+            hint={
+              <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+                <MetaParts parts={hints} />
+              </span>
+            }
+          />
         )}
       </MenuItem>
     );
