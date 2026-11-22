@@ -55,6 +55,8 @@ export interface BuildCardInput {
   readonly whichTool?: (name: string) => string | undefined;
   /** 참이면 환경 모드 스크립트의 권한을 샌드박스 안의 값(`SCRIPT_ENV_SANDBOXED_USES`)으로 싣는다(설정 `l0.sandbox.sandboxImportedHooks`). 생략하면 거짓: 사용자 권한 그대로(`SCRIPT_ENV_USES`) */
   readonly envSandboxed?: boolean;
+  /** 참이면 설정 `l0.sandbox.narrowDrafts`가 켜져 있다. 코드가 있는 격리 플러그인의 카드에 `runs.narrowBeforeApproval`을 싣는다. 생략하면 거짓 */
+  readonly narrowDrafts?: boolean;
   /**
    * 가져온 훅의 출처(가져오기 계획이 검토 항목에 기록한 값). 환경 모드 스크립트의 `origin`과 `originLabel`은 이 값에서만 나온다. 매니페스트에서는 읽지 않는다.
    * 없으면 `unknown`이다(프로젝트 폴더 출처의 플러그인은 `project`, 라벨 없음)
@@ -461,7 +463,13 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     purpose,
     does: { inject, hook, drive },
     enforcement,
-    runs: { code, isolated: code ? isolatedOf(input.origin.kind) : null },
+    runs: {
+      code,
+      isolated: code ? isolatedOf(input.origin.kind) : null,
+      ...(code && input.narrowDrafts === true && isolatedOf(input.origin.kind)
+        ? { narrowBeforeApproval: true as const }
+        : {}),
+    },
     cost: costOf(folder),
     health: input.health,
     origin,

@@ -376,7 +376,7 @@ export interface LoaderIsolation {
   readonly scriptGate?: ScriptDraftGate;
   /** 이 기기에서 격리(샌드박스)를 쓸 수 있는가. 초안 스크립트가 카드를 열기 전에 묻는다. 없으면 묻지 않는다(띄울 때 막힌다) */
   readonly sandboxAvailable?: () => boolean;
-  /** 승인 전 드래프트의 스크립트를 좁은 길로 돌리는가(설정 `l0.sandbox.narrowDrafts`). `ScriptRunnerDeps.narrowDrafts` */
+  /** 승인 전 드래프트의 스크립트와 플러그인 프로세스를 좁은 길로 돌리는가(설정 `l0.sandbox.narrowDrafts`). `ScriptRunnerDeps.narrowDrafts` */
   readonly narrowDrafts?: () => boolean;
   /** 환경 모드(기본)의 외부 훅 실행 포트. `ScriptRunnerDeps.hookProcess` */
   readonly hookProcess?: () => HookProcessPort | undefined;
@@ -1422,6 +1422,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       versionId: versionIdOf(record.candidate, manifest, generation),
       port,
       launch: isolation.launch,
+      // 승인 전 드래프트의 프로세스만, 설정을 켰을 때 좁은 길이다. 승인된 플러그인은 설정과 상관없이 열린 길이다 [결정: 2026-11-22, 사용자, AGE-63]
+      narrow: () => record.candidate.draft !== undefined && isolation.narrowDrafts?.() === true,
       setTimer: isolation.setTimer,
       now: () => deps.clock.now(),
       ...(isolation.logger === undefined ? {} : { logger: isolation.logger }),

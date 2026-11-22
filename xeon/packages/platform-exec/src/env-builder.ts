@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "@fresnel/contracts";
-import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
+import { BASE_ENV_PASS_NAMES, SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 
 // L0.exec.spec §3.5. 자식 프로세스 env는 부모 env 전체가 아니라 이름 허용 목록으로 만든다.
 
@@ -13,7 +13,7 @@ export interface EnvPolicy {
 }
 
 export const BASE_ENV_POLICY: EnvPolicy = {
-  pass: ["PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "SHELL"],
+  pass: BASE_ENV_PASS_NAMES,
   fixed: { TERM: "dumb", NO_COLOR: "1", CI: "1" },
   deny: SENSITIVE_ENV_PATTERNS,
 };

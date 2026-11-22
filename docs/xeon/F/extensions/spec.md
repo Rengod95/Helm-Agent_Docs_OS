@@ -397,7 +397,7 @@ export interface PluginCard {
     readonly drive: { readonly start: boolean; readonly commands: readonly string[] } | null;
   };
   readonly enforcement: "advisory" | "enforced";                  // drives이거나 first·chain·collect 훅이 있으면 enforced
-  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };  // isolated: 코드가 샌드박스 안에서 도는가. true는 Fresnel의 샌드박스 하나(열린 정책, 막는 것은 보호 셋뿐), 엔진 안의 내장만 false, 코드 없음은 null [결정: 2026-11-21, 사용자, AGE-63]
+  readonly runs: { readonly code: boolean; readonly isolated: boolean | null; readonly narrowBeforeApproval?: true };  // isolated: 코드가 샌드박스 안에서 도는가. true는 Fresnel의 샌드박스 하나(열린 정책, 막는 것은 보호 셋뿐), 엔진 안의 내장만 false, 코드 없음은 null [결정: 2026-11-21, 사용자, AGE-63] // narrowBeforeApproval: 설정 `l0.sandbox.narrowDrafts`가 켜져 있어 승인 전(드래프트)에는 좁은 샌드박스에서 돈다. 켠 때만 있다(코드가 있는 격리 플러그인) [결정: 2026-11-22, 사용자, AGE-63]
   readonly cost: CostFigures;                                     // basis는 declared 또는 unknown. 숫자는 어림 토큰이다(아래 CostFigures)
   readonly health: { readonly state: "ok" | "idle" | "error" | "stopped" | "integrity"; readonly lastActiveAt: string | null; readonly lastError: string | null };
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
@@ -923,11 +923,11 @@ export interface IsolationSpawnSpec {
   /** 호스트 런타임이 readRoot 밖에서 더 읽어야 하는 절대 경로(소스 실행의 소스 작업 공간). 컴파일 바이너리는 비어 있다. 좁은 정책(`narrow`)에서만 쓴다 */
   readonly runtimeReadRoots?: readonly string[];
   /**
-   * 참이면 이 호출만 좁은 샌드박스(쓰기 없음 프로필, 읽기 허용 목록, 허용 목록 env)로 돈다. 설정 `l0.sandbox.narrowDrafts`가 켜진 승인 전 드래프트용.
+   * 참이면 이 호출만 좁은 샌드박스(쓰기 없음 프로필, 읽기 허용 목록)로 돈다. 설정 `l0.sandbox.narrowDrafts`가 켜진 승인 전 드래프트의 스크립트와 플러그인 프로세스용.
    * 없으면 열린 정책이다(쓰기 루트 `/`, 보호 경로 외 읽기·쓰기 허용, 네트워크는 차단 목록만) [결정: 2026-11-21, 사용자, AGE-63]
    */
   readonly narrow?: true;
-  /** 열린 정책에서는 env가 부모 env에서 `FRESNEL_`로 시작하는 이름을 뺀 값에 더해진다(토큰 이름도 거르지 않는다). `narrow`면 허용 목록 env에 더해진다. DB 경로와 시크릿 값은 넣지 않는다 */
+  /** 어느 정책에서든 셸 도구와 같은 허용 목록 env에 더해진다(토큰·키·`FRESNEL_` 부모 값은 넘어가지 않는다) [결정: 2026-11-22, 사용자, AGE-63]. DB 경로와 시크릿 값은 넣지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   readonly label: string;            // "ext:<name>:<versionId>"
 }

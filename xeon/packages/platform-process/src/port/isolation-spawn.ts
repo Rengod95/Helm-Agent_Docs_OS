@@ -13,7 +13,7 @@ import type {
 } from "@fresnel/contracts/services";
 import { isAbsolute, resolve as resolvePath } from "node:path";
 import type { ProcessPlatformProvider } from "../select.ts";
-import { childEnv, openChildEnv, VALID_ENV_NAME } from "./child-env.ts";
+import { childEnv, VALID_ENV_NAME } from "./child-env.ts";
 import { DEFAULT_STDIN_CLOSE_MS, stopperOfPiped } from "./child-stop.ts";
 import { spawnPiped } from "./spawn-piped.ts";
 
@@ -25,8 +25,8 @@ import { spawnPiped } from "./spawn-piped.ts";
 //    `narrow: true`면 좁은 정책이다: 샌드박스의 "쓰기 없음" 프로필(`profile: "no-write"`, 승인 전 드래프트용). 쓰기 루트 없음(이 프로세스 전용 빈 임시 폴더 하나만, 끝나면 지운다),
 //    읽기는 허용 목록(`readRoot`, 실행 파일, `spec.runtimeReadRoots`, 런타임이 꼭 필요한 시스템 경로)이고 네트워크는 차단 목록만이다.
 //    `scriptEnv`가 있으면 옛 길의 "script-env" 프로필이 먼저 쓰인다(옵트인, 바뀌지 않는다). `profile: "read-only"`는 네트워크를 막으므로 쓰지 않는다.
-// 3. 자식 env는 열린 정책에서 부모 env의 `FRESNEL_` 이름만 뺀 값에 `spec.env`를 더하고, 좁은 정책과 `scriptEnv`에서는 허용 목록 env에 `spec.env`를 더한다.
-//    샌드박스가 준 env는 마지막에 덮는다. cwd는 `spec.readRoot`다(`scriptEnv`면 `projectDir`).
+// 3. 자식 env는 어느 정책이든 셸 도구와 같은 허용 목록(`BASE_ENV_PASS_NAMES`)의 부모 값에 `spec.env`를 더한 것이다(토큰·키·`FRESNEL_` 값은 넘어가지 않는다)
+//    [결정: 2026-11-22, 사용자, AGE-63]. 샌드박스가 준 env는 마지막에 덮는다. cwd는 `spec.readRoot`다(`scriptEnv`면 `projectDir`).
 // 4. `BackgroundRegistry`에 owner kind `plugin-host`, ref 라벨로 등록한다. 정지 순서는 MCP 서버와 같다(stdin 닫기, 유예, SIGTERM, 유예, SIGKILL).
 // 5. `kill(SIGTERM|SIGKILL)`은 프로세스 트리 전체에 보낸다. `exited`는 종료와 표준 출력 닫힘 뒤에 이행한다.
 
@@ -42,7 +42,7 @@ export interface IsolationProcessDeps {
   readonly background: BackgroundRegistry;
   /** 샌드박스 서비스를 spawn 때마다 찾는다(조립 순서상 이 포트가 서비스보다 먼저 만들어진다). undefined를 돌려주면 `sandbox_unavailable`이다 */
   readonly sandbox: () => IsolationSandboxSource | undefined;
-  /** 부모 env. 열린 정책은 `FRESNEL_` 이름만 빼고 옮기고, 좁은 정책과 옛 길은 허용 목록 이름만 옮긴다 */
+  /** 부모 env. 허용 목록 이름만 자식에 옮긴다 */
   readonly parentEnv: Readonly<Record<string, string | undefined>>;
   readonly scheduler: Scheduler;
   readonly logger: Logger;
@@ -98,18 +98,6 @@ function policyOf(
   if (spec.scriptEnv !== undefined) return scriptEnvPolicy(sandbox, spec.scriptEnv);
   if (spec.narrow === true) return pluginHostPolicy(sandbox, cwd, spec);
   return openPolicy(sandbox, cwd, spec.readRoot);
-}
-
-/**
- * 자식 env의 바탕. 좁은 정책과 옛 길은 허용 목록 env이고, 열린 정책은 부모 env에서 `FRESNEL_` 이름만 뺀 값이다 [결정: 2026-11-21, 사용자, AGE-63].
- * 어느 쪽이든 `spec.env`를 더한다.
- */
-function baseEnvOf(
-  spec: IsolationSpawnSpec,
-  parentEnv: Readonly<Record<string, string | undefined>>,
-): Record<string, string> {
-  if (spec.scriptEnv !== undefined || spec.narrow === true) return childEnv(parentEnv, spec.env);
-  return openChildEnv(parentEnv, spec.env);
 }
 
 /**
@@ -206,7 +194,7 @@ export function createIsolationProcessPort(deps: IsolationProcessDeps): Isolatio
           args,
           cwd,
           // 샌드박스가 정한 값(프록시 주소 등)은 자식 env 바탕보다 앞선다
-          env: Object.assign(baseEnvOf(spec, deps.parentEnv), wrapped.env),
+          env: Object.assign(childEnv(deps.parentEnv, spec.env), wrapped.env),
           label: spec.label,
         },
         { platform, scheduler: deps.scheduler, logger: deps.logger, drainMs },
