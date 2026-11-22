@@ -55,7 +55,15 @@ export const PROVENANCES = [
 export type Provenance = (typeof PROVENANCES)[number];
 const ProvenanceShape = Type.Union(PROVENANCES.map((name) => Type.Literal(name)));
 
-export const DIFF_ROWS = ["inject", "hook", "drive", "runs", "setting", "replaces"] as const;
+export const DIFF_ROWS = [
+  "inject",
+  "hook",
+  "drive",
+  "runs",
+  "setting",
+  "replaces",
+  "dependencies",
+] as const;
 /** "하는 일의 차이"의 칸. 카드의 칸과 같은 이름이다 */
 export type DiffRow = (typeof DIFF_ROWS)[number];
 const DiffRowShape = Type.Union(DIFF_ROWS.map((name) => Type.Literal(name)));

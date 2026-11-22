@@ -1,7 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import { ThreadIdSchema, type ThreadId } from "../../conversation/index.ts";
-import { ExtensionNameSchema } from "../../extensions/index.ts";
+import { ExtensionNameSchema, RegistrationIdSchema } from "../../extensions/index.ts";
 import { SettingKeySchema } from "../settings/index.ts";
 import { StreamPositionSchema, type StreamPosition } from "./cursor.ts";
 import { PROJECT_ID_PATTERN } from "./project.ts";
@@ -171,6 +171,12 @@ export const PROFILE_ISSUE_CODES = [
   "secret_missing",
   "required_unset",
   "requirement_unmet",
+  /** 플러그인 의존(`dependsOn`)의 대상이 설치되어 있지 않거나 가리킨 구성원이 없다. hard면 오류, soft면 경고. `plugin`이 기대는 쪽, `other`가 대상이다 */
+  "dependency_missing",
+  /** 의존 대상이 설치되어 있으나 이 프로필의 목록에 없다(꺼져 있다). hard면 오류, soft면 경고. 화면이 "함께 켤까요"를 물을 모자란 대상이다 */
+  "dependency_disabled",
+  /** 의존 대상의 버전이 `range`를 만족하지 않는다. hard면 오류, soft면 경고 */
+  "dependency_range",
   "managed_forbidden",
   "limit",
 ] as const;
@@ -186,7 +192,7 @@ export interface ProfileIssue {
   readonly severity: "error" | "warning";
   readonly plugin?: string;
   readonly key?: string;
-  /** `replace_conflict`일 때 상대 플러그인 */
+  /** `replace_conflict`일 때 상대 플러그인. `dependency_*`일 때 가리킨 Registration id(`이름` 또는 `이름/id`) */
   readonly other?: string;
   readonly tool?: string;
 }
@@ -195,7 +201,7 @@ const ProfileIssueShape = closed({
   severity: Type.Union([Type.Literal("error"), Type.Literal("warning")]),
   plugin: Type.Optional(ExtensionNameSchema),
   key: Type.Optional(SettingKeySchema),
-  other: Type.Optional(ExtensionNameSchema),
+  other: Type.Optional(RegistrationIdSchema),
   tool: Type.Optional(ToolName),
 });
 export const ProfileIssueSchema: TUnsafe<ProfileIssue> = Type.Unsafe<ProfileIssue>(
@@ -551,11 +557,17 @@ export interface ProfileRemovePluginParams {
   readonly id: string;
   readonly plugin: string;
   readonly baseRev: number;
+  /**
+   * 참이면 이 플러그인에 hard로 기대는 플러그인도 한 번의 편집으로 같이 뺀다(이어서 기대는 것까지). 생략이나 거짓이면 기대는 플러그인이
+   * 프로필에 남아 있을 때 `dependency_disabled` 오류로 거절한다(AGE-33). 공통 묶음에 든 기대는 플러그인은 같이 뺄 수 없어 거절한다
+   */
+  readonly withDependents?: boolean;
 }
 const ProfileRemovePluginParamsShape = request({
   id: Id,
   plugin: ExtensionNameSchema,
   baseRev: Count,
+  withDependents: Type.Optional(Type.Boolean()),
 });
 export const ProfileRemovePluginParamsSchema: TUnsafe<Req<ProfileRemovePluginParams>> = Type.Unsafe<
   Req<ProfileRemovePluginParams>

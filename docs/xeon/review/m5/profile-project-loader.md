@@ -107,7 +107,7 @@ export const PROFILE_LIMITS = { plugins: 128, settings: 128, profiles: 200 } as 
 export type ProfileIssueCode =
   | "plugin_unknown" | "plugin_not_reviewed" | "replace_conflict" | "driver_not_in_list"
   | "driver_cannot_drive" | "driver_unavailable" | "setting_unknown_key" | "setting_scope_not_allowed" | "setting_invalid_value"
-  | "secret_literal" | "secret_missing" | "required_unset" | "requirement_unmet" | "managed_forbidden" | "limit";
+  | "secret_literal" | "secret_missing" | "required_unset" | "requirement_unmet" | "dependency_missing" | "dependency_disabled" | "dependency_range" | "managed_forbidden" | "limit";
 export interface ProfileIssue {
   readonly code: ProfileIssueCode;
   readonly severity: "error" | "warning";
@@ -143,6 +143,7 @@ export interface PluginCard {
   readonly origin: { readonly kind: "builtin" | "bundled" | "user" | "project" | "managed"; readonly projectId?: string; readonly createdIn?: { readonly threadId: string } };
   readonly review: { readonly state: "approved" | "pending" | "draft" | "none"; readonly currentHash: string | null; readonly pendingItemId: string | null; readonly approvedAt: string | null };
   readonly usedBy: readonly string[];                       // 층 3. 프로필 id. 공통 묶음은 "common"
+  readonly dependencies?: { readonly dependsOn: readonly CardDependency[]; readonly dependents: readonly CardDependency[] }; // [제안, AGE-33] 이 플러그인이 기대는 것(매니페스트, problem은 설치된 집합에서 본 값)과 이 플러그인에 기대는 쪽. 선택 필드라 옛 카드도 파싱된다. 목록과 항목 응답은 설치된 사실로 다시 채우고(`withInstalledDependencies`), 검토 차이는 `dependencies` 칸에 기대는 줄의 추가·바뀜으로 보인다
 }
 export interface InjectInventory {
   readonly instructions: { readonly always: readonly InstructionEntry[]; readonly skills: readonly SkillEntry[] };
@@ -434,7 +435,7 @@ export type ContextRef =
    - `setting_unknown_key`, `setting_scope_not_allowed`, `setting_invalid_value`, `secret_literal`
    - `limit`(`plugins` 128, `settings` 128, 프로필 200)
    [결정: 2026-11-20, 사용자, AGE-34] 오류 가운데 "지금 이 기기에 없는 플러그인"은 **이미 있던 것이면 경고**다. 저장 전의 프로필(첫 저장이면 없음)이나 공통 묶음에 이미 든 이름의 `plugin_unknown`은 `severity: "warning"`으로 내고 저장을 막지 않는다. 그 이름이 소유한 설정 키가 저장 전에도 있었으면 `setting_unknown_key`도 경고다. 이번 저장이 새로 더하거나 바꾼 항목의 문제(없는 플러그인을 새로 넣음, 형식 오류, `replace_conflict`, 시작 Drive, 그 밖의 오류)는 그대로 오류다. "이미 있던 것"은 저장 전의 같은 프로필과 공통 묶음으로 가린다(`validateProfile`의 선택 인자 `previous`). 이 규칙은 `profile.put`, `profile.common.put`, `profile.removePlugin`, 승인의 프로필 검사(`planPluginEdit`)와 `profile.preview`(같은 id의 저장본 기준)에 같고, `profile.clone`은 새 프로필이라 바뀌지 않는다. 화면은 `missingPlugins`로 "○○이 이 기기에 없어요. 이 프로필에서는 건너뛰어요"를 보인다. 실행 때는 없는 플러그인을 건너뛴다: 대화의 E(T)는 적재할 수 없는 이름을 싣지 않고(`plugin-lifecycle`이 건너뛴다), 시작 Drive가 없는 플러그인을 가리키면 `profile.start_drive_unavailable` 로그만 남기고 시작 Drive 없이 연다. 플러그인을 제거하는 승인은 이름이 든 모든 프로필에서 그 이름을 빼므로 제거 뒤 그 이름을 가리키는 프로필이 남지 않고, 다른 없는 플러그인이 그 저장을 막지 않는다. 시험: `test/assembly/profile-validate.test.ts`, `test/handlers/plugin-edit-port.test.ts`, `test/handlers/test-run-start.test.ts`, `test/int/plugin-install-into-profile.int.test.ts`.
-   경고: `secret_missing`, `required_unset`(필수 `userConfig`가 비어 있음. 그 플러그인은 대화에서 `waiting`(`config_required`)으로 보이고 켜지지 않는다), `requirement_unmet`(필요한 기능이 목록 안에 없음. 기존 Registration `waiting`), `managed_forbidden`, `driver_unavailable`(시작 Drive 플러그인이 관리 잠금으로 꺼졌거나 오류로 멈춰 있어 대화를 열 때 시작 Drive가 쌓이지 않는다 [제안: 저장은 막지 않는다]. 열 때 주도 등록이 없어 시작 요청이 빠지면 호스트가 `profile.start_drive_unavailable`을 로그에 남긴다).
+   경고: `secret_missing`, `required_unset`(필수 `userConfig`가 비어 있음. 그 플러그인은 대화에서 `waiting`(`config_required`)으로 보이고 켜지지 않는다), `requirement_unmet`(필요한 기능이 목록 안에 없음. 기존 Registration `waiting`), 플러그인 의존 `dependency_missing`·`dependency_disabled`·`dependency_range`(`dependsOn`의 대상이 설치되어 있지 않거나, 이 프로필 목록에 없거나, `range`를 어김. `hard`면 오류로 저장을 막고 `soft`면 경고다. 이슈의 `plugin`이 기대는 쪽, `other`가 대상이며 화면은 이 목록으로 "함께 켤까요"를 묻는다. AGE-33), `managed_forbidden`, `driver_unavailable`(시작 Drive 플러그인이 관리 잠금으로 꺼졌거나 오류로 멈춰 있어 대화를 열 때 시작 Drive가 쌓이지 않는다 [제안: 저장은 막지 않는다]. 열 때 주도 등록이 없어 시작 요청이 빠지면 호스트가 `profile.start_drive_unavailable`을 로그에 남긴다).
 8. 비용 미리 보기 입력은 카드의 `cost`(`CostFigures`: `always`, `drive`, `onDemand`, `toolCount`, `basis`)다. `profile.preview.cost`는 해소된 목록의 정적 추정 합계(항상 / 필요할 때 / Drive 중)와 플러그인별 값이고, 측정값과 턴 기록 기반 값은 E의 `profileCost.get`이 낸다(같은 필드명, `basis`가 `measured`·`estimated`). 주도 중에만 싣는 지침은 훅이 넣으므로(§9.1) 정적 `drive` 값의 원천이 없다: 선언이 없으면 `null`, `basis: "unknown"`이고 E가 측정에서만 `inferred`로 채운다. 토큰은 문맥 조립이 쓰는 추정기와 같은 것으로 센다(`core-context/src/assemble.ts:242` `textTokens`). 항상 싣는 양 = 지침 파일 + 선언된 도구 설명. 필요할 때 = 스킬 색인 줄(설명 글자 수)과 본문 크기. 선언이 없는 코드 플러그인의 도구 비용은 `null`이다(`basis: "declared" | "unknown"`. `CostBasis`는 E §3.3이 `measured | estimated | declared | unknown` 넷으로 한 번 정의한다).
 9. 같은 프로필의 `settings`에 같은 키가 둘이면 마지막 값이 이긴다(지금 `collapsed`, `profile-test-run-port.ts:66-75`와 같다).
 

@@ -126,7 +126,7 @@ describe("profile storage (M5c-1 §3.1)", () => {
 });
 
 describe("profile issues (M5c §4.2.7)", () => {
-  test("the issue codes are the fifteen in the spec", () => {
+  test("the issue codes are the eighteen in the spec", () => {
     expect([...PROFILE_ISSUE_CODES]).toEqual([
       "plugin_unknown",
       "plugin_not_reviewed",
@@ -141,6 +141,9 @@ describe("profile issues (M5c §4.2.7)", () => {
       "secret_missing",
       "required_unset",
       "requirement_unmet",
+      "dependency_missing",
+      "dependency_disabled",
+      "dependency_range",
       "managed_forbidden",
       "limit",
     ]);

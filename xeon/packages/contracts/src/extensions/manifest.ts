@@ -23,7 +23,7 @@ import {
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { DecisionKindSchema, HookNameSchema } from "./hooks.ts";
-import { PluginIdSchema } from "./registration-id.ts";
+import { PluginIdSchema, RegistrationIdSchema } from "./registration-id.ts";
 import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
 import { UiDeclSchema, type UiDecl } from "./ui.ts";
@@ -262,6 +262,31 @@ export const ManifestScriptDeclSchema: TObject<{
 );
 export type ManifestScriptDecl = Static<typeof ManifestScriptDeclSchema>;
 
+/**
+ * 플러그인이 다른 플러그인에 거는 의존 한 줄(AGE-33, F.extensions.spec 의존 관계). `plugin`은 확장 이름이나 구성원
+ * Registration id(`<이름>/<id>`)다. `kind`가 없으면 `soft`, `range`가 없으면 어느 버전이든 된다.
+ * 기능 단위 `requires`·`optional`과 다른 선언이고 둘을 함께 써도 된다
+ */
+export const DependencyKindSchema: TUnion<[TLiteral<"hard">, TLiteral<"soft">]> = Type.Union([
+  Type.Literal("hard"),
+  Type.Literal("soft"),
+]);
+export type DependencyKind = Static<typeof DependencyKindSchema>;
+
+export const DependencyDeclSchema: TObject<{
+  plugin: typeof RegistrationIdSchema;
+  range: TOptional<typeof SemVerRangeSchema>;
+  kind: TOptional<typeof DependencyKindSchema>;
+}> = Type.Object(
+  {
+    plugin: RegistrationIdSchema,
+    range: Type.Optional(SemVerRangeSchema),
+    kind: Type.Optional(DependencyKindSchema),
+  },
+  { additionalProperties: false },
+);
+export type DependencyDecl = Static<typeof DependencyDeclSchema>;
+
 /** 확장이 담는 플러그인 하나. 이 선언 하나가 Registration 하나가 된다 */
 export const PluginDeclSchema: TObject<{
   id: TOptional<typeof PluginIdSchema>;
@@ -277,6 +302,7 @@ export const PluginDeclSchema: TObject<{
   requires: TOptional<TArray<typeof CapabilityRequirementSchema>>;
   optional: TOptional<TArray<typeof CapabilityRequirementSchema>>;
   provides: TOptional<TArray<typeof CapabilityProvisionSchema>>;
+  dependsOn: TOptional<TArray<typeof DependencyDeclSchema>>;
   recordKinds: TOptional<TArray<typeof RecordKindDeclJsonSchema>>;
   readsRecordKinds: TOptional<TArray<TString>>;
   replaces: TOptional<TArray<TString>>;
@@ -312,6 +338,8 @@ export const PluginDeclSchema: TObject<{
     requires: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
     optional: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
     provides: Type.Optional(Type.Array(CapabilityProvisionSchema, { maxItems: 128 })),
+    /** 다른 플러그인(이름이나 `이름/id`)에 거는 의존. `kind` 기본은 soft다 */
+    dependsOn: Type.Optional(Type.Array(DependencyDeclSchema, { maxItems: 32 })),
     /** 이 플러그인이 쓰는 레코드 종류 */
     recordKinds: Type.Optional(Type.Array(RecordKindDeclJsonSchema, { maxItems: 128 })),
     /** 이 플러그인이 읽는 다른 확장의 레코드 종류. 끝의 ".*"는 접두 일치 */

@@ -3,6 +3,7 @@ import type { ContextRef, JsonValue } from "../conversation/index.ts";
 import type {
   BridgeCapability,
   CompositionDecl,
+  DependencyKind,
   ExtensionLayer,
   PluginSubmitRequest,
   PluginSubmitResult,
@@ -126,6 +127,115 @@ export interface MembersEditResult {
   readonly changedFiles: readonly string[];
   /** `generated`: 엔트리가 생성 파일을 가져온다. `manual`: 호출자가 엔트리 배선을 직접 확인해야 한다 */
   readonly entryWiring: "generated" | "manual";
+}
+
+/**
+ * 의존 편집 한 건(`editDependencies`, AGE-33). 매니페스트 `plugins[].dependsOn`의 한 줄을 더하거나 뺀다.
+ * `from`은 의존을 거는 구성원의 id이고, 생략하면 뿌리 플러그인이다. 여러 건은 위에서 아래로 차례로 적용하고, 하나라도 실패하면 아무 파일도 쓰지 않는다
+ */
+export type DependencyOp =
+  | {
+      readonly kind: "add";
+      readonly from?: string;
+      /** 같은 `plugin`의 줄이 이미 있으면 그 줄을 이 값으로 바꾼다. `kind`를 생략하면 soft다 */
+      readonly dependency: {
+        readonly plugin: string;
+        readonly range?: string;
+        readonly kind?: DependencyKind;
+      };
+    }
+  | { readonly kind: "remove"; readonly from?: string; readonly plugin: string };
+
+/** 의존 한 줄의 요약. `from`은 의존을 건 Registration id, `target`은 가리키는 Registration id다 */
+export interface DependencyInfo {
+  readonly from: string;
+  readonly target: string;
+  readonly kind: DependencyKind;
+  /** 생략하면 어느 버전이든 된다 */
+  readonly range: string | null;
+}
+
+export interface DependenciesEditInput {
+  /** 플러그인 원본 폴더의 절대 경로(`.fresnel-plugin/plugin.json`이 있어야 한다) */
+  readonly dir: string;
+  /** 1~32건을 받는다. 빈 배열이면 쓰지 않는 읽기다 */
+  readonly ops: readonly DependencyOp[];
+}
+
+export interface DependenciesEditResult {
+  /** 확장 전체의 의존 줄(플러그인 등록 순서) */
+  readonly dependencies: readonly DependencyInfo[];
+  /** 검사 경고와 알림. 오류가 있었으면 편집이 거절되어 여기 오지 않는다 */
+  readonly issues: readonly DevkitIssue[];
+  /** 쓴 파일(dir 기준 상대 경로). 매니페스트만 쓴다 */
+  readonly changedFiles: readonly string[];
+}
+
+/**
+ * 구성원 떼기(`detachMember`, AGE-33). 구성원 하나를 독립 플러그인 폴더로 옮긴다. 원본 폴더 `dir`은 읽기만 하고,
+ * 새 폴더 `outDir`(없거나 비어 있어야 한다)에만 쓴다. 프로필 파일은 건드리지 않는다: 프로필 참조는 `profileMove`로 알린다
+ */
+export interface MembersDetachInput {
+  /** 원본 폴더의 절대 경로(`.fresnel-plugin/plugin.json`이 있어야 한다) */
+  readonly dir: string;
+  /** 떼어 낼 구성원의 id(뿌리 플러그인은 떼지 않는다) */
+  readonly member: string;
+  /** 새 폴더의 절대 경로. 없거나 비어 있어야 한다 */
+  readonly outDir: string;
+  /** 새 이름. 생략하면 `<원래 이름>-<member>`다 */
+  readonly name?: string;
+  /** 참이면 새 플러그인이 원래 이름의 플러그인에 `dependsOn`으로 기댄다 */
+  readonly keepDependency?: boolean;
+  /** `keepDependency`일 때 의존의 종류. 생략하면 soft다 */
+  readonly dependencyKind?: DependencyKind;
+}
+
+/** 떼기의 결과. `changedFiles`는 새 폴더 안의 파일(`outDir` 기준 상대 경로)이다 */
+export interface MembersDetachResult {
+  /** 새 폴더의 절대 경로 */
+  readonly outDir: string;
+  /** 새 이름(매니페스트 `name`) */
+  readonly name: string;
+  readonly changedFiles: readonly string[];
+  readonly issues: readonly DevkitIssue[];
+  /**
+   * 프로필 참조를 옮길 때 화면이 승인 때 묻는 값. `from`은 떼기 전 구성원의 Registration id(`<원래 이름>/<member>`),
+   * `to`는 새 이름이다. 프로필은 이 함수가 바꾸지 않는다
+   */
+  readonly profileMove: { readonly from: string; readonly to: string };
+}
+
+/**
+ * 구성원 합치기(`mergeMembers`, AGE-33). 독립 플러그인 폴더 2~16개를 한 플러그인의 구성원으로 묶은 새 폴더(`outDir`)를 쓴다.
+ * 원본 폴더들은 읽기만 한다. 매니페스트와 선언만 합친다: 코드 파일과 공용 항목은 옮기지 않고 `issues`로 알린다.
+ * 프로필 파일은 건드리지 않는다: 프로필 참조는 `profileMove`로 알린다
+ */
+export interface MembersMergeInput {
+  /** 원본 폴더의 절대 경로 2~16개. 각 폴더는 `plugins` 선언이 하나뿐이고 `orchestration`이 없는 독립 플러그인이어야 한다 */
+  readonly dirs: readonly string[];
+  /** 새 폴더의 절대 경로. 없거나 비어 있어야 한다 */
+  readonly outDir: string;
+  /** 새 이름(매니페스트 `name`). 원본 이름이나 설치된 이름과 겹치면 안 된다 */
+  readonly name: string;
+  /** 뿌리 플러그인의 제목. 생략하면 없다 */
+  readonly title?: string;
+}
+
+/**
+ * 합치기의 결과. `profileMove`의 `from`은 원본의 Registration id(선언에 id가 없으면 원본 이름), `to`는 `<새 이름>/<구성원 id>`다(구성원 id는 원본 이름이다).
+ * 프로필은 이 함수가 바꾸지 않는다
+ */
+export interface MembersMergeResult {
+  /** 새 폴더의 절대 경로 */
+  readonly outDir: string;
+  /** 새 이름(매니페스트 `name`) */
+  readonly name: string;
+  /** 새 매니페스트의 구성원 요약(`plugins[]` 순서) */
+  readonly members: readonly MemberInfo[];
+  /** 쓴 파일(`outDir` 기준 상대 경로). 매니페스트 하나뿐이다 */
+  readonly changedFiles: readonly string[];
+  readonly issues: readonly DevkitIssue[];
+  readonly profileMove: readonly { readonly from: string; readonly to: string }[];
 }
 
 /** 검사 결과 한 건. F `ManifestIssue`와 AU 규칙(`AU-NNN`)을 함께 싣는다 */

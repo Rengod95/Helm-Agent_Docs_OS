@@ -4,6 +4,7 @@ import {
   isSemVerRange,
   type CapabilityId,
 } from "../capabilities/index.ts";
+import { hardDependencyCycles, splitDependencyTarget } from "./dependencies.ts";
 import { RESERVED_SOURCE_KEYS } from "../records/commit.ts";
 import {
   isRecordKindOf,
@@ -64,6 +65,14 @@ export type ManifestIssueCode =
   | "range_invalid"
   | "capability_duplicate"
   | "capability_both"
+  /** `dependsOn`의 `range`가 받아들이는 형식이 아니다 */
+  | "dependency_range_invalid"
+  /** 같은 플러그인의 `dependsOn`에 같은 대상이 두 번 있다 */
+  | "dependency_duplicate"
+  /** `dependsOn`이 자기 확장 안의 플러그인을 가리킨다(같은 확장 안의 관계는 구성원 선언이 맡는다) */
+  | "dependency_self"
+  /** `hard` 의존이 순환을 이룬다(집합 검사). `soft` 순환은 허용한다 */
+  | "dependency_cycle"
   | "provides_reserved"
   | "record_kind_prefix"
   | "record_kind_duplicate"
@@ -165,6 +174,7 @@ export const RESERVED_EXTENSION_NAMES: readonly string[] = [
   "ui",
   "test",
   "members",
+  "dependencies",
 ];
 
 /** 스키마 1의 최상위 이름. 스키마 2에서는 `plugins[]` 안으로 옮겼거나 없어졌다 */
@@ -846,6 +856,39 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
         );
       }
     }
+    const dependsOn = plugin.dependsOn ?? [];
+    dependsOn.forEach((entry, index) => {
+      if (entry.range !== undefined && !isSemVerRange(entry.range)) {
+        issues.push(
+          issue(
+            "error",
+            "dependency_range_invalid",
+            `${base}/dependsOn/${index}/range`,
+            `"${entry.range}" is not an accepted version range`,
+          ),
+        );
+      }
+      if (splitDependencyTarget(entry.plugin).extension === manifest.name) {
+        issues.push(
+          issue(
+            "error",
+            "dependency_self",
+            `${base}/dependsOn/${index}/plugin`,
+            `"${entry.plugin}" is in the same extension; dependsOn points at other extensions`,
+          ),
+        );
+      }
+    });
+    for (const { index, id } of duplicatesIn(dependsOn.map((entry) => entry.plugin))) {
+      issues.push(
+        issue(
+          "error",
+          "dependency_duplicate",
+          `${base}/dependsOn/${index}`,
+          `dependency "${id}" is listed twice`,
+        ),
+      );
+    }
     const required = new Set(requires.map((e) => e.id));
     optional.forEach((entry, index) => {
       if (required.has(entry.id)) {
@@ -1442,6 +1485,18 @@ export function validateManifestSet(
         "drive_conflict",
         `${firstDriver.manifest.name}/plugins/${firstDriver.entry.index}/drives`,
         `registrations ${drivers.map((d) => d.entry.registrationId).join(", ")} all drive and are enabled by default; only one gets the drive lock`,
+      ),
+    );
+  }
+
+  for (const cycle of hardDependencyCycles(manifests)) {
+    const [first] = cycle;
+    issues.push(
+      issue(
+        "error",
+        "dependency_cycle",
+        `${first === undefined ? "" : splitDependencyTarget(first).extension}/dependsOn`,
+        `hard dependencies form a cycle: ${[...cycle, ...cycle.slice(0, 1)].join(" -> ")}`,
       ),
     );
   }
