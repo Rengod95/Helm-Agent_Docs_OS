@@ -70,6 +70,8 @@ export function membersOfManifest(
       title: decl.value.title ?? null,
       layer: decl.value.layer,
       hooks: decl.value.hooks,
+      injects: [],
+      tools: [],
       drives: decl.value.drives === true,
       defaultEnabled: decl.value.defaultEnabled ?? false,
       blockIds: blocks.filter((b) => b.plugin === id).map((b) => b.id),
