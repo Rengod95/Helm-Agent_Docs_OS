@@ -8,7 +8,8 @@
    탭 면 L0.263 C0.105 H261, 탭 글 L0.73 C0.104 H263. caustic info·iris(H235, 청록빛 파랑)는 이 밝기의 탭 면에서 C0.056까지만 되어
    참고의 파랑이 나오지 않는다. info·iris는 바꾸지 않고(알림, 정보 칩 등이 그대로 쓴다) Inject만 이 셋으로 옮긴다.
    다크 text는 L0.74(Drive 글 agent-text와 같은 밝기, 참고 탭 글 L0.73 C0.104에 가깝게)다.
-   명암비(WCAG): 다크 text/face 6.8(참고 탭 6.5), on/solid 7.5. 라이트 text/face 4.8, text/흰 바탕 8.4, on/solid 4.8. */
+   명암비(WCAG): 다크 text/face 6.8(참고 탭 6.5), on/solid 7.5. 라이트 text/face 4.8, text/흰 바탕 8.4, on/solid 4.8.
+   이 셋의 graphic, solid(+hover), on, face는 `chroma.css`가 선명한 벌 `--fr-vivid-cobalt-*`로 덮는다(DP-229, AGE-31 다시). 위 값과 명암비는 첫 판 기록이다. */
 :root {
   --fr-color-cobalt-tint: oklch(0.965 0.016 260);
   --fr-color-cobalt-soft: oklch(0.935 0.03 260);

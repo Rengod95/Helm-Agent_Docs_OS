@@ -74,17 +74,17 @@ function variablesOf(path: string, prefix: string): readonly (readonly [string, 
     .filter(([name]) => name.startsWith(prefix));
 }
 
-// 종류 색은 두 테마가 같다(AGE-31 라이트=다크 유채색, `src/chroma.css`): 표시는 graphic 하나, 타일 글은 테마와 상관없는 다크 짝
+// 종류 색은 두 테마가 같다(AGE-31 다시, `src/chroma.css`): 표시는 선명한 표지, 타일은 선명한 면과 그 위 먹
 test("review takes Inject's kind colour from the cobalt set, the same in every theme", () => {
   expect(variablesOf("views/craft/review/review.css", "--rv-inject")).toEqual([
-    ["--rv-inject", "var(--fr-color-cobalt-graphic)"],
+    ["--rv-inject", "var(--fr-vivid-cobalt)"],
   ]);
 });
 
 test("metrics and trace take Inject's mark, tile face and tile glyph from the cobalt set, the same in every theme", () => {
   expect(variablesOf("views/craft/metrics/viz.css", "--viz-inject")).toEqual([
-    ["--viz-inject", "var(--fr-color-cobalt-graphic)"],
-    ["--viz-inject-tab", "var(--fr-color-cobalt-face)"],
-    ["--viz-inject-tab-text", "var(--fr-chroma-cobalt-text)"],
+    ["--viz-inject", "var(--fr-vivid-cobalt)"],
+    ["--viz-inject-tab", "var(--fr-vivid-cobalt-face)"],
+    ["--viz-inject-tab-text", "var(--fr-vivid-cobalt-ink)"],
   ]);
 });

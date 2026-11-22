@@ -1,116 +1,152 @@
-/* 라이트에서도 다크의 유채색을 쓰는 앱 토큰 층(AGE-31, 2026-11-22 사용자: "다크일때의 유채색들 모습이 라이트일때도 그대로 나타났으면 해").
-   caustic 토큰 파일은 고치지 않고 앱이 라이트에서 caustic 값을 덮는다(caustic.css는 base 층, 이 파일은 무층이라 이긴다). 무채색(바탕, 면, 글, 선)은 라이트 그대로다.
-   왜 뒤집혀 보였나: caustic 라이트의 상태 색은 옅은 파스텔 면(L0.935~0.965)에 진한 글(L0.49~0.53)이고, 다크는 진한 면(L0.255~0.29)에 밝은 글(L0.7~0.87)이다.
-   한 화면을 두 테마로 놓으면 면과 글의 밝기가 서로 바뀐 그림이 된다.
+/* 선명한 유채색 층(AGE-31 다시, 2026-11-22 사용자: "첨부한이미지 1 같은 부분들이 다크쪽에 비해 채도나 밝기가 낮고, 반대로 다크에서도 첨부한 이미지 2의
+   아이콘 색상처럼 높은 채도와 적당히 높은 밝기를 사용하길 원했던거임"). 기준은 메트릭 인사이트 카드의 아이콘 타일(AGE-31 전 라이트 값:
+   노랑 oklch(0.85 0.15 85), 초록 oklch(0.84 0.15 150), 그 위 그림 L0.42)이다. caustic 토큰 파일은 고치지 않고 앱이 덮는다(caustic.css는 base 층,
+   이 파일은 무층이라 이긴다).
 
-   세 갈래로 덮는다.
-   1. 면, 테두리, 그림, 채움(tint, soft, border, graphic, solid, on 등)과 정체성, 차트, 에이전트 그라디언트, 캔버스 안내선, cobalt 셋: 다크 값 그대로.
-   2. 바탕 위에 바로 놓이는 글(상태 글, diff 글, 코드 강조, 터미널 색, 구성 요소 분류 글, cobalt 글): 다크 값은 흰 바탕에서 명암비 1.1~2.9라 읽히지 않는다.
-      다크의 색상(H)과 세기(C)를 두고 oklch(0.93 0 0) 바탕에 4.5 이상이 되는 가장 밝은 L로 내린다. 그 L에서 sRGB가 못 그리는 세기는 그릴 수 있는 만큼으로 줄인다.
-      값과 명암비는 spec(L4.desktop-ux.spec) 예외 표에 있다.
-   3. 유채색 면 위(아래 섬): 면이 다크와 같으니 그 위 글도 다크 짝을 쓴다. 상태 글은 다크 값, 무채색 글은 다크의 글 밝기로 돌린다.
-   diff 줄 바탕(diff-add-bg, diff-remove-bg)은 라이트 그대로다: 그 위 코드 글이 무채색 본문 글(라이트에서 진함)이라 진한 바탕에서 읽히지 않는다.
-   `--fr-chroma-*`는 테마와 상관없는 다크 짝이다. 화면 CSS가 진한 면 위 글이나 섞는 먹으로 쓴다(viz.css, review.css). */
+   색상마다 한 벌(`--fr-vivid-<색>`)을 두고 두 테마가 같은 값을 쓴다. 값과 명암비는 spec(L4.desktop-ux.spec §13.0.1 DP-229) 표에 있다.
+   - 표지(`--fr-vivid-<색>`): 막대, 점, 선, 그래프, 종류 색. 그 색상에서 sRGB가 가장 세게 그리는 밝기(L0.64~0.76)와 그 L의 끝 세기.
+   - 채움(`-solid`)과 그 위 글(`-on`): 단추 바탕처럼 글을 얹는 채움. 먹 글이 4.5 이상이면 표지 그대로, 아니면 흰 글이 4.5 이상 되는 밝기.
+   - 면(`-face`)과 그 위 먹(`-ink`): 아이콘 타일, 종류 탭, 칩. 밝은 선명한 면(L0.78~0.86)에 같은 색상의 진한 먹(L0.36).
+   - 바탕 위 글(`-text`): 라이트는 oklch(0.93 0 0) 바탕에 4.5 이상인 가장 밝은 L, 다크는 표지 값. 두 테마가 다른 곳은 이것뿐이다.
+   큰 면(상태 색의 tint, soft, border, 오류 카드 바탕)은 덮지 않는다: 테마마다 caustic의 옅은 면 그대로이고, 그 위에 선명한 표지(아이콘, 띠)를 둔다.
+   덮는 caustic 토큰: 상태 다섯(success, warning, danger, info, agent)의 graphic, solid(+hover), on과 정체성 색, 차트 2~5, 에이전트 그라디언트,
+   캔버스 안내선, cobalt 셋의 표지와 면. 바탕 위 글은 라이트에서만 덮는다(아래). */
 :root {
-  --fr-chroma-success-text: oklch(0.82 0.2 150);
-  --fr-chroma-warning-text: oklch(0.87 0.1719 92);
-  --fr-chroma-danger-text: oklch(0.7 0.19 33);
-  --fr-chroma-info-text: oklch(0.77 0.135 235);
-  --fr-chroma-agent-text: oklch(0.74 0.1419 288);
-  --fr-chroma-cobalt-text: oklch(0.74 0.11 260);
-  --fr-chroma-ink-primary: oklch(0.96 0 0);
-  --fr-chroma-ink-secondary: oklch(0.72 0 0);
-  --fr-chroma-ink-tertiary: oklch(0.64 0 0);
-  --fr-chroma-ink-placeholder: oklch(0.64 0 0);
-  /* 종류 타일처럼 색을 옅게 섞어 면을 만드는 자리의 밑색. 다크는 투명(아래 면이 비친다), 라이트는 다크 카드 면(L0.18)이다 */
-  --fr-chroma-face-base: transparent;
+  --fr-vivid-green: oklch(0.76 0.2 150);
+  --fr-vivid-green-solid: oklch(0.76 0.2 150);
+  --fr-vivid-green-solid-hover: oklch(0.8 0.2 150);
+  --fr-vivid-green-on: oklch(0.36 0.0964 150);
+  --fr-vivid-green-face: oklch(0.86 0.16 150);
+  --fr-vivid-green-ink: oklch(0.36 0.0964 150);
+  --fr-vivid-green-text: oklch(0.5 0.1337 150);
+  --fr-vivid-yellow: oklch(0.76 0.1507 88);
+  --fr-vivid-yellow-solid: oklch(0.76 0.1507 88);
+  --fr-vivid-yellow-solid-hover: oklch(0.8 0.1507 88);
+  --fr-vivid-yellow-on: oklch(0.36 0.0716 88);
+  --fr-vivid-yellow-face: oklch(0.86 0.16 88);
+  --fr-vivid-yellow-ink: oklch(0.36 0.0716 88);
+  --fr-vivid-yellow-text: oklch(0.52 0.1032 88);
+  --fr-vivid-coral: oklch(0.645 0.2 33);
+  --fr-vivid-coral-solid: oklch(0.58 0.2 33);
+  --fr-vivid-coral-solid-hover: oklch(0.54 0.1935 33);
+  --fr-vivid-coral-on: oklch(0.99 0 0);
+  --fr-vivid-coral-face: oklch(0.795 0.1156 33);
+  --fr-vivid-coral-ink: oklch(0.36 0.1293 33);
+  --fr-vivid-coral-text: oklch(0.54 0.1935 33);
+  --fr-vivid-blue: oklch(0.74 0.1523 235);
+  --fr-vivid-blue-solid: oklch(0.74 0.1523 235);
+  --fr-vivid-blue-solid-hover: oklch(0.78 0.1275 235);
+  --fr-vivid-blue-on: oklch(0.36 0.0743 235);
+  --fr-vivid-blue-face: oklch(0.86 0.0788 235);
+  --fr-vivid-blue-ink: oklch(0.36 0.0743 235);
+  --fr-vivid-blue-text: oklch(0.51 0.105 235);
+  --fr-vivid-purple: oklch(0.64 0.1993 288);
+  --fr-vivid-purple-solid: oklch(0.58 0.2 288);
+  --fr-vivid-purple-solid-hover: oklch(0.54 0.2 288);
+  --fr-vivid-purple-on: oklch(0.99 0 0);
+  --fr-vivid-purple-face: oklch(0.78 0.115 288);
+  --fr-vivid-purple-ink: oklch(0.36 0.13 288);
+  --fr-vivid-purple-text: oklch(0.535 0.2 288);
+  --fr-vivid-cobalt: oklch(0.64 0.1875 260);
+  --fr-vivid-cobalt-solid: oklch(0.565 0.2 260);
+  --fr-vivid-cobalt-solid-hover: oklch(0.525 0.2 260);
+  --fr-vivid-cobalt-on: oklch(0.99 0 0);
+  --fr-vivid-cobalt-face: oklch(0.78 0.1086 260);
+  --fr-vivid-cobalt-ink: oklch(0.36 0.13 260);
+  --fr-vivid-cobalt-text: oklch(0.525 0.2 260);
+  --fr-vivid-teal: oklch(0.76 0.1275 210);
+  --fr-vivid-teal-solid: oklch(0.76 0.1275 210);
+  --fr-vivid-teal-solid-hover: oklch(0.8 0.1275 210);
+  --fr-vivid-teal-on: oklch(0.36 0.0605 210);
+  --fr-vivid-teal-face: oklch(0.86 0.1238 210);
+  --fr-vivid-teal-ink: oklch(0.36 0.0605 210);
+  --fr-vivid-teal-text: oklch(0.51 0.0856 210);
+  --fr-vivid-orange: oklch(0.75 0.1737 58);
+  --fr-vivid-orange-solid: oklch(0.75 0.1737 58);
+  --fr-vivid-orange-solid-hover: oklch(0.79 0.1408 58);
+  --fr-vivid-orange-on: oklch(0.36 0.0838 58);
+  --fr-vivid-orange-face: oklch(0.86 0.0886 58);
+  --fr-vivid-orange-ink: oklch(0.36 0.0838 58);
+  --fr-vivid-orange-text: oklch(0.525 0.122 58);
+  --fr-vivid-pink: oklch(0.665 0.2 345);
+  --fr-vivid-pink-solid: oklch(0.585 0.2 345);
+  --fr-vivid-pink-solid-hover: oklch(0.545 0.2 345);
+  --fr-vivid-pink-on: oklch(0.99 0 0);
+  --fr-vivid-pink-face: oklch(0.815 0.1281 345);
+  --fr-vivid-pink-ink: oklch(0.36 0.13 345);
+  --fr-vivid-pink-text: oklch(0.545 0.2 345);
+
+  --cs-color-success-graphic: var(--fr-vivid-green);
+  --cs-color-success-solid: var(--fr-vivid-green-solid);
+  --cs-color-success-solid-hover: var(--fr-vivid-green-solid-hover);
+  --cs-color-success-on: var(--fr-vivid-green-on);
+  --cs-color-warning-graphic: var(--fr-vivid-yellow);
+  --cs-color-warning-solid: var(--fr-vivid-yellow-solid);
+  --cs-color-warning-solid-hover: var(--fr-vivid-yellow-solid-hover);
+  --cs-color-warning-on: var(--fr-vivid-yellow-on);
+  --cs-color-danger-graphic: var(--fr-vivid-coral);
+  --cs-color-danger-solid: var(--fr-vivid-coral-solid);
+  --cs-color-danger-solid-hover: var(--fr-vivid-coral-solid-hover);
+  --cs-color-danger-on: var(--fr-vivid-coral-on);
+  --cs-color-info-graphic: var(--fr-vivid-blue);
+  --cs-color-info-solid: var(--fr-vivid-blue-solid);
+  --cs-color-info-solid-hover: var(--fr-vivid-blue-solid-hover);
+  --cs-color-info-on: var(--fr-vivid-blue-on);
+  --cs-color-agent-graphic: var(--fr-vivid-purple);
+  --cs-color-agent-solid: var(--fr-vivid-purple-solid);
+  --cs-color-agent-solid-hover: var(--fr-vivid-purple-solid-hover);
+  --cs-color-agent-on: var(--fr-vivid-purple-on);
+  --cs-color-identity-coral: var(--fr-vivid-coral);
+  --cs-color-identity-on-coral: var(--fr-vivid-coral-on);
+  --cs-color-identity-iris: var(--fr-vivid-blue);
+  --cs-color-identity-on-iris: var(--fr-vivid-blue-on);
+  --cs-color-identity-mint: var(--fr-vivid-green);
+  --cs-color-identity-on-mint: var(--fr-vivid-green-on);
+  --cs-color-identity-amber: var(--fr-vivid-yellow);
+  --cs-color-identity-on-amber: var(--fr-vivid-yellow-on);
+  --cs-color-chart-2: var(--fr-vivid-blue);
+  --cs-color-chart-3: var(--fr-vivid-green);
+  --cs-color-chart-4: var(--fr-vivid-yellow);
+  --cs-color-chart-5: var(--fr-vivid-orange);
+  --cs-color-agent-stop-1: var(--fr-vivid-purple);
+  --cs-color-agent-stop-2: var(--fr-vivid-cobalt);
+  --cs-color-agent-stop-3: var(--fr-vivid-teal);
+  --cs-color-agent-glow: oklch(0.64 0.1993 288 / 0.4);
+  --cs-color-canvas-guide: var(--fr-vivid-pink);
+  /* cobalt 셋(color-sets.css): 표지와 채움, 면은 선명한 값. 옅은 면과 테두리는 셋의 테마 값 그대로다 */
+  --fr-color-cobalt-graphic: var(--fr-vivid-cobalt);
+  --fr-color-cobalt-solid: var(--fr-vivid-cobalt-solid);
+  --fr-color-cobalt-solid-hover: var(--fr-vivid-cobalt-solid-hover);
+  --fr-color-cobalt-on: var(--fr-vivid-cobalt-on);
+  --fr-color-cobalt-face: var(--fr-vivid-cobalt-face);
 }
+/* 다크의 바탕 위 글은 표지 값이다(어두운 바탕에 5.2 이상) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fr-vivid-green-text: var(--fr-vivid-green);
+    --fr-vivid-yellow-text: var(--fr-vivid-yellow);
+    --fr-vivid-coral-text: var(--fr-vivid-coral);
+    --fr-vivid-blue-text: var(--fr-vivid-blue);
+    --fr-vivid-purple-text: var(--fr-vivid-purple);
+    --fr-vivid-cobalt-text: var(--fr-vivid-cobalt);
+    --fr-vivid-teal-text: var(--fr-vivid-teal);
+    --fr-vivid-orange-text: var(--fr-vivid-orange);
+    --fr-vivid-pink-text: var(--fr-vivid-pink);
+  }
+}
+:root[data-theme="dark"] {
+  --fr-vivid-green-text: var(--fr-vivid-green);
+  --fr-vivid-yellow-text: var(--fr-vivid-yellow);
+  --fr-vivid-coral-text: var(--fr-vivid-coral);
+  --fr-vivid-blue-text: var(--fr-vivid-blue);
+  --fr-vivid-purple-text: var(--fr-vivid-purple);
+  --fr-vivid-cobalt-text: var(--fr-vivid-cobalt);
+  --fr-vivid-teal-text: var(--fr-vivid-teal);
+  --fr-vivid-orange-text: var(--fr-vivid-orange);
+  --fr-vivid-pink-text: var(--fr-vivid-pink);
+}
+/* 라이트의 바탕 위 글: caustic 다크의 색상과 세기를 두고 oklch(0.93 0 0) 바탕에 4.5 이상이 되는 가장 밝은 L(spec 예외 표). 다크는 caustic 값 그대로다 */
 :root[data-theme="light"] {
-  --fr-chroma-face-base: oklch(0.18 0 0);
-  /* 면, 테두리, 그림, 채움: 다크 값 그대로 */
-  --cs-color-success-tint: oklch(0.255 0.0512 150);
-  --cs-color-success-soft: oklch(0.29 0.0737 150);
-  --cs-color-success-soft-hover: oklch(0.32 0.0895 150);
-  --cs-color-success-soft-pressed: oklch(0.355 0.0989 150);
-  --cs-color-success-border: oklch(0.42 0.1164 150);
-  --cs-color-success-border-strong: oklch(0.572 0.1579 150);
-  --cs-color-success-graphic: oklch(0.686 0.1892 150);
-  --cs-color-success-solid: oklch(0.8 0.205 150);
-  --cs-color-success-solid-hover: oklch(0.85 0.205 150);
-  --cs-color-success-on: oklch(0.12 0 0);
-  --cs-color-warning-tint: oklch(0.255 0.0429 92);
-  --cs-color-warning-soft: oklch(0.29 0.061 92);
-  --cs-color-warning-soft-hover: oklch(0.32 0.0668 92);
-  --cs-color-warning-soft-pressed: oklch(0.355 0.0737 92);
-  --cs-color-warning-border: oklch(0.42 0.0867 92);
-  --cs-color-warning-border-strong: oklch(0.596 0.1223 92);
-  --cs-color-warning-graphic: oklch(0.728 0.1491 92);
-  --cs-color-warning-solid: oklch(0.86 0.1719 92);
-  --cs-color-warning-solid-hover: oklch(0.91 0.1249 92);
-  --cs-color-warning-on: oklch(0.12 0 0);
-  --cs-color-danger-tint: oklch(0.255 0.058 33);
-  --cs-color-danger-soft: oklch(0.29 0.0835 33);
-  --cs-color-danger-soft-hover: oklch(0.32 0.102 33);
-  --cs-color-danger-soft-pressed: oklch(0.355 0.1206 33);
-  --cs-color-danger-border: oklch(0.42 0.1484 33);
-  --cs-color-danger-border-strong: oklch(0.512 0.1899 33);
-  --cs-color-danger-graphic: oklch(0.581 0.2152 33);
-  --cs-color-danger-solid: oklch(0.65 0.232 33);
-  --cs-color-danger-solid-hover: oklch(0.7 0.1927 33);
-  --cs-color-danger-on: oklch(0.12 0 0);
-  --cs-color-info-tint: oklch(0.255 0.0375 235);
-  --cs-color-info-soft: oklch(0.29 0.054 235);
-  --cs-color-info-soft-hover: oklch(0.32 0.066 235);
-  --cs-color-info-soft-pressed: oklch(0.355 0.0762 235);
-  --cs-color-info-border: oklch(0.42 0.0897 235);
-  --cs-color-info-border-strong: oklch(0.544 0.1158 235);
-  --cs-color-info-graphic: oklch(0.637 0.1354 235);
-  --cs-color-info-solid: oklch(0.73 0.15 235);
-  --cs-color-info-solid-hover: oklch(0.78 0.1315 235);
-  --cs-color-info-on: oklch(0.12 0 0);
-  --cs-color-agent-tint: oklch(0.255 0.048 288);
-  --cs-color-agent-soft: oklch(0.29 0.0691 288);
-  --cs-color-agent-soft-hover: oklch(0.32 0.0844 288);
-  --cs-color-agent-soft-pressed: oklch(0.355 0.0998 288);
-  --cs-color-agent-border: oklch(0.42 0.1228 288);
-  --cs-color-agent-border-strong: oklch(0.516 0.1612 288);
-  --cs-color-agent-graphic: oklch(0.588 0.192 288);
-  --cs-color-agent-solid: oklch(0.66 0.192 288);
-  --cs-color-agent-solid-hover: oklch(0.71 0.1609 288);
-  --cs-color-agent-on: oklch(0.12 0 0);
-  --cs-color-chart-2: oklch(0.637 0.1354 235);
-  --cs-color-chart-3: oklch(0.686 0.1892 150);
-  --cs-color-chart-4: oklch(0.728 0.1491 92);
-  --cs-color-chart-5: oklch(0.672 0.15 58);
-  --cs-color-chart-6: oklch(0.63 0.065 240);
-  --cs-color-agent-stop-1: oklch(0.66 0.192 288);
-  --cs-color-agent-stop-2: oklch(0.66 0.18 262);
-  --cs-color-agent-stop-3: oklch(0.82 0.13 210);
-  --cs-color-agent-glow: oklch(0.66 0.192 288 / 0.35);
-  --cs-color-canvas-guide: oklch(0.72 0.17 345);
-  --cs-color-canvas-guide-on: oklch(0.12 0 0);
-  --cs-color-canvas-guide-user: oklch(0.73 0.15 235);
-  --cs-color-category-component-soft: oklch(0.29 0.054 235);
-  --cs-color-identity-coral: oklch(0.65 0.232 33);
-  --cs-color-identity-iris: oklch(0.73 0.15 235);
-  --cs-color-identity-mint: oklch(0.8 0.205 150);
-  --cs-color-identity-amber: oklch(0.86 0.1719 92);
-  --cs-color-identity-on-coral: oklch(0.12 0 0);
-  --cs-color-identity-on-iris: oklch(0.12 0 0);
-  --cs-color-identity-on-mint: oklch(0.12 0 0);
-  --cs-color-identity-on-amber: oklch(0.12 0 0);
-  --fr-color-cobalt-tint: oklch(0.255 0.07 260);
-  --fr-color-cobalt-soft: oklch(0.29 0.095 260);
-  --fr-color-cobalt-soft-hover: oklch(0.32 0.105 260);
-  --fr-color-cobalt-soft-pressed: oklch(0.355 0.115 260);
-  --fr-color-cobalt-border: oklch(0.42 0.135 260);
-  --fr-color-cobalt-border-strong: oklch(0.544 0.16 260);
-  --fr-color-cobalt-graphic: oklch(0.637 0.165 260);
-  --fr-color-cobalt-solid: oklch(0.7 0.155 260);
-  --fr-color-cobalt-solid-hover: oklch(0.75 0.125 260);
-  --fr-color-cobalt-on: oklch(0.12 0 0);
-  --fr-color-cobalt-face: oklch(0.263 0.105 260);
-  /* 바탕 위 글: 다크의 색상과 세기, 명암비 4.5 이상이 되는 가장 밝은 L(spec 예외 표) */
   --cs-color-success-text: oklch(0.5 0.1378 150);
   --cs-color-warning-text: oklch(0.515 0.1054 92);
   --cs-color-danger-text: oklch(0.54 0.19 33);
@@ -148,91 +184,6 @@
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --fr-chroma-face-base: oklch(0.18 0 0);
-    /* 면, 테두리, 그림, 채움: 다크 값 그대로 */
-    --cs-color-success-tint: oklch(0.255 0.0512 150);
-    --cs-color-success-soft: oklch(0.29 0.0737 150);
-    --cs-color-success-soft-hover: oklch(0.32 0.0895 150);
-    --cs-color-success-soft-pressed: oklch(0.355 0.0989 150);
-    --cs-color-success-border: oklch(0.42 0.1164 150);
-    --cs-color-success-border-strong: oklch(0.572 0.1579 150);
-    --cs-color-success-graphic: oklch(0.686 0.1892 150);
-    --cs-color-success-solid: oklch(0.8 0.205 150);
-    --cs-color-success-solid-hover: oklch(0.85 0.205 150);
-    --cs-color-success-on: oklch(0.12 0 0);
-    --cs-color-warning-tint: oklch(0.255 0.0429 92);
-    --cs-color-warning-soft: oklch(0.29 0.061 92);
-    --cs-color-warning-soft-hover: oklch(0.32 0.0668 92);
-    --cs-color-warning-soft-pressed: oklch(0.355 0.0737 92);
-    --cs-color-warning-border: oklch(0.42 0.0867 92);
-    --cs-color-warning-border-strong: oklch(0.596 0.1223 92);
-    --cs-color-warning-graphic: oklch(0.728 0.1491 92);
-    --cs-color-warning-solid: oklch(0.86 0.1719 92);
-    --cs-color-warning-solid-hover: oklch(0.91 0.1249 92);
-    --cs-color-warning-on: oklch(0.12 0 0);
-    --cs-color-danger-tint: oklch(0.255 0.058 33);
-    --cs-color-danger-soft: oklch(0.29 0.0835 33);
-    --cs-color-danger-soft-hover: oklch(0.32 0.102 33);
-    --cs-color-danger-soft-pressed: oklch(0.355 0.1206 33);
-    --cs-color-danger-border: oklch(0.42 0.1484 33);
-    --cs-color-danger-border-strong: oklch(0.512 0.1899 33);
-    --cs-color-danger-graphic: oklch(0.581 0.2152 33);
-    --cs-color-danger-solid: oklch(0.65 0.232 33);
-    --cs-color-danger-solid-hover: oklch(0.7 0.1927 33);
-    --cs-color-danger-on: oklch(0.12 0 0);
-    --cs-color-info-tint: oklch(0.255 0.0375 235);
-    --cs-color-info-soft: oklch(0.29 0.054 235);
-    --cs-color-info-soft-hover: oklch(0.32 0.066 235);
-    --cs-color-info-soft-pressed: oklch(0.355 0.0762 235);
-    --cs-color-info-border: oklch(0.42 0.0897 235);
-    --cs-color-info-border-strong: oklch(0.544 0.1158 235);
-    --cs-color-info-graphic: oklch(0.637 0.1354 235);
-    --cs-color-info-solid: oklch(0.73 0.15 235);
-    --cs-color-info-solid-hover: oklch(0.78 0.1315 235);
-    --cs-color-info-on: oklch(0.12 0 0);
-    --cs-color-agent-tint: oklch(0.255 0.048 288);
-    --cs-color-agent-soft: oklch(0.29 0.0691 288);
-    --cs-color-agent-soft-hover: oklch(0.32 0.0844 288);
-    --cs-color-agent-soft-pressed: oklch(0.355 0.0998 288);
-    --cs-color-agent-border: oklch(0.42 0.1228 288);
-    --cs-color-agent-border-strong: oklch(0.516 0.1612 288);
-    --cs-color-agent-graphic: oklch(0.588 0.192 288);
-    --cs-color-agent-solid: oklch(0.66 0.192 288);
-    --cs-color-agent-solid-hover: oklch(0.71 0.1609 288);
-    --cs-color-agent-on: oklch(0.12 0 0);
-    --cs-color-chart-2: oklch(0.637 0.1354 235);
-    --cs-color-chart-3: oklch(0.686 0.1892 150);
-    --cs-color-chart-4: oklch(0.728 0.1491 92);
-    --cs-color-chart-5: oklch(0.672 0.15 58);
-    --cs-color-chart-6: oklch(0.63 0.065 240);
-    --cs-color-agent-stop-1: oklch(0.66 0.192 288);
-    --cs-color-agent-stop-2: oklch(0.66 0.18 262);
-    --cs-color-agent-stop-3: oklch(0.82 0.13 210);
-    --cs-color-agent-glow: oklch(0.66 0.192 288 / 0.35);
-    --cs-color-canvas-guide: oklch(0.72 0.17 345);
-    --cs-color-canvas-guide-on: oklch(0.12 0 0);
-    --cs-color-canvas-guide-user: oklch(0.73 0.15 235);
-    --cs-color-category-component-soft: oklch(0.29 0.054 235);
-    --cs-color-identity-coral: oklch(0.65 0.232 33);
-    --cs-color-identity-iris: oklch(0.73 0.15 235);
-    --cs-color-identity-mint: oklch(0.8 0.205 150);
-    --cs-color-identity-amber: oklch(0.86 0.1719 92);
-    --cs-color-identity-on-coral: oklch(0.12 0 0);
-    --cs-color-identity-on-iris: oklch(0.12 0 0);
-    --cs-color-identity-on-mint: oklch(0.12 0 0);
-    --cs-color-identity-on-amber: oklch(0.12 0 0);
-    --fr-color-cobalt-tint: oklch(0.255 0.07 260);
-    --fr-color-cobalt-soft: oklch(0.29 0.095 260);
-    --fr-color-cobalt-soft-hover: oklch(0.32 0.105 260);
-    --fr-color-cobalt-soft-pressed: oklch(0.355 0.115 260);
-    --fr-color-cobalt-border: oklch(0.42 0.135 260);
-    --fr-color-cobalt-border-strong: oklch(0.544 0.16 260);
-    --fr-color-cobalt-graphic: oklch(0.637 0.165 260);
-    --fr-color-cobalt-solid: oklch(0.7 0.155 260);
-    --fr-color-cobalt-solid-hover: oklch(0.75 0.125 260);
-    --fr-color-cobalt-on: oklch(0.12 0 0);
-    --fr-color-cobalt-face: oklch(0.263 0.105 260);
-    /* 바탕 위 글: 다크의 색상과 세기, 명암비 4.5 이상이 되는 가장 밝은 L(spec 예외 표) */
     --cs-color-success-text: oklch(0.5 0.1378 150);
     --cs-color-warning-text: oklch(0.515 0.1054 92);
     --cs-color-danger-text: oklch(0.54 0.19 33);
@@ -268,113 +219,4 @@
     --cs-color-category-component: oklch(0.51 0.1082 235);
     --fr-color-cobalt-text: oklch(0.52 0.11 260);
   }
-}
-
-/* 섬: 유채색 면을 까는 요소. 다크에서는 덮는 값이 원래 값과 같아 아무것도 바뀌지 않는다.
-   Tailwind 유틸리티는 `--color-*`를, caustic CSS는 `--cs-color-*`를 읽으므로 둘 다 둔다(`--color-*`는 :root에서 풀려 내려온다) */
-:is(
-  [class~="bg-success-tint"],
-  [class~="bg-success-soft"],
-  [class~="bg-success-soft-hover"],
-  [class~="bg-success-soft-pressed"],
-  [class~="hover:bg-success-tint"]:hover,
-  [class~="hover:bg-success-soft"]:hover,
-  [class~="hover:bg-success-soft-hover"]:hover,
-  [class~="active:bg-success-soft"]:active,
-  [class~="active:bg-success-soft-pressed"]:active,
-  [class~="aria-pressed:bg-success-soft"][aria-pressed="true"],
-  [class~="aria-pressed:bg-success-soft-pressed"][aria-pressed="true"],
-  [class~="data-[state=checked]:bg-success-soft"][data-state="checked"],
-  [class~="data-[state=indeterminate]:bg-success-soft"][data-state="indeterminate"],
-  [class~="data-[dragging]:bg-success-tint"][data-dragging],
-  [class~="data-[dragging]:bg-success-soft-hover"][data-dragging],
-  [class~="data-[drop=inside]:bg-success-tint"][data-drop="inside"],
-  [class~="data-[drop=inside]:bg-success-soft"][data-drop="inside"],
-  [class~="bg-warning-tint"],
-  [class~="bg-warning-soft"],
-  [class~="bg-warning-soft-hover"],
-  [class~="bg-warning-soft-pressed"],
-  [class~="hover:bg-warning-tint"]:hover,
-  [class~="hover:bg-warning-soft"]:hover,
-  [class~="hover:bg-warning-soft-hover"]:hover,
-  [class~="active:bg-warning-soft"]:active,
-  [class~="active:bg-warning-soft-pressed"]:active,
-  [class~="aria-pressed:bg-warning-soft"][aria-pressed="true"],
-  [class~="aria-pressed:bg-warning-soft-pressed"][aria-pressed="true"],
-  [class~="data-[state=checked]:bg-warning-soft"][data-state="checked"],
-  [class~="data-[state=indeterminate]:bg-warning-soft"][data-state="indeterminate"],
-  [class~="data-[dragging]:bg-warning-tint"][data-dragging],
-  [class~="data-[dragging]:bg-warning-soft-hover"][data-dragging],
-  [class~="data-[drop=inside]:bg-warning-tint"][data-drop="inside"],
-  [class~="data-[drop=inside]:bg-warning-soft"][data-drop="inside"],
-  [class~="bg-danger-tint"],
-  [class~="bg-danger-soft"],
-  [class~="bg-danger-soft-hover"],
-  [class~="bg-danger-soft-pressed"],
-  [class~="hover:bg-danger-tint"]:hover,
-  [class~="hover:bg-danger-soft"]:hover,
-  [class~="hover:bg-danger-soft-hover"]:hover,
-  [class~="active:bg-danger-soft"]:active,
-  [class~="active:bg-danger-soft-pressed"]:active,
-  [class~="aria-pressed:bg-danger-soft"][aria-pressed="true"],
-  [class~="aria-pressed:bg-danger-soft-pressed"][aria-pressed="true"],
-  [class~="data-[state=checked]:bg-danger-soft"][data-state="checked"],
-  [class~="data-[state=indeterminate]:bg-danger-soft"][data-state="indeterminate"],
-  [class~="data-[dragging]:bg-danger-tint"][data-dragging],
-  [class~="data-[dragging]:bg-danger-soft-hover"][data-dragging],
-  [class~="data-[drop=inside]:bg-danger-tint"][data-drop="inside"],
-  [class~="data-[drop=inside]:bg-danger-soft"][data-drop="inside"],
-  [class~="bg-info-tint"],
-  [class~="bg-info-soft"],
-  [class~="bg-info-soft-hover"],
-  [class~="bg-info-soft-pressed"],
-  [class~="hover:bg-info-tint"]:hover,
-  [class~="hover:bg-info-soft"]:hover,
-  [class~="hover:bg-info-soft-hover"]:hover,
-  [class~="active:bg-info-soft"]:active,
-  [class~="active:bg-info-soft-pressed"]:active,
-  [class~="aria-pressed:bg-info-soft"][aria-pressed="true"],
-  [class~="aria-pressed:bg-info-soft-pressed"][aria-pressed="true"],
-  [class~="data-[state=checked]:bg-info-soft"][data-state="checked"],
-  [class~="data-[state=indeterminate]:bg-info-soft"][data-state="indeterminate"],
-  [class~="data-[dragging]:bg-info-tint"][data-dragging],
-  [class~="data-[dragging]:bg-info-soft-hover"][data-dragging],
-  [class~="data-[drop=inside]:bg-info-tint"][data-drop="inside"],
-  [class~="data-[drop=inside]:bg-info-soft"][data-drop="inside"],
-  [class~="bg-agent-tint"],
-  [class~="bg-agent-soft"],
-  [class~="bg-agent-soft-hover"],
-  [class~="bg-agent-soft-pressed"],
-  [class~="hover:bg-agent-tint"]:hover,
-  [class~="hover:bg-agent-soft"]:hover,
-  [class~="hover:bg-agent-soft-hover"]:hover,
-  [class~="active:bg-agent-soft"]:active,
-  [class~="active:bg-agent-soft-pressed"]:active,
-  [class~="aria-pressed:bg-agent-soft"][aria-pressed="true"],
-  [class~="aria-pressed:bg-agent-soft-pressed"][aria-pressed="true"],
-  [class~="data-[state=checked]:bg-agent-soft"][data-state="checked"],
-  [class~="data-[state=indeterminate]:bg-agent-soft"][data-state="indeterminate"],
-  [class~="data-[dragging]:bg-agent-tint"][data-dragging],
-  [class~="data-[dragging]:bg-agent-soft-hover"][data-dragging],
-  [class~="data-[drop=inside]:bg-agent-tint"][data-drop="inside"],
-  [class~="data-[drop=inside]:bg-agent-soft"][data-drop="inside"]
-) {
-  --cs-color-success-text: var(--fr-chroma-success-text);
-  --color-success-text: var(--fr-chroma-success-text);
-  --cs-color-warning-text: var(--fr-chroma-warning-text);
-  --color-warning-text: var(--fr-chroma-warning-text);
-  --cs-color-danger-text: var(--fr-chroma-danger-text);
-  --color-danger-text: var(--fr-chroma-danger-text);
-  --cs-color-info-text: var(--fr-chroma-info-text);
-  --color-info-text: var(--fr-chroma-info-text);
-  --cs-color-agent-text: var(--fr-chroma-agent-text);
-  --color-agent-text: var(--fr-chroma-agent-text);
-  --cs-color-text-primary: var(--fr-chroma-ink-primary);
-  --color-text-primary: var(--fr-chroma-ink-primary);
-  --cs-color-text-secondary: var(--fr-chroma-ink-secondary);
-  --color-text-secondary: var(--fr-chroma-ink-secondary);
-  --cs-color-text-tertiary: var(--fr-chroma-ink-tertiary);
-  --color-text-tertiary: var(--fr-chroma-ink-tertiary);
-  --cs-color-text-placeholder: var(--fr-chroma-ink-placeholder);
-  --color-text-placeholder: var(--fr-chroma-ink-placeholder);
 }
