@@ -1293,7 +1293,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 **소속과 기본 폴더(§4.4.2, §4.4.5).** 소속은 저장하지 않고 계산한다(`assembly/m4/project-scope.ts`의 순수 함수). 작업 폴더를 포함하는 루트 가운데 가장 깊은 것이다. 루트 목록은 명시 프로젝트 다음에 암묵 기본 폴더 루트(`prj_default`)를 둔다. 깊이가 같으면 명시 프로젝트가 이긴다. wire의 `project`(`ThreadProjectRef`)는 명시 프로젝트만 싣는다. 기본 폴더 대화, Test run 대화, 어느 루트에도 없는 대화는 `null`이다. `thread.list`의 각 요약에 이 값을 싣는다. 루트 목록을 읽지 못하면 로그를 남기고 `project`를 비운다.
 
-**대화 생성(`thread.create`, §4.4.3, §4.4.5, §4.4.8).** (1) `profileId`를 주면 그 프로필이 있는지 본다. 주지 않으면 `profile.defaultFor`와 같은 값을 쓴다. 그 값이 `default`면 저장하지 않는다(저장된 값이 없으면 `default`로 읽는다, §4.1.1). 다른 프로필이면 저장한다. (2) 작업 폴더를 주지 않으면 `ThreadPort.create`에 `defaultFolder: true`를 넘겨 `<l4.host.defaultFolder>/<threadId>`를 `mkdir -p`로 만들고 그 정규 경로를 작업 폴더로 쓴다(`assembly/ports.ts`). 기본 폴더 설정이 상대 경로이면 `project.rootInvalid`다. 예약 실행과 제작의 생성 경로는 지금처럼 작업 폴더 없이 둔다. (3) 열기 훅이 대화 폴더를 바꿨을 수 있으므로 쓰기 소유를 얻은 뒤 `workspaceOf`로 지금의 작업 폴더를 읽는다. 어느 루트에도 없으면 그 폴더를 루트로 프로젝트를 만들고(§4.4.3, 미결 2의 기본값) 결과 `project`에 알린다. 기본 폴더 대화와 Test run 대화는 프로젝트를 만들지 않는다.
+**대화 생성(`thread.create`, §4.4.3, §4.4.5, §4.4.8).** (1) `profileId`를 주면 그 프로필이 있는지 본다. 주지 않으면 `profile.defaultFor`와 같은 값을 쓴다. 그 값이 `default`면 저장하지 않는다(저장된 값이 없으면 `default`로 읽는다, §4.1.1). 다른 프로필이면 저장한다. (2) 작업 폴더를 주지 않으면 `ThreadPort.create`에 `defaultFolder: true`를 넘겨 `<l4.host.defaultFolder>/<threadId>`를 `mkdir -p`로 만들고 그 정규 경로를 작업 폴더로 쓴다(`assembly/ports.ts`). 기본 폴더 설정이 상대 경로이면 `project.rootInvalid`다. 예약 실행과 제작의 생성 경로는 지금처럼 작업 폴더 없이 둔다. (3) 열기 훅이 대화 폴더를 바꿨을 수 있으므로 쓰기 소유를 얻은 뒤 `workspaceOf`로 지금의 작업 폴더를 읽는다. 어느 프로젝트의 루트에도 없으면 프로젝트 없는 대화다: 프로젝트를 만들지 않고 결과 `project`와 `thread.started.project`는 null이다(§4.4.3, 2026-11-22 결정). 소속 계산은 `ProjectPort.projectOf`(만들지 않고 가장 깊은 루트를 돌려준다)다. 기본 폴더 대화와 Test run 대화도 프로젝트를 만들지 않는다.
 
 **`profile.defaultFor`(§4.4.8).** `workspace`가 있으면 그 정규 경로(없는 폴더는 절대 경로로 정리)로 고른다. 같은 폴더의 가장 최근 대화, 없으면 같은 프로젝트(가장 깊은 루트가 같은 대화)의 가장 최근 대화, 없으면 `default`다. `workspace`가 없으면 프로젝트를 가리지 않고 가장 최근 대화다. "가장 최근"은 마지막 활동 시각(`updatedAt`)이다. Test run 대화는 고르지 않는다. 고른 대화의 현재 프로필(전환 뒤 값)을 쓰되, 그 프로필이 저장되어 있지 않으면 `default`다. 상대 경로이면 `project.rootInvalid`다.
 
@@ -1303,13 +1303,13 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 ### 4.24 첫 시작 옮김 [구현: M5c §7, 2026-11-18, review m5 §7]
 
-**한 번 돌기.** `runFirstStartMigration`(`assembly/m4/first-start-migration.ts`)이 엔진 포트를 만든 뒤 `assemble.ts`에서 한 번 부른다. 표지는 `<OsDirs.state>/migration.log`의 `{step: "first_start", status: "done"}` 줄이다. 표지가 있으면 아무것도 읽지 않고 끝낸다. 순서는 (1) 사용자 `settings.json`을 읽고, (2) 그 값으로 `profiles.json`을 옮긴다(v1이면 `profiles.json.v1.bak` 백업과 옮김 기록, 저장된 `default` 행이 없으면 옮긴 기본 행을 더한다), (3) 옮김이 성공했을 때만 `ext.<이름>.enabled` 키를 `settings.json.pre-profile` 백업 뒤에 지우고 메모리 층을 다시 읽힌다, (4) 대화 폴더와 프로젝트 루트의 `.fresnel/settings.json`·`settings.local.json`에 남은 옛 키를 파일마다 한 번 진단한다(`legacy_enabled_key_ignored`), (5) 대화 폴더의 암묵 프로젝트를 만든다(`implicit-project-migrate.ts`). 항목 하나가 실패하면 `failed` 줄을 남기고 `migration.failed` 경고를 낸 뒤 나머지를 계속한다. 실패가 하나라도 있으면 표지를 쓰지 않아 다음 시작에 다시 본다. 사용자 설정 파일을 읽지 못하면(JSON 오류 등) (2)와 (3)을 건너뛴다. 값이 없는 것으로 옮기면 사용자 값을 잃기 때문이다.
+**한 번 돌기.** `runFirstStartMigration`(`assembly/m4/first-start-migration.ts`)이 엔진 포트를 만든 뒤 `assemble.ts`에서 한 번 부른다. 표지는 `<OsDirs.state>/migration.log`의 `{step: "first_start", status: "done"}` 줄이다. 표지가 있으면 아무것도 읽지 않고 끝낸다. 순서는 (1) 사용자 `settings.json`을 읽고, (2) 그 값으로 `profiles.json`을 옮긴다(v1이면 `profiles.json.v1.bak` 백업과 옮김 기록, 저장된 `default` 행이 없으면 옮긴 기본 행을 더한다), (3) 옮김이 성공했을 때만 `ext.<이름>.enabled` 키를 `settings.json.pre-profile` 백업 뒤에 지우고 메모리 층을 다시 읽힌다, (4) 대화 폴더와 프로젝트 루트의 `.fresnel/settings.json`·`settings.local.json`에 남은 옛 키를 파일마다 한 번 진단한다(`legacy_enabled_key_ignored`), (5) 옛 대화 폴더로 프로젝트를 만들지 않는다(프로젝트는 사용자가 만들 때만 생긴다, 2026-11-22. 이미 만들어진 프로젝트는 그대로 둔다). 항목 하나가 실패하면 `failed` 줄을 남기고 `migration.failed` 경고를 낸 뒤 나머지를 계속한다. 실패가 하나라도 있으면 표지를 쓰지 않아 다음 시작에 다시 본다. 사용자 설정 파일을 읽지 못하면(JSON 오류 등) (2)와 (3)을 건너뛴다. 값이 없는 것으로 옮기면 사용자 값을 잃기 때문이다.
 
 **쓰는 것.** 프로필 파일(`profile-store.ts`의 `migrateFirstStart`), 사용자 설정 파일(잠금 안에서 원문을 `wx`로 백업하고 나머지 키만 쓴다. 백업이 있으면 덮지 않는다), `projects.json`(같은 파일 잠금으로 프로젝트 저장소를 연다), `migration.log`뿐이다. 대화 기록에는 쓰지 않는다. 옮김은 대화 목록을 읽기만 한다(`threadRowsOf`).
 
 **옮김 입력의 목록.** 코어 이름은 `coreNamesOf`, 공장 기본 플러그인은 `factoryPluginsOf`(`assembly/m4/index.ts`)가 낸다. 기본 번들 `DEFAULT_PLUGIN_NAMES`와 코어가 아닌 확장 가운데 매니페스트 기본 켜짐을 합친다. 옮김은 이 목록에서 코어를 뺀다.
 
-**시험.** `test/assembly/first-start-migration.test.ts`(사용자 값의 옮김과 백업, 두 번째 시작의 바이트 동일성, 백업 덮지 않기, v1과 사용자 값의 조합, 저장소 파일 진단, 손상된 프로필과 읽지 못한 설정의 항목 격리, 옛 키가 남은 뒤의 설정 읽기), `test/assembly/implicit-project-migrate.test.ts`(중첩 프로젝트, 건너뛰기 규칙, 두 번째 실행이 아무것도 만들지 않음), `test/assembly/profile-store.test.ts`와 `plugin-set.test.ts`(옛 대화의 `default` 참조).
+**시험.** `test/assembly/first-start-migration.test.ts`(사용자 값의 옮김과 백업, 두 번째 시작의 바이트 동일성, 백업 덮지 않기, v1과 사용자 값의 조합, 저장소 파일 진단, 손상된 프로필과 읽지 못한 설정의 항목 격리, 옛 키가 남은 뒤의 설정 읽기), (옛 대화 폴더로 프로젝트를 만들지 않음을 값으로 본다), `test/assembly/profile-store.test.ts`와 `plugin-set.test.ts`(옛 대화의 `default` 참조).
 
 ### 4.25 가져오기 서비스 [제안: M5g 층 B, 2026-11-18, migration.md §6·§7·§9.4]
 

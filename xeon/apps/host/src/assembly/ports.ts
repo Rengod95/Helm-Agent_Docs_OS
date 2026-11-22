@@ -666,13 +666,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /**
    * 대화 폴더가 속한 프로젝트와 그 루트(`thread.started.project`). 기본 폴더 대화와 작업 폴더가 없는 대화는 null이다.
-   * 어느 루트에도 없는 폴더면 `attach`가 그 폴더를 루트로 프로젝트를 만든다(§4.4.3). 그래서 대화를 쓰기 전에 부른다
+   * 어느 루트에도 없는 폴더는 프로젝트 없는 대화다(§4.4.3). 프로젝트를 만들지 않는다
    */
   async function projectOfWorkspace(
     workspace: string | undefined,
   ): Promise<{ readonly id: string; readonly root: string } | null> {
     if (workspace === undefined) return null;
-    const attached = await projects.attach(workspace);
+    const attached = await projects.projectOf(workspace);
     if (!attached.ok) throw wireErrorOfProject(attached.error);
     if (attached.value === null) return null;
     const all = await projects.roots();
@@ -703,7 +703,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         workspace = folder.value;
       }
       // 소속은 thread.started가 싣는다(§4.4.2). `thread.create`만 정한다(`attachProject`). 시험 대화는 프로젝트 묶음에서 뺀다(§4.8).
-      // 열기 훅이 폴더를 바꾸면 이 값과 나중의 `attach`가 다를 수 있다 [미결]
+      // 열기 훅이 폴더를 바꾸면 이 값과 나중의 `projectOf`가 다를 수 있다 [미결]
       let project: { readonly id: string; readonly root: string } | null | undefined;
       if (input.attachProject === true) {
         project = input.testRun === true ? null : await projectOfWorkspace(workspace);

@@ -28,7 +28,7 @@ async function inferredManifestOf(
 ): Promise<ExtensionManifest | undefined> {
   const file = await attemptAsync(() => lstat(join(treePath, MANIFEST_PATH)));
   if (file.ok) return undefined;
-  const folder = readPluginFolder(treePath, { origin: "user" });
+  const folder = readPluginFolder(treePath, { origin: "user", name });
   if (!folder.ok || !folder.value.inferred) return undefined;
   const named = parse(ExtensionNameSchema, name);
   if (!named.ok) return undefined;

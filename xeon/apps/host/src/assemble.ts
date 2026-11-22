@@ -1790,7 +1790,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         return null;
       },
       // 재료 읽기는 출처를 쓰지 않는다(지침·스킬·에이전트·명령·MCP 정의의 모양은 같다)
-      read: (dir) => readPluginFolder(dir, { origin: "user" }),
+      read: (dir, name) => readPluginFolder(dir, { origin: "user", name }),
       report: (name, rejection) => {
         materialLog.warn("plugin.material.read_failed", { plugin: name, kind: rejection.kind });
       },

@@ -80,7 +80,7 @@ export function createThreadCreateHandler(
     if (!workspace.ok) throw wireErrorOfStore(workspace.error, "thread.create workspace");
     let project: ThreadProjectRef | null = null;
     if (workspace.value !== null && params.testRun !== true) {
-      const attached = await projects.attach(workspace.value);
+      const attached = await projects.projectOf(workspace.value);
       if (!attached.ok) throw wireErrorOfProject(attached.error);
       project = attached.value;
       // 작업 폴더를 연 것이다. 그 폴더의 동반 플러그인을 검토 항목으로 훑는다(M5c §4.5.7). 실패는 로그에 남고 여는 일은 막지 않는다

@@ -232,7 +232,7 @@ async function migrateHistoryVersion(
     });
     return;
   }
-  const folder = readPluginFolder(payload, { origin: "user" });
+  const folder = readPluginFolder(payload, { origin: "user", name });
   if (!folder.ok) {
     const detail = folder.error.diagnostics.map((item) => item.message).join("; ");
     into.records.push({

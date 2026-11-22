@@ -20,7 +20,7 @@ export interface MaterialPortDeps {
    */
   readonly treeOf: (name: string, threadId: ThreadId) => string | null;
   /** 폴더 읽기. 동기 함수다(재료 포트가 동기다) */
-  readonly read: (dir: string) => Result<PluginFolder, FolderRejection>;
+  readonly read: (dir: string, name: string) => Result<PluginFolder, FolderRejection>;
   /**
    * 읽지 못한 플러그인을 알린다. 재료 포트는 `Result`를 돌려줄 수 없어서 실패를 빈 재료로 숨기지 않고 여기로 넘긴다.
    * 같은 폴더는 한 번만 알린다
@@ -46,7 +46,7 @@ export function createMaterialPort(deps: MaterialPortDeps): MaterialPort {
     if (dir === null) return undefined;
     let outcome = cache.get(dir);
     if (outcome === undefined) {
-      outcome = deps.read(dir);
+      outcome = deps.read(dir, name);
       cache.set(dir, outcome);
       if (!outcome.ok) deps.report(name, outcome.error);
     }

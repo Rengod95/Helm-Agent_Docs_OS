@@ -398,46 +398,13 @@ export function createProjectPort(deps: ProjectPortDeps): ProjectPort {
       return deepestRoot(workspace, known)?.projectId;
     },
 
-    async attach(workspace): Promise<Result<ThreadProjectRef | null, ProjectPortFailure>> {
+    // 대화 폴더가 속한 프로젝트(가장 깊은 루트). 프로젝트는 사용자가 만들 때만 생기므로 어느 루트에도 없으면 null이다(프로젝트 없는 대화) [결정: 2026-11-22 사용자]
+    async projectOf(workspace): Promise<Result<ThreadProjectRef | null, ProjectPortFailure>> {
       const all = await roots();
       if (!all.ok) return all;
       const deepest = deepestRoot(workspace, all.value);
-      if (deepest !== undefined) {
-        return ok(
-          deepest.name === null ? null : { projectId: deepest.projectId, name: deepest.name },
-        );
-      }
-      // 어느 루트에도 없으면 그 폴더를 루트로 프로젝트를 만든다(§4.4.3, 미결 2의 기본값). 잠금 안에서 한 번 더 본다
-      const done = await store.transact<ThreadProjectRef, ProjectRuleFailure>((snapshot) => {
-        const explicit = snapshot.projects.map((project) => ({
-          projectId: project.projectId,
-          root: project.root,
-          name: project.name,
-        }));
-        const existing = deepestRoot(workspace, explicit);
-        if (existing !== undefined && existing.name !== null) {
-          return ok({
-            projects: snapshot.projects,
-            value: { projectId: existing.projectId, name: existing.name },
-          });
-        }
-        if (snapshot.projects.length >= PROJECT_LIMITS.projects) {
-          return err({ kind: "limit", max: PROJECT_LIMITS.projects });
-        }
-        const project: Project = {
-          projectId: deps.ids.next("prj"),
-          name: nameOf(undefined, workspace),
-          root: workspace,
-          createdAt: nowIso(),
-          rev: 1,
-        };
-        return ok({
-          projects: [...snapshot.projects, project],
-          value: { projectId: project.projectId, name: project.name },
-        });
-      });
-      if (!done.ok) return err(failureOf(done.error));
-      return ok(done.value.value);
+      if (deepest === undefined || deepest.name === null) return ok(null);
+      return ok({ projectId: deepest.projectId, name: deepest.name });
     },
 
     async defaultWorkspace(threadId): Promise<Result<string, ProjectPortFailure>> {

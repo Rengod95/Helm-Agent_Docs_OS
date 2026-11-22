@@ -38,15 +38,17 @@ export function createProjectExtensions(deps: ProjectExtensionsDeps): ProjectExt
     workspace: string,
     signal: AbortSignal,
   ): Promise<void> {
+    // 프로젝트 없는 대화(어느 프로젝트의 루트에도 들지 않는 폴더)에는 프로젝트 플러그인이 없다. 신뢰도 묻지 않는다(§4.4.3, 2026-11-22)
+    const projectId = deps.projectIdOf(workspace);
+    if (projectId === undefined) return;
     const trust = await deps.trust.resolve(workspace, signal);
     if (!trust.trusted) return;
-    const projectId = deps.projectIdOf(workspace);
     const report = await loader.loadProject({
       projectRoot: workspace,
       mode: "headless",
       // 판정은 위에서 끝냈다. 같은 결정을 로더에 그대로 넘긴다
       trustOverride: true,
-      ...(projectId === undefined ? {} : { projectId }),
+      projectId,
       signal,
     });
     if (report.alreadyLoaded) return;

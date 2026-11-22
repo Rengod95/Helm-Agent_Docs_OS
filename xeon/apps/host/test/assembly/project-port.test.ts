@@ -268,28 +268,31 @@ test("a configured default folder is used instead, and a relative one is root_in
   expect(failureKindOf(await rig.port.defaultWorkspace(ids.next("thr")))).toBe("root_invalid");
 });
 
-test("attach makes a project for a folder that is in no root, and a folder inside it reuses that project", async () => {
+test("projectOf gives null for a folder in no root and creates no project; a folder inside an explicit project belongs to it", async () => {
   const rig = freshRig();
-  const workspace = join(tempDir(), "fresh");
-  mkdirSync(workspace);
-  const canonical = realpathSync(workspace);
-  const first = await rig.port.attach(canonical);
-  expect(first.ok && first.value?.name).toBe("fresh");
-  const again = await rig.port.attach(canonical);
-  expect(again.ok && again.value?.projectId).toBe(first.ok ? first.value?.projectId : undefined);
+  const outside = join(tempDir(), "fresh");
+  mkdirSync(outside);
+  expect(await rig.port.projectOf(realpathSync(outside))).toEqual(ok(null));
+  const none = await rig.port.list();
+  expect(none.ok && none.value.projects).toEqual([]);
+
+  const root = join(tempDir(), "made");
+  mkdirSync(root);
+  const created = await rig.port.create({ root, name: "made" });
+  if (!created.ok) throw new Error("the project must be created");
+  const inside = join(realpathSync(root), "sub");
+  mkdirSync(inside);
+  const nested = await rig.port.projectOf(realpathSync(inside));
+  expect(nested.ok && nested.value?.projectId).toBe(created.value.projectId);
   const listed = await rig.port.list();
   expect(listed.ok && listed.value.projects).toHaveLength(1);
-  const inside = join(canonical, "sub");
-  mkdirSync(inside);
-  const nested = await rig.port.attach(realpathSync(inside));
-  expect(nested.ok && nested.value?.projectId).toBe(first.ok ? first.value?.projectId : undefined);
 });
 
-test("attach gives null for a folder in the default folder and creates no project for it", async () => {
+test("projectOf gives null for a folder in the default folder and creates no project for it", async () => {
   const rig = freshRig();
   const made = await rig.port.defaultWorkspace(ids.next("thr"));
   if (!made.ok) throw new Error("the default folder must be made");
-  expect(await rig.port.attach(made.value)).toEqual(ok(null));
+  expect(await rig.port.projectOf(made.value)).toEqual(ok(null));
   const listed = await rig.port.list();
   expect(listed.ok && listed.value.projects).toEqual([]);
 });

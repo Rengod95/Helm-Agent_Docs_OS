@@ -180,18 +180,25 @@ test("thread.create in a project folder reports that project, and thread.list sh
   expect(summary?.project).toEqual({ projectId: project.project.projectId, name: "shop" });
 });
 
-test("thread.create in a folder that is in no project makes a project rooted there and reports it", async () => {
+test("thread.create in a folder that is in no project is a conversation without a project and makes none; creating the project later takes it in", async () => {
   const { host } = rig();
   const connection = await connect(host);
   const folder = join(tempDir(), "loose");
   mkdirSync(folder);
   const created = await connection.request("thread.create", { workspace: folder });
-  expect(created.project).toMatchObject({ name: "loose" });
-  // 루트는 대화 폴더 자체다(§4.4.3)
-  const listed = await connection.request("project.list", {});
-  expect(listed.projects.map((project) => [project.name, project.root])).toEqual([
-    ["loose", folder],
-  ]);
+  expect(created.project).toBeNull();
+  expect((await connection.request("project.list", {})).projects).toEqual([]);
+  const before = (await connection.request("thread.list", {})).threads.find(
+    (thread: ThreadSummary) => thread.threadId === created.threadId,
+  );
+  expect(before?.project).toBeNull();
+
+  // 사용자가 그 폴더를 프로젝트로 만들면, 폴더 기준이라 이미 있던 대화가 그 프로젝트에 속한다(§4.4.2)
+  const project = await connection.request("project.create", { root: folder, name: "loose" });
+  const after = (await connection.request("thread.list", {})).threads.find(
+    (thread: ThreadSummary) => thread.threadId === created.threadId,
+  );
+  expect(after?.project).toEqual({ projectId: project.project.projectId, name: "loose" });
 });
 
 test("thread.create without a workspace asks for the default folder and reports no project", async () => {

@@ -1,17 +1,15 @@
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { attemptAsync, err, ok, parseJson, type Clock, type Result } from "@fresnel/contracts";
-import type { LocalIdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { LocalIdFactory, ThreadId, ThreadStatus } from "@fresnel/contracts/conversation";
 import type { SessionService } from "@fresnel/contracts/records";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
 import type { FileLock } from "@fresnel/platform-os";
 import { fileReadOfText, readSettingsFile } from "../settings-engine.ts";
 import { replaceFileAtomically } from "../trust.ts";
-import { migrateImplicitProjects, type MigrationThread } from "./implicit-project-migrate.ts";
 import { isLegacyEnabledKey, legacyInputsFromUser, type LegacyInputs } from "./profile-migrate.ts";
 import { createProfileStore, type FirstStartProfileOutcome } from "./profile-store.ts";
 import type { ScopeRoot } from "./project-scope.ts";
-import { createProjectStore } from "./project-store.ts";
 
 // 첫 시작 옮김 한 번(M5c §7). 호스트가 자리를 잡은 뒤 한 번 돌고 `migration.log`에 표지를 남긴다. 표지가 있으면 아무것도 하지 않는다.
 // 순서가 중요하다: (1) 사용자 설정 파일의 값을 읽는다 → (2) 그 값으로 `profiles.json`을 옮긴다(§7.2·§7.3)
@@ -19,6 +17,15 @@ import { createProjectStore } from "./project-store.ts";
 // → (4) 저장소 파일(project·local)의 옛 키를 한 번 진단한다 → (5) 대화 폴더의 암묵 프로젝트를 만든다(§7.6).
 // 항목 하나가 실패해도 나머지는 계속한다. 실패가 하나라도 있으면 표지를 쓰지 않아 다음 시작에 다시 본다.
 // 원본 파일은 지우지 않는다(백업과 `.v1.bak`만 남긴다).
+
+/** 옮김이 보는 대화 한 개. Test run 대화는 프로젝트 묶음에서 뺀다(§4.8) */
+export interface MigrationThread {
+  /** 정규 작업 폴더. 없으면 null이다 */
+  readonly workspace: string | null;
+  readonly status: ThreadStatus;
+  /** Test run 대화인가 */
+  readonly testRun: boolean;
+}
 
 /** 옮김 기록 파일 이름(호스트 상태 폴더 아래) */
 export const MIGRATION_LOG_NAME = "migration.log";
@@ -319,37 +326,7 @@ export async function runFirstStartMigration(
   );
   await note(await projectDiagnostics(folders, alreadyLogged));
 
-  if (roots.ok) {
-    const projects = createProjectStore({
-      path: join(deps.configDir, "projects.json"),
-      fileLock: deps.fileLock,
-      clock: deps.clock,
-      signal: deps.signal,
-    });
-    const implicit = await migrateImplicitProjects({
-      threads,
-      roots: roots.value,
-      projects,
-      ids: deps.ids,
-      clock: deps.clock,
-    });
-    if (!implicit.ok) {
-      await fail("implicit_projects", implicit.error.kind);
-    } else {
-      await note([
-        ...implicit.value.created.map((project) => ({
-          step: "implicit_project",
-          projectId: project.projectId,
-          root: project.root,
-        })),
-        ...implicit.value.skipped.map((skip) => ({
-          step: "implicit_project_skipped",
-          folder: skip.folder,
-          reason: skip.reason,
-        })),
-      ]);
-    }
-  }
+  // 옛 대화의 작업 폴더로 프로젝트를 저절로 만들지 않는다(프로젝트는 사용자가 만들 때만 생긴다, §4.4.3). 이미 만들어진 프로젝트는 그대로 둔다 [결정: 2026-11-22 사용자]
 
   if (failures.length === 0) await note([{ step: FIRST_START_STEP, status: "done" }]);
   return { ran: true, failures };

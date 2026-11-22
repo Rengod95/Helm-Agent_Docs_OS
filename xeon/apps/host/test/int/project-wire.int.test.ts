@@ -50,7 +50,7 @@ function tempBase(): string {
 }
 
 realTest(
-  "project.list counts the threads under each project: a thread in a subfolder counts for its project, a folder outside every project makes its own, and a deleted thread stops counting",
+  "project.list counts the threads under each project: a thread in a subfolder counts for its project, a folder outside every project is not counted and makes no project, and a deleted thread stops counting",
   async () => {
     const engine = await openEngine();
     const { connection } = engine;
@@ -65,16 +65,13 @@ realTest(
       const inSub = await connection.request("thread.create", { workspace: sub });
       // 기본 폴더 대화는 명시 프로젝트 묶음에 들지 않는다
       await connection.request("thread.create", {});
-      // 어느 루트에도 없는 폴더는 대화를 만들 때 그 폴더를 루트로 프로젝트를 만든다(§4.4.3)
+      // 어느 루트에도 없는 폴더는 프로젝트 없는 대화이고 프로젝트를 만들지 않는다(§4.4.3)
       await connection.request("thread.create", { workspace: other });
 
       const listed = await connection.request("project.list", {});
       expect(
         listed.projects.map((item) => [item.name, item.threadCount, item.runningCount]),
-      ).toEqual([
-        ["Main", 2, 0],
-        ["other", 1, 0],
-      ]);
+      ).toEqual([["Main", 2, 0]]);
       expect(listed.projects[0]).toEqual({
         ...created.project,
         threadCount: 2,
@@ -90,10 +87,7 @@ realTest(
           item.name,
           item.threadCount,
         ]),
-      ).toEqual([
-        ["Main", 1],
-        ["other", 1],
-      ]);
+      ).toEqual([["Main", 1]]);
       expect(
         (await connection.request("thread.list", {})).threads.map((thread) => thread.threadId),
       ).toContain(onRoot.threadId);
@@ -106,7 +100,7 @@ realTest(
 );
 
 realTest(
-  "thread.started carries the thread's project: a thread in a project folder names it, a default-folder thread carries null, and a folder outside every project gets its project before the thread is written",
+  "thread.started carries the thread's project: a thread in a project folder names it, a default-folder thread carries null, and a folder outside every project carries null and makes no project",
   async () => {
     const engine = await openEngine();
     const { connection } = engine;
@@ -135,11 +129,11 @@ realTest(
       expect(inMain.project?.projectId).toBe(created.project.projectId);
       expect(await startedOf(plain.threadId)).toMatchObject({ project: null });
       expect(plain.project).toBeNull();
-      const autoStarted = await startedOf(auto.threadId);
-      expect(auto.project).not.toBeNull();
-      expect(autoStarted).toMatchObject({
-        project: { id: auto.project?.projectId, root: other },
-      });
+      expect(await startedOf(auto.threadId)).toMatchObject({ project: null });
+      expect(auto.project).toBeNull();
+      expect(
+        (await connection.request("project.list", {})).projects.map((item) => item.name),
+      ).toEqual(["Main"]);
     } finally {
       await engine.close();
       rmSync(base, { recursive: true, force: true });

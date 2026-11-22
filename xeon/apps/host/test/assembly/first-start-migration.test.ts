@@ -19,8 +19,8 @@ import {
   PRE_PROFILE_BACKUP_NAME,
   runFirstStartMigration,
   type FirstStartMigrationDeps,
+  type MigrationThread,
 } from "../../src/assembly/m4/first-start-migration.ts";
-import type { MigrationThread } from "../../src/assembly/m4/implicit-project-migrate.ts";
 import type { ScopeRoot } from "../../src/assembly/m4/project-scope.ts";
 import { createProjectStore } from "../../src/assembly/m4/project-store.ts";
 
@@ -365,13 +365,15 @@ test("a corrupt profiles.json fails only the profile item: settings keep their k
   expect(existsSync(join(layout.configDir, PRE_PROFILE_BACKUP_NAME))).toBe(false);
   expect(readText(layout.profilesPath)).toBe("this is not json");
   expect(stepsOf(layout, "first_start")).toEqual([]);
-  expect(stepsOf(layout, "implicit_project")).toMatchObject([{ root: dirA }]);
+  // 옛 대화의 작업 폴더로 프로젝트를 만들지 않는다(프로젝트는 사용자가 만들 때만 생긴다)
+  expect(stepsOf(layout, "implicit_project")).toEqual([]);
+  expect(existsSync(layout.projectsPath)).toBe(false);
 
-  // 다음 시작에도 실패는 그대로 남고, 프로젝트는 두 번 만들어지지 않는다
-  const projectsBefore = readText(layout.projectsPath);
+  // 다음 시작에도 실패는 그대로 남고, 프로젝트는 만들어지지 않는다
+  const projectsBefore = existsSync(layout.projectsPath);
   const second = await runFirstStartMigration(depsOf(layout, [idle(dirA)]));
   expect(second).toEqual({ ran: true, failures: ["profiles:corrupt"] });
-  expect(readText(layout.projectsPath)).toBe(projectsBefore);
+  expect(existsSync(layout.projectsPath)).toBe(projectsBefore);
 });
 
 test("an unreadable settings.json skips the profile move and the key removal, records the reason, and keeps the file", async () => {
@@ -387,7 +389,7 @@ test("an unreadable settings.json skips the profile move and the key removal, re
   expect(readText(layout.settingsPath)).toBe(broken);
   expect(existsSync(layout.profilesPath)).toBe(false);
   expect(existsSync(join(layout.configDir, PRE_PROFILE_BACKUP_NAME))).toBe(false);
-  expect(stepsOf(layout, "implicit_project")).toHaveLength(1);
+  expect(stepsOf(layout, "implicit_project")).toEqual([]);
 });
 
 test("a leftover ext key after the move is only an unknown key: it blocks neither the next start nor the settings load", async () => {

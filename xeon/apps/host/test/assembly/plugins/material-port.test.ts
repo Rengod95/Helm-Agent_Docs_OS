@@ -107,3 +107,22 @@ test("같은 폴더 경로는 여러 번 불러도 한 번만 읽는다", () => 
   expect(port.instructions(id)).toEqual([{ key: "plugin:cached:instructions.md", text: "Once" }]);
   expect(reads).toBe(1);
 });
+
+test("스킬만 든 검토본(폴더 이름이 tree)의 스킬 이름은 폴더 이름이 아니라 플러그인 이름이다", () => {
+  const root = tempRoot("plugin-material-");
+  roots.push(root);
+  const tree = join(root, "tree");
+  writeFiles(tree, { "SKILL.md": "---\ndescription: Notes skill\n---\nbody" });
+
+  const port = createMaterialPort({
+    pluginSet: () => ["notes-kit"],
+    treeOf: () => tree,
+    read: (dir, name) => readPluginFolder(dir, { origin: "user", name }),
+    report: () => {
+      throw new Error("the folder is readable");
+    },
+  });
+  expect(port.skillRoots(threadId())).toEqual([{ plugin: "notes-kit", dir: tree }]);
+  const folder = readPluginFolder(tree, { origin: "user", name: "notes-kit" });
+  expect(folder.ok && folder.value.name).toBe("notes-kit");
+});

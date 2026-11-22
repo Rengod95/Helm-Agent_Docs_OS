@@ -284,3 +284,21 @@ test("the project load carries the workspace's project id to the loader; without
   await withoutId.ensure("/work/elsewhere", new AbortController().signal);
   expect(calls.map((options) => options.projectId)).toEqual([PROJECT_ID, undefined]);
 });
+
+test("a folder that is in no project loads no project plugins and does not even ask for trust", async () => {
+  const { loader, calls } = recordingLoader(() => Promise.resolve(LOADED));
+  let asked = 0;
+  const extensions = createProjectExtensions({
+    loader: () => loader,
+    trust: trustWith(() => {
+      asked += 1;
+      return "allow";
+    }),
+    logger: SILENT,
+    projectIdOf: () => undefined,
+    signal: new AbortController().signal,
+  });
+  await extensions.ensure(WORKSPACE, new AbortController().signal);
+  expect(calls).toEqual([]);
+  expect(asked).toBe(0);
+});
