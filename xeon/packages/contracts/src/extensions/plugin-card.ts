@@ -428,7 +428,16 @@ export interface PluginCard {
    * `code`는 `entry`(격리 플러그인 프로세스)가 있는가다. `isolated`는 코드가 샌드박스 안에서 도는가다: `true`면 Fresnel의 샌드박스 하나(열린 정책, 막는 것은
    * 사용자가 막은 경로, Fresnel 자신의 비밀·데이터·설정, 차단 도메인)다. 엔진 안에서 도는 내장 패키지만 `false`다. 코드가 없으면 `null`이다 [결정: 2026-11-21, AGE-63]
    */
-  readonly runs: { readonly code: boolean; readonly isolated: boolean | null };
+  readonly runs: {
+    readonly code: boolean;
+    readonly isolated: boolean | null;
+    /**
+     * 참일 때만 있다. 설정 `l0.sandbox.narrowDrafts`가 켜져 있어, 이 플러그인이 승인되기 전(드래프트)에는 코드와 스크립트가 좁은 샌드박스
+     * (자기 폴더만 읽고 쓰지 못함, 환경 변수는 허용 목록만)에서 돈다는 뜻이다. 승인된 뒤에는 `isolated`가 말하는 열린 샌드박스다. 없으면 승인 전에도 같다
+     * [결정: 2026-11-22, 사용자, AGE-63]
+     */
+    readonly narrowBeforeApproval?: true;
+  };
   readonly cost: CostFigures;
   readonly health: {
     readonly state: PluginHealthState;
@@ -494,6 +503,7 @@ const PluginCardShape = Type.Object(
       {
         code: Type.Boolean(),
         isolated: Type.Union([Type.Boolean(), Type.Null()]),
+        narrowBeforeApproval: Type.Optional(Type.Literal(true)),
       },
       { additionalProperties: false },
     ),
