@@ -1,7 +1,7 @@
 // src/state/engine/convo-select.ts
 // 대화 상태(`convo.ts`)를 화면 부품이 읽는 모양으로 고르는 선택자. 순수 함수이고, 같은 입력 참조에는 같은 결과 참조를 돌려준다
 // (빈 값은 모듈 상수, 만든 배열은 입력 참조로 기억한다). 스펙: docs/xeon/L4/desktop-ux/spec.md 대화 상태 절.
-import type { ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
+import type { ItemRecord, ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
 import type {
   AgentRecord,
   AppliedProfile,
@@ -442,9 +442,40 @@ export function returnedRequestIdOf(requestId: string): string {
   return `user-return:${requestId}`.slice(0, 64);
 }
 
+/** 사용자 item의 글 파트를 잇는다(`lease.user_input` 글을 읽는 방식과 같다). 사용자 말이 아니거나 글이 없으면 null */
+function userTextOf(item: ItemRecord | undefined): string | null {
+  if (item?.kind !== "user") return null;
+  const { content } = item.message;
+  const raw =
+    typeof content === "string"
+      ? content
+      : content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+  return raw.trim() === "" ? null : raw;
+}
+
 /**
- * 화면에 보일 Drive 입력. 글이 없는 것(읽지 못한 `held`, `settled`만 본 것)과 코어 루프로 돌아가 입력 큐나 턴이 된 것은 뺀다.
- * 오래된 것부터다
+ * Drive가 `turn`으로 받아 같은 글의 턴 입력이 된 말(엔진은 그 턴이 끝난 뒤 `settled`를 남긴다). 그 턴의 내 말풍선이 이미 보이므로
+ * Drive 입력 줄은 물러난다. 받은 말 뒤에 시작한, 같은 scope의 턴 입력 item만 본다. 열린 대화의 기록이 읽혀 있어야 글을 맞춰 볼 수 있다
+ */
+function turnTakenTexts(s: EngineMirror, threadId: ThreadId): ReadonlyMap<string, number[]> | null {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready" || transcript.threadId !== threadId) return null;
+  const byKey = new Map<string, number[]>();
+  for (const turn of convoOf(s, threadId).turns) {
+    if (turn.scopeId === null || turn.startedSeq === null) continue;
+    for (const id of turn.inputItemIds) {
+      const text = userTextOf(transcript.items[id]);
+      if (text === null) continue;
+      const key = `${turn.scopeId}\u0000${text}`;
+      byKey.set(key, [...(byKey.get(key) ?? []), turn.startedSeq]);
+    }
+  }
+  return byKey;
+}
+
+/**
+ * 화면에 보일 Drive 입력. 글이 없는 것(읽지 못한 `held`, `settled`만 본 것), 코어 루프로 돌아가 입력 큐나 턴이 된 것,
+ * Drive가 `turn`으로 받아 턴 입력이 된 것은 뺀다. 같은 글을 두 번 보냈으면 받은 말 하나가 그 뒤의 턴 하나와 짝을 이룬다. 오래된 것부터다
  */
 export function selectDriveInputs(
   s: EngineMirror,
@@ -455,9 +486,20 @@ export function selectDriveInputs(
   const taken = new Set<string>();
   for (const turn of c.turns) if (turn.requestId !== null) taken.add(turn.requestId);
   for (const input of s.queuedInputs) if (input.threadId === threadId) taken.add(input.requestId);
-  const shown = c.driveInputs.filter(
-    (record) => record.text !== null && !taken.has(returnedRequestIdOf(record.requestId)),
-  );
+  const turnTexts = turnTakenTexts(s, threadId);
+  const used = new Map<string, Set<number>>();
+  const shown = c.driveInputs.filter((record) => {
+    if (record.text === null || taken.has(returnedRequestIdOf(record.requestId))) return false;
+    const key = `${record.scopeId}\u0000${record.text}`;
+    const starts = turnTexts?.get(key);
+    if (starts === undefined) return true;
+    const spent = used.get(key) ?? new Set<number>();
+    const match = starts.find((seq) => seq > record.seq && !spent.has(seq));
+    if (match === undefined) return true;
+    spent.add(match);
+    used.set(key, spent);
+    return false;
+  });
   return shown.length === c.driveInputs.length ? c.driveInputs : shown;
 }
 

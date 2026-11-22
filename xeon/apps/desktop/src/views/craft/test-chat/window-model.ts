@@ -71,6 +71,14 @@ export function borrowNext(
   };
 }
 
+/**
+ * 창 밖의 Craft 화면(플러그인 상세의 최근 실행과 훅 시간, 검사 탭)이 볼 대화. 창이 빌린 대화가 열려 있으면 빌리기 전의 대화다
+ * (없으면 null). 그 밖에는 열린 대화 그대로다. 테스트 챗은 창 안에서만 보이고 옆 화면이 따라가지 않는다
+ */
+export function workThreadOf(borrow: Borrow, open: ThreadId | null): ThreadId | null {
+  return borrow.kind === "lent" && open === borrow.thread ? borrow.returnTo : open;
+}
+
 // ── 끌기 ──
 
 export interface Box {

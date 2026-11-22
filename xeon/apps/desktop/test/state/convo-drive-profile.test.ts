@@ -8,7 +8,8 @@ import {
   selectTurnSummaries,
 } from "../../src/state/engine/convo-select.ts";
 import { decodeDurable } from "../../src/state/engine/decode.ts";
-import { SUB, evt, openedHarness, thr, trn } from "./helpers.ts";
+import type { DurableFact } from "../../src/state/engine/input.ts";
+import { SUB, evt, itm, openedHarness, recorded, thr, trn, userItem } from "./helpers.ts";
 
 // lcM6a: 대화 화면이 읽는 세 사건을 거울까지 값으로 확인한다.
 // - `profile.applied`: 지금 프로필(단계 경계에서 쓰인 값), 바뀜 표지(권한 바뀜 포함), 살아 있는 덧씌우기
@@ -69,7 +70,7 @@ function userInput(
   });
 }
 
-function feed(wires: readonly EventWire[]): ReturnType<typeof openedHarness> {
+function feed(wires: readonly (EventWire | DurableFact)[]): ReturnType<typeof openedHarness> {
   const h = openedHarness(5);
   h.store.ingest({
     type: "batch",
@@ -77,10 +78,25 @@ function feed(wires: readonly EventWire[]): ReturnType<typeof openedHarness> {
     from: 5,
     to: 5 + wires.length,
     caughtUp: true,
-    facts: wires.map(decodeDurable),
+    facts: wires.map((w) => ("type" in w ? w : decodeDurable(w))),
   });
   h.store.flush();
   return h;
+}
+
+/** Drive가 `turn`으로 받은 말: 같은 scope의 턴이 그 글을 입력 item으로 연다 */
+function drivenTurn(seq: number, item: number, turn: number, text: string): DurableFact[] {
+  return [
+    recorded(seq, userItem(item, text)),
+    decodeDurable(
+      wire(
+        seq + 1,
+        "turn.started",
+        { inputItemIds: [itm(item)], requestId: `lin:u${String(turn)}.0`, scopeId: "helm" },
+        turn,
+      ),
+    ),
+  ];
 }
 
 describe("profile.applied → 지금 프로필과 바뀜 표지", () => {
@@ -168,6 +184,44 @@ describe("lease.user_input → Drive가 받은 말", () => {
       ),
     ]);
     expect(selectDriveInputs(h.store.read.getState(), T)).toEqual([]);
+  });
+
+  test("Drive가 turn으로 받아 같은 글의 턴 입력이 된 말은 전달 전후 모두 Drive 입력 줄에서 빠진다", () => {
+    const running = feed([
+      userInput(6, "req-4", "held", "이 플러그인 이름을 바꿔 줘"),
+      ...drivenTurn(7, 1, 1, "이 플러그인 이름을 바꿔 줘"),
+    ]);
+    expect(selectDriveInputs(running.store.read.getState(), T)).toEqual([]);
+    const done = feed([
+      userInput(6, "req-4", "held", "이 플러그인 이름을 바꿔 줘"),
+      ...drivenTurn(7, 1, 1, "이 플러그인 이름을 바꿔 줘"),
+      userInput(9, "req-4", "settled"),
+    ]);
+    expect(selectDriveInputs(done.store.read.getState(), T)).toEqual([]);
+  });
+
+  test("같은 글을 두 번 보내고 턴이 하나만 받았으면 뒤의 말은 전달 대기로 남는다", () => {
+    const h = feed([
+      userInput(6, "req-5", "held", "다시"),
+      ...drivenTurn(7, 1, 1, "다시"),
+      userInput(9, "req-6", "held", "다시"),
+    ]);
+    expect(selectDriveInputs(h.store.read.getState(), T).map((r) => r.requestId)).toEqual([
+      "req-6",
+    ]);
+  });
+
+  test("글이 다르거나 받은 말보다 먼저 시작한 턴이면 Drive 입력 줄은 남는다", () => {
+    const h = feed([
+      ...drivenTurn(6, 1, 1, "먼저 시작한 턴"),
+      userInput(8, "req-7", "held", "먼저 시작한 턴"),
+      userInput(9, "req-8", "held", "플러그인이 바꿔 쓴 말"),
+      ...drivenTurn(10, 2, 2, "플러그인이 새로 쓴 입력"),
+    ]);
+    expect(selectDriveInputs(h.store.read.getState(), T).map((r) => r.requestId)).toEqual([
+      "req-7",
+      "req-8",
+    ]);
   });
 });
 

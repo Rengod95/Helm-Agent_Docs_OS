@@ -10,7 +10,7 @@ import { assertNever, detach, err, rethrow, type Result } from "@fresnel/contrac
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useLatestTurnId, useOpenThreadId } from "../../state/engine/index.ts";
+import { useLatestTurnId } from "../../state/engine/index.ts";
 import {
   useWorkbench,
   useWorkbenchActions,
@@ -19,6 +19,7 @@ import {
 import { useCommands, type CommandError, type WorkbenchCommands } from "../commands.ts";
 import type { CraftRunEntry, CraftSource } from "../craft/craft-context.tsx";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
+import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
 import { useOpenTestChat } from "../craft/test-chat/use-test-chat.ts";
 
 /** 켜기·끄기 요청. `useToggleRequest`의 `request`가 이 모양이다. 매 렌더 새로 만들어져도 된다 */
@@ -40,7 +41,8 @@ export function useCraftSource(
   const health = useWorkbench((s) => s.health);
   const pending = useWorkbench((s) => s.pending);
   const order = useWorkbench((s) => s.order);
-  const threadId = useOpenThreadId();
+  // 테스트 챗 창이 빌린 대화가 열려 있어도 최근 실행은 빌리기 전의 대화를 본다(C7)
+  const threadId = useWorkThreadId();
   const turnId = useLatestTurnId(threadId);
 
   // 매니페스트 검사(`snapshotOf`)는 목록·자세히·장부가 바뀔 때만 한다. 대기 표시만 바뀌면 덮어쓰기만 다시 한다

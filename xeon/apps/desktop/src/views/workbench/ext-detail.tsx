@@ -39,11 +39,12 @@ import {
 import { Ellipsis } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
-import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
+import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
 import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { requestAddon } from "../plugin/plugin-pick.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
 import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
 import { hasMembers } from "../craft/members/members-model.ts";
 import { MembersTab } from "../craft/members/members-tab.tsx";
@@ -421,7 +422,8 @@ export function ExtDetail(props: {
   readonly onRemove: () => void;
 }): ReactNode {
   const commands = useCommands();
-  const threadId = useOpenThreadId();
+  // 훅 시간은 테스트 챗 창이 빌린 대화가 아니라 빌리기 전의 대화로 읽는다(C7)
+  const threadId = useWorkThreadId();
   const { entry } = props;
   const row = rowOf(entry, props.state.pending);
   const scope = enabledScopeOf(entry.enabledSource);

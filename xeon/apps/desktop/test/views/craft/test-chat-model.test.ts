@@ -3,6 +3,7 @@ import type { ContextRef } from "@fresnel/contracts/conversation";
 import type { DraftInfo } from "@fresnel/contracts/wire";
 import {
   borrowNext,
+  workThreadOf,
   clampOffset,
   collapsedEdgeOf,
   contextChipsOf,
@@ -87,6 +88,19 @@ const AREA: Box = { left: 0, top: 0, right: 1000, bottom: 800 };
 const BASE: Box = { left: 100, top: 100, right: 200, bottom: 200 };
 // 세로 단추 띠. 영역보다 좁지만 창이 넘지 못할 왼쪽 경계를 준다
 const RAIL: Box = { left: 900, top: 300, right: 930, bottom: 500 };
+
+describe("workThreadOf", () => {
+  test("창이 빌린 대화가 열려 있으면 빌리기 전의 대화를 본다", () => {
+    expect(workThreadOf({ kind: "lent", thread: B, returnTo: A }, B)).toBe(A);
+    expect(workThreadOf({ kind: "lent", thread: B, returnTo: null }, B)).toBeNull();
+  });
+
+  test("빌리지 않았거나 다른 대화가 열려 있으면 열린 대화 그대로다", () => {
+    expect(workThreadOf(IDLE_BORROW, B)).toBe(B);
+    expect(workThreadOf({ kind: "lent", thread: B, returnTo: A }, C)).toBe(C);
+    expect(workThreadOf(IDLE_BORROW, null)).toBeNull();
+  });
+});
 
 describe("clampOffset", () => {
   test("an offset that keeps the window inside the area is unchanged", () => {

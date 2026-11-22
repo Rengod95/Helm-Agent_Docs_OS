@@ -51,7 +51,8 @@ import {
 import { CircleAlert, Ellipsis, TriangleAlert } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
+import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
+import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
@@ -756,7 +757,8 @@ export function InspectTab(): ReactNode {
 
 function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
   const { entry } = props;
-  const threadId = useOpenThreadId();
+  // 테스트 챗 창이 빌린 대화가 열려 있어도 검사 탭은 빌리기 전의 대화를 본다(C7)
+  const threadId = useWorkThreadId();
   const link = linkOf(useLinkPhase());
   const data = useInspectData(entry.name, threadId, link === "live");
   const controller = useWorkbenchController();
