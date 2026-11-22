@@ -32,6 +32,17 @@ import { MANIFEST_PATH } from "./validate.ts";
 // L3.authoring.spec §3.3 `editMembers`. 원본 폴더의 구성원을 고친다. 계획(members-plan.ts)을 세우고 매니페스트를
 // 검사한 뒤에만 쓴다. 설치된 사본은 건드리지 않는다. 고친 폴더는 호출자가 `plugin.draft.create`로 다시 초안을 만든다.
 
+/**
+ * 구성원을 읽는다(쓰지 않는다). `editMembers`에 빈 `ops`를 준 것과 같다: 쓰기는 `ops`가 있을 때만 하므로 파일은 그대로다.
+ * 매니페스트를 읽지 못하거나 검사에서 거절되면 `editMembers`와 같은 오류를 돌려준다
+ */
+export async function readMembers(
+  dir: string,
+): Promise<Result<readonly MemberInfo[], DevkitError>> {
+  const read = await editMembers({ dir, ops: [] });
+  return read.ok ? ok(read.value.members) : read;
+}
+
 /** 구성원 편집을 적용한다. 하나라도 실패하면 아무 파일도 쓰지 않는다 */
 export async function editMembers(
   input: MembersEditInput,

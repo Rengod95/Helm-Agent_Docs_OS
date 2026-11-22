@@ -98,6 +98,11 @@ export interface M4HostEnv {
   readonly configDir: string;
   /** 호스트 상태 폴더(`OsDirs.state`). 옮김 기록 `migration.log`가 여기에 놓인다 */
   readonly stateDir: string;
+  /**
+   * 검토본·후보·초안 저장소 폴더(`<데이터>/plugin-store`). 제작 포트는 이 아래 폴더를 편집하지 않는다(`ext.members.edit`).
+   * `assemble.ts`의 `pluginStoreRoot`와 같은 폴더다
+   */
+  readonly pluginStoreDir: string;
   /** 시크릿 이름 목록. 읽지 못하면 null이고, 그때 검증은 `secret_missing` 경고를 내지 않는다 */
   readonly secretNames: () => Promise<ReadonlySet<string> | null>;
   /** 검토 대기 항목의 플러그인 이름(검토본이 없는 것 포함). 프로필 검증이 `plugin_not_reviewed`를 낼 때 쓴다(M5c §4.2.7) */

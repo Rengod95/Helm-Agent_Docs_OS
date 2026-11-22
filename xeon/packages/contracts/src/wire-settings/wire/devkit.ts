@@ -4,6 +4,7 @@ import {
   CompositionDeclSchema,
   ExtensionLayerSchema,
   PluginIdSchema,
+  RegistrationIdSchema,
   UiDeclSchema,
   type CompositionDecl,
   type ExtensionLayer,
@@ -12,6 +13,9 @@ import {
 import type {
   DevkitIssue,
   KindEntry,
+  MemberInfo,
+  MembersEditInput,
+  MembersEditResult,
   PackResult,
   ReplayReport,
   ScaffoldResult,
@@ -258,6 +262,79 @@ export const ExtTestListResultSchema: TUnsafe<ExtTestListResult> = Type.Unsafe<E
   ExtTestListResultShape satisfies SchemaProof<ExtTestListResult, typeof ExtTestListResultShape>,
 );
 
+/**
+ * 구성원 편집(`ext.members.edit`, L3.authoring.spec §3.3). 종류는 `MemberOp` 네 가지뿐이고 한 번에 1~32건을 받는다.
+ * 모양은 `MemberOp`(services/devkit.ts)와 같다
+ */
+const MemberModeShape = Type.Union([
+  Type.Literal("hook"),
+  Type.Literal("inject"),
+  Type.Literal("drive"),
+]);
+const MemberOpShape = Type.Union([
+  closed({
+    kind: Type.Literal("add"),
+    id: PluginIdSchema,
+    layer: Type.Optional(ExtensionLayerSchema),
+    title: Type.Optional(Type.String({ maxLength: 64 })),
+    mode: Type.Optional(MemberModeShape),
+  }),
+  closed({ kind: Type.Literal("rename"), id: PluginIdSchema, to: PluginIdSchema }),
+  closed({ kind: Type.Literal("remove"), id: PluginIdSchema }),
+  closed({
+    kind: Type.Literal("move"),
+    id: PluginIdSchema,
+    toIndex: Type.Integer({ minimum: 0 }),
+  }),
+]);
+
+const MemberInfoShape = closed({
+  id: PluginIdSchema,
+  registrationId: RegistrationIdSchema,
+  title: Type.Union([Type.String({ maxLength: 64 }), Type.Null()]),
+  layer: ExtensionLayerSchema,
+  hooks: Type.Array(Name, { maxItems: 64 }),
+  drives: Type.Boolean(),
+  defaultEnabled: Type.Boolean(),
+  blockIds: Type.Array(Id, { maxItems: 64 }),
+});
+const MembersEditParamsShape = request({
+  dir: Path,
+  ops: Type.Array(MemberOpShape, { minItems: 1, maxItems: 32 }),
+});
+export const ExtMembersEditParamsSchema: TUnsafe<Req<MembersEditInput>> = Type.Unsafe<
+  Req<MembersEditInput>
+>(
+  MembersEditParamsShape satisfies SchemaProof<
+    Req<MembersEditInput>,
+    typeof MembersEditParamsShape
+  >,
+);
+const MembersEditResultShape = closed({
+  members: Type.Array(MemberInfoShape, { maxItems: 16 }),
+  issues: Type.Array(DevkitIssueShape, { maxItems: 500 }),
+  changedFiles: Type.Array(Path, { maxItems: 1000 }),
+  entryWiring: Type.Union([Type.Literal("generated"), Type.Literal("manual")]),
+});
+export const MembersEditResultSchema: TUnsafe<MembersEditResult> = Type.Unsafe<MembersEditResult>(
+  MembersEditResultShape satisfies SchemaProof<MembersEditResult, typeof MembersEditResultShape>,
+);
+
+/** 구성원 읽기(`ext.members.read`). 쓰지 않고 매니페스트의 구성원을 돌려준다 */
+export interface ExtMembersReadResult {
+  readonly members: readonly MemberInfo[];
+}
+const ExtMembersReadResultShape = closed({
+  members: Type.Array(MemberInfoShape, { maxItems: 16 }),
+});
+export const ExtMembersReadResultSchema: TUnsafe<ExtMembersReadResult> =
+  Type.Unsafe<ExtMembersReadResult>(
+    ExtMembersReadResultShape satisfies SchemaProof<
+      ExtMembersReadResult,
+      typeof ExtMembersReadResultShape
+    >,
+  );
+
 type U<T> = TUnsafe<T>;
 export interface DevkitWireSchemas {
   "ext.kinds": Io<U<NoParams>, U<ExtKindsResult>>;
@@ -266,6 +343,8 @@ export interface DevkitWireSchemas {
   "ext.package": Io<U<Req<ExtPackageParams>>, U<PackResult>>;
   "ext.test.run": Io<U<Req<ExtTestRunParams>>, U<ExtTestRunResult>>;
   "ext.test.list": Io<U<NoParams>, U<ExtTestListResult>>;
+  "ext.members.edit": Io<U<Req<MembersEditInput>>, U<MembersEditResult>>;
+  "ext.members.read": Io<U<Req<ExtDirParams>>, U<ExtMembersReadResult>>;
 }
 type Table = {
   readonly [M in keyof DevkitWireSchemas]: M4Spec<
@@ -280,4 +359,6 @@ export const DEVKIT_WIRE_METHODS: Table = {
   "ext.package": m4(ExtPackageParamsSchema, ExtPackageResultSchema),
   "ext.test.run": m4(ExtTestRunParamsSchema, ExtTestRunResultSchema),
   "ext.test.list": m4(NoParamsSchema, ExtTestListResultSchema),
+  "ext.members.edit": m4(ExtMembersEditParamsSchema, MembersEditResultSchema),
+  "ext.members.read": m4(ExtDirParamsSchema, ExtMembersReadResultSchema),
 };

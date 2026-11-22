@@ -19,6 +19,7 @@ import type {
 import {
   editMembers,
   locateTemplateDirs,
+  readMembers,
   scaffoldExtension,
   validateExtensionDir,
 } from "../src/index.ts";
@@ -578,4 +579,19 @@ test("the members result carries the decl fields that the authoring screen reads
     defaultEnabled: false,
     blockIds: [],
   });
+});
+
+test("readMembers gives the members and writes nothing; a folder without a manifest is not_found", async () => {
+  const dir = await scaffoldFolder("read-only", {
+    layer: "L3",
+    orchestration: { members: ["r1", "r2"] },
+  });
+  const paths = [".fresnel-plugin/plugin.json", "src/index.ts", "src/members.generated.ts"];
+  const before = paths.map((path) => textOf(dir, path));
+  const read = must(await readMembers(dir));
+  expect(read.map((member) => member.id)).toEqual(["r1", "r2"]);
+  expect(read.map((member) => member.registrationId)).toEqual(["read-only/r1", "read-only/r2"]);
+  expect(paths.map((path) => textOf(dir, path))).toEqual(before);
+  const missing = refusal(await readMembers(join(root, "no-such-folder")));
+  expect(missing.kind).toBe("not_found");
 });
