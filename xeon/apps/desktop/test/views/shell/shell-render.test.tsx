@@ -82,7 +82,7 @@ describe("Shell slots", () => {
     const main = /<main[^>]*>/.exec(out)?.[0] ?? "";
     expect(main).not.toMatch(/\bpe-10\b/);
     expect(main).toContain("data-rail");
-    expect(main).toContain("[--shell-rail:3rem]");
+    expect(main).toContain("[--shell-rail:calc(var(--spacing)*12)]");
   });
 
   test("a screen registered to run to the edge (bleed) gets no rail inset; it steps around the bar itself (m6R5)", () => {
@@ -130,7 +130,7 @@ describe("Shell slots", () => {
 
   test("the workbench area lists six workbench items, no plugin pages item, and no thread list", () => {
     const out = render(1400, (model) => switchArea(model, "workbench"));
-    for (const label of ["개요", "확장", "테스트", "성능 측정", "구성", "엔진"]) {
+    for (const label of ["개요", "플러그인", "테스트", "성능 측정", "구성", "엔진"]) {
       expect(out).toContain(label);
     }
     expect(out).not.toContain("플레이그라운드");

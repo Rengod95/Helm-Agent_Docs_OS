@@ -3,7 +3,7 @@
 .rv-root {
   /* 오른쪽 끝 여백(m6R5). 화면은 끝까지 쓰는 화면이라(등록의 `bleed`) 셸이 막대 자리를 비워 두지 않는다. 열의 끝 여백은 시작 여백과 같은 20이고,
      오른쪽 떠 있는 막대와 실제로 겹치는 줄만 막대를 비킨다(아래 `[data-under-rail]`, `views/shell/rail-avoid.ts`) */
-  --rv-end: 20px;
+  --rv-end: var(--cs-space-5);
   /* 종류 색은 두 테마가 같다(AGE-31 라이트=다크 유채색, `src/chroma.css`): 다크의 유채색 토큰을 다크의 보조 글 밝기(--fr-chroma-ink-secondary)와 섞는다.
      Inject는 앱의 cobalt 셋을 섞지 않고 그대로 쓴다 */
   --rv-inject: var(--fr-color-cobalt-graphic);
@@ -48,7 +48,7 @@
 .rv-line-notice {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 6px;
+  column-gap: var(--cs-space-1_5);
   align-items: start;
   font-size: var(--text-ui);
   line-height: var(--text-ui--line-height);
@@ -79,7 +79,7 @@
 }
 .rv-lines {
   display: grid;
-  gap: 8px;
+  gap: var(--cs-space-2);
 }
 
 /* 이름표-값 줄(m6R4): 한 격자라 묶음 안에서 이름표 칸의 폭(72)과 줄 간격(8)이 같고, 이름표와 값이 같은 기준선에 선다 */
@@ -87,8 +87,8 @@
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
   align-items: baseline;
-  column-gap: 12px;
-  row-gap: 8px;
+  column-gap: var(--cs-space-3);
+  row-gap: var(--cs-space-2);
 }
 .rv-fact-row {
   display: contents;
@@ -147,9 +147,9 @@
 .rv-detail {
   /* 판단 열 폭: 자세히가 넓으면 312px, 좁아지면 272px까지 준다(읽는 열이 먼저 남는다). 넷째 판이 더하던 막대 자리(44)는 읽는 열에 돌려준다 */
   --rv-judge-w: clamp(272px, calc(100cqi - 560px), 312px);
-  --rv-pad: 24px;
+  --rv-pad: var(--cs-space-6);
   /* 판단 열의 안쪽 여백(시작 20, 끝 `--rv-end` 20) */
-  --rv-judge-start: 20px;
+  --rv-judge-start: var(--cs-space-5);
   --rv-judge-end: var(--rv-end);
   /* 읽는 열의 끝 여백. 두 열이면 판단 열과 맞닿으므로 24, 한 열이면 막대를 비킨다 */
   --rv-read-end: var(--rv-pad);
@@ -167,7 +167,7 @@
    판단 열의 세로 선은 그 선에서 바닥까지, 섹션 사이 선은 각 열의 양 끝(세로 선과 창 끝)에 닿는다 */
 .rv-head {
   grid-area: head;
-  padding: 16px var(--rv-pad) 16px;
+  padding: var(--cs-space-4) var(--rv-pad) var(--cs-space-4);
   border-bottom: 1px solid var(--cs-color-border-subtle);
 }
 
@@ -176,7 +176,7 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 var(--rv-read-end) 40px var(--rv-pad);
+  padding: 0 var(--rv-read-end) var(--cs-space-10) var(--rv-pad);
 }
 
 .rv-judge {
@@ -200,8 +200,8 @@
 /* 알림 카드 묶음: 카드 사이 8, 아래 섹션과는 섹션 위 여백(24)으로 떨어진다 */
 .rv-alerts {
   display: grid;
-  gap: 8px;
-  padding-top: 20px;
+  gap: var(--cs-space-2);
+  padding-top: var(--cs-space-5);
 }
 .rv-alerts:empty {
   display: none;
@@ -216,7 +216,7 @@
   bottom: 0;
   z-index: 1;
   margin-inline: calc(-1 * var(--rv-judge-start)) calc(-1 * var(--rv-judge-end));
-  padding: 20px var(--rv-judge-end) 20px var(--rv-judge-start);
+  padding: var(--cs-space-5) var(--rv-judge-end) var(--cs-space-5) var(--rv-judge-start);
   border-top: 1px solid var(--cs-color-border-subtle);
   background: var(--cs-color-bg-app);
 }
@@ -226,8 +226,8 @@
 .rv-sec {
   display: grid;
   align-content: start;
-  gap: 10px;
-  padding-block: 24px;
+  gap: var(--cs-space-2_5);
+  padding-block: var(--cs-space-6);
 }
 .rv-read > .rv-sec {
   margin-inline: calc(-1 * var(--rv-pad)) calc(-1 * var(--rv-read-end));
@@ -245,11 +245,11 @@
 /* 결정 칸: 칸과 칸 사이 16, 이름표와 칸 사이 6 */
 .rv-decide {
   display: grid;
-  gap: 16px;
+  gap: var(--cs-space-4);
 }
 .rv-field {
   display: grid;
-  gap: 6px;
+  gap: var(--cs-space-1_5);
 }
 .rv-field-label {
   font-size: var(--text-ui-sm);
@@ -267,7 +267,7 @@
 }
 .rv-decide-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--cs-space-2);
 }
 
 /* rail: 요약 띠를 오른쪽 열 위로 올리고 읽는 열이 위끝부터 쓴다 */
@@ -277,7 +277,7 @@
     "read judge";
 }
 .rv-detail[data-arrange="rail"] .rv-head {
-  padding: 16px var(--rv-judge-end) 14px var(--rv-judge-start);
+  padding: var(--cs-space-4) var(--rv-judge-end) var(--cs-space-3_5) var(--rv-judge-start);
   border-inline-start: 1px solid var(--cs-color-border-subtle);
 }
 
@@ -299,29 +299,29 @@
 }
 .rv-detail[data-arrange="stack"] .rv-read {
   overflow: visible;
-  padding-bottom: 8px;
+  padding-bottom: var(--cs-space-2);
 }
 .rv-detail[data-arrange="stack"] :is(.rv-judge, .rv-judge-scroll) {
   display: contents;
 }
 .rv-detail[data-arrange="stack"] .rv-alerts {
   grid-area: alerts;
-  padding: 16px var(--rv-read-end) 0 var(--rv-pad);
+  padding: var(--cs-space-4) var(--rv-read-end) 0 var(--rv-pad);
 }
 .rv-detail[data-arrange="stack"] .rv-more {
   grid-area: more;
-  padding: 0 var(--rv-read-end) 8px var(--rv-pad);
+  padding: 0 var(--rv-read-end) var(--cs-space-2) var(--rv-pad);
   border-top: 1px solid var(--cs-color-border-subtle);
 }
 .rv-detail[data-arrange="stack"] .rv-decide-dock {
   grid-area: decide;
   margin: 0;
-  padding: 16px var(--rv-read-end) 16px var(--rv-pad);
+  padding: var(--cs-space-4) var(--rv-read-end) var(--cs-space-4) var(--rv-pad);
 }
 
 @container rv-detail (width < 780px) {
   .rv-detail {
-    --rv-pad: 20px;
+    --rv-pad: var(--cs-space-5);
     --rv-read-end: max(var(--rv-pad), var(--rv-end));
     --rv-judge-start: var(--rv-pad);
     --rv-judge-end: var(--rv-read-end);
@@ -336,36 +336,36 @@
     overflow-y: auto;
   }
   .rv-detail .rv-head {
-    padding: 16px var(--rv-read-end) 14px var(--rv-pad);
+    padding: var(--cs-space-4) var(--rv-read-end) var(--cs-space-3_5) var(--rv-pad);
     border-inline-start: 0;
   }
   .rv-detail .rv-read {
     overflow: visible;
-    padding-bottom: 8px;
+    padding-bottom: var(--cs-space-2);
   }
   .rv-detail :is(.rv-judge, .rv-judge-scroll) {
     display: contents;
   }
   .rv-detail .rv-alerts {
     grid-area: alerts;
-    padding: 16px var(--rv-read-end) 0 var(--rv-pad);
+    padding: var(--cs-space-4) var(--rv-read-end) 0 var(--rv-pad);
   }
   .rv-detail .rv-more {
     grid-area: more;
-    padding: 0 var(--rv-read-end) 8px var(--rv-pad);
+    padding: 0 var(--rv-read-end) var(--cs-space-2) var(--rv-pad);
     border-top: 1px solid var(--cs-color-border-subtle);
   }
   .rv-detail .rv-decide-dock {
     grid-area: decide;
     margin: 0;
-    padding: 16px var(--rv-read-end) 16px var(--rv-pad);
+    padding: var(--cs-space-4) var(--rv-read-end) var(--cs-space-4) var(--rv-pad);
   }
 }
 
 /* 자세히가 좁은 두 열(780~860px): 좌우 여백을 20px로 */
 @container rv-detail (780px <= width < 860px) {
   .rv-detail {
-    --rv-pad: 20px;
+    --rv-pad: var(--cs-space-5);
   }
 }
 
@@ -375,9 +375,9 @@
   flex-wrap: wrap;
   align-items: baseline;
   max-width: 100%;
-  column-gap: 6px;
+  column-gap: var(--cs-space-1_5);
   min-height: 22px;
-  padding: 3px 7px;
+  padding: var(--cs-space-0_75) var(--cs-space-1_75);
   border-radius: 6px;
   font-size: 12px;
   line-height: 16px;

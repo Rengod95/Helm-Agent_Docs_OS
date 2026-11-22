@@ -531,7 +531,7 @@ export function TestChatWindowView(props: { readonly state: TestChatWindow }): R
       role="dialog"
       aria-modal="false"
       aria-label={t("desktop.craft.testChat.title")}
-      className={`pointer-events-auto absolute end-[calc(100%+0.75rem)] z-10 flex max-w-[calc(var(--app-vw)-6rem)] ${place}`}
+      className={`pointer-events-auto absolute end-[calc(100%+var(--cs-space-3))] z-10 flex max-w-[calc(var(--app-vw)-6rem)] ${place}`}
       style={{ transform: `translate(${state.offset.x}px, ${state.offset.y}px)` }}
     >
       <Card variant="well" size="sm" className="flex min-h-0 w-full flex-col shadow-3">

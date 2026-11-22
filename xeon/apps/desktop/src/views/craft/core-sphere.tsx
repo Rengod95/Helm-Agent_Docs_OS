@@ -34,7 +34,7 @@ export interface CoreSphereProps {
 const PLANET =
   "rounded-full shadow-[0_0_38px_color-mix(in_oklab,var(--cs-color-info-graphic)_34%,transparent)] bg-[radial-gradient(circle_at_34%_28%,color-mix(in_oklab,var(--cs-color-surface-raised)_42%,transparent),transparent_46%),linear-gradient(var(--cs-color-agent-stop-2),var(--cs-color-agent-stop-1)_30%,var(--cs-color-agent-stop-3)_62%,var(--cs-color-info-graphic))]";
 const PLANET_GLOW =
-  "absolute -inset-[34px] rounded-full blur-[14px] bg-[radial-gradient(circle,color-mix(in_oklab,var(--cs-color-info-graphic)_30%,transparent)_30%,color-mix(in_oklab,var(--cs-color-agent-graphic)_12%,transparent)_52%,transparent_70%)]";
+  "absolute -inset-8 rounded-full blur-[14px] bg-[radial-gradient(circle,color-mix(in_oklab,var(--cs-color-info-graphic)_30%,transparent)_30%,color-mix(in_oklab,var(--cs-color-agent-graphic)_12%,transparent)_52%,transparent_70%)]";
 
 const CONTEXT_OPTIONS: WebGLContextAttributes = {
   alpha: true,

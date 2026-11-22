@@ -22,7 +22,7 @@ import {
 import type { HooksOrderSetResult } from "@fresnel/contracts/wire";
 import { attemptAsync, assertNever, detach, rethrow } from "@fresnel/contracts";
 import { Badge, Button, Card, IconButton, SectionHeader } from "@caustic/react";
-import { GripVertical, Lock, Plus, TriangleAlert } from "@caustic/react/icons";
+import { ChevronRight, GripVertical, Lock, Plus, TriangleAlert } from "@caustic/react/icons";
 import {
   useCallback,
   useEffect,
@@ -286,7 +286,7 @@ export function Strata(): ReactNode {
       className="h-full overflow-y-auto"
       style={panelOpen ? { paddingRight: PANEL_W + 24 } : undefined}
     >
-      <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-24">
+      <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-18">
         <Card variant="surface" size="sm" shadow="3" className="gap-0 p-2">
           <SectionHeader
             size="sm"
@@ -312,7 +312,7 @@ export function Strata(): ReactNode {
           <div className="relative">
             <span
               aria-hidden
-              className="absolute bottom-6 left-[20px] top-4 w-px bg-border-strong"
+              className="absolute bottom-6 left-5 top-4 w-px -translate-x-1/2 bg-border-strong"
             />
             {PHASES.map((phase) => (
               <div key={phase}>
@@ -326,7 +326,7 @@ export function Strata(): ReactNode {
               </div>
             ))}
             <details className="mt-3 px-2 py-2">
-              <summary className="ms-9 cursor-pointer text-ui text-text-secondary">
+              <summary className="ms-[calc(var(--cs-space-6)+var(--cs-space-3))] cursor-pointer text-ui text-text-secondary">
                 {t("desktop.craft.strata.others", { count: OTHER_HOOKS.length })}
               </summary>
               <div className="mt-2">
@@ -379,13 +379,10 @@ function Node({ core }: { readonly core: boolean }): ReactNode {
   );
 }
 
-/** 항목 사이의 작은 화살표: 불리는 순서를 가리킨다 */
+/** 항목 사이의 작은 화살표: 불리는 순서를 가리킨다. 글자 "›"는 라틴 x 높이에 앉아 칩 가운데보다 낮았다.
+ *  아이콘은 줄 가운데에 선다(AGE-32, DP-227) */
 function Next(): ReactNode {
-  return (
-    <span aria-hidden className="flex-none select-none text-ui text-text-tertiary opacity-60">
-      ›
-    </span>
-  );
+  return <ChevronRight aria-hidden className="size-3 flex-none text-text-tertiary opacity-60" />;
 }
 
 /** 줄 이름 옆의 규칙 이름표(관찰·차단·수정·합치기). 이름은 보이고, 한 줄 설명은 옆의 정보 아이콘 뒤에 있다 */

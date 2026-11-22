@@ -64,7 +64,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 4px 10px;
+    padding: var(--cs-space-1) var(--cs-space-2_5);
     cursor: pointer;
   }
   button:not([data-slot]):disabled {
@@ -83,7 +83,7 @@
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 8px;
+    padding: var(--cs-space-1_5) var(--cs-space-2);
     width: 100%;
   }
 }
@@ -123,7 +123,7 @@
     color: var(--error);
   }
   .pad {
-    padding: 6px;
+    padding: var(--cs-space-1_5);
   }
   /* 트랜스크립트 스크롤 영역. 좌우 여백은 읽기 열(item-view.tsx ROW_CLASS)의 px-3이 맡는다 */
   .scroller {
@@ -160,7 +160,7 @@
     border-bottom: 1px solid var(--border);
     color: var(--dim);
     font-size: 12px;
-    padding: 4px 12px;
+    padding: var(--cs-space-1) var(--cs-space-3);
     text-align: center;
   }
   .notice {
@@ -170,22 +170,22 @@
     justify-content: center;
     color: var(--dim);
     text-align: center;
-    padding: 16px;
+    padding: var(--cs-space-4);
   }
   .statusbar {
     display: flex;
     /* 칸은 xs 단추(24px, 폼 표준의 상태 막대 단계)이고 줄은 28px이다. 칸 사이 4px은 칸 안쪽 6px과 더해 글과 글 사이 16px이다(DP-182) */
-    gap: 4px;
+    gap: var(--cs-space-1);
     align-items: center;
     /* DP-181 [결정: 2026-11-13 사용자 "하단 statusbar의 백그라운드 색을 완전 투명으로"] 바탕과 위 선이 없다. 무대 열 뒤(bg.app)가 그대로 보여
        대화·설정·크래프트 무대와 한 면으로 이어지고, 글과 표시만 뜬다 */
     background: transparent;
-    padding: 0 8px;
+    padding: 0 var(--cs-space-2);
     min-height: 28px;
     font-size: 12px;
     /* 칸이 겹치거나 잘리지 않게 넘치면 다음 줄로 보낸다. 폭 판정은 창이 아니라 이 줄의 폭이다(앱 확대도 반영) */
     flex-wrap: wrap;
-    row-gap: 2px;
+    row-gap: var(--cs-space-0_5);
     container-type: inline-size;
   }
   /* 화면 머리줄(대화·설정). 무대가 오른쪽 끝까지 차고(DP-68) 머리도 끝까지 간다. 오른쪽 떠 있는 막대는 무대 세로 가운데에 서므로(DP-135)
@@ -194,10 +194,10 @@
   :root {
     --shell-header-h: calc(var(--spacing-control-md) + 13px);
     /* 화면 머리와 바로 뒤 내용 사이 최소 간격. 바깥 여백이라 스크롤 영역에서도 스크롤되어 사라지지 않는다 */
-    --shell-header-gap: 24px;
+    --shell-header-gap: var(--cs-space-6);
   }
   .shell-header {
-    padding-inline: 12px;
+    padding-inline: var(--cs-space-3);
     /* 높이는 사이드 패널 머리와 같은 `--shell-header-h`, 아래에 border-subtle 구분선(border-box라 선이 높이에 든다) */
     box-sizing: border-box;
     min-height: var(--shell-header-h);
@@ -222,9 +222,9 @@
     background-color: var(--cs-color-surface-base);
   }
   [data-slot="side-panel-header"] {
-    --band-bleed-top: 6px;
-    --band-bleed-start: 6px;
-    --band-bleed-end: 6px;
+    --band-bleed-top: var(--cs-space-1_5);
+    --band-bleed-start: var(--cs-space-1_5);
+    --band-bleed-end: var(--cs-space-1_5);
   }
   /* DP-124 플레이그라운드 탭 줄의 넘침: 가려진 탭이 있는 쪽 끝 24px(탭 줄 scroll-padding과 같은 폭)을 투명으로 흐린다 */
   [data-slot="playground-tabs-scroll"][data-fade-start] {
@@ -250,13 +250,13 @@
     flex: 1;
   }
   .statusbar :where(button:not([data-slot])) {
-    padding: 1px 8px;
+    padding: var(--cs-space-0_25) var(--cs-space-2);
     font-size: 12px;
   }
   /* 입력창 아래 단추 줄(caustic Textarea 푸터)은 좁으면 줄을 바꿔 보내기·모델 단추가 밀려나지 않게 한다 */
   [data-slot="textarea-footer"] {
     flex-wrap: wrap;
-    row-gap: 4px;
+    row-gap: var(--cs-space-1);
     min-width: 0;
   }
   [data-slot="textarea-actions"] {
@@ -266,9 +266,9 @@
   .field {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--cs-space-0_5);
     max-width: 420px;
-    margin: 6px 0;
+    margin: var(--cs-space-1_5) 0;
   }
 }
 
@@ -483,7 +483,7 @@
    대화 머리(`data-flush`)는 뺀다: 대화 열은 가운데 정렬이라 막대에 닿지 않는다. 화면 본문의 px 유틸리티를 이기도록 utilities 층에 둔다 */
 @layer utilities {
   #stage[data-rail] .shell-header:not([data-flush]) + * {
-    padding-inline-end: calc(var(--stage-rail, 0px) + 12px);
+    padding-inline-end: calc(var(--stage-rail, 0px) + var(--cs-space-3));
     --shell-rail: 0px;
   }
   /* 대화 열(가운데 정렬, 내용 712px)은 무대가 넓으면 막대에 닿지 않는다. 무대가 열 + 양쪽 막대 자리(712 + 2 × 58 ≈ 840px)보다 좁으면
@@ -494,7 +494,7 @@
   @container stage (max-width: 840px) {
     /* 대화 머리는 위 빛 줄(fx-line)과 한 상자에 싸여 있어 본문은 그 상자의 다음 형제다 */
     :is(.shell-header[data-flush], :has(> .shell-header[data-flush])) + * {
-      padding-inline-end: calc(var(--stage-rail, 0px) + 12px);
+      padding-inline-end: calc(var(--stage-rail, 0px) + var(--cs-space-3));
     }
   }
 }
@@ -590,6 +590,7 @@
     content: "";
     position: absolute;
     inset-block-start: 0;
+    /* 막대 오른쪽 선(1px) 위까지 덮는다. 간격이 아니라 선 굵기라 토큰 밖이다 */
     inset-inline: 0 -1px;
     box-sizing: border-box;
     height: var(--shell-header-h);
@@ -599,14 +600,18 @@
   }
   /* 화면 머리: 창 왼쪽 끝에 패널이 없으면 신호등 자리를, 막대(49px)면 막대 밖으로 넘친 만큼을 비운다 */
   :root[data-window-chrome="mac"] [data-start-edge="none"] .shell-header {
-    padding-inline-start: max(12px, var(--chrome-start));
+    padding-inline-start: max(var(--cs-space-3), var(--chrome-start));
   }
   :root[data-window-chrome="mac"] [data-start-edge="rail"] .shell-header {
-    padding-inline-start: max(12px, calc(var(--chrome-start) - 3rem - 1px));
+    /* 막대 폭 49 = 단추 칸 48 + 오른쪽 선 1px. 선 굵기는 간격이 아니라 토큰 밖이다 */
+    padding-inline-start: max(
+      var(--cs-space-3),
+      calc(var(--chrome-start) - var(--cs-space-12) - 1px)
+    );
   }
 
   /* 창 단추(오버레이): 화면 머리 끝을 단추 폭만큼 비운다. 오른쪽 막대는 무대 세로 가운데라(DP-135) 창 단추와 만나지 않는다 */
   :root[data-window-chrome="overlay"] .shell-header {
-    padding-inline-end: calc(var(--chrome-end) + 12px);
+    padding-inline-end: calc(var(--chrome-end) + var(--cs-space-3));
   }
 }

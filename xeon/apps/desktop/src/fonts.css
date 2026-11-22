@@ -2,7 +2,12 @@
    1) 에이전트 글(voice 역할) 글꼴: Pretendard Variable v1.3.9(SIL OFL 1.1, fonts/pretendard/OFL.txt). 한글·영문·숫자가 한 글꼴이라 섞인 줄이 고르다.
       [결정: 오케스트레이터 기본값, dsA] 비교한 후보는 현재 값(Newsreader/Noto Serif KR 대체 글꼴), SUIT, IBM Plex Sans KR이다.
    2) 줄 기준(DP-11h): 줄 높이는 첫 번째로 쓸 수 있는 글꼴의 ascent/descent가 정한다. 공백 한 글자(U+0020)만 가진 글꼴 "Fresnel Metrics"를
-      ui 스택 맨 앞에 두어 줄 기준을 ascent .96·descent .23으로 둔다(글리프는 그리지 않는다). 한글 잉크 중심이 줄 중앙에 온다.
+      ui 스택 맨 앞에 두어 줄 기준을 ascent .94, descent .177로 둔다(글리프는 그리지 않는다). 한글 잉크 중심이 줄 중앙에 온다.
+      Chromium은 ascent와 descent를 정수 px로 반올림하고 남는 줄 간격의 반을 내림해 위에 둔다(AGE-32, DP-227). 그래서 값은
+      반올림 뒤 기준으로 골랐다: 화면에 실제로 쓰는 글 크기/줄 높이 쌍(12/18, 13/18, 13.5/18, 12.5/18, 11/18, 15/20, 14/20, 14/21,
+      12/16, 11.5/14, 16/24, 18/24, 20/28, 26/32 등)에서 한글 잉크 중심이 줄 중앙에서 0.5px 안에 든다. 앞 값 .96, .23은 13px에서
+      0.74px, 12.5px에서 0.56px 위로 떠서 같은 줄의 아이콘보다 높았다. 34/34(통계 큰 수, 곁에 아이콘이 없다)만 0.59px이다
+      (잰 값과 고른 과정: _notes/tools/m6R7/spacing/fontgrid.mjs).
    3) ui 글꼴은 영문·숫자·문장부호가 Geist, 한글이 SUIT다(DP-11b, 2026-11-21 사용자 "영문과 숫자는 Geist, 한글은 SUIT, 코드는 Geist Mono").
       Geist v1.9.2 가변 woff2(SIL OFL 1.1, fonts/geist/OFL.txt, github.com/vercel/geist-font 릴리스 v1.9.2)를 "Fresnel Latin"으로 싣고,
       한글 옆에서 어울리게 세 가지를 맞춘다(잰 값: _notes/design/lc/lcGe-shots/metrics.md).
@@ -40,8 +45,8 @@
   src: url("./fonts/pretendard/PretendardVariable.woff2") format("woff2");
   font-display: swap;
   unicode-range: U+0020;
-  ascent-override: 96%;
-  descent-override: 23%;
+  ascent-override: 94%;
+  descent-override: 17.7%;
   line-gap-override: 0%;
 }
 /* Geist(ui 라틴·숫자·문장부호). weight 대역마다 같은 파일, 다른 wght 값(위 3의 굵기). 대역 밖 요청은 가까운 대역을 따른다 */

@@ -382,7 +382,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               aria-label={t("desktop.shell.stage.label")}
               data-rail={hasRail && !bleed ? "" : undefined}
               // `--stage-rail`: 머리 뒤 본문의 오른쪽 여백(막대 34 + 창 끝 12 → 48, styles.css DP-68). `--shell-rail`: 같은 값을 본문 밖에서 읽는 화면용(플레이그라운드)
-              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:3rem] [--stage-rail:3rem]" : ""}`}
+              className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:calc(var(--spacing)*12)] [--stage-rail:calc(var(--spacing)*12)]" : ""}`}
             >
               <Stage
                 registry={props.registry}

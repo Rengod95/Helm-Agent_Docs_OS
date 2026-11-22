@@ -241,7 +241,7 @@ function SectionNav(props: SettingsPageProps): ReactNode {
   const { handlers, section, query } = props;
   const searching = query.trim() !== "";
   return (
-    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-2 pe-1.5 [--band-bleed-end:6px] [--band-bleed-start:8px]">
+    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-2 pe-1.5 [--band-bleed-end:calc(var(--spacing)*1.5)] [--band-bleed-start:calc(var(--spacing)*2)]">
       {/* 머리 띠(DP-122): 찾기 칸 줄은 화면 머리와 같은 높이와 아래 선을 가져 머리 선이 창 끝까지 한 줄로 이어진다 */}
       <div data-header-band="" className="flex flex-none items-center">
         <SearchField {...props} />

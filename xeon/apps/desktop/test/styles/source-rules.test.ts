@@ -270,7 +270,9 @@ test("attention counts are caustic badges without a gradient, urgent is an inver
       /--fx-crystal/.test(wash),
       /border-radius:\s*var\(--cs-radius-lg\);\s*corner-shape:\s*squircle;/.test(wash),
       washInk.map(([chroma, alpha]) => chroma <= 0.08 && alpha <= 0.05),
-      /bottom:\s*-2px;\s*border-end-start-radius:\s*0;\s*border-end-end-radius:\s*0/.test(css),
+      /bottom:\s*calc\(var\(--cs-space-0_5\) \* -1\);\s*border-end-start-radius:\s*0;\s*border-end-end-radius:\s*0/.test(
+        css,
+      ),
       /\+ \[data-row-menu\]\s*\+ \[data-slot="list-navigation-item"\]:has\(> \[data-attention\]\)::before \{\s*border-start-start-radius:\s*0;\s*border-start-end-radius:\s*0/.test(
         css,
       ),
