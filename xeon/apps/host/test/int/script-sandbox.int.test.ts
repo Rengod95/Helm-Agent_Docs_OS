@@ -279,7 +279,7 @@ suite("the script runner under the real sandbox", () => {
   );
 
   test(
-    "the runner and the environment that the assembly gives the loader reach a declared sh script under the open policy: every parent name except FRESNEL_ ones arrives, and FRESNEL_ values never do",
+    "the runner and the environment that the assembly gives the loader reach a declared sh script under the open policy: only the allowlisted parent names arrive, declared names outside the allowlist and FRESNEL_ values never do",
     async () => {
       const box = await openBox();
       const platform = detectProcessPlatform();
@@ -350,15 +350,16 @@ suite("the script runner under the real sandbox", () => {
         });
         expect(outcome.ok).toBe(true);
         if (!outcome.ok) return;
-        // 열린 정책: 사용자 환경 전부(FRESNEL_ 이름 제외)가 온다. FRESNEL_FOO만 unset이다
+        // 열린 정책에서도 자식 환경은 셸 도구와 같은 허용 목록뿐이다 [결정: 2026-11-22, 사용자, AGE-63]. 선언한 이름도 목록 밖이면 오지 않는다
         expect(outcome.value).toMatchObject({
           exitCode: 0,
           signal: null,
-          stdout: `{"home":"${home}","internal":"unset","key":"fake-api-value","marker":"marker-value"}`,
+          stdout: `{"home":"${home}","internal":"unset","key":"unset","marker":"unset"}`,
           stdoutTruncated: false,
           timedOut: false,
         });
         expect(JSON.stringify(outcome)).not.toContain("fresnel-internal-value");
+        expect(JSON.stringify(outcome)).not.toContain("fake-api-value");
       } finally {
         await background.close({ graceMs: 100 });
         await closeBox(box);
