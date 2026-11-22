@@ -141,6 +141,7 @@ import { currentSelf, type SelfRunTarget } from "../self-command.ts";
 import { createProjectPort, type ProjectThreadRow } from "./m4/project-port.ts";
 import { createCraftChatPort } from "./m4/craft-chat.ts";
 import { projectIdOf } from "./m4/project-scope.ts";
+import { createAppEditLedger } from "./plugins/app-edits.ts";
 import type { DiscoverProjectRoot } from "./plugins/discover.ts";
 import { withPendingReview } from "./plugins/pending-overlay.ts";
 import { CRAFT_PROFILE_ID, DEFAULT_PROFILE_ID } from "./m4/profile-defaults.ts";
@@ -1393,7 +1394,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   // 설치된 플러그인 사실(AGE-33 의존 검사). 읽기 서비스와 프로필 검증이 보는 목록과 같은 원천이다
   const installedFacts = () =>
     deps.extRead.extensions().map((record) => pluginFactOf(record.manifest, record.location));
+  // 앱의 편집 통신이 쓴 폴더의 해시 장부. 제작 포트가 적고 검토 서비스가 읽는다(AGE-33)
+  const appEdits = createAppEditLedger();
   const pluginReview = createPluginReview({
+    appEdits,
     store: deps.pluginStore,
     plugins: pluginService,
     profiles: { list: () => ports.m4.profileTestRun.list() },
@@ -1729,6 +1733,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         dialogArea: deps.dialogArea,
         log,
         projects,
+        appEdits,
         // 제작 포트가 읽는 원본 폴더와 초안 목록(M5c §4.9.2, §4.9.3). 플러그인 wire와 같은 서비스다
         plugins: {
           get: (name) => pluginService.get(name),

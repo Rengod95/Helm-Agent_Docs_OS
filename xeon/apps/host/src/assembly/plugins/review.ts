@@ -43,6 +43,7 @@ import type { PluginChange } from "../../handlers/m5/plugin-review.ts";
 import { DEFAULT_PROFILE_ID } from "../m4/profile-defaults.ts";
 import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
+import type { AppEditLedger } from "./app-edits.ts";
 import { buildPluginCard, withInstalledDependencies } from "./card.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
 import { diffCards } from "./diff.ts";
@@ -147,6 +148,11 @@ export interface PluginReviewDeps {
   }) => Promise<boolean>;
   /** 승인 훅. 3a에서는 생략한다 */
   readonly approvalHooks?: ApprovalHooks;
+  /**
+   * 앱의 편집 통신이 쓴 폴더의 해시 장부(`app-edits.ts`). 같은 해시의 후보는 손 수정(`unknown`)이 아니라 앱에서 고친 변경으로 본다(출처 `assistant`).
+   * 생략하면 장부가 비어 있는 것과 같다
+   */
+  readonly appEdits?: Pick<AppEditLedger, "has">;
   /** 설치된 플러그인 사실. 제거 요청이 hard로 기대는 플러그인이 있는지 본다(AGE-33). 생략하면 검사하지 않는다 */
   readonly facts?: () => readonly PluginFact[];
 }
@@ -686,7 +692,19 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       (item) => item.state === "pending",
     );
     const same = pending.find((item) => item.candidateHash === input.candidateHash);
-    if (same !== undefined) return ok({ item: same, created: false });
+    if (same !== undefined) {
+      // 훑기가 앱의 편집보다 먼저 이 내용을 보고 `unknown` 항목을 만들어 두었어도, 같은 해시가 앱의 편집이 쓴 것이면 앱에서 고친 변경이다
+      if (
+        same.provenance === "unknown" &&
+        input.provenance !== "unknown" &&
+        deps.appEdits?.has(input.candidateHash) === true
+      ) {
+        const upgraded = await save({ ...same, provenance: input.provenance });
+        if (!upgraded.ok) return err(upgraded.error);
+        return ok({ item: upgraded.value, created: false });
+      }
+      return ok({ item: same, created: false });
+    }
 
     const reviewed = await store.current(key);
     if (!reviewed.ok) return err(storeFailure(reviewed.error));
@@ -772,7 +790,12 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       candidateHash: snapshot.value.contentHash,
       origin: entry.origin,
       projectId: entry.projectId,
-      provenance: entry.origin === "user" ? "unknown" : "project",
+      provenance:
+        entry.origin !== "user"
+          ? "project"
+          : deps.appEdits?.has(snapshot.value.contentHash) === true
+            ? "assistant"
+            : "unknown",
       originThreadId: null,
       originProfileId: null,
       evidence: [],
