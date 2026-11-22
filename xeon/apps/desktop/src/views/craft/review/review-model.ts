@@ -215,17 +215,23 @@ export function runLinesOf(card: PluginCard): readonly RunLine[] {
 }
 
 /**
- * 코드 실행 안내(늘 보이는 경고, AGE-14·AC-51). 코드가 도는 플러그인에만 있다. 세 갈래다(m6R4, 엔진 값은 `CardScript.uses`와 `env`):
- * - `narrow`: Fresnel에서 만든 플러그인의 스크립트. 자기 폴더 밖을 읽거나 쓰지 못한다. 시스템 도구나 네트워크를 쓰면 같은 칸에 더한다.
+ * 코드 실행 안내(늘 보이는 경고, AGE-14·AC-51). 코드가 도는 플러그인에만 있다. 네 갈래다(엔진 값은 `CardScript.uses`, `env`, `runs`):
+ * - `open`: 열린 정책 [결정: 2026-11-21 사용자, AGE-63]. 승인된 플러그인의 스크립트(`sandbox_full_access`), 격리 플러그인 프로세스(`runs.code`),
+ *   로컬 MCP 서버가 샌드박스 안에서 셸 도구처럼 읽고 쓰고 시스템 도구와 네트워크를 쓴다. 막는 것은 Fresnel 자신의 비밀, 데이터, 설정과
+ *   사용자가 막은 경로, 차단 도메인뿐이다. 스크립트의 `uses`가 없는 옛 카드도 기본인 이 갈래로 읽는다.
+ * - `narrow`: 설정 `l0.sandbox.narrowDrafts`를 켜 승인 전 드래프트의 플러그인 프로세스와 스크립트가 좁게 돈다(엔진 값 `runs.narrowBeforeApproval`,
+ *   [결정: 2026-11-22 사용자, AGE-63]). 자기 폴더만 읽고 쓰지 못한다. 승인하면 `open`이다.
  * - `userFull`: 가져온 훅(환경 모드)의 기본값 `user_full_access`. 사용자의 셸 명령 그대로, 사용자 권한으로 돈다. Fresnel이 막지 않는다.
  * - `sandboxed`: 같은 훅을 설정 `l0.sandbox.sandboxImportedHooks`로 샌드박스 안에서 돌릴 때(`read_wide`, `write_project`).
- * 한 플러그인에 둘이 섞이면 가장 넓은 쪽을 말한다(userFull → sandboxed → narrow)
+ * 한 플러그인에 여럿이 섞이면 userFull → sandboxed → narrow → open 순으로 앞의 것을 말한다(드래프트가 좁으면 승인 전에는 그 플러그인의 코드가 모두 좁다).
+ * `open`과 `narrow`의 환경 변수는 셸 도구와 같은 허용 목록(`BASE_ENV_PASS_NAMES`, [결정: 2026-11-22 사용자])뿐이다. 스크립트가 선언한 이름(`envNames`)도
+ * 허용 목록 밖이면 넘어가지 않는다. 로컬 MCP 서버만 설정에 적힌 `env`를 더 받는다(`serverEnv`)
  */
 export interface CodeNotice {
-  readonly mode: "narrow" | "userFull" | "sandboxed";
+  readonly mode: "open" | "narrow" | "userFull" | "sandboxed";
   readonly isolated: boolean | null;
-  readonly systemTools: boolean;
-  readonly network: boolean;
+  /** 로컬 MCP 서버의 설정에 환경 변수 이름이 있다. 서버는 허용 목록에 더해 그 값을 받는다 */
+  readonly serverEnv: boolean;
   /** 스크립트 가운데 `uses`가 없는 옛 카드가 있어 알 수 없는 것이 있다 */
   readonly usesUnknown: boolean;
 }
@@ -244,12 +250,15 @@ export function codeNoticeOf(card: PluginCard): CodeNotice | null {
     ? "userFull"
     : usesAny(scripts, "read_wide") || usesAny(scripts, "write_project")
       ? "sandboxed"
-      : "narrow";
+      : card.runs.narrowBeforeApproval === true
+        ? "narrow"
+        : "open";
   return {
     mode,
     isolated: card.runs.isolated,
-    systemTools: usesAny(scripts, "system_tools"),
-    network: usesAny(scripts, "network"),
+    serverEnv: runs.some(
+      (line) => line.kind === "server" && line.command !== null && line.envNames.length > 0,
+    ),
     usesUnknown: scripts.some((line) => line.uses === null),
   };
 }

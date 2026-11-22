@@ -2,6 +2,7 @@ import { ok } from "@fresnel/contracts";
 import {
   SCRIPT_ENV_SANDBOXED_USES,
   SCRIPT_ENV_USES,
+  SCRIPT_USES,
   type InjectInventory,
   type PluginCard,
 } from "@fresnel/contracts/extensions";
@@ -401,7 +402,8 @@ export function sampleItems(): readonly ReviewItem[] {
                 name: "check",
                 launch: { command: "bash", args: ["hooks/check.sh"], envNames: [], cwd: null },
                 timeoutMs: 10_000,
-                uses: ["system_tools"],
+                // 승인된 플러그인의 스크립트: 열린 정책(AGE-63)
+                uses: SCRIPT_USES,
               },
             ],
           }),
@@ -458,7 +460,7 @@ export function sampleItems(): readonly ReviewItem[] {
                 name: "warm-cache",
                 launch: { command: "bun", args: ["scripts/warm.ts"], envNames: [], cwd: null },
                 timeoutMs: 30_000,
-                uses: ["network"],
+                uses: SCRIPT_USES,
               },
             ],
           }),
@@ -501,7 +503,8 @@ export function sampleItems(): readonly ReviewItem[] {
         version: "0.1.0",
         purpose: null,
         enforcement: "enforced",
-        runs: { code: true, isolated: true },
+        // 설정 `l0.sandbox.narrowDrafts`를 켠 승인 전 드래프트: 플러그인 프로세스와 스크립트가 승인 전에는 좁게 돈다(AGE-63, enPp6)
+        runs: { code: true, isolated: true, narrowBeforeApproval: true },
         does: {
           inject: inventory({
             scripts: [
@@ -514,7 +517,8 @@ export function sampleItems(): readonly ReviewItem[] {
                   cwd: null,
                 },
                 timeoutMs: 15_000,
-                uses: ["system_tools", "network"],
+                // 검토 카드는 승인 뒤의 값을 싣는다. 승인 전의 좁은 길은 `runs.narrowBeforeApproval`이 알린다
+                uses: SCRIPT_USES,
               },
             ],
           }),

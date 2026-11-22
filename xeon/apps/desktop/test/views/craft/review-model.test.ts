@@ -106,7 +106,7 @@ describe("what runs when approved", () => {
         kind: "script",
         name: "check",
         command: "bash hooks/check.sh",
-        uses: ["system_tools"],
+        uses: ["sandbox_full_access", "user_environment", "network"],
         timeoutMs: 10_000,
         envNames: [],
         env: null,
@@ -114,14 +114,26 @@ describe("what runs when approved", () => {
     ]);
   });
 
-  test("the code notice adds system tools and network from the scripts' uses", () => {
+  test("the code notice reads the open policy, and the narrow draft only from the card's narrowBeforeApproval", () => {
     expect(codeNoticeOf(LINT.card)).toEqual({
-      mode: "narrow",
+      mode: "open",
       isolated: true,
-      systemTools: true,
-      network: false,
+      serverEnv: false,
       usesUnknown: false,
     });
+    // 로컬 MCP 서버의 설정에 환경 변수 이름이 있다(FETCH_API_KEY)
+    expect(codeNoticeOf(FETCH.card)?.serverEnv).toBe(true);
+    // 승인 전 드래프트: 스크립트의 uses는 승인 뒤의 값(SCRIPT_USES)이어도 카드의 runs가 좁다고 알린다
+    expect(codeNoticeOf(DRIVE.card)).toEqual({
+      mode: "narrow",
+      isolated: true,
+      serverEnv: false,
+      usesUnknown: false,
+    });
+    expect(codeNoticeOf({ ...DRIVE.card, runs: { code: true, isolated: true } })?.mode).toBe(
+      "open",
+    );
+    expect(codeNoticeOf(NOTES.card)).toBeNull();
     expect(codeNoticeOf(RULE.card)).toBeNull();
   });
 
@@ -401,7 +413,7 @@ describe("fourth round (m6R4)", () => {
   test("the code notice tells your-permissions apart from the sandbox setting and from Fresnel-made scripts", () => {
     expect(
       [LINT, FETCH, IMPORTED, IMPORTED_BOX].map((item) => codeNoticeOf(item.card)?.mode),
-    ).toEqual(["narrow", "narrow", "userFull", "sandboxed"]);
+    ).toEqual(["open", "open", "userFull", "sandboxed"]);
   });
 
   test("who keeps it: engine-enforced, an observe-only hook the engine runs, or the model's call", () => {

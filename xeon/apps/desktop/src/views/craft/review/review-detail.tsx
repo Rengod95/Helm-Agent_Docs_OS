@@ -479,8 +479,8 @@ function AboutSection(props: { readonly card: PluginCard }): ReactNode {
 // ── 승인하면 실행될 것 ────────────────────────────────────────────────
 
 const USE_WORD: Readonly<Record<ScriptUse, MessageId>> = {
-  // [임시, AGE-63 엔진 값] 열린 정책의 새 값. 화면 담당이 전용 문구로 바꾼다. 지금은 가장 가까운 기존 문구다
-  sandbox_full_access: "desktop.craft.review.run.usesReadWide",
+  // 열린 정책(AGE-63): 셸 도구처럼 파일을 읽고 쓴다. "넓은 읽기"(가져온 훅의 샌드박스 설정, 쓰기는 프로젝트만)와 다른 값이다
+  sandbox_full_access: "desktop.craft.review.run.usesFullAccess",
   system_tools: "desktop.craft.review.run.usesSystemTools",
   network: "desktop.craft.review.run.usesNetwork",
   user_full_access: "desktop.craft.review.run.usesUserFull",
@@ -579,8 +579,13 @@ function EnvFacts(props: { readonly env: CardScriptEnv }): ReactNode {
 
 function RunRow(props: { readonly line: RunLine }): ReactNode {
   const { line } = props;
-  const uses = line.kind === "script" && line.uses !== null ? line.uses : [];
   const env = line.kind === "script" ? line.env : null;
+  // Fresnel에서 만든 스크립트는 셸 도구와 같은 허용 목록의 환경 변수만 받는다(AGE-63, 2026-11-22). 엔진이 아직 `user_environment`를 실어도
+  // 사용자 환경을 받는다는 칩을 보이지 않는다. 가져온 훅(환경 모드)만 사용자 환경으로 돈다
+  const uses =
+    line.kind === "script" && line.uses !== null
+      ? line.uses.filter((use) => env !== null || use !== "user_environment")
+      : [];
   // 가져온 훅은 엔진이 실제로 부르는 원래 명령 한 줄을 보인다(실행기와 인자를 이어 붙인 줄이 아니다)
   const command = env === null ? line.command : env.command;
   return (
