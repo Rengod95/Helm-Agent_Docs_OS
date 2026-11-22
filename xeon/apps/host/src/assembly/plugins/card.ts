@@ -25,6 +25,7 @@ import {
   type PluginOriginKind,
   type PluginUiDecl,
 } from "@fresnel/contracts/extensions";
+import { scriptEnvNamesOf } from "@fresnel/ext-host";
 import { compareUtf8 } from "./content-hash.ts";
 import { declaredCostOf } from "./declared-cost.ts";
 import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
@@ -250,7 +251,7 @@ const ENV_COMMAND_CHARS = 4096;
 
 /**
  * 매니페스트 스크립트 하나의 칸. 명령은 실행기 이름이고 첫 인자는 상대 `file`, 그 뒤가 `args`다. 환경 변수는 선언된 이름만
- * 정렬해 싣고 값은 싣지 않는다(거부 패턴에 걸리는 이름도 선언대로 싣는다. 실제로 넘기는 것은 실행기가 거른다). 작업 폴더는 없다.
+ * 정렬해 싣고 값은 싣지 않는다. 환경 모드가 아니면 실제로 넘어가는 이름만 `envNames`에 싣고 받지 못하는 이름은 `envNotPassed`에 싣는다. 작업 폴더는 없다.
  * 기한은 선언의 값이거나 기본값이다. 상한은 `CARD_MCP_LAUNCH_LIMITS`를 따르고 잘린 것은 말줄임표로 보인다
  */
 function scriptOf(
@@ -260,7 +261,10 @@ function scriptOf(
   envSandboxed: boolean,
 ): CardScript {
   const env = envOf(decl, source, which);
-  const names = unique(decl.envNames ?? []).toSorted(compareUtf8);
+  const declared = unique(decl.envNames ?? []).toSorted(compareUtf8);
+  // 환경 모드가 아니면 실행기가 넘기는 이름(허용 목록, 토큰·키 이름 제외)만 싣고, 선언했지만 받지 못하는 이름은 따로 싣는다 [결정: 2026-11-22, 사용자, AGE-63]
+  const split = env === undefined ? scriptEnvNamesOf(declared) : undefined;
+  const names = split === undefined ? declared : [...split.passed];
   const argv = [decl.file, ...(decl.args ?? [])];
   return {
     name: decl.name,
@@ -279,6 +283,14 @@ function scriptOf(
     timeoutMs: decl.timeoutMs ?? SCRIPT_LIMITS.timeoutDefaultMs,
     uses:
       env === undefined ? SCRIPT_USES : envSandboxed ? SCRIPT_ENV_SANDBOXED_USES : SCRIPT_ENV_USES,
+    ...(split === undefined || split.ignored.length === 0
+      ? {}
+      : {
+          envNotPassed: capList(
+            split.ignored.map((name) => clipText(name, CARD_MCP_LAUNCH_LIMITS.envName)),
+            CARD_MCP_LAUNCH_LIMITS.envNames,
+          ),
+        }),
     ...(env === undefined ? {} : { env }),
   };
 }
@@ -466,7 +478,10 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     runs: {
       code,
       isolated: code ? isolatedOf(input.origin.kind) : null,
-      ...(code && input.narrowDrafts === true && isolatedOf(input.origin.kind)
+      // 코드가 격리 프로세스로 돌거나, 환경 모드가 아닌 스크립트가 있으면 승인 전에 좁게 돈다(스크립트만 있는 플러그인도)
+      ...(input.narrowDrafts === true &&
+      ((code && isolatedOf(input.origin.kind)) ||
+        (inject?.scripts ?? []).some((script) => script.env === undefined))
         ? { narrowBeforeApproval: true as const }
         : {}),
     },
