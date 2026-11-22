@@ -28,3 +28,16 @@ export function useWorkbenchActions(): WorkbenchActions {
 export function useWorkbenchScope(): CraftScope {
   return useWorkbenchStore().scope;
 }
+
+/** 프로바이더가 없어도 되는 저장소. 없으면 `fallback`이 준 저장소다(이름 보이기만 하는 `views/craft/installed-entries.ts`) */
+export function useWorkbenchStoreOr(fallback: () => WorkbenchStore): WorkbenchStore {
+  return useContext(WorkbenchStoreContext) ?? fallback();
+}
+
+/** 주어진 저장소의 한 조각을 읽는다. 비교는 `useWorkbench`와 같다 */
+export function useWorkbenchOf<U>(
+  store: WorkbenchStore,
+  selector: (state: WorkbenchState) => U,
+): U {
+  return useStore(store.read, useShallow(selector));
+}

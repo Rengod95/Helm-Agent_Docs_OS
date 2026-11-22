@@ -340,10 +340,21 @@ export type Warning =
   | "hookOriginUnknown"
   | "managedOff";
 
+/**
+ * 사람이 원본 폴더를 손으로 고친 수정 항목인가. 엔진이 승인을 막는 것과 같은 조건이다(`review.ts`의 `applyApproval`):
+ * 사용자 폴더의 갱신(`update`)이고 출처를 모를 때만이다. 처음 들어오는 플러그인(`new`)은 사용자가 쓴 것이라 막지 않는다.
+ * 앱의 편집 통신(멤버, 의존, 떼기, 합치기)이 쓴 변경은 엔진이 출처를 `assistant`로 올려 여기 걸리지 않는다(AGE-33)
+ */
+export function isHandEdit(item: Pick<ReviewItem, "kind" | "provenance" | "card">): boolean {
+  return (
+    item.kind === "update" && item.provenance === "unknown" && item.card.origin.kind === "user"
+  );
+}
+
 /** `managedOff`는 관리자가 이 플러그인을 꺼 둔 경우다(`ext.list`의 `enabledSource: managed`) */
 export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warning[] {
   const out: Warning[] = [];
-  if (item.kind !== "remove" && item.provenance === "unknown") out.push("handEdit");
+  if (isHandEdit(item)) out.push("handEdit");
   if (managedOff) out.push("managedOff");
   if (item.kind !== "remove" && (item.card.purpose ?? "").trim() === "") out.push("purposeMissing");
   const change = item.diff.enforcementChange;
@@ -421,7 +432,7 @@ export function costViewOf(item: ReviewItem): CostView {
 export type ApproveBlock = "notPending" | "handEdit";
 export function approveBlockOf(item: ReviewItem): ApproveBlock | null {
   if (item.state !== "pending") return "notPending";
-  if (item.kind !== "remove" && item.provenance === "unknown") return "handEdit";
+  if (isHandEdit(item)) return "handEdit";
   return null;
 }
 
@@ -592,6 +603,7 @@ export type DecideFailure =
   | "handEdit"
   | "purposeRequired"
   | "profileInvalid"
+  | "dependency"
   | "failed";
 
 const FAILURE_BY_CODE: ReadonlyMap<number, DecideFailure> = new Map([
@@ -600,6 +612,7 @@ const FAILURE_BY_CODE: ReadonlyMap<number, DecideFailure> = new Map([
   [3654, "handEdit"],
   [3655, "purposeRequired"],
   [3656, "profileInvalid"],
+  [3627, "dependency"],
 ]);
 
 export function decideFailureOf(error: {

@@ -55,7 +55,7 @@ import {
   WorkbenchStoreContext,
   type WorkbenchActions,
 } from "../../state/workbench/index.ts";
-import { useCommands } from "../commands.ts";
+import { useCommands, type DependencyRefusalView } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import {
   HEADER_CONTROL_SIZE,
@@ -1120,6 +1120,7 @@ export function AddonsScreen(): ReactNode {
   const [removing, setRemoving] = useState<string | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [removeDataFailed, setRemoveDataFailed] = useState(false);
+  const [removeRefusal, setRemoveRefusal] = useState<DependencyRefusalView | null>(null);
   const headingId = useId();
   const loadPreview = useCallback(
     (name: string) => commands.workbench.removePreview(name),
@@ -1328,6 +1329,7 @@ export function AddonsScreen(): ReactNode {
         name={removing}
         busy={removeBusy}
         dataFailed={removeDataFailed}
+        refusal={removeRefusal}
         loadPreview={loadPreview}
         loadProfiles={loadProfiles}
         pluginEntries={plugin.phase === "ready" ? plugin.entries : null}
@@ -1335,16 +1337,19 @@ export function AddonsScreen(): ReactNode {
           if (!removeBusy) {
             setRemoving(null);
             setRemoveDataFailed(false);
+            setRemoveRefusal(null);
           }
         }}
         onConfirm={(name, dropData) => {
           setRemoveBusy(true);
           setRemoveDataFailed(false);
+          setRemoveRefusal(null);
           detachVoid(
-            controller.remove(name, { dropData }).then((outcome) => {
+            controller.remove(name, { dropData }).then(({ outcome, refusal }) => {
               setRemoveBusy(false);
               const stay = keepsDialogOpen(outcome, dropData);
-              setRemoveDataFailed(stay);
+              setRemoveDataFailed(stay && outcome === "failed");
+              setRemoveRefusal(refusal);
               if (!stay) {
                 setRemoving(null);
                 setRoute(ADDON_LIST);

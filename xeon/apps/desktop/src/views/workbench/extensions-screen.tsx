@@ -6,7 +6,7 @@ import { layerGroups, selectedEntry } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
-import { useCommands } from "../commands.ts";
+import { useCommands, type DependencyRefusalView } from "../commands.ts";
 import { usePluginUi, usePluginUiState } from "../plugin/plugin-context.tsx";
 import {
   firstNoticeOf,
@@ -24,6 +24,9 @@ import { LayerList } from "./layer-list.tsx";
 import { RemoveDialog } from "./remove-dialog.tsx";
 import { keepsDialogOpen } from "./remove-model.ts";
 import { SelectionPanel } from "./selection-panel.tsx";
+import { MergeDialog } from "../craft/members/split-dialogs.tsx";
+import { useSplitActions } from "../craft/members/split-source.ts";
+import { SquareStack } from "@caustic/react/icons";
 import { useSafeMode } from "../safe-mode-context.ts";
 import {
   HEADER_CONTROL_SIZE,
@@ -44,11 +47,14 @@ export function ExtensionsScreen(): ReactNode {
   );
   const loadProfiles = useCallback(() => commands.workbench.profiles(), [commands]);
   const [installing, setInstalling] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const split = useSplitActions();
   // 지우기 확인 상자가 가리키는 이름과, 지우는 요청이 가는 중인지
   const [removing, setRemoving] = useState<string | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   // 저장 데이터까지 지우다 실패하면 상자를 열어 두고 다시 시도하게 한다
   const [removeDataFailed, setRemoveDataFailed] = useState(false);
+  const [removeRefusal, setRemoveRefusal] = useState<DependencyRefusalView | null>(null);
   const toggle = useToggleRequest(controller);
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
@@ -71,21 +77,42 @@ export function ExtensionsScreen(): ReactNode {
         hidden={headerHidden}
         title={t("desktop.workbench.list.title")}
         action={
-          <Button
-            size={HEADER_CONTROL_SIZE}
-            variant={HEADER_PRIMARY_VARIANT}
-            onClick={() => {
-              setInstalling(true);
-            }}
-          >
-            {t("desktop.install.open")}
-          </Button>
+          <span className="inline-flex items-center gap-2">
+            {/* 합치기(AGE-33): 원본 폴더가 있는 멤버 없는 플러그인 둘 이상을 새 플러그인 하나로 묶어 리뷰에 낸다 */}
+            <Button
+              size={HEADER_CONTROL_SIZE}
+              variant="ghost"
+              onClick={() => {
+                setMerging(true);
+              }}
+            >
+              <SquareStack aria-hidden />
+              {t("desktop.craft.split.merge.open")}
+            </Button>
+            <Button
+              size={HEADER_CONTROL_SIZE}
+              variant={HEADER_PRIMARY_VARIANT}
+              onClick={() => {
+                setInstalling(true);
+              }}
+            >
+              {t("desktop.install.open")}
+            </Button>
+          </span>
         }
       />
       {/* 머리가 가려진 상세에서는 위 간격을 이 칸이 맡고, 머리가 보이면 공용 간격이 준다 */}
       <div
         className={`mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pb-4${headerHidden ? " pt-6" : ""}`}
       >
+        <MergeDialog
+          open={merging}
+          entries={state.entries}
+          actions={split}
+          onClose={() => {
+            setMerging(false);
+          }}
+        />
         {installing && (
           <InstallDialog
             open
@@ -205,6 +232,7 @@ export function ExtensionsScreen(): ReactNode {
           name={removing}
           busy={removeBusy}
           dataFailed={removeDataFailed}
+          refusal={removeRefusal}
           loadPreview={loadPreview}
           loadProfiles={loadProfiles}
           pluginEntries={pluginEntries}
@@ -212,17 +240,20 @@ export function ExtensionsScreen(): ReactNode {
             if (!removeBusy) {
               setRemoving(null);
               setRemoveDataFailed(false);
+              setRemoveRefusal(null);
             }
           }}
           onConfirm={(name, dropData) => {
             setRemoveBusy(true);
             setRemoveDataFailed(false);
+            setRemoveRefusal(null);
             detachVoid(
-              controller.remove(name, { dropData }).then((outcome) => {
+              controller.remove(name, { dropData }).then(({ outcome, refusal }) => {
                 setRemoveBusy(false);
                 // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 이미 없는 이름(3401)과 성공은 토스트로 알리고 닫는다
                 const stay = keepsDialogOpen(outcome, dropData);
-                setRemoveDataFailed(stay);
+                setRemoveDataFailed(stay && outcome === "failed");
+                setRemoveRefusal(refusal);
                 if (!stay) setRemoving(null);
                 return undefined;
               }),

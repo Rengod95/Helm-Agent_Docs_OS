@@ -10,6 +10,7 @@ import { useState, type ReactNode } from "react";
 import { movedOrder } from "./members-model.ts";
 import type { MembersData } from "./members-source.ts";
 import { MembersView, type MembersLayout } from "./members-view.tsx";
+import type { SplitActions } from "./split-source.ts";
 
 const LAYOUT_KEY = "fresnel.craft.members.layout";
 const SCENE_KEY = "fresnel.craft.members.scene";
@@ -154,7 +155,10 @@ function useSample(scene: Scene, live: MembersData): MembersData {
   };
 }
 
-export function MembersDev(props: { readonly live: MembersData }): ReactNode {
+export function MembersDev(props: {
+  readonly live: MembersData;
+  readonly split: SplitActions;
+}): ReactNode {
   const [layout, setLayout] = useState<MembersLayout>(
     () => LAYOUTS.find((l) => l === readKey(LAYOUT_KEY)) ?? "list",
   );
@@ -221,7 +225,7 @@ export function MembersDev(props: { readonly live: MembersData }): ReactNode {
           </MenuGroup>
         </Menu>
       </div>
-      <MembersView key={scene} data={data} layout={layout} />
+      <MembersView key={scene} data={data} layout={layout} split={props.split} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import { profileDraftOf, withPluginAdded, type ProfileDraft } from "@fresnel/client/workbench";
 import type { ExtListEntry, Profile } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
@@ -7,6 +8,7 @@ import {
   DriverField,
   TestRunButton,
 } from "../../../src/views/compose/compose-profile.tsx";
+import { CHOICE_TEXT } from "../../../src/views/compose/compose-text.ts";
 
 // 프로필 보기의 서버 렌더. Drive 플러그인 고르기, 내장 코어의 잠금 줄, "새 Test run으로"의 잠김만 본다.
 // 고르기의 목록은 순수 모델 `driverOptionsOf`가 시험하고, 여기서는 글과 잠김을 본다.
@@ -108,6 +110,45 @@ describe("확장 줄의 잠김", () => {
     expect(html).toContain("끄기");
     expect(html).not.toContain("그대로");
     expect(html).not.toContain("잠김");
+  });
+});
+
+describe("엔진이 필요로 하는 줄(AGE-33)", () => {
+  test("켜져 있고 엔진이 필요로 하면 빼기가 잠기고 필요로 하는 쪽을 적는다. 켜기와 끄기 칸은 없다", () => {
+    const html = renderToString(
+      <ul>
+        <ChoiceRow
+          entry={entryOf("helm")}
+          choice="on"
+          locked={false}
+          requiredBy={["core-tools"]}
+          onChange={NOOP}
+        />
+      </ul>,
+    );
+    expect(html).toContain(t("desktop.compose.profile.required"));
+    expect(html).toContain(t("desktop.compose.profile.required.info", { names: "core-tools" }));
+    expect(html.includes('data-required-by-core=""')).toBe(true);
+    expect(html).not.toContain(t(CHOICE_TEXT.on));
+    expect(html).not.toContain(t(CHOICE_TEXT.off));
+  });
+
+  test("끄면 엔진이 필요로 해도 켜기와 끄기 칸이 보이고 잠김 글은 없다", () => {
+    const html = renderToString(
+      <ul>
+        <ChoiceRow
+          entry={entryOf("helm")}
+          choice="off"
+          locked={false}
+          requiredBy={["core-tools"]}
+          onChange={NOOP}
+        />
+      </ul>,
+    );
+    expect(html).toContain(t(CHOICE_TEXT.on));
+    expect(html).toContain(t(CHOICE_TEXT.off));
+    expect(html.includes("data-required-by-core")).toBe(false);
+    expect(html).not.toContain(t("desktop.compose.profile.required"));
   });
 });
 

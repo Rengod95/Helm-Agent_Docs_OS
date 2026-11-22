@@ -131,6 +131,7 @@ binds: []
 | Extension Runtime | 확장 런타임 | Extension Runtime | `X` | proposed |
 | Orchestration | 오케스트레이션 | Orchestration | `L3` | proposed |
 | System | 시스템 | System | `L0` | proposed |
+| Member | 멤버 | Member | `member`, `MemberInfo` | proposed |
 | Native UI | 기본 UI | Native UI | `declarative`, `native`, `ViewNode` | proposed |
 | Placement | 전체 화면, 옆 패널, 대화 카드, 상태 표시줄, 명령, 설정 | Page, Side panel, Card, Status bar, Command, Settings | `page`, `well`, `card`, `status`, `command`, `settings` | proposed |
 | Plugin | 플러그인 | Plugin | — | proposed |

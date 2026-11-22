@@ -111,6 +111,8 @@ describe("memberRowsOf: 줄 하나의 모양", () => {
         kinds: ["hook"],
         moments: ["desktop.craft.detail.moment.tool.call.before"],
         otherHooks: 1,
+        tools: 0,
+        injects: 0,
         blocks: [],
       },
       {
@@ -120,6 +122,8 @@ describe("memberRowsOf: 줄 하나의 모양", () => {
         kinds: ["drive", "hook"],
         moments: ["desktop.craft.detail.moment.boundary.settle.after"],
         otherHooks: 0,
+        tools: 0,
+        injects: 0,
         blocks: [
           { id: "plan", title: "Plan steps" },
           { id: "gone", title: "gone" },
@@ -132,9 +136,23 @@ describe("memberRowsOf: 줄 하나의 모양", () => {
         kinds: [],
         moments: [],
         otherHooks: 0,
+        tools: 0,
+        injects: 0,
         blocks: [],
       },
     ]);
+  });
+
+  test("엔진이 멤버의 도구와 Inject를 주면 그 종류가 생기고, 비어 있으면 종류도 수도 없다", () => {
+    const [withBoth, empty] = memberRowsOf(
+      [info("kit", { tools: ["search"], injects: [{ id: "style", kind: "skill" }] }), info("bare")],
+      new Map(),
+    );
+    expect(withBoth?.kinds).toEqual(["tool", "inject"]);
+    expect(withBoth?.tools).toBe(1);
+    expect(withBoth?.injects).toBe(1);
+    expect(empty?.kinds).toEqual([]);
+    expect(empty?.tools).toBe(0);
   });
 
   test("blockTitlesOf는 구성 선언의 블록 제목을 id로 찾는다", () => {

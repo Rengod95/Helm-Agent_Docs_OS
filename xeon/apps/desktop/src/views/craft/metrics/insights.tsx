@@ -106,6 +106,14 @@ function metricLabelOf(def: MetricDef | undefined, id: string, locale: string): 
   return locale.startsWith("ko") ? def.label.ko : def.label.en;
 }
 
+/** 꼭 기대는 플러그인이 남아 빼기가 거절됐나(`profile.invalid`의 `dependency_disabled`, AGE-33) */
+function hasDependents(error: CommandError): boolean {
+  return (
+    error.kind === "rejected" &&
+    (error.profileIssues ?? []).some((issue) => issue.code === "dependency_disabled")
+  );
+}
+
 function profilesWith(profiles: readonly Profile[], plugin: string): Profile[] {
   return profiles.filter((p) => p.plugins.some((ref) => ref.name === plugin));
 }
@@ -130,13 +138,23 @@ function NextSteps(props: {
 }): ReactNode {
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<CommandError | null>(null);
-  const run = (id: string, work: () => Promise<Result<null, CommandError>>): void => {
+  // 꼭 기대는 것이 남아 빼기가 거절된 프로필(`dependency_disabled`, AGE-33). 그 줄의 단추가 "기대는 것도 같이 빼기"가 된다
+  const [blocked, setBlocked] = useState<string | null>(null);
+  const run = (
+    id: string,
+    work: () => Promise<Result<null, CommandError>>,
+    profileId: string | null = null,
+  ): void => {
     setBusy(id);
     setFailure(null);
+    setBlocked(null);
     detach(
       work().then((done) => {
         setBusy(null);
-        if (!done.ok) setFailure(done.error);
+        if (!done.ok) {
+          setFailure(done.error);
+          if (profileId !== null && hasDependents(done.error)) setBlocked(profileId);
+        }
         return undefined;
       }),
       rethrow,
@@ -153,11 +171,15 @@ function NextSteps(props: {
           <span role="alert" className="me-1 min-w-0 truncate text-ui-sm text-danger-text">
             {failure.kind === "unsupported"
               ? t("desktop.craft.metrics.next.unsupported")
-              : isRequiredByCore(failure)
-                ? t("desktop.craft.metrics.next.requiredByCore", {
+              : hasDependents(failure)
+                ? t("desktop.craft.metrics.next.dependents", {
                     plugin: props.finding.subject.plugin,
                   })
-                : t("desktop.craft.metrics.next.failed")}
+                : isRequiredByCore(failure)
+                  ? t("desktop.craft.metrics.next.requiredByCore", {
+                      plugin: props.finding.subject.plugin,
+                    })
+                  : t("desktop.craft.metrics.next.failed")}
           </span>
         )}
         {steps.map((step) => {
@@ -191,15 +213,22 @@ function NextSteps(props: {
                           variant="outline"
                           loading={busy === `remove:${profile.id}`}
                           onClick={() => {
-                            run(`remove:${profile.id}`, () =>
-                              props.actions.removeFromProfile(
-                                profile,
-                                props.finding.subject.plugin,
-                              ),
+                            const withDependents = blocked === profile.id;
+                            run(
+                              `remove:${profile.id}`,
+                              () =>
+                                props.actions.removeFromProfile(
+                                  profile,
+                                  props.finding.subject.plugin,
+                                  withDependents,
+                                ),
+                              profile.id,
                             );
                           }}
                         >
-                          {t("desktop.craft.metrics.next.removeConfirm")}
+                          {blocked === profile.id
+                            ? t("desktop.craft.metrics.next.removeWithDependents")
+                            : t("desktop.craft.metrics.next.removeConfirm")}
                         </Button>
                       </li>
                     ))}

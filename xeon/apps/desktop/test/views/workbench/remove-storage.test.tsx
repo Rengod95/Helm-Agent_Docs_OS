@@ -55,6 +55,13 @@ describe("지우기 결과 판단", () => {
     expect(removeOutcomeOfError({ kind: "rejected", code: 3401 })).toBe("gone");
     expect(removeOutcomeOfError({ kind: "rejected", code: 3402 })).toBe("failed");
     expect(removeOutcomeOfError({ kind: "offline" })).toBe("failed");
+    expect(
+      removeOutcomeOfError({
+        kind: "rejected",
+        code: 3627,
+        dependency: { reason: "required_by", plugin: "web", items: [] },
+      }),
+    ).toBe("refused");
   });
 
   test("저장 데이터 지우기가 실패했을 때만 상자를 열어 두고, 이미 없으면 닫는다", () => {
@@ -62,6 +69,7 @@ describe("지우기 결과 판단", () => {
     expect(keepsDialogOpen("failed", false)).toBe(false);
     expect(keepsDialogOpen("gone", true)).toBe(false);
     expect(keepsDialogOpen("removed", true)).toBe(false);
+    expect(keepsDialogOpen("refused", false)).toBe(true);
   });
 });
 

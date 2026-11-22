@@ -10,6 +10,7 @@ import type {
   CompositionDecl,
   DriveFrameView,
   ExtTimingsResult,
+  PluginCard,
   TestRunPhaseResult,
   TraceTurnResult,
 } from "@fresnel/contracts/extensions";
@@ -27,6 +28,8 @@ import type {
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type { DenyAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
 import type {
+  DependencyProblemKind,
+  DependencyRefusalReason,
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
@@ -162,6 +165,23 @@ export interface ProfileIssueView {
   readonly key: string | null;
 }
 
+/** 의존 때문에 거절된 한 줄(`plugin.dependency` 3627의 `details.items`, AGE-33). `found`는 `range_unmet`에서 찾은 대상 버전이다 */
+export interface DependencyItemView {
+  readonly from: string;
+  readonly target: string;
+  readonly kind: "hard" | "soft";
+  readonly range: string | null;
+  readonly problem: DependencyProblemKind;
+  readonly found: string | null;
+}
+
+/** 의존 거절(`plugin.dependency`). 설치와 승인은 `unmet`, 삭제는 `required_by`, 업데이트는 `breaks_range`다 */
+export interface DependencyRefusalView {
+  readonly reason: DependencyRefusalReason;
+  readonly plugin: string;
+  readonly items: readonly DependencyItemView[];
+}
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -193,6 +213,8 @@ export type CommandError =
        * 모양이 틀린 줄은 버린다
        */
       readonly profileIssues?: readonly ProfileIssueView[];
+      /** 의존 거절(`plugin.dependency` 3627). 무엇이 무엇에 기대서 막혔는지 화면이 목록으로 보인다 */
+      readonly dependency?: DependencyRefusalView;
     }
   | { readonly kind: "failed" }
   /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
@@ -969,11 +991,15 @@ export interface CraftMetricsCommands {
   openCraftChat(
     params: WireParams<"craftChat.open">,
   ): Promise<Result<WireResult<"craftChat.open">, CommandError>>;
-  /** `profile.removePlugin`: 프로필에서 플러그인 하나를 뺀다. `baseRev`가 다르면 거절된다 */
+  /**
+   * `profile.removePlugin`: 프로필에서 플러그인 하나를 뺀다. `baseRev`가 다르면 거절된다. `withDependents`가 참이면 이 플러그인에
+   * 꼭 기대는 것도 한 번에 같이 뺀다(AGE-33). 거짓이면 그런 것이 있을 때 `profile.invalid`(`dependency_disabled`)로 거절된다
+   */
   removeFromProfile(
     profileId: string,
     plugin: string,
     baseRev: number,
+    withDependents?: boolean,
   ): Promise<Result<WireResult<"profile.removePlugin">, CommandError>>;
   /**
    * `settings.get { keys: ["x.operations.metrics.minSample"] }`: 비율·평균을 내는 엔진의 최소 표본 수.
@@ -1111,6 +1137,11 @@ export interface WorkbenchCommands {
    * 플러그인을 가른다
    */
   pluginsInProfile(profileId: string): Promise<Result<ReadonlySet<string>, CommandError>>;
+  /**
+   * `plugin.list {}`의 카드. 프로필 보기가 엔진이 필요로 하는 플러그인(`requiredByCore`)과 의존(`dependencies`)을 미리 읽는다
+   * (AGE-33)
+   */
+  pluginCards(): Promise<Result<readonly PluginCard[], CommandError>>;
   /** `plugin.draft.list { name }`: 그 플러그인의 드래프트(새것이 먼저) */
   drafts(name: string): Promise<Result<readonly DraftInfo[], CommandError>>;
   /** `ext.validateComposition { composition }`(W-47): 구성 선언 검사. 이슈 목록은 비어 있으면 통과다 */

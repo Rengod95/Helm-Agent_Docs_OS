@@ -15,6 +15,14 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { DiffRow as CardDiffRow, Profile, ReviewItem } from "@fresnel/contracts/wire";
 import { useId, type ReactNode, type Ref } from "react";
+import { useInstalledEntries } from "../installed-entries.ts";
+import { PartyLabel } from "../deps/dependency-refusal.tsx";
+import {
+  dependencyChangeOf,
+  KIND_WORD,
+  partyNameOf,
+  splitRegistration,
+} from "../deps/deps-model.ts";
 import {
   changeWhatOf,
   workFactsOf,
@@ -371,11 +379,48 @@ const PART_WORD: Readonly<Record<ChangePart, MessageId>> = {
 };
 
 /** 달라진 일 한 줄: 부품 말(모르면 칸 말)과 이름 */
+/** 의존 줄은 대상 이름, 기대는 멤버, 종류, 범위를 사람 말로 보인다. 모양이 다르면 원문이다 */
+function DependencyChange(props: { readonly what: string; readonly detail?: string }): ReactNode {
+  const entries = useInstalledEntries();
+  const change = dependencyChangeOf(props.what, props.detail);
+  if (change === null) return null;
+  const from = splitRegistration(change.from).member;
+  return (
+    <>
+      <span className="shrink-0 text-ui-sm text-text-tertiary">
+        {t("desktop.craft.review.row.dependencies")}
+      </span>
+      <span className="min-w-0 text-ui-sm">
+        <PartyLabel name={partyNameOf(change.target, entries)} />
+      </span>
+      {from !== null && (
+        <span className="shrink-0 text-ui-sm text-text-tertiary">
+          {t("desktop.craft.deps.byMember", { id: from })}
+        </span>
+      )}
+      {change.kind !== null && (
+        <span className="shrink-0 text-ui-sm text-text-secondary">{t(KIND_WORD[change.kind])}</span>
+      )}
+      <span className="shrink-0 font-mono text-mono-sm text-text-tertiary">
+        {change.range ?? t("desktop.craft.deps.range.any")}
+      </span>
+    </>
+  );
+}
+
 function ChangeLine(props: {
   readonly row: CardDiffRow;
   readonly what: string;
   readonly detail?: string;
 }): ReactNode {
+  if (props.row === "dependencies" && dependencyChangeOf(props.what, props.detail) !== null) {
+    return (
+      <DependencyChange
+        what={props.what}
+        {...(props.detail === undefined ? {} : { detail: props.detail })}
+      />
+    );
+  }
   const what = changeWhatOf(props.what);
   return (
     <>
@@ -403,7 +448,26 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
     ...diff.changed.map((entry) => ({ mark: "changed" as const, entry })),
     ...diff.removed.map((entry) => ({ mark: "removed" as const, entry })),
   ];
-  const rows = [facts.when, facts.reads, facts.changes, facts.gives];
+  const entries = useInstalledEntries();
+  // 의존 줄: 대상 이름과 종류, 범위. 엔진이 문제를 찾았으면 경고 색이다(설치되지 않음, 멤버 없음, 범위 어긋남)
+  const dependChips: readonly FactChip[] = (props.card.dependencies?.dependsOn ?? []).map(
+    (line) => {
+      const name = partyNameOf(line.target, entries);
+      return {
+        key: `${line.from}->${line.target}`,
+        word:
+          name.member === null
+            ? name.plugin
+            : `${name.plugin} ${t("desktop.craft.deps.member", { id: name.member })}`,
+        value:
+          line.range === null
+            ? t(KIND_WORD[line.kind])
+            : `${t(KIND_WORD[line.kind])} ${line.range}`,
+        warn: line.problem !== null,
+      };
+    },
+  );
+  const rows = [facts.when, facts.reads, facts.changes, facts.gives, dependChips];
   return (
     <Section title="desktop.craft.review.section.how" id="how">
       {rows.every((r) => r.length === 0) ? (
@@ -417,6 +481,7 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
             chips={facts.changes.map(changesChip)}
           />
           <FactRow label="desktop.craft.review.fact.gives" chips={facts.gives.map(givesChip)} />
+          <FactRow label="desktop.craft.review.fact.depends" chips={dependChips} />
         </dl>
       )}
       {item.kind === "update" && changes.length > 0 ? (

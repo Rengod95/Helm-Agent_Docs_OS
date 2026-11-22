@@ -16,7 +16,8 @@ import {
   Skeleton,
 } from "@caustic/react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { CommandError, StorageTablesPreview } from "../commands.ts";
+import type { CommandError, DependencyRefusalView, StorageTablesPreview } from "../commands.ts";
+import { DependencyRefusal } from "../craft/deps/dependency-refusal.tsx";
 import {
   dropDataOf,
   placementTextOf,
@@ -54,6 +55,8 @@ interface RemoveDialogProps {
   readonly busy: boolean;
   /** 저장 데이터까지 지우다 실패했나. 참이면 상자를 열어 두고 실패 줄을 보인다 */
   readonly dataFailed: boolean;
+  /** 꼭 기대는 쪽이 있어 엔진이 거절했으면 그 목록(AGE-33). 상자를 열어 두고 목록을 보인다 */
+  readonly refusal?: DependencyRefusalView | null;
   readonly loadPreview: LoadPreview;
   readonly loadProfiles: LoadProfiles;
   /** 플러그인 화면 항목 전부(`usePluginUiState().entries`). 이 확장의 것만 골라 보인다 */
@@ -151,6 +154,7 @@ function RemoveDialogOf(props: RemoveDialogProps): ReactNode {
         checked={checked}
         busy={props.busy}
         dataFailed={props.dataFailed}
+        refusal={props.refusal ?? null}
         onChecked={setChecked}
         onRetry={() => {
           if (name === null) return;
@@ -221,6 +225,7 @@ export function RemoveDialogBody(props: {
   readonly checked: boolean;
   readonly busy: boolean;
   readonly dataFailed: boolean;
+  readonly refusal?: DependencyRefusalView | null;
   readonly onChecked: (checked: boolean) => void;
   readonly onRetry: () => void;
 }): ReactNode {
@@ -263,6 +268,11 @@ export function RemoveDialogBody(props: {
           {t("desktop.workbench.remove.dataFailed")}
         </Alert>
       ) : null}
+      {props.refusal === undefined || props.refusal === null ? null : (
+        <div role="alert">
+          <DependencyRefusal refusal={props.refusal} />
+        </div>
+      )}
     </div>
   );
 }

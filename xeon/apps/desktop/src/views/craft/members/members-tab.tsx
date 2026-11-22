@@ -5,6 +5,7 @@ import { lazy, Suspense, useMemo, type ReactNode } from "react";
 import { BUILD_CHECKS } from "../../../app/build.ts";
 import { blockTitlesOf } from "./members-model.ts";
 import { useMembersSource } from "./members-source.ts";
+import { useSplitActions } from "./split-source.ts";
 import { MembersView } from "./members-view.tsx";
 
 const MembersDev = BUILD_CHECKS
@@ -21,10 +22,11 @@ export function MembersTab(props: {
     [props.manifest],
   );
   const live = useMembersSource(props.entry, props.manifest, titles);
-  if (MembersDev === null) return <MembersView data={live} layout="list" />;
+  const split = useSplitActions();
+  if (MembersDev === null) return <MembersView data={live} layout="list" split={split} />;
   return (
     <Suspense fallback={null}>
-      <MembersDev live={live} />
+      <MembersDev live={live} split={split} />
     </Suspense>
   );
 }

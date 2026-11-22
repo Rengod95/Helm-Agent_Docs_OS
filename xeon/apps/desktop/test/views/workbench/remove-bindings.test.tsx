@@ -94,7 +94,7 @@ describe("controller.remove", () => {
 
     const done = await controllerOf(store, commands).remove("web");
 
-    expect(done).toBe("removed");
+    expect(done).toEqual({ outcome: "removed", refusal: null });
     expect(sent).toEqual(["web"]);
     expect(listed).toBe(1);
     expect(store.actions.snapshot().detail).toBeNull();
@@ -110,7 +110,41 @@ describe("controller.remove", () => {
         return Promise.resolve(ok([]));
       },
     });
-    expect(await controllerOf(store, commands).remove("web")).toBe("failed");
+    expect(await controllerOf(store, commands).remove("web")).toEqual({
+      outcome: "failed",
+      refusal: null,
+    });
+    expect(listed).toBe(0);
+  });
+
+  test("꼭 기대는 쪽이 있어 거절되면(3627) refused와 그 목록을 돌려주고 목록을 다시 읽지 않는다", async () => {
+    const store = createWorkbenchStore();
+    let listed = 0;
+    const dependency = {
+      reason: "required_by",
+      plugin: "web",
+      items: [
+        {
+          from: "notes",
+          target: "web",
+          kind: "hard",
+          range: null,
+          problem: "depended_on",
+          found: null,
+        },
+      ],
+    } as const;
+    const commands = commandsWith({
+      remove: () => Promise.resolve(err({ kind: "rejected", code: 3627, dependency })),
+      list: () => {
+        listed += 1;
+        return Promise.resolve(ok([]));
+      },
+    });
+    expect(await controllerOf(store, commands).remove("web")).toEqual({
+      outcome: "refused",
+      refusal: dependency,
+    });
     expect(listed).toBe(0);
   });
 
@@ -127,7 +161,10 @@ describe("controller.remove", () => {
       hooks: () => Promise.resolve(ok([])),
       orderGet: () => Promise.resolve(ok({ hooks: [] })),
     });
-    expect(await controllerOf(store, commands).remove("web")).toBe("gone");
+    expect(await controllerOf(store, commands).remove("web")).toEqual({
+      outcome: "gone",
+      refusal: null,
+    });
     expect(listed).toBe(1);
   });
 });
@@ -149,7 +186,7 @@ describe("controller.remove의 저장 데이터 지우기", () => {
     const done = await controllerOf(createWorkbenchStore(), commands).remove("web", {
       dropData: true,
     });
-    expect(done).toBe("failed");
+    expect(done).toEqual({ outcome: "failed", refusal: null });
     expect(seen).toEqual([{ name: "web", options: { dropData: true } }]);
     expect(listed).toBe(1);
   });
@@ -168,7 +205,7 @@ describe("controller.remove의 저장 데이터 지우기", () => {
     });
     expect(
       await controllerOf(createWorkbenchStore(), commands).remove("web", { dropData: true }),
-    ).toBe("gone");
+    ).toEqual({ outcome: "gone", refusal: null });
     expect(listed).toBe(1);
   });
 });

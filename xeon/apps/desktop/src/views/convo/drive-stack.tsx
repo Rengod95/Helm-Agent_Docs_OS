@@ -5,9 +5,11 @@ import type { ReactNode } from "react";
 import { PresenceItem, PresenceList } from "../../lib/motion-presets.tsx";
 import { BeamBand, type BeamState } from "../effects/beam.tsx";
 import { MetaParts } from "../meta-parts.tsx";
+import { useInstalledEntries } from "../craft/installed-entries.ts";
 import {
   driveBandShownOf,
   driveCardOf,
+  driveDisplayNameOf,
   drivingByPartsOf,
   type DriveCardView,
   type DriveLeaseFacts,
@@ -171,11 +173,13 @@ export function DrivingBy(props: {
   readonly nameClassName: string;
   readonly className?: string;
 }): ReactNode {
-  const parts = drivingByPartsOf(props.name);
+  const entries = useInstalledEntries();
+  const name = driveDisplayNameOf(props.name, entries);
+  const parts = drivingByPartsOf(name);
   return (
     <span
       data-slot="drive-driving-by"
-      title={t("desktop.drive.drivingBy", { name: props.name })}
+      title={t("desktop.drive.drivingBy", { name })}
       className={`flex min-w-0 items-baseline gap-1 ${props.className ?? ""}`}
     >
       {parts.before === "" ? null : (

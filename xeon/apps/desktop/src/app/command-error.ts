@@ -1,9 +1,19 @@
 import { HostClientError } from "@fresnel/client";
 import { parse } from "@fresnel/contracts";
-import { WIRE_ERRORS, WireError } from "@fresnel/contracts/wire";
+import {
+  DEPENDENCY_PROBLEM_CODES,
+  DEPENDENCY_REFUSAL_REASONS,
+  WIRE_ERRORS,
+  WireError,
+} from "@fresnel/contracts/wire";
 import { Type } from "typebox";
 import type { LockedOption } from "../state/ui/index.ts";
-import type { CommandError, ProfileIssueView } from "../views/commands.ts";
+import type {
+  CommandError,
+  DependencyItemView,
+  DependencyRefusalView,
+  ProfileIssueView,
+} from "../views/commands.ts";
 
 // wire 오류를 화면이 구분하는 오류로 바꾼다. 구분하는 것은 셋이다:
 // - -32601: host에 그 메서드가 없다(unsupported). 오래된 엔진이거나 아직 구현하지 않은 메서드다.
@@ -49,6 +59,33 @@ const ReasonsDetailsSchema = Type.Object({
   ),
 });
 const PROFILE_INVALID_CODE = WIRE_ERRORS["pluginReview.profileInvalid"].code;
+/** 프로필 저장과 프로필에서 빼기의 검사 실패(`profile.invalid`). details는 승인의 프로필 반영과 같은 `IssuesDetails`다 */
+const PROFILE_PUT_INVALID_CODE = WIRE_ERRORS["profile.invalid"].code;
+const DEPENDENCY_CODE = WIRE_ERRORS["plugin.dependency"].code;
+/** 의존 거절의 details(wire/errors.ts `DependencyDetails`). 줄마다 따로 읽어 모양이 틀린 줄만 버린다 */
+const DependencyDetailsSchema = Type.Object({
+  reason: Type.Union(DEPENDENCY_REFUSAL_REASONS.map((reason) => Type.Literal(reason))),
+  plugin: Type.String({ maxLength: 128 }),
+  items: Type.Array(Type.Unknown(), { maxItems: 128 }),
+});
+const DependencyItemSchema = Type.Object({
+  from: Type.String({ maxLength: 65 }),
+  target: Type.String({ maxLength: 65 }),
+  kind: Type.Union([Type.Literal("hard"), Type.Literal("soft")]),
+  range: Type.Union([Type.String({ maxLength: 64 }), Type.Null()]),
+  problem: Type.Union(DEPENDENCY_PROBLEM_CODES.map((code) => Type.Literal(code))),
+  found: Type.Union([Type.String({ maxLength: 64 }), Type.Null()]),
+});
+
+function dependencyRefusalOf(details: unknown): DependencyRefusalView | null {
+  const read = parse(DependencyDetailsSchema, details);
+  if (!read.ok) return null;
+  const items = read.value.items.flatMap((raw): DependencyItemView[] => {
+    const item = parse(DependencyItemSchema, raw);
+    return item.ok ? [item.value] : [];
+  });
+  return { reason: read.value.reason, plugin: read.value.plugin, items };
+}
 /** 프로필 반영 실패의 details(wire/errors.ts `IssuesDetails`). 줄마다 따로 읽어 모양이 틀린 줄만 버린다 */
 const ProfileIssuesListSchema = Type.Object({
   issues: Type.Array(Type.Unknown(), { maxItems: 256 }),
@@ -121,7 +158,14 @@ export function errorOf(cause: unknown): CommandError {
     const detail = details.ok ? details.value.issues[0]?.message : undefined;
     if (detail !== undefined) return { kind: "rejected", code: cause.code, detail };
   }
-  if (cause.code === PROFILE_INVALID_CODE) {
+  if (cause.code === DEPENDENCY_CODE) {
+    // 의존 때문에 막혔다. 무엇이 무엇에 기대는지 화면이 목록으로 보인다(모양이 틀리면 코드만)
+    const refusal = dependencyRefusalOf(cause.data.details);
+    return refusal === null
+      ? { kind: "rejected", code: cause.code }
+      : { kind: "rejected", code: cause.code, dependency: refusal };
+  }
+  if (cause.code === PROFILE_INVALID_CODE || cause.code === PROFILE_PUT_INVALID_CODE) {
     // 승인의 프로필 반영이 걸렸다. 엔진이 준 사유를 리뷰 화면이 사람의 말로 옮긴다(사유가 없으면 코드만)
     const issues = profileIssuesOf(cause.data.details);
     return issues.length === 0

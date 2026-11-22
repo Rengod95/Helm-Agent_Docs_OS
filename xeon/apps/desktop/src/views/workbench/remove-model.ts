@@ -5,7 +5,7 @@ import { assertNever } from "@fresnel/contracts";
 import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";
 import type { ExtListEntry, ExtUiEntry, Profile } from "@fresnel/contracts/wire";
-import type { CommandError, StorageTableRow } from "../commands.ts";
+import type { CommandError, DependencyRefusalView, StorageTableRow } from "../commands.ts";
 import { stripUnsafeText } from "@fresnel/client/views/app";
 import { extMessageOf } from "@fresnel/client/views/native";
 
@@ -81,18 +81,31 @@ const REMOVE_NOT_FOUND_CODE = 3401;
 
 /**
  * 지우기 요청의 결과. `gone`은 이미 없는 이름(3401)이라 지울 것이 남지 않았다: 폴더와 데이터가 없으므로 "폴더는 남아 있어요"
- * 문구를 보이면 거짓이다. `failed`는 그 밖의 실패다
+ * 문구를 보이면 거짓이다. `refused`는 이 플러그인에 꼭 기대는 쪽이 있어 엔진이 거절했다(`plugin.dependency` 3627, AGE-33).
+ * `failed`는 그 밖의 실패다
  */
-export type RemoveOutcome = "removed" | "gone" | "failed";
+export type RemoveOutcome = "removed" | "gone" | "refused" | "failed";
+
+/** 지우기 요청의 결과와, 의존 때문에 거절됐으면 그 목록 */
+export interface RemoveResult {
+  readonly outcome: RemoveOutcome;
+  readonly refusal: DependencyRefusalView | null;
+}
 
 /** 실패한 `plugin.requestRemove`의 오류 값에서 결과를 가른다 */
 export function removeOutcomeOfError(error: CommandError): RemoveOutcome {
-  return error.kind === "rejected" && error.code === REMOVE_NOT_FOUND_CODE ? "gone" : "failed";
+  if (error.kind !== "rejected") return "failed";
+  if (error.code === REMOVE_NOT_FOUND_CODE) return "gone";
+  if (error.dependency !== undefined) return "refused";
+  return "failed";
 }
 
-/** 저장 데이터까지 지우다 실패해 상자를 열어 두고 "설치 폴더는 그대로 남아 있어요" 경고를 보이는가. `gone`은 닫는다 */
+/**
+ * 상자를 열어 둘까. 저장 데이터까지 지우다 실패했으면 "설치 폴더는 그대로 남아 있어요" 경고를, 의존 때문에 거절됐으면 그 목록을
+ * 상자 안에 보인다. `gone`은 닫는다
+ */
 export function keepsDialogOpen(outcome: RemoveOutcome, dropData: boolean): boolean {
-  return outcome === "failed" && dropData;
+  return outcome === "refused" || (outcome === "failed" && dropData);
 }
 
 /** 확장이 소유한 저장 테이블 한 줄(저장 데이터 목록의 한 줄). 지금은 만들어지지 않는다(`not_available`) */
