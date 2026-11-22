@@ -956,7 +956,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 2. `orchestration-sdk` 플러그인은 `fresnel.ext`를 주입받고 `fresnel.orchestration`(`OrchestrationService`)를 제공한다. 중재 포트는 없다(E3). `choose`는 계약에서 걷었다(§3.5). [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 3. X 로더가 오케스트레이션 모듈마다 `validateManifest`, `validateManifestSet`을 부르고, 설정 묶음을 카탈로그에 넣고, `entry`를 부른다. setup 직후 X가 `validateUsage`를 부른다.
 4. 플러그인 setup 안의 `g.drive(fn)`은 등록만 한다. drive lock은 §4.3이 정한다.
-5. 구성원이 있으면 뿌리 Registration 뒤에 구성원 Registration을 `plugins[]` 순서로 등록한다 [제안]. 구성원의 켜짐 기본값은 `pluginDefaultEnabled`가 정한다. 구성원은 `defaultEnabled`를 적지 않으면 꺼져 있고, 꺼진 동안 구성원 setup은 돌지 않는다 [근거: packages/contracts/src/extensions/manifest.ts `pluginDefaultEnabled`].
+5. 구성원이 있으면 뿌리 Registration 뒤에 구성원 Registration을 `plugins[]` 순서로 등록한다 [제안]. 구성원의 켜짐 기본값은 `pluginDefaultEnabled`가 정한다. 구성원은 `defaultEnabled`를 적지 않으면 꺼져 있다. `defaultEnabled`는 프로필이 없을 때의 켜짐만 정하므로, 프로필이 그 구성원을 목록에 넣으면 `defaultEnabled: false`여도 함께 켜지고 setup이 돈다 [제안값: 2026-11-22 오케스트레이터, AGE-33. 구현이 이미 이렇게 동작한다]. 꺼진 동안만 setup이 돌지 않는다 [근거: packages/contracts/src/extensions/manifest.ts `pluginDefaultEnabled`].
 
 ### 4.3 drive 역할 계산과 주도 시작
 
