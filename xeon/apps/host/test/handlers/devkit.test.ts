@@ -306,6 +306,8 @@ const MEMBER: MemberInfo = {
   drives: false,
   defaultEnabled: false,
   blockIds: [],
+  injects: [],
+  tools: [],
 };
 
 test("ext.members.edit and ext.members.read hand their params to the port and return its value", async () => {
@@ -464,6 +466,8 @@ test("ext.members.merge hands its params to the port and returns the new folder;
         drives: false,
         defaultEnabled: false,
         blockIds: [],
+        injects: [],
+        tools: [],
       },
     ],
     changedFiles: [".fresnel-plugin/plugin.json"],

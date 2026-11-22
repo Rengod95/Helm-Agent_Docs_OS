@@ -1,6 +1,6 @@
-import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
-import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { readFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import {
   EXTENSION_NAME_PATTERN,
   MANIFEST_SCHEMA_VERSION,
@@ -18,9 +18,12 @@ import type {
   MembersMergeInput,
   MembersMergeResult,
 } from "@fresnel/contracts/services";
-import { arrayOf, invalid, io, mapAll } from "./errors.ts";
+import { arrayOf, invalid, io, mapAll, refusal } from "./errors.ts";
+import { checkOutDir, writeOutDir } from "./out-dir-write.ts";
 import { isRecord } from "./shared.ts";
 import { MANIFEST_PATH } from "./validate.ts";
+
+const encoder = new TextEncoder();
 
 // 구성원 합치기(`mergeMembers`, AGE-33). 독립 플러그인 폴더 2~16개를 한 플러그인의 구성원으로 묶은 새 폴더(`outDir`)를 쓴다.
 // 원본 폴더는 읽기만 한다. 매니페스트와 선언만 합친다: 코드 파일과 공용 항목은 옮기지 않고 issues로 알린다.
@@ -41,6 +44,8 @@ const SHARED_FIELDS: readonly string[] = [
   "methods",
   "entry",
 ];
+/** 목적 한 문장의 상한. `ExtensionManifestSchema`의 `purpose`(200자)와 같다 */
+const PURPOSE_LIMIT = 200;
 const NAME = new RegExp(EXTENSION_NAME_PATTERN);
 
 /** 합치기의 바깥 값. 설치된 이름은 새 이름의 충돌을 본다 */
@@ -102,8 +107,8 @@ export async function mergeMembers(
       reasons,
     });
   const target = await checkOutDir(
-    sources.map((source) => source.dir),
     input.outDir,
+    sources.map((source) => source.dir),
   );
   if (!target.ok) return target;
 
@@ -112,7 +117,12 @@ export async function mergeMembers(
   if (checked.manifest === undefined) return err(refusedOf(checked.issues));
   const issues: DevkitIssue[] = [...built.notes, ...checked.issues.map(toDevkitIssue)];
 
-  const written = await writeManifest(input.outDir, `${JSON.stringify(built.manifest, null, 2)}\n`);
+  const written = await writeOutDir(input.outDir, [
+    {
+      path: MANIFEST_PATH,
+      bytes: encoder.encode(`${JSON.stringify(built.manifest, null, 2)}\n`),
+    },
+  ]);
   if (!written.ok) return written;
   return ok({
     outDir: input.outDir,
@@ -125,10 +135,6 @@ export async function mergeMembers(
       to: `${input.name}/${source.name}`,
     })),
   });
-}
-
-function refusal(code: string, field: string, message: string): DevkitError {
-  return { kind: "invalid_input", message, reasons: [reasonOf(code, field, message)] };
 }
 
 function reasonOf(code: string, field: string, message: string): DevkitReason {
@@ -325,23 +331,55 @@ function buildManifest(
     hooks: [],
     ...(input.title === undefined ? {} : { title: input.title }),
   };
+  const purpose = purposeOf(input, sources);
   const manifest: Record<string, unknown> = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     name: input.name,
     version: first.version,
+    ...(purpose.text === undefined ? {} : { purpose: purpose.text }),
     plugins: [root, ...members.map((member) => member.decl)],
     orchestration: { members: names },
   };
-  return { manifest, notes: notesOf(sources, first, members) };
+  const notes = notesOf(sources, first, members);
+  if (purpose.truncated)
+    notes.push({
+      severity: "info",
+      code: "merge_purpose_truncated",
+      path: "/purpose",
+      message:
+        "원본들의 목적을 이어 붙이니 200자를 넘어 잘랐다. 목적을 직접 주려면 purpose를 넘긴다",
+    });
+  return { manifest, notes };
 }
 
-/** 원본 하나의 구성원 선언. `id`는 원본 이름이고 `defaultEnabled`는 원본 것이 있으면 옮긴다. 대상끼리의 의존 줄은 뺀다 */
+/**
+ * 합친 목적. 입력이 있으면 입력 그대로다(길이는 매니페스트 검사가 본다). 없으면 원본들의 `purpose`를 선언 순서대로
+ * `; `로 잇고, 상한을 넘으면 자른다. 원본에 하나도 없으면 목적을 만들지 않는다
+ */
+function purposeOf(
+  input: MembersMergeInput,
+  sources: readonly Source[],
+): { readonly text: string | undefined; readonly truncated: boolean } {
+  if (input.purpose !== undefined) return { text: input.purpose, truncated: false };
+  const purposes = sources.flatMap((source) => {
+    const purpose = source.raw["purpose"];
+    return typeof purpose === "string" && purpose !== "" ? [purpose] : [];
+  });
+  if (purposes.length === 0) return { text: undefined, truncated: false };
+  const chars = Array.from(purposes.join("; "));
+  return chars.length > PURPOSE_LIMIT
+    ? { text: chars.slice(0, PURPOSE_LIMIT).join(""), truncated: true }
+    : { text: chars.join(""), truncated: false };
+}
+
+/**
+ * 원본 하나의 구성원 선언. `id`는 원본 이름이다. `defaultEnabled`는 원본 독립 플러그인이 처음 켜져 있었는지를 그대로 쓴다
+ * (`startsOn`). 대상끼리의 의존 줄은 뺀다
+ */
 function memberOf(source: Source, names: readonly string[]): Member {
   const decl: Record<string, unknown> = { ...source.decl };
   delete decl["id"];
-  delete decl["defaultEnabled"];
-  const enabled = source.decl["defaultEnabled"] ?? source.raw["defaultEnabled"];
-  if (enabled !== undefined) decl["defaultEnabled"] = enabled;
+  decl["defaultEnabled"] = startsOn(source);
   const dropped: string[] = [];
   const lines = decl["dependsOn"];
   if (Array.isArray(lines)) {
@@ -355,6 +393,17 @@ function memberOf(source: Source, names: readonly string[]): Member {
     else decl["dependsOn"] = kept;
   }
   return { decl: { id: source.name, ...decl }, dropped };
+}
+
+/**
+ * 원본 독립 플러그인이 처음 켜져 있었는가. `pluginDefaultEnabled`와 같은 규칙이다: 플러그인 선언의 값이 먼저이고, 선언에 없으면
+ * id가 없는 뿌리 플러그인은 매니페스트 최상위의 `defaultEnabled`(없으면 켬), id가 있는 플러그인은 끔이다
+ */
+function startsOn(source: Source): boolean {
+  const own = source.decl["defaultEnabled"];
+  if (own !== undefined) return own !== false;
+  if (source.decl["id"] !== undefined) return false;
+  return source.raw["defaultEnabled"] !== false;
 }
 
 /** 의존 대상이 합치는 원본 가운데 하나(이름이나 `이름/id`)인가 */
@@ -405,36 +454,6 @@ function notesOf(
   return notes;
 }
 
-/**
- * 출력 폴더 검사. 원본 안이면 거절하고(원본 가운데 하나라도 포함하거나 그 안이면), 있으면 빈 폴더여야 한다.
- * 없는 폴더는 괜찮다(쓸 때 만든다). 설치본이나 저장소 폴더 거절은 포트가 한다
- */
-async function checkOutDir(
-  dirs: readonly string[],
-  outDir: string,
-): Promise<Result<void, DevkitError>> {
-  const inside = dirs.find((dir) => isInside(dir, outDir));
-  if (inside !== undefined)
-    return err(
-      refusal("out_dir_inside_source", "outDir", `outDir is inside the source folder ${inside}`),
-    );
-  const found = await io(outDir, () => stat(outDir));
-  if (!found.ok) return found.error.kind === "not_found" ? ok(undefined) : found;
-  if (!found.value.isDirectory())
-    return err(refusal("out_dir_not_folder", "outDir", `${outDir} is not a folder`));
-  const children = await io(outDir, () => readdir(outDir));
-  if (!children.ok) return children;
-  return children.value.length === 0
-    ? ok(undefined)
-    : err(refusal("out_dir_not_empty", "outDir", `${outDir} is not empty`));
-}
-
-/** `inner`이 `outer`와 같거나 그 안에 있는가. 이름만 접두로 같은 형제 폴더는 안이 아니다 */
-function isInside(outer: string, inner: string): boolean {
-  const rel = relative(outer, inner);
-  return rel === "" || (rel.split(sep)[0] !== ".." && !isAbsolute(rel));
-}
-
 /** 구성원 목록 요약. 합친 매니페스트에는 구성 블록이 없으므로 `blockIds`는 비어 있다 */
 function membersOf(manifest: ExtensionManifest): MemberInfo[] {
   return pluginsOf(manifest).flatMap((entry) => {
@@ -450,80 +469,11 @@ function membersOf(manifest: ExtensionManifest): MemberInfo[] {
         drives: entry.decl.drives === true,
         defaultEnabled: pluginDefaultEnabled(manifest, entry),
         blockIds: [],
+        injects: [],
+        tools: [],
       },
     ];
   });
-}
-
-/**
- * 매니페스트를 쓴다. 없는 폴더는 얕은 것부터 만들고(이미 있던 폴더는 건드리지 않는다), 매니페스트는 마지막에 쓴다.
- * 중간에 실패하면 우리가 쓴 파일과 만든 폴더만 지운다. 지우지 못한 것은 오류 글에 남긴다
- */
-async function writeManifest(outDir: string, text: string): Promise<Result<void, DevkitError>> {
-  const target = join(outDir, MANIFEST_PATH);
-  const missing = await missingDirsOf(dirname(target));
-  if (!missing.ok) return missing;
-  const made: string[] = [];
-  const wrote: string[] = [];
-  const failure = await createAll(missing.value, target, text, made, wrote);
-  if (failure === undefined) return ok(undefined);
-  const kept = await undo(wrote, made);
-  if (kept.length === 0) return err(failure);
-  const names = kept.map((path) => relative(outDir, path) || ".");
-  return err({
-    ...failure,
-    message: `${failure.message}; kept because they could not be removed: ${names.join(", ")}`,
-  });
-}
-
-/** `path`와 그 위쪽 가운데 아직 없는 폴더를 얕은 것부터 돌려준다. 있는 것이 파일이면 거절한다 */
-async function missingDirsOf(path: string): Promise<Result<string[], DevkitError>> {
-  const found = await io(path, () => stat(path));
-  if (found.ok)
-    return found.value.isDirectory()
-      ? ok([])
-      : err(refusal("out_dir_not_folder", "outDir", `${path} is not a folder`));
-  if (found.error.kind !== "not_found") return found;
-  const above = dirname(path);
-  if (above === path) return ok([path]);
-  const higher = await missingDirsOf(above);
-  return higher.ok ? ok([...higher.value, path]) : higher;
-}
-
-/** 폴더를 얕은 것부터 만들고 매니페스트를 쓴다. 처음 실패에서 멈춘다. 만든 것과 쓴 것은 `made`와 `wrote`에 남긴다 */
-async function createAll(
-  dirs: readonly string[],
-  target: string,
-  text: string,
-  made: string[],
-  wrote: string[],
-): Promise<DevkitError | undefined> {
-  for (const dir of dirs) {
-    // oxlint-disable-next-line no-await-in-loop -- 폴더는 얕은 것부터 차례로 만든다 (eng.typescript.guide TY-22)
-    const done = await io(dir, () => mkdir(dir));
-    if (!done.ok) return done.error;
-    made.push(dir);
-  }
-  // 쓰기 전에 기록한다. 쓰다 실패해 생긴 부분 파일도 지우도록 하고, 없으면 `rm`의 force가 무시한다
-  wrote.push(target);
-  const done = await io(MANIFEST_PATH, () => writeFile(target, text));
-  return done.ok ? undefined : done.error;
-}
-
-/** 우리가 쓴 파일을 지우고, 우리가 만든 폴더를 안쪽부터 비울 때만 지운다. 지우지 못한 경로를 돌려준다 */
-async function undo(wrote: readonly string[], made: readonly string[]): Promise<string[]> {
-  const removed = await Promise.all(
-    wrote.map(async (path) =>
-      (await attemptAsync(() => rm(path, { force: true }))).ok ? undefined : path,
-    ),
-  );
-  const leftovers = removed.filter((path): path is string => path !== undefined);
-  for (const dir of made.toReversed()) {
-    // oxlint-disable-next-line no-await-in-loop -- 폴더는 안쪽부터 지워야 한다 (eng.typescript.guide TY-22)
-    const gone = await attemptAsync(() => rmdir(dir));
-    if (!gone.ok) leftovers.push(dir);
-  }
-  return leftovers;
 }
 
 /** 매니페스트 검사 오류로 거절한다. 사유마다 코드와 매니페스트 안 경로를 싣는다(떼기와 같은 모양) */

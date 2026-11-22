@@ -470,6 +470,8 @@ test("devkit port: editMembers edits the source folder and reports the member; i
       drives: false,
       defaultEnabled: false,
       blockIds: [],
+      injects: [],
+      tools: [],
     },
   ]);
   expect(edited.value.changedFiles).toEqual([

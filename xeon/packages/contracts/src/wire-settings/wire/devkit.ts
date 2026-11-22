@@ -272,7 +272,7 @@ export const ExtTestListResultSchema: TUnsafe<ExtTestListResult> = Type.Unsafe<E
 );
 
 /**
- * 구성원 편집(`ext.members.edit`, L3.authoring.spec §3.3). 종류는 `MemberOp` 네 가지뿐이고 한 번에 1~32건을 받는다.
+ * 구성원 편집(`ext.members.edit`, L3.authoring.spec §3.3). 종류는 `MemberOp` 다섯 가지뿐이고 한 번에 1~32건을 받는다.
  * 모양은 `MemberOp`(services/devkit.ts)와 같다
  */
 const MemberModeShape = Type.Union([
@@ -289,6 +289,11 @@ const MemberOpShape = Type.Union([
     mode: Type.Optional(MemberModeShape),
   }),
   closed({ kind: Type.Literal("rename"), id: PluginIdSchema, to: PluginIdSchema }),
+  closed({
+    kind: Type.Literal("retitle"),
+    id: PluginIdSchema,
+    title: Type.String({ maxLength: 64 }),
+  }),
   closed({ kind: Type.Literal("remove"), id: PluginIdSchema }),
   closed({
     kind: Type.Literal("move"),
@@ -297,6 +302,10 @@ const MemberOpShape = Type.Union([
   }),
 ]);
 
+const MemberInjectShape = closed({
+  id: Id,
+  kind: Type.Union([Type.Literal("instruction"), Type.Literal("skill")]),
+});
 const MemberInfoShape = closed({
   id: PluginIdSchema,
   registrationId: RegistrationIdSchema,
@@ -306,6 +315,8 @@ const MemberInfoShape = closed({
   drives: Type.Boolean(),
   defaultEnabled: Type.Boolean(),
   blockIds: Type.Array(Id, { maxItems: 64 }),
+  injects: Type.Array(MemberInjectShape, { maxItems: 64 }),
+  tools: Type.Array(Name, { maxItems: 64 }),
 });
 const MembersEditParamsShape = request({
   dir: Path,
@@ -421,6 +432,7 @@ const MembersDetachParamsShape = request({
   name: Type.Optional(Name),
   keepDependency: Type.Optional(Type.Boolean()),
   dependencyKind: Type.Optional(DependencyKindSchema),
+  purpose: Type.Optional(Type.String({ maxLength: 200 })),
 });
 export const ExtMembersDetachParamsSchema: TUnsafe<Req<MembersDetachInput>> = Type.Unsafe<
   Req<MembersDetachInput>
@@ -454,6 +466,7 @@ const MembersMergeParamsShape = request({
   outDir: Path,
   name: Name,
   title: Type.Optional(Type.String({ maxLength: 64 })),
+  purpose: Type.Optional(Type.String({ maxLength: 200 })),
 });
 export const ExtMembersMergeParamsSchema: TUnsafe<Req<MembersMergeInput>> = Type.Unsafe<
   Req<MembersMergeInput>

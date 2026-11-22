@@ -19,6 +19,8 @@ function info(id: string, over: Partial<MemberInfo> = {}): MemberInfo {
     drives: false,
     defaultEnabled: false,
     blockIds: [],
+    injects: [],
+    tools: [],
     ...over,
   };
 }

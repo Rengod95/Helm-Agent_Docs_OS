@@ -116,6 +116,8 @@ function applyOp(state: State, op: MemberOp): Result<State, DevkitError> {
       return addMember(state, op);
     case "rename":
       return renameMember(state, op);
+    case "retitle":
+      return retitleMember(state, op);
     case "remove":
       return removeMember(state, op);
     case "move":
@@ -225,6 +227,22 @@ function renameMember(
     orch === undefined ? undefined : renameRefs(orch, op.id, to),
   );
   return ok({ ...state, manifest, actions, files });
+}
+
+/** 보이는 이름만 바꾼다. id, 코드 파일, 구성 블록은 그대로다. 빈 문자열이면 `title` 키를 지운다. 64자 상한은 매니페스트 검사가 본다 */
+function retitleMember(
+  state: State,
+  op: Extract<MemberOp, { readonly kind: "retitle" }>,
+): Result<State, DevkitError> {
+  const plugins = pluginsIn(state.manifest);
+  if (!plugins.ok) return plugins;
+  const at = plugins.value.findIndex((decl) => idOf(decl) === op.id);
+  if (at < 0) return err(missing(state.manifest, op.id));
+  const title = op.title === "" ? undefined : op.title;
+  const retitled = plugins.value.map((decl, index) =>
+    index === at ? withKey(decl, "title", title) : decl,
+  );
+  return ok({ ...state, manifest: withKey(state.manifest, "plugins", retitled) });
 }
 
 function removeMember(

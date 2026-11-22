@@ -114,6 +114,7 @@ import type {
 | `LoadState`, `LoadStage`, `LoadDiagnosticCode`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadedExtensionInfo` | 타입, 스키마 | X.loading-trust.spec §3.4 |
 | `createExtensionLoader`, `ExtensionLoader`, `LoaderMode`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `RemovalPreview`, `RemoveResult`, `ReloadOptions`, `ReloadStarted`, `ReloadApplied`, `ReloadFailure`, `LoadInstalledStarted`, `LoadInstalledFailure` | 함수, 인터페이스, 클래스 | X.loading-trust.spec §3.5, §4.4.4 |
 | `RESERVED_EXT_KEYS`, `reservedExtensionSettings`, `settingsFromManifest`, `loadingTrustSettings` | 상수, 함수, `defineSettings` 결과 | X.loading-trust.spec §3.6 |
+| `satisfiesRange`, `checkDependencies`, `dependentsOf`, `blockingDependents`, `updateBreaks`, `missingForEnabled`, `enableOrder`, `dependencyViewOf`, `Dependent`, `DependencyNode`, `DependencyProblem`, `DependencyProblemCode`, `DependencyReport`, `DependencyView` | 함수, 타입 | X.loading-trust.spec §4.3.1(6번 단계 의존 확인)과 F.extensions.spec §3.1(`dependsOn`, AGE-33). 구현은 `loading-trust/dependency-graph.ts` [제안] |
 | `uiSettings` | `defineSettings` 결과 | X.loading-trust.spec §3.10, §6 |
 | `resolveAppFile`, `AppFileResult` | 함수, 타입 | X.loading-trust.spec §3.10 |
 | `UiItemReport`, `UiEntryReport`, `UiIssue` | 인터페이스 | X.loading-trust.spec §3.10 |

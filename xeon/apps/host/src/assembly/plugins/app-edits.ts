@@ -7,7 +7,7 @@ import { hashPluginTree } from "./content-hash.ts";
 // 장부는 메모리에만 둔다. 앱을 다시 켜면 비어 있고, 그때 남아 있던 훑기 항목은 `unknown`으로 남는다 [제안]
 
 /** 장부가 기억하는 해시 수의 상한. 넘으면 오래된 것부터 잊는다 */
-export const APP_EDIT_LEDGER_LIMIT = 256;
+const APP_EDIT_LEDGER_LIMIT = 256;
 
 export interface AppEditLedger {
   /** 폴더의 지금 내용 해시를 적는다. 읽지 못하면 아무것도 적지 않는다(그 폴더는 손 수정으로 남는다) */

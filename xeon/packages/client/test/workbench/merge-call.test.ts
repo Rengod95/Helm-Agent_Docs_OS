@@ -25,6 +25,8 @@ const MERGED: WireResult<"ext.members.merge"> = {
       drives: false,
       defaultEnabled: false,
       blockIds: [],
+      injects: [],
+      tools: [],
     },
   ],
   changedFiles: [".fresnel-plugin/plugin.json"],
