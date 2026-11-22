@@ -183,7 +183,8 @@ export async function wrapArgvWith(
           (path) => !path.startsWith("/") || insideReadDeny(path, effective.readDeny),
         )
       : carveOuts;
-    if (candidates.length > 0 && deps.provider.kind !== "seatbelt") {
+    // 열린 정책의 읽기 예외는 Seatbelt가 아니면 srt의 `allowRead`로 넘긴다(아래). 열린 정책이 아닌 길은 Seatbelt만 받는다
+    if (candidates.length > 0 && deps.provider.kind !== "seatbelt" && !open) {
       return err({
         kind: "failed",
         message: "read carve-outs are not supported on this sandbox provider",
@@ -201,6 +202,9 @@ export async function wrapArgvWith(
       });
     }
     carve = rules.value;
+    if (open && deps.provider.kind !== "seatbelt" && candidates.length > 0) {
+      resolved = { ...effective, readCarve: [...carve.literal, ...carve.subpath] };
+    }
   }
   // "no-write"와 "script-env" 프로필이 쓸 수 있는 곳은 이 프로세스 전용의 빈 임시 폴더 하나뿐이다. 다른 프로세스와 나누지 않고 cleanup이 지운다
   let processTemp: string | undefined;

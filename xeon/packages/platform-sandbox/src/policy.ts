@@ -12,6 +12,11 @@ export interface EffectivePolicy {
   readonly writeDeny: readonly string[];
   /** 읽기 허용 목록. 있으면 허용 목록 방식이다(`SandboxPolicy.readAllow`). 보호 경로를 품은 항목은 빠져 있다 */
   readonly readAllow?: readonly string[];
+  /**
+   * 열린 정책에서 읽기 거부 경로 안을 다시 읽게 하는 경로(srt `allowRead`). 허용 목록 방식이 아니다. Seatbelt는 프로필 끝의 규칙을 쓰므로 비워 두고,
+   * bubblewrap처럼 프로필 끝이 없는 제공자가 이 값으로 읽기 예외를 받는다. 실제 Linux에서는 돌려 보지 못했다 [제안, AGE-63]
+   */
+  readonly readCarve?: readonly string[];
 }
 
 /** 상태 탐지가 찾은 헬퍼 절대 경로(L0.sandbox.spec §3.2 마지막 행, §5.3) */
@@ -118,7 +123,11 @@ export function toSrtFileConfig(policy: EffectivePolicy): SrtCommandConfig {
         policy.readAllow === undefined
           ? policy.readDeny.map(toPathEntry)
           : ["/", ...policy.readDeny.map(toPathEntry)],
-      ...(policy.readAllow === undefined ? {} : { allowRead: policy.readAllow.map(toPathEntry) }),
+      ...(policy.readAllow !== undefined
+        ? { allowRead: policy.readAllow.map(toPathEntry) }
+        : policy.readCarve === undefined || policy.readCarve.length === 0
+          ? {}
+          : { allowRead: policy.readCarve.map(toPathEntry) }),
       denyWrite: policy.writeDeny.map(toPathEntry),
       allowGitConfig: false,
     },

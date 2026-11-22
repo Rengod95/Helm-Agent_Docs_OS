@@ -72,6 +72,23 @@ export class ExecutionError extends Error {
 }
 
 /**
+ * 자식 프로세스가 부모 env에서 이름 그대로 받는 허용 목록의 유일한 정본(L0.exec.spec §3.5 pass 행) [결정: 2026-11-22, 사용자, AGE-63].
+ * 셸 도구(exec env 빌더)와 플러그인 격리 프로세스, 가져오기 훑기, 플러그인 스크립트, MCP 서버가 같은 목록을 쓴다.
+ */
+export const BASE_ENV_PASS_NAMES: readonly string[] = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TZ",
+  "TMPDIR",
+  "SHELL",
+];
+
+/**
  * 자식 프로세스 env 거부 목록의 유일한 정본(L0.exec.spec §3.5 deny 행). 끝의 *만 와일드카드다.
  * exec env 빌더, sandbox 자가 시험, secrets의 sops 호출 env가 같은 목록을 쓴다.
  */

@@ -783,7 +783,7 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 
 ### 4.10 격리 확장 자식 포트 `IsolationProcessPort`
 
-[결정: 2026-11-21, 사용자, AGE-63] 이 포트의 기본 정책은 열린 정책(셸 도구와 같이 쓰기 루트 `/`, 보호 경로만 거부)이다. 아래의 "쓰기 없음, 읽기 허용 목록" 설명은 `narrow: true` 호출(승인 전 드래프트, 설정 `l0.sandbox.narrowDrafts`)에만 맞다. 이전에는 기본이 좁은 정책이었다([결정: 2026-11-17 사용자]의 §3.4는 이 결정으로 대체되었다).
+[결정: 2026-11-21, 사용자, AGE-63] 이 포트의 기본 정책은 열린 정책(셸 도구와 같이 쓰기 루트 `/`, 보호 경로만 거부)이다. 아래의 "쓰기 없음, 읽기 허용 목록" 설명은 `narrow: true` 호출(승인 전 드래프트의 스크립트와 플러그인 프로세스, 설정 `l0.sandbox.narrowDrafts`)에만 맞다. 자식 env는 어느 정책이든 셸 도구와 같은 허용 목록(`BASE_ENV_PASS_NAMES`)의 부모 값에 `spec.env`를 더한 것이다(MCP 서버는 정의의 평문 env와 시크릿) [결정: 2026-11-22, 사용자, AGE-63]. 이전에는 기본이 좁은 정책이었다([결정: 2026-11-17 사용자]의 §3.4는 이 결정으로 대체되었다).
 
 플러그인 호스트 프로세스(엔진 실행 파일을 다른 모드로 다시 띄운 것)를 샌드박스로 감싸 띄운다. 포트 모양은 `F.extensions.spec` §3.2.1이 정본이고, 구현은 `createIsolationProcessPort(deps)`(`src/port/isolation-spawn.ts`)다. 파이프 기동은 §4.9의 `spawnPiped`, 정지 순서는 `stopperOfPiped`(`src/port/child-stop.ts`)를 쓴다. `deps.sandbox`는 샌드박스 서비스를 spawn 때마다 찾는 함수다(조립 순서상 포트가 서비스보다 먼저 만들어진다). 조립은 `ProcessServiceDeps.sandbox`로 이 함수를 넘긴다. 함수가 없거나 undefined를 돌려주면 모든 spawn이 `sandbox_unavailable`(`reason: "service_missing"`)이다.
 

@@ -444,6 +444,7 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
       PATH: process.env["PATH"],
       HOME: "/home/user",
       // 허용 목록 밖이다. 좁은 길의 자식에게 가면 안 된다
+      FAKE_TOKEN_FOR_TEST: "fixture-token-not-real",
       GITHUB_TOKEN: "fixture-token-not-real",
       ANTHROPIC_API_KEY: "fixture-key-not-real",
       MY_API_KEY: "fixture-key-two-not-real",
@@ -465,6 +466,7 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     expect(env["PLAIN"]).toBe("kept");
     // 샌드박스 값이 정의 값을 이긴다
     expect(env["SANDBOX_PROXY"]).toBe("from-sandbox");
+    expect(env).not.toHaveProperty("FAKE_TOKEN_FOR_TEST");
     expect(env).not.toHaveProperty("GITHUB_TOKEN");
     expect(env).not.toHaveProperty("ANTHROPIC_API_KEY");
     expect(env).not.toHaveProperty("MY_API_KEY");
@@ -474,7 +476,7 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     await child.exited;
   });
 
-  test("an open launch's child environment keeps the parent names and token names except FRESNEL_ ones, then the spec env, then the sandbox env", async () => {
+  test("an open launch's child environment has the same allow-list as a narrow one: only the shell tool's names, the spec env, then the sandbox env [결정: 2026-11-22, 사용자, AGE-63]", async () => {
     const sandbox = fakeSandbox(
       ok({
         argv: [process.execPath, MCP_CHILD, "env"],
@@ -484,12 +486,13 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     const parentEnv = {
       PATH: process.env["PATH"],
       HOME: "/home/user",
-      // 열린 길은 이름 패턴으로 거르지 않는다(셸 도구와 같은 결정)
+      USER: "fake-user",
+      TZ: "UTC",
+      // 허용 목록 밖이다. 열린 길의 자식에게도 가면 안 된다
+      FAKE_TOKEN_FOR_TEST: "fixture-token-not-real",
       GITHUB_TOKEN: "fixture-token-not-real",
       ANTHROPIC_API_KEY: "fixture-key-not-real",
-      MY_API_KEY: "fixture-key-two-not-real",
       UNLISTED_NAME: "not-passed",
-      // Fresnel 내부 값은 어느 길로도 나가지 않는다
       FRESNEL_FOO: "fresnel-internal",
     };
     const { port } = open({ sandbox: () => sandbox.source, parentEnv });
@@ -503,13 +506,15 @@ describe("IsolationProcessPort.spawn with the plugin-host sandbox profile", () =
     const env = await envOf(child);
     expect(env["PATH"]).toBe(process.env["PATH"]);
     expect(env["HOME"]).toBe("/home/user");
-    expect(env["GITHUB_TOKEN"]).toBe("fixture-token-not-real");
-    expect(env["ANTHROPIC_API_KEY"]).toBe("fixture-key-not-real");
-    expect(env["MY_API_KEY"]).toBe("fixture-key-two-not-real");
-    expect(env["UNLISTED_NAME"]).toBe("not-passed");
+    expect(env["USER"]).toBe("fake-user");
+    expect(env["TZ"]).toBe("UTC");
     expect(env["PLAIN"]).toBe("kept");
     // 샌드박스 값이 정의 값을 이긴다
     expect(env["SANDBOX_PROXY"]).toBe("from-sandbox");
+    expect(env).not.toHaveProperty("FAKE_TOKEN_FOR_TEST");
+    expect(env).not.toHaveProperty("GITHUB_TOKEN");
+    expect(env).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(env).not.toHaveProperty("UNLISTED_NAME");
     expect(env).not.toHaveProperty("FRESNEL_FOO");
     child.stdin.end();
     await child.exited;
