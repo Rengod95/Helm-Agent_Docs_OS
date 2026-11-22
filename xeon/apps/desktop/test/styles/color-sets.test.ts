@@ -74,16 +74,21 @@ function variablesOf(path: string, prefix: string): readonly (readonly [string, 
     .filter(([name]) => name.startsWith(prefix));
 }
 
-test("review takes Inject's kind colour from the cobalt set, once for both themes", () => {
+// 라이트의 표시는 한 단계 진한 solid, 시스템 다크와 앱 다크는 graphic(셋의 값은 그대로, 쓰는 자리만 다르다)
+test("review takes Inject's kind colour from the cobalt set: solid in light, graphic in both darks", () => {
   expect(variablesOf("views/craft/review/review.css", "--rv-inject")).toEqual([
+    ["--rv-inject", "var(--fr-color-cobalt-solid)"],
+    ["--rv-inject", "var(--fr-color-cobalt-graphic)"],
     ["--rv-inject", "var(--fr-color-cobalt-graphic)"],
   ]);
 });
 
-test("metrics and trace take Inject's mark, tile face and tile glyph from the cobalt set, once for both themes", () => {
+test("metrics and trace take Inject's mark (solid in light, graphic in both darks), tile face and tile glyph from the cobalt set", () => {
   expect(variablesOf("views/craft/metrics/viz.css", "--viz-inject")).toEqual([
-    ["--viz-inject", "var(--fr-color-cobalt-graphic)"],
+    ["--viz-inject", "var(--fr-color-cobalt-solid)"],
     ["--viz-inject-tab", "var(--fr-color-cobalt-face)"],
     ["--viz-inject-tab-text", "var(--fr-color-cobalt-text)"],
+    ["--viz-inject", "var(--fr-color-cobalt-graphic)"],
+    ["--viz-inject", "var(--fr-color-cobalt-graphic)"],
   ]);
 });

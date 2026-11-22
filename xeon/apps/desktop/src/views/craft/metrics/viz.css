@@ -5,8 +5,9 @@
    막음은 산호, 물음은 호박, 고침은 슬레이트, 통과는 흐린 먹, 고장(오류·시간 초과)만 위험 글자색이다.
    다크는 text.secondary와, 라이트는 text.primary와 섞는다(앱 테마 data-theme, 없으면 시스템 설정). */
 :root {
-  /* Inject는 앱의 cobalt 셋(`src/color-sets.css`, AGE-31)을 섞지 않고 그대로 쓴다. 테마는 셋이 바꾸므로 아래 다크 블록에 없다 */
-  --viz-inject: var(--fr-color-cobalt-graphic);
+  /* Inject는 앱의 cobalt 셋(`src/color-sets.css`, AGE-31)을 섞지 않고 그대로 쓴다. 타일 면과 글은 셋이 테마를 바꾼다.
+     표시는 라이트에서 한 단계 진한 solid다(graphic은 흰 바탕 대비 3.65로 아슬하다). 다크는 아래 두 블록에서 graphic이다 */
+  --viz-inject: var(--fr-color-cobalt-solid);
   --viz-hook: color-mix(in oklab, var(--cs-color-identity-amber) 62%, var(--cs-color-text-primary));
   --viz-drive: color-mix(in oklab, var(--cs-color-agent-stop-1) 82%, var(--cs-color-text-primary));
   --viz-tool: color-mix(in oklab, var(--cs-color-identity-mint) 70%, var(--cs-color-text-primary));
@@ -52,6 +53,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --viz-inject: var(--fr-color-cobalt-graphic);
     /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
     --viz-hook-tab: oklch(0.283 0.056 92);
     --viz-drive-tab: oklch(0.263 0.105 288);
@@ -102,6 +104,7 @@
   }
 }
 :root[data-theme="dark"] {
+  --viz-inject: var(--fr-color-cobalt-graphic);
   /* 종류 타일: G5 어두운 탭 면(참고 그림을 잰 밝기·세기에 종류의 색상)과 종류의 글 토큰 */
   --viz-hook-tab: oklch(0.283 0.056 92);
   --viz-drive-tab: oklch(0.263 0.105 288);
