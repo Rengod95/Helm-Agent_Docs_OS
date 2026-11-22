@@ -2827,12 +2827,13 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
  사이드카 · 연결됨      sonnet-5-5 · 41k · drive helm · 확장 실패 1 · 승인 2 · 알림 3
 ```
 
-- 목적: 확장 하나의 설계와 상태를 탭 여덟으로 봅니다(SC-17, SC-18, SC-20, SC-22).
+- 목적: 확장 하나의 설계와 상태를 탭 여덟으로 봅니다(SC-17, SC-18, SC-20, SC-22). 구성원이 있는 플러그인은 개요 다음에 구성원 탭이 하나 더 있습니다(§6.24.2).
 - 머리: 이름, 층, 종류, 등급(요청과 유효), 버전, 상태, "켜기·끄기", "지우기" 단추(아래 지우기 규칙), 더보기(`Menu`: 폴더 열기, 매니페스트 복사). 폴더 열기와 매니페스트 복사는 이번 범위 밖이다.
 
 | 탭 | 항목 | 출처 |
 |---|---|---|
 | 개요 | 설명, 저자, 설치 위치, `provides`·`requires`·`optional`과 바인딩 상태, `recordKinds`, `components`, 진단 | `ext.get { name }` |
+| 구성원 | 구성원이 있는 플러그인만(§6.24.2). 순서, 종류, 하는 일, 블록, 구성원 편집과 리뷰로 보내기 | `plugin.get`, `ext.members.read`, `ext.members.edit`, `plugin.draft.create`, `pluginReview.submitDraft`, `pluginReview.list` |
 | 훅 | 이름, fold, 예산 등급과 값, tier, p50·p95·최대, 실패 수 | 매니페스트 `plugins[].hooks`, `DEFAULT_BUDGETS_MS`와 `x.operations.budget.*`, 시간 |
 | drive 락과 상한 | `drives`, 상한 설정, 최근 drive 락(시작, 끝, 사유, 사용 턴·spawn·토큰) | `settings.get`, `lease.*` 이벤트 |
 | 설정 | 확장 설정 필드 | `settings.list` → `buildSettingsView`(plugins 탭에서 이 확장 키만) |
@@ -2870,6 +2871,32 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 버전 탭 표현 [결정: 오케스트레이터 기본값, fxHK]: 설치 시각은 엔진이 준 ISO 값을 그대로 쓰지 않고 앱의 다른 화면(스케줄·연결·시험)과 같은 로케일의 날짜와 시간 짧은 형식(`Intl.DateTimeFormat`, `dateStyle: "medium"`, `timeStyle: "short"`)으로 보입니다. 읽을 수 없는 값은 그대로 둡니다. 앱 안 설치(가져오기)가 같은 이름의 설치본을 바꾸며 남기는 이전 설치본의 출처는 `user`(사용자 연결)입니다. 폴더에는 Plugin Builder 묶음이라는 표시가 없어 `authored`로 적으면 가져온 것도 "플러그인 빌더"로 보이기 때문입니다 [근거: `apps/host/src/assembly/m4/devkit-port.ts`의 `install`].
 - 기본 플러그인의 번들 판 되돌리기: 번들 판(`bundledVersion`)이 설치본과 다르고 기록에 없으면 목록 맨 뒤에 "앱에 든 버전" 행을 더하고 그 행에 되돌리기 단추를 둡니다. 설치 시각 칸에는 날짜 대신 이 글을 보입니다. 번들 판이 설치본과 같거나 기록에 이미 있으면 행을 더하지 않습니다. 되돌리기는 번들 판을 먼저 기록한 뒤 바꿉니다(host-service HS-108 (4)). 번들 판의 상태 스키마 버전은 모르므로 스키마 검사와 "상태를 비우고 되돌리기" 제안을 하지 않습니다. 되돌린 기본 플러그인은 다음 시작에 번들 판이 설치본보다 높으면 번들 판으로 다시 바뀝니다. 이 한계는 host-service §10 57 [미결]이고, 단추는 그 한계를 안고 둡니다.
 - [결정: 사용자 수락, M4 T-XV] M4는 "전체" 단계를 냈습니다. 로더가 버전 기록을 보관하고(X-8, `X.loading-trust.spec` §3.11, §4.4.8) 되돌리기 왕복 시험이 있습니다(`ext-host/test/loading-trust/version-history.test.ts`, Y11의 근거). 대상 버전의 상태 스키마가 지금보다 높으면 되돌리기는 `state_schema_mismatch`로 멈추고, O-11이 "상태를 비우고 되돌리기"만 제안합니다. 되돌리기 순서는 끄기, 지금 설치본 기록, 파일 교체, 상태 비우기(요청 시), 켜기이고 교체가 실패하면 이전 파일로 돌린 뒤 다시 켭니다. `ext.versions`·`ext.rollback` 처리기(W-31)는 호스트에 연결됐습니다. 되돌린 판은 로더에 다시 읽기 길이 없어 다음 시작에 적용되므로 `ext.rollback`은 `appliesAt: "restart"`를 돌려줍니다(HS-108).
+
+#### 6.24.2 구성원 탭 (m6Mb, AGE-33)
+
+플러그인 하나가 `plugins[]`에 구성원을 여럿 두면(뿌리 밖의 항목, F.extensions.spec의 Registration `id`) 상세에 "구성원" 탭이 생깁니다. 이 탭이 답하는 물음은 하나입니다. "이 플러그인 안에서 무엇이 어떤 순서로 무슨 일을 하나". 구성원이 없는 플러그인의 상세는 바뀌지 않습니다.
+
+- 탭이 생기는 조건: `ext.list` 항목의 `plugins[]`에 `id`가 있는 Registration이 하나라도 있다. 탭 이름은 `DETAIL_TABS`의 `members`이고 개요 다음 자리다.
+- 줄 하나: 순서 번호, 손잡이(고칠 수 있을 때만), 종류 타일, 보이는 이름(매니페스트 `title`, 없으면 `id`. `title`이 있으면 `id`를 고정폭 글씨로 곁에 둔다), 하는 일, 블록, 줄 메뉴. 종류 타일은 리뷰 카드의 `KindTile`을 그대로 쓰고 색은 `--rv-<종류>` 토큰에서 온다. Drive가 앞, Hook이 뒤다. 둘 다 없으면 같은 너비의 빈자리다. 하는 일은 Drive면 "턴을 이끌어요", Hook이면 걸린 자리의 사용자 말(C2 상세의 이름표), 이름표가 없는 훅은 수로 적는다. 블록은 구성 선언에서 `plugin`이 그 구성원인 블록의 제목이고 두 개까지 보이고 나머지는 "+n"이다. 항목은 간격으로 나누고 구분 기호를 쓰지 않는다.
+- Inject와 도구: `MemberInfo`에 구성원 단위의 Inject와 도구 값이 없어 그리지 않는다. 지어낸 값을 넣지 않는다 [미결: 엔진 값 없음, §6.24.2 끝] [근거: `packages/contracts/src/services/devkit.ts` `MemberInfo`].
+- 배치: 줄 목록(`list`)이 배포 판이다. 한 줄에 물음의 답이 다 서고 구성원 15개(상한)에서도 한 화면에 읽힌다. 목록과 자세히(`split`)는 왼쪽 15rem 이름 줄과 오른쪽 자세히(하는 일, 순서, 블록, 동작 단추)다. 개발 빌드(`BUILD_CHECKS`)에만 배치 고르개와 표본 장면(실제 엔진, 구성원 넷, 열다섯, 잠긴 플러그인)이 있고 배포 빌드에는 그 파일이 실리지 않는다 [결정: 리드 기본값, m6Mb].
+
+| 동작 | 화면 | wire |
+|---|---|---|
+| 읽기 | 원본 폴더가 있으면 원본을, 없거나 엔진이 거절하면 설치본 매니페스트를 그린다 | `plugin.get { name }`의 `source` → `ext.members.read { dir }`. 대신 `ext.get` 매니페스트 |
+| 더하기 | "구성원 더하기" 뒤 펼침 칸: 종류(Hook, Inject, Drive), 이름(`id`, `memberIdErrorOf` 규칙과 중복 검사), 보이는 이름(선택). Drive는 뿌리가 L3일 때만 고를 수 있고 까닭은 정보 아이콘 뒤다. 상한 15에 닿으면 단추가 꺼지고 까닭이 정보 아이콘 뒤에 있다 | `ext.members.edit { dir, ops: [{ kind: "add", id, title?, mode }] }` |
+| 이름 바꾸기 | 줄 메뉴 "이름 바꾸기", 줄 안의 입력칸 | `rename { id, to }` |
+| 빼기 | 줄 메뉴 "빼기"와 확인 대화. 블록이 쓰는 구성원은 메뉴 항목이 꺼지고 "블록이 써요"를 보인다. 엔진이 코드 파일을 남기면(`member_file_kept`) 남긴 파일을 알린다 | `remove { id }` |
+| 순서 | 손잡이 끌기(5px 넘게 움직여야 시작), 손잡이에서 Space나 Enter로 집고 화살표, Home, End로 옮긴 뒤 다시 Space나 Enter로 놓기, Esc로 취소. 줄에서 Alt+위아래, 줄 메뉴 "위로", "아래로". 옮긴 결과는 낭독 영역(`aria-live`)이 읽는다 | `move { id, toIndex }` |
+| 리뷰로 보내기 | 원본이 승인본과 다르면 알림 카드 "바꾼 구성원은 아직 돌지 않아요"와 "승인하기 전에는 승인된 버전이 그대로 돌아요"를 보이고 단추 하나로 보낸다. 보낸 뒤에는 "리뷰로 보냈어요"와 "리뷰에서 보기" | `plugin.draft.create { dir }` → `pluginReview.submitDraft { draftId }` |
+| 리뷰에서 보기 | Craft 리뷰 화면을 열고 그 항목을 고른다 | `pluginReview.list`에서 이 이름의 마지막 대기 항목 |
+
+- 편집은 원본 폴더에 바로 쓴다. 엔진의 승인본은 리뷰에서 승인할 때까지 그대로 돈다.
+- 잠김: 내장 플러그인, 원본 폴더가 없는 설치본, 엔진이 그 폴더를 거절한 경우(`denied`)다. 머리에 자물쇠와 "읽기 전용"을 두고 까닭은 정보 아이콘 뒤에 둔다. 이때 손잡이, 줄 메뉴, 더하기는 그리지 않는다 [근거: `apps/desktop/src/views/craft/members/members-view.tsx`].
+- 상태: 읽는 중 `Skeleton`, 읽기 실패 한 줄, 끊김 한 줄. 편집 실패는 엔진의 거절 종류(`denied`, `not_found`, `no_manifest`, 입력 오류)와 끊김, 전환 중에 맞춘 한 문장이다. 리뷰 목록이 바뀌면(`pluginReview.onChanged`) 다시 읽는다.
+- 구성기: 구성 선언의 블록 줄(구성기 코드 보기, 캔버스 노드)에 그 블록을 맡은 구성원의 이름을 "구성원 <이름>"으로 더한다. 뿌리의 블록에는 아무것도 서지 않는다. 리뷰 카드와 프로필 화면에는 지금 블록 줄이 없어 더하지 않았다.
+- 뒤에 올 자리: 구성원 사이 의존(`dependsOn`), 떼기, 합치기는 이 탭에 만들지 않는다(enDep). 떼기와 합치기는 줄 메뉴의 구분선 아래(빼기 곁)에, 의존은 줄 목록의 순서 번호 칸 왼쪽에 그리는 1px 연결선과 자세히의 "의존" 행에 들어간다 [제안].
+- [미결] 엔진 값과 동작 [근거: `apps/host/src/assembly/plugins/review.ts`, 2026-11-22 m6Mb 실제 엔진 확인]: (1) 구성원 단위의 Inject와 도구 값이 `MemberInfo`에 없다. (2) 보이는 이름(`title`)을 바꾸는 op가 없다(`rename`은 `id`만 바꾼다). (3) 원본 감시가 `ext.members.edit`이 쓴 파일을 먼저 보고 출처 `unknown`인 대기 항목을 만들고, 같은 해시라 `submitDraft`가 그 항목을 돌려준다. 그래서 구성원 편집으로 보낸 항목이 손 수정(`hand_edit`)으로 보여 승인되지 않는다(`apps/host/src/assembly/plugins/review.ts`의 `scanEntry`, `proposeItem`, `applyApproval`).
 
 ### 6.25 P-18 플레이그라운드(플러그인 화면 호스트)
 
