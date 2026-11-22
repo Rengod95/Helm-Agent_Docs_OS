@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { useThreadSummaries } from "../../../state/engine/index.ts";
+import { takeReviewFocus } from "./focus.ts";
 import { useRailAvoid } from "../../shell/rail-avoid.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
 import { SIDE_ROW } from "../../side-row.ts";
@@ -118,7 +119,8 @@ function useReviewState(data: ReviewData, ready: Ready) {
   );
   const groups = useMemo(() => groupsOf(pending, decidedItems), [pending, decidedItems]);
   const ids = useMemo(() => groups.flatMap((g) => g.items.map((i) => i.itemId)), [groups]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // 테스트 챗 창의 "리뷰에서 보기"가 둔 항목이 있으면 그것을 먼저 고른다(`focus.ts`)
+  const [selected, setSelected] = useState<string | null>(takeReviewFocus);
   const current = selected !== null && ids.includes(selected) ? selected : (ids[0] ?? null);
   const item = pending.find((i) => i.itemId === current) ?? kept.get(current ?? "") ?? null;
   const handleRef = useRef<DecisionHandle | null>(null);

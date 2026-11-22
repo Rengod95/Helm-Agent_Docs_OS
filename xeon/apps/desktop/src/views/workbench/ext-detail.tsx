@@ -44,6 +44,7 @@ import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { requestAddon } from "../plugin/plugin-pick.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
@@ -454,6 +455,7 @@ export function ExtDetail(props: {
           </div>
         </div>
         <div className="flex flex-none items-center gap-2">
+          <TestChatButton plugin={entry.name} />
           {/* 시안 c02 머리: "끄기" 단추 하나와 "…" 메뉴. 켜기·끄기 요청은 스위치와 같은 `onToggle`이다 */}
           <Button
             size="xs"

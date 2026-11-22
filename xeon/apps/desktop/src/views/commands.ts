@@ -936,6 +936,21 @@ export interface CraftMetricsCommands {
   minSample(): Promise<Result<number | null, CommandError>>;
 }
 
+/**
+ * 테스트 챗 창(C7, `views/craft/test-chat/`)의 쓰기. 창은 대화 화면의 부품을 그대로 쓰므로 창이 떠 있는 동안 그 대화를 고른 대화로
+ * 빌리고(`selectThread`), 창이 숨으면 돌려준다. 돌려줄 대화가 없으면 `leave`로 고른 대화를 비운다
+ */
+export interface TestChatCommands {
+  /** `craftChat.open`: 테스트 챗을 연다(없으면 만든다). 맥락 참조는 열 때 엔진이 한 번 기록한다 */
+  open(
+    params: WireParams<"craftChat.open">,
+  ): Promise<Result<WireResult<"craftChat.open">, CommandError>>;
+  /** `pluginReview.submitDraft { draftId }`: 창의 드래프트를 리뷰로 보낸다. 값은 리뷰 항목 id다 */
+  submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, CommandError>>;
+  /** 고른 대화를 비운다(host의 그 대화 열기도 닫는다). 창이 빌린 대화를 돌려줄 곳이 없을 때만 부른다 */
+  leave(): void;
+}
+
 /** 확장이 소유한 저장 테이블 한 줄 */
 export interface StorageTableRow {
   readonly name: string;
@@ -1303,6 +1318,8 @@ export interface Commands {
   readonly measure: MeasureCommands;
   /** Craft 메트릭·트레이스 화면(C9, C8)의 읽기와 인사이트 닫기 */
   readonly craftMetrics: CraftMetricsCommands;
+  /** Craft 테스트 챗 창(C7)의 열기, 드래프트 보내기, 빌린 대화 돌려주기 */
+  readonly testChat: TestChatCommands;
   readonly schedule: ScheduleCommands;
   /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
   readonly pluginUi: PluginUiCommands;

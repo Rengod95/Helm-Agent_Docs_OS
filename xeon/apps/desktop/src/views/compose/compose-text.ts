@@ -5,6 +5,7 @@ import type { PhaseNodeKind } from "@fresnel/contracts/extensions";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
+import { isRequiredByCore } from "../craft/core-required.ts";
 
 /** 화면 머리의 보기 넷. "새 그룹"은 보기가 아니라 머리의 동작이라 이 묶음에 없다 */
 export type ComposeViewId = "group" | "flow" | "profile" | "code";
@@ -59,6 +60,9 @@ export function profileErrorText(error: CommandError): MessageId {
       }
       if (error.code === WIRE_ERRORS["profile.notFound"].code) {
         return "desktop.inspect.profile.error.notFound";
+      }
+      if (isRequiredByCore(error)) {
+        return "desktop.compose.profile.error.requiredByCore";
       }
       return "desktop.compose.profile.error.failed";
     case "locked":

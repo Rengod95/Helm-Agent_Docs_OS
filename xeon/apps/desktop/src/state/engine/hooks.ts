@@ -15,6 +15,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
 import * as csel from "./convo-select.ts";
+import { hiddenFromLists } from "./listed.ts";
 import { selectTranscriptShapes, type ItemShape } from "./transcript-shape.ts";
 import type {
   AppliedProfile,
@@ -50,9 +51,8 @@ function useEngine<U>(selector: (state: EngineMirror) => U): U {
   return useStore(useEngineStore(), useShallow(selector));
 }
 
-/** 엔진 내부 일로 만든 대화(`spawnedBy.kind === "internal"`)는 목록·이동에서 뺀다 [결정: 오케스트레이터 기본값, rtE R-3] */
-const hiddenFromList = (summary: ThreadSummary | undefined): boolean =>
-  summary?.spawnedBy?.kind === "internal";
+/** 목록·이동에서 뺄 대화(엔진 내부 대화, 테스트 챗). 판정은 `listed.ts` [결정: 오케스트레이터 기본값, rtE R-3] */
+const hiddenFromList = (summary: ThreadSummary | undefined): boolean => hiddenFromLists(summary);
 export const useThreadIds = (): readonly ThreadId[] =>
   useEngine(
     useShallow((s: EngineMirror) =>

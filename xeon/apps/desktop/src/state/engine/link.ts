@@ -9,6 +9,7 @@ import {
 } from "@fresnel/contracts";
 import type { ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
 import {
+  WIRE_ERRORS,
   WireError,
   type EventsBatchParams,
   type HostConnection,
@@ -22,6 +23,8 @@ import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
 import { decodeDurable, decodePendingApprovals, decodeVolatile } from "./decode.ts";
 import type { DurableFact } from "./input.ts";
 import type { EngineStore } from "./store.ts";
+
+const INVALID_PARAMS = WIRE_ERRORS["jsonrpc.invalidParams"].code;
 
 /** 열린 thread 스냅샷이 반영한 위치와 item 목록 */
 export type TranscriptSnapshot = {
@@ -327,20 +330,33 @@ export function startLink(deps: LinkDeps): EngineLink {
     }
   };
 
-  /** thread.list의 모든 페이지를 읽은 뒤에 ready로 만든다(F.wire-settings.spec 3.4.6 6번) */
+  /**
+   * thread.list의 모든 페이지를 읽은 뒤에 ready로 만든다(F.wire-settings.spec 3.4.6 6번).
+   * 테스트 챗도 읽는다(`include: "craft"`, M5c §4.8.3). 창이 다시 연 테스트 챗의 요약과 대기 승인 수가 거울에 있어야 승인 카드가 돌아온다.
+   * 목록 화면은 표지(`craftChat`)로 거른다(`listed.ts`)
+   */
   const loadThreads = async (): Promise<void> => {
     const all: ThreadSummary[] = [];
     let cursor: string | undefined;
     let pages = 0;
+    let craft = true;
     const failed = await repeatAsync<boolean>(async () => {
       pages += 1;
+      const include = craft ? { include: "craft" as const } : {};
       const listed = await attemptAsync(() =>
         deps.connection.request(
           "thread.list",
-          cursor === undefined ? { limit: 200 } : { limit: 200, cursor },
+          cursor === undefined ? { limit: 200, ...include } : { limit: 200, cursor, ...include },
         ),
       );
       if (!listed.ok) {
+        // 테스트 챗 인자를 모르는 엔진(인자 검증 실패)이면 인자 없이 처음부터 다시 읽는다
+        const cause = listed.error.cause;
+        if (craft && pages === 1 && cause instanceof WireError && cause.code === INVALID_PARAMS) {
+          craft = false;
+          pages = 0;
+          return undefined;
+        }
         deps.logger.warn("desktop.link.thread_list_failed", {
           error: listed.error.cause instanceof Error ? listed.error.cause.name : "unknown",
         });

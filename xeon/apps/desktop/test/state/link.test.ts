@@ -554,6 +554,66 @@ describe("loading, failure and restoration after a reset", () => {
     expect(h.store.read.getState().threads.ids).toEqual([thr(1), thr(2)]);
   });
 
+  test("thread.list asks for test chats too (include craft) on every page", async () => {
+    const h = harness();
+    const includes: unknown[] = [];
+    const fake = fakeConnection({
+      ...subscribeLive(),
+      "thread.list": (params) => {
+        includes.push(params.include);
+        return Promise.resolve(
+          params.cursor === undefined
+            ? { threads: [summary(thr(1))], nextCursor: "c2" }
+            : { threads: [summary(thr(2))], nextCursor: null },
+        );
+      },
+    });
+    start(h, fake);
+    await pump(h);
+    expect(includes).toEqual(["craft", "craft"]);
+  });
+
+  test("an engine that rejects include craft as invalid params is read again without it", async () => {
+    const h = harness();
+    const includes: unknown[] = [];
+    const fake = fakeConnection({
+      ...subscribeLive(),
+      "thread.list": (params) => {
+        includes.push(params.include);
+        return params.include === undefined
+          ? Promise.resolve({ threads: [summary(thr(1))], nextCursor: null })
+          : Promise.reject(
+              new WireError(-32602, "invalid params", {
+                kind: "jsonrpc.invalidParams",
+                retryable: false,
+              }),
+            );
+      },
+    });
+    start(h, fake);
+    await pump(h);
+    expect(includes).toEqual(["craft", undefined]);
+    const threads = h.store.read.getState().threads;
+    expect(threads.status).toBe("ready");
+    expect(threads.ids).toEqual([thr(1)]);
+  });
+
+  test("other thread.list failures are not retried without include", async () => {
+    const h = harness();
+    const includes: unknown[] = [];
+    const fake = fakeConnection({
+      ...subscribeLive(),
+      "thread.list": (params) => {
+        includes.push(params.include);
+        return Promise.reject(new Error("down"));
+      },
+    });
+    start(h, fake);
+    await pump(h);
+    expect(includes).toEqual(["craft"]);
+    expect(h.store.read.getState().threads.status).toBe("error");
+  });
+
   test("pending approvals are restored with approval.list for threads that have some", async () => {
     const h = harness();
     const asked: unknown[] = [];

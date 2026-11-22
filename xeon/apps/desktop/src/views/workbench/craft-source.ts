@@ -6,7 +6,7 @@ import type {
   HookOrderPort,
   OrderPortError,
 } from "@fresnel/client/workbench/canvas";
-import { assertNever, err, type Result } from "@fresnel/contracts";
+import { assertNever, detach, err, rethrow, type Result } from "@fresnel/contracts";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -19,6 +19,7 @@ import {
 import { useCommands, type CommandError, type WorkbenchCommands } from "../commands.ts";
 import type { CraftRunEntry, CraftSource } from "../craft/craft-context.tsx";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
+import { useOpenTestChat } from "../craft/test-chat/use-test-chat.ts";
 
 /** 켜기·끄기 요청. `useToggleRequest`의 `request`가 이 모양이다. 매 렌더 새로 만들어져도 된다 */
 export type RequestToggle = (name: string, target: boolean) => void;
@@ -63,12 +64,12 @@ export function useCraftSource(
     [actions],
   );
 
-  const openBuilder = useCallback(
-    (hook: string | null): void => {
-      actions.requestBuilder(hook);
-    },
-    [actions],
-  );
+  // "새로 만들기"는 Craft의 테스트 챗 창(C7)을 묶이지 않은 새 대화로 연다(craft-flows 5, C1 → C7 `contexts: []`).
+  // 고른 Hook은 맥락 참조에 그 종류가 없어 싣지 않는다. 빌더는 테스트 챗에서 늘 켜져 있다(AGE-60)
+  const openTestChat = useOpenTestChat();
+  const openBuilder = useCallback((): void => {
+    detach(openTestChat({ plugin: null, reuse: "new" }), rethrow);
+  }, [openTestChat]);
 
   // 새 턴이 시작되면 턴 id가 바뀌어 원천이 새로 만들어지고, 자세히 보기가 최근 실행을 다시 읽는다
   const recentRuns = useCallback(
