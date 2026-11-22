@@ -73,7 +73,7 @@ describe("지우기 상자 영향 묶음", () => {
         { id: "well", title: "흐름판", placement: "panel" },
       ],
     });
-    expect(out).toContain("이 확장을 쓰는 프로필");
+    expect(out).toContain("이 플러그인을 쓰는 프로필");
     expect(out).toContain("플러그인 뷰");
     expect(out).toContain("조사용, 기본");
     expect(out).toContain("작업 흐름판");
@@ -84,7 +84,7 @@ describe("지우기 상자 영향 묶음", () => {
 
   test("쓰는 프로필과 뷰가 없으면 두 줄 모두 없어요라고 말한다", () => {
     const out = bodyHtml({ profiles: { kind: "ready", titles: [] }, views: [] });
-    expect(out).toContain("이 확장을 쓰는 프로필");
+    expect(out).toContain("이 플러그인을 쓰는 프로필");
     expect(out).toContain("없어요");
     expect(out).not.toContain("조사용");
   });

@@ -171,6 +171,72 @@ describe("errorOf", () => {
     });
   });
 
+  test("a dependency refusal (3627) keeps the reason, the plugin and each well-formed item, and malformed details keep only the code", () => {
+    const refused = wireError("plugin.dependency", {
+      details: {
+        reason: "required_by",
+        plugin: "web",
+        items: [
+          {
+            from: "notes",
+            target: "web",
+            kind: "hard",
+            range: "^1.0.0",
+            problem: "depended_on",
+            found: null,
+          },
+          {
+            from: "notes",
+            target: "web",
+            kind: "hard",
+            range: null,
+            problem: "range_unmet",
+            found: "0.5.0",
+          },
+          {
+            from: "notes",
+            target: "web",
+            kind: "loud",
+            range: null,
+            problem: "cycle",
+            found: null,
+          },
+        ],
+      },
+    });
+    expect(errorOf(refused)).toEqual({
+      kind: "rejected",
+      code: 3627,
+      dependency: {
+        reason: "required_by",
+        plugin: "web",
+        items: [
+          {
+            from: "notes",
+            target: "web",
+            kind: "hard",
+            range: "^1.0.0",
+            problem: "depended_on",
+            found: null,
+          },
+          {
+            from: "notes",
+            target: "web",
+            kind: "hard",
+            range: null,
+            problem: "range_unmet",
+            found: "0.5.0",
+          },
+        ],
+      },
+    });
+    const badReason = wireError("plugin.dependency", {
+      details: { reason: "nope", plugin: "web", items: [] },
+    });
+    expect(errorOf(badReason)).toEqual({ kind: "rejected", code: 3627 });
+    expect(errorOf(wireError("plugin.dependency"))).toEqual({ kind: "rejected", code: 3627 });
+  });
+
   test("other wire errors keep their code and a foreign throw is a plain failure", () => {
     expect(errorOf(wireError("thread.notFound"))).toEqual({ kind: "rejected", code: 3001 });
     expect(errorOf(new Error("boom"))).toEqual({ kind: "failed" });

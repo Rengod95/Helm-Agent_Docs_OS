@@ -32,6 +32,7 @@ import {
   stepItem,
   versionsOf,
   hookOriginLineOf,
+  isHandEdit,
   warningsOf,
 } from "../../../src/views/craft/review/review-model.ts";
 import {
@@ -515,5 +516,27 @@ describe("where an imported hook came from (m6R6)", () => {
     expect(
       [IMPORTED_BOX, IMPORTED_UNKNOWN, IMPORTED].map((item) => warningsOf(item, false)),
     ).toEqual([["projectCode"], ["hookOriginUnknown"], ["purposeMissing"]]);
+  });
+});
+
+describe("손으로 고친 갱신(isHandEdit)", () => {
+  // 사용자 폴더의 갱신이고 출처를 모를 때만 승인을 막는다. 처음 들어오는 플러그인은 wire의 `new`(화면의 설치)다
+  const HAND: ReviewItem = { ...FETCH, provenance: "unknown" };
+
+  test("사용자 폴더의 갱신이고 출처를 모르면 손으로 고친 것이다", () => {
+    expect(HAND.kind).toBe("update");
+    expect(HAND.card.origin.kind).toBe("user");
+    expect(isHandEdit(HAND)).toBe(true);
+  });
+
+  test("처음 들어오는 플러그인, 어시스턴트가 쓴 갱신, 프로젝트 출처의 갱신은 손으로 고친 것이 아니다", () => {
+    expect([
+      isHandEdit({ ...HAND, kind: "new" }),
+      isHandEdit(FETCH),
+      isHandEdit({
+        ...HAND,
+        card: { ...HAND.card, origin: { kind: "project", projectId: "prj_helm" } },
+      }),
+    ]).toEqual([false, false, false]);
   });
 });

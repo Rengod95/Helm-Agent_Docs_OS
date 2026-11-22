@@ -154,6 +154,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       resetDefaultProfile: () => Promise.resolve(err({ kind: "unsupported" })),
       invocables: () => Promise.resolve(ok([])),
       pluginsInProfile: () => Promise.resolve(ok(new Set<string>())),
+      pluginCards: () => Promise.resolve(ok([])),
       drafts: () => Promise.resolve(ok([])),
       previewProfile: () =>
         Promise.resolve(

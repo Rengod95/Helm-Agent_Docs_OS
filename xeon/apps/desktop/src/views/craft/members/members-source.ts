@@ -43,7 +43,7 @@ type EditOutcome =
   | { readonly ok: true; readonly kept: readonly string[] }
   | { readonly ok: false; readonly text: MessageId };
 
-type SendOutcome =
+export type SendOutcome =
   | { readonly ok: true; readonly itemId: string }
   | { readonly ok: false; readonly text: MessageId };
 
@@ -70,6 +70,34 @@ interface Read {
   readonly matchesReviewed: boolean;
 }
 
+/** 원본 폴더 하나로 드래프트를 만들어 리뷰에 낸다(`plugin.draft.create` 다음 `pluginReview.submitDraft`). 구성원, 의존, 떼기, 합치기가 같이 쓴다 */
+export async function submitDirForReview(
+  run: <T>(work: (connection: HostConnection) => Promise<T>) => Promise<Result<T, CommandError>>,
+  dir: string,
+): Promise<SendOutcome> {
+  const sent = await run(async (c) => {
+    const draft = await c.request("plugin.draft.create", { dir });
+    const submitted = await c.request("pluginReview.submitDraft", { draftId: draft.draftId });
+    return submitted.itemId;
+  });
+  return sent.ok
+    ? { ok: true, itemId: sent.value }
+    : { ok: false, text: sendFailureText(sent.error) };
+}
+
+/** 리뷰 화면을 열고 그 항목을 고른다 */
+export function useOpenReview(): (itemId: string) => void {
+  const shell = useShellActions();
+  return useCallback(
+    (itemId: string) => {
+      requestReviewItem(itemId);
+      shell.switchArea("workbench");
+      shell.updatePlace({ screen: "craftReview", scroll: 0 });
+    },
+    [shell],
+  );
+}
+
 function sendFailureText(error: CommandError): MessageId {
   switch (error.kind) {
     case "offline":
@@ -93,7 +121,6 @@ export function useMembersSource(
   blockTitles: ReadonlyMap<string, string>,
 ): MembersData {
   const commands = useCommands();
-  const shell = useShellActions();
   const phase = useLinkPhase();
   const [read, setRead] = useState<Read | null | "failed">(null);
   const [pending, setPending] = useState<ReviewItem | null>(null);
@@ -180,26 +207,14 @@ export function useMembersSource(
     if (read === null || read === "failed" || read.access.kind !== "editable") {
       return { ok: false, text: "desktop.craft.members.fail.denied" };
     }
-    const dir = read.access.dir;
-    const sent: Result<string, CommandError> = await run(async (c) => {
-      const draft = await c.request("plugin.draft.create", { dir });
-      const submitted = await c.request("pluginReview.submitDraft", { draftId: draft.draftId });
-      return submitted.itemId;
-    });
-    if (!sent.ok) return { ok: false, text: sendFailureText(sent.error) };
+    const sent = await submitDirForReview(run, read.access.dir);
+    if (!sent.ok) return sent;
     setEditedSinceSend(false);
     setTick((n) => n + 1);
-    return { ok: true, itemId: sent.value };
+    return sent;
   }, [read, run]);
 
-  const openReview = useCallback(
-    (itemId: string) => {
-      requestReviewItem(itemId);
-      shell.switchArea("workbench");
-      shell.updatePlace({ screen: "craftReview", scroll: 0 });
-    },
-    [shell],
-  );
+  const openReview = useOpenReview();
 
   const load: MembersLoad =
     phase !== "live" && read === null

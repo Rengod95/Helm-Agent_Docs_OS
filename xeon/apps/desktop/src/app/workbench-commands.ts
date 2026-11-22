@@ -254,6 +254,10 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("plugin.list", { filter: { profileId } }));
       return got.ok ? ok(pluginSetOf(got.value.plugins, profileId)) : err(got.error);
     },
+    async pluginCards() {
+      const got = await withConnection((c) => c.request("plugin.list", {}));
+      return got.ok ? ok(got.value.plugins) : err(got.error);
+    },
     async drafts(name) {
       const got = await withConnection((c) => c.request("plugin.draft.list", { name }));
       return got.ok ? ok(got.value.drafts) : err(got.error);

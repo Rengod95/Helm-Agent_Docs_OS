@@ -63,8 +63,15 @@ export function createCraftMetricsCommands(
       });
     },
     openCraftChat: (params) => withWrite((c) => c.request("craftChat.open", params)),
-    removeFromProfile: (profileId, plugin, baseRev) =>
-      withWrite((c) => c.request("profile.removePlugin", { id: profileId, plugin, baseRev })),
+    removeFromProfile: (profileId, plugin, baseRev, withDependents) =>
+      withWrite((c) =>
+        c.request(
+          "profile.removePlugin",
+          withDependents === true
+            ? { id: profileId, plugin, baseRev, withDependents }
+            : { id: profileId, plugin, baseRev },
+        ),
+      ),
     minSample: async () => {
       const got = await withConnection((c) =>
         c.request("settings.get", { keys: [MIN_SAMPLE_KEY] }),

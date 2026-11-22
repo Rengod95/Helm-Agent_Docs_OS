@@ -48,6 +48,7 @@ import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
 import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
 import { hasMembers } from "../craft/members/members-model.ts";
 import { MembersTab } from "../craft/members/members-tab.tsx";
+import { DepsTab } from "../craft/deps/deps-tab.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
@@ -525,6 +526,7 @@ export function ExtDetail(props: {
           {withMembers && (
             <TabsTrigger value="members">{t("desktop.craft.members.tab")}</TabsTrigger>
           )}
+          <TabsTrigger value="dependencies">{t("desktop.craft.deps.tab")}</TabsTrigger>
           <TabsTrigger value="hooks" count={entry.hookCount}>
             {t("desktop.workbench.detail.tab.hooks")}
           </TabsTrigger>
@@ -545,6 +547,9 @@ export function ExtDetail(props: {
             />
           </TabsContent>
         )}
+        <TabsContent value="dependencies">
+          <DepsTab entry={entry} />
+        </TabsContent>
         <TabsContent value="hooks">
           <HooksTab get={get} timings={timings} />
         </TabsContent>

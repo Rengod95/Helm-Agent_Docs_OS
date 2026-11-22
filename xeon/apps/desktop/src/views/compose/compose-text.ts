@@ -64,6 +64,8 @@ export function profileErrorText(error: CommandError): MessageId {
       if (isRequiredByCore(error)) {
         return "desktop.compose.profile.error.requiredByCore";
       }
+      // 검사 이슈가 함께 온 거절(`profile.invalid` 3307)은 아래에 이슈 줄을 보인다(AGE-33)
+      if ((error.profileIssues?.length ?? 0) > 0) return "desktop.compose.profile.error.invalid";
       return "desktop.compose.profile.error.failed";
     case "locked":
     case "failed":

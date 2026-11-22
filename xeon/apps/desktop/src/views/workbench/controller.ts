@@ -16,7 +16,7 @@ import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 import { profileFailureText } from "./profile-text.ts";
-import { removeOutcomeOfError, type RemoveOutcome } from "./remove-model.ts";
+import { removeOutcomeOfError, type RemoveResult } from "./remove-model.ts";
 import { reviewSentTextOf, type ReviewSent } from "./review-sent.ts";
 
 /** `ext.get`을 동시에 보내는 상한. 확장이 많아도 엔진에 한꺼번에 몰리지 않는다 */
@@ -59,7 +59,7 @@ export interface WorkbenchController {
    * 지우기를 요청한다(`plugin.requestRemove`, 검토 항목을 만든다). `dropData`는 대체가 없어 `not_available`이다. 요청이 되면 토스트를 띄우고 목록을 다시 읽는다.
    * 지웠으면 true. 실패하면 토스트를 띄우고 false이며, 저장 데이터를 지우다 실패했을 때도 목록을 다시 읽는다(호스트가 확장을 먼저 내린다)
    */
-  remove(name: string, options?: { readonly dropData?: boolean }): Promise<RemoveOutcome>;
+  remove(name: string, options?: { readonly dropData?: boolean }): Promise<RemoveResult>;
   /** 외부 훅 "끄기" 답(`hooks.disableConfirm`). 성공하면 목록을 다시 읽고 true, 실패하면 false(알림이 한 줄 오류와 "다시 시도"를 보인다) */
   hookKeepOff(hook: string): Promise<boolean>;
   /** 외부 훅 "켜 두기"와 "다시 켜기" 답(`hooks.reenable`). 결과는 `hookKeepOff`와 같다 */
@@ -197,10 +197,18 @@ export function useWorkbenchController(): WorkbenchController {
   );
 
   const remove = useCallback(
-    async (name: string, options?: { readonly dropData?: boolean }): Promise<RemoveOutcome> => {
+    async (name: string, options?: { readonly dropData?: boolean }): Promise<RemoveResult> => {
       const done = await commands.workbench.remove(name, options);
       if (!done.ok) {
         const outcome = removeOutcomeOfError(done.error);
+        // 의존 때문에 거절된 것은 토스트 대신 상자 안에 목록으로 보인다(AGE-33)
+        if (
+          outcome === "refused" &&
+          done.error.kind === "rejected" &&
+          done.error.dependency !== undefined
+        ) {
+          return { outcome, refusal: done.error.dependency };
+        }
         const notFound = outcome === "gone";
         toast({
           tone: "danger",
@@ -209,7 +217,7 @@ export function useWorkbenchController(): WorkbenchController {
         });
         // 이미 없는 이름이면 목록이 낡은 것이다. 저장 데이터를 지우다 실패했으면 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다
         if (notFound || options?.dropData === true) await reload();
-        return outcome;
+        return { outcome, refusal: null };
       }
       // 지우기는 검토 항목으로 올라간다. 지워지는 시점은 검토가 정한다
       const sent: ReviewSent = { kind: "remove", itemId: done.value.itemId };
@@ -218,7 +226,7 @@ export function useWorkbenchController(): WorkbenchController {
       actions.closeDetail();
       actions.clearPick();
       await reload();
-      return "removed";
+      return { outcome: "removed", refusal: null };
     },
     [actions, commands, reload],
   );

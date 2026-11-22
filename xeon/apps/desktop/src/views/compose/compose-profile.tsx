@@ -40,7 +40,13 @@ import {
 } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useOpenThreadId } from "../../state/engine/index.ts";
-import { useCommands } from "../commands.ts";
+import { useCommands, type CommandError } from "../commands.ts";
+import {
+  DependencyLines,
+  dependencyIssueLinesOf,
+  type DependencyLine,
+} from "../craft/deps/dependency-refusal.tsx";
+import { disabledFixOf, requiredByCoreOf } from "../craft/deps/deps-model.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { useTabRead } from "../workbench/tab-read.ts";
 import { useWorkbenchController } from "../workbench/controller.ts";
@@ -64,16 +70,38 @@ type Notice = {
   readonly values?: MessageArgs;
   /** 알림 옆 설명 한 줄(InfoTip) */
   readonly info?: MessageId;
+  /** 저장을 막은 의존 이슈 줄(AGE-33) */
+  readonly lines?: readonly DependencyLine[];
+  /** 꺼진 대상 때문에 막혔을 때의 두 길: 대상도 켜기, 기대는 것도 빼기 */
+  readonly fix?: { readonly enable: readonly string[]; readonly drop: readonly string[] };
 };
+
+/** 저장 실패의 알림. 검사 이슈가 함께 왔으면 의존 줄과 고칠 길을 싣는다 */
+function saveFailureOf(error: CommandError): Notice {
+  const issues = error.kind === "rejected" ? (error.profileIssues ?? []) : [];
+  return {
+    tone: "danger",
+    text: profileErrorText(error),
+    lines: dependencyIssueLinesOf(issues),
+    fix: disabledFixOf(issues),
+  };
+}
 
 /** 확장 한 줄. 내장 코어(`locked`)는 목록 칸 자리 대신 잠금 표시만 보인다. 저장 값과 무관하게 잠긴다 */
 export function ChoiceRow(props: {
   readonly entry: ExtListEntry;
   readonly choice: PluginChoice;
   readonly locked: boolean;
+  /**
+   * 엔진에서 이 플러그인을 필요로 하는 쪽(카드의 `requiredByCore`, AGE-33). 있고 목록에 들어 있으면 빼기를 미리 잠그고 누가
+   * 필요로 하는지 정보 아이콘에 적는다. 목록에 없으면 넣을 수는 있다
+   */
+  readonly requiredBy?: readonly string[];
   readonly onChange: (choice: PluginChoice) => void;
 }): ReactNode {
   const { entry } = props;
+  const requiredBy = props.requiredBy ?? [];
+  const requiredLock = !props.locked && requiredBy.length > 0 && props.choice === "on";
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 py-2.5">
       <span className="min-w-0 truncate text-body text-text-primary">{entry.displayName}</span>
@@ -81,6 +109,16 @@ export function ChoiceRow(props: {
         <span className="flex items-center gap-1 text-ui text-text-tertiary">
           {t("desktop.compose.profile.locked")}
           <InfoTip text={t("desktop.compose.profile.locked.info")} />
+        </span>
+      ) : requiredLock ? (
+        <span
+          className="flex items-center gap-1 text-ui text-text-tertiary"
+          data-required-by-core=""
+        >
+          {t("desktop.compose.profile.required")}
+          <InfoTip
+            text={t("desktop.compose.profile.required.info", { names: requiredBy.join(", ") })}
+          />
         </span>
       ) : (
         <SegmentedControl
@@ -184,6 +222,7 @@ function PreviewBlock(props: { readonly preview: ProfilePreviewResult }): ReactN
       <p className={MUTED}>
         {t("desktop.compose.profile.preview.issues", { count: preview.issues.length })}
       </p>
+      <DependencyLines lines={dependencyIssueLinesOf(preview.issues)} />
     </section>
   );
 }
@@ -229,6 +268,9 @@ export function ProfilePanel(props: {
   const [version, setVersion] = useState(0);
   const load = useCallback(() => commands.workbench.profiles(), [commands]);
   const read = useTabRead(`compose-profiles:${version}`, props.link, load);
+  const loadCards = useCallback(() => commands.workbench.pluginCards(), [commands]);
+  const cardsRead = useTabRead(`compose-cards:${version}`, props.link, loadCards);
+  const requiredBy = requiredByCoreOf(cardsRead.kind === "ready" ? cardsRead.value : []);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -252,19 +294,30 @@ export function ProfilePanel(props: {
     const found = profiles.find((item) => item.id === value);
     setDraft(found === undefined ? null : profileDraftOf(found));
   };
-  const save = async (): Promise<void> => {
-    if (draft === null || problem !== null) return;
+  const save = async (next: ProfileDraft | null = draft): Promise<void> => {
+    if (next === null || profileDraftProblemOf(next) !== null) return;
     setBusy(true);
-    const done = await commands.workbench.putProfile(profileInputOf(draft), draft.baseRev);
+    const done = await commands.workbench.putProfile(profileInputOf(next), next.baseRev);
     setBusy(false);
     if (!done.ok) {
-      setNotice({ tone: "danger", text: profileErrorText(done.error) });
+      setNotice(saveFailureOf(done.error));
       return;
     }
     setDraft(profileDraftOf(done.value.profile));
     setPreview(null);
     setNotice({ tone: "success", text: "desktop.compose.profile.saved" });
     reload();
+  };
+  // 꺼진 대상 때문에 막혔을 때: 대상을 같이 켜거나 기대는 것을 같이 빼고 다시 저장한다
+  const applyFix = (names: readonly string[], on: boolean): void => {
+    if (draft === null) return;
+    const next = names.reduce(
+      (acc, name) => (on ? withPluginAdded(acc, name) : withPluginRemoved(acc, name)),
+      draft,
+    );
+    setDraft(next);
+    setNotice(null);
+    run(save(next));
   };
   const remove = async (target: Profile): Promise<void> => {
     setDeleting(null);
@@ -353,6 +406,36 @@ export function ProfilePanel(props: {
           {notice.info === undefined ? null : <InfoTip text={t(notice.info)} />}
         </Alert>
       )}
+      {notice === null || (notice.lines ?? []).length === 0 ? null : (
+        <div className="grid gap-2" data-slot="profile-dependency-issues">
+          <DependencyLines lines={notice.lines ?? []} />
+          {notice.fix === undefined ||
+          (notice.fix.enable.length === 0 && notice.fix.drop.length === 0) ? null : (
+            <div className="flex flex-wrap items-center gap-2 ps-6">
+              {notice.fix.enable.length === 0 ? null : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!online || busy}
+                  onClick={() => applyFix(notice.fix?.enable ?? [], true)}
+                >
+                  {t("desktop.compose.profile.fix.enable")}
+                </Button>
+              )}
+              {notice.fix.drop.length === 0 ? null : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={!online || busy}
+                  onClick={() => applyFix(notice.fix?.drop ?? [], false)}
+                >
+                  {t("desktop.compose.profile.fix.drop")}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <Field label={t("desktop.compose.profile.pick")}>
           <Select
@@ -432,6 +515,7 @@ export function ProfilePanel(props: {
                   entry={entry}
                   choice={hasPluginOf(draft, entry.name) ? "on" : "off"}
                   locked={locked}
+                  requiredBy={requiredBy.get(entry.name) ?? []}
                   onChange={(choice) => {
                     if (locked) return;
                     setDraft(

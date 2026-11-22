@@ -63,9 +63,11 @@ export interface MetricsActions {
   readonly dismiss: (findingId: string) => Promise<Result<null, CommandError>>;
   /** 근거를 들고 테스트 챗을 연다(고치기, 막기로 올리기) */
   readonly openFix: (finding: Finding) => Promise<Result<null, CommandError>>;
+  /** `withDependents`가 참이면 이 플러그인에 꼭 기대는 것도 같이 뺀다(AGE-33) */
   readonly removeFromProfile: (
     profile: Profile,
     plugin: string,
+    withDependents?: boolean,
   ) => Promise<Result<null, CommandError>>;
   readonly openTurn: (ref: EvidenceRef) => void;
   readonly evidence: (
@@ -283,8 +285,8 @@ export function useMetricsSource(): MetricsData {
           reuse: "last",
           context: [{ kind: "finding", findingId: finding.id }],
         }),
-      removeFromProfile: async (profile, plugin) => {
-        const removed = await m.removeFromProfile(profile.id, plugin, profile.rev);
+      removeFromProfile: async (profile, plugin, withDependents) => {
+        const removed = await m.removeFromProfile(profile.id, plugin, profile.rev, withDependents);
         if (!removed.ok) return removed;
         reload();
         return ok(null);

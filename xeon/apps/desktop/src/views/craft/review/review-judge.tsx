@@ -20,7 +20,8 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
-import type { ProfileIssueView } from "../../commands.ts";
+import type { DependencyRefusalView, ProfileIssueView } from "../../commands.ts";
+import { DependencyRefusal } from "../deps/dependency-refusal.tsx";
 import {
   approveBlockOf,
   approveDecisionOf,
@@ -342,6 +343,8 @@ type Phase =
       readonly kind: "failed";
       readonly failure: DecideFailure;
       readonly issues: readonly ProfileIssueView[];
+      /** 의존 때문에 막혔으면 엔진이 준 줄들(`plugin.dependency`) */
+      readonly dependency: DependencyRefusalView | null;
     };
 
 const FAILURE_WORD: Readonly<Record<DecideFailure, MessageId>> = {
@@ -352,6 +355,7 @@ const FAILURE_WORD: Readonly<Record<DecideFailure, MessageId>> = {
   handEdit: "desktop.craft.review.failure.handEdit",
   purposeRequired: "desktop.craft.review.failure.purposeRequired",
   profileInvalid: "desktop.craft.review.failure.profileInvalid",
+  dependency: "desktop.craft.review.failure.dependency",
   failed: "desktop.craft.review.failure.failed",
 };
 
@@ -370,6 +374,9 @@ const ISSUE_WORD: Readonly<Record<string, MessageId>> = {
   secret_missing: "desktop.craft.review.issue.secretMissing",
   required_unset: "desktop.craft.review.issue.requiredUnset",
   requirement_unmet: "desktop.craft.review.issue.requirementUnmet",
+  dependency_missing: "desktop.craft.review.issue.dependencyMissing",
+  dependency_disabled: "desktop.craft.review.issue.dependencyDisabled",
+  dependency_range: "desktop.craft.review.issue.dependencyRange",
   managed_forbidden: "desktop.craft.review.issue.managedForbidden",
   limit: "desktop.craft.review.issue.limit",
 };
@@ -454,6 +461,7 @@ function DecidePanel(props: {
           kind: "failed",
           failure: decideFailureOf(error),
           issues: error.kind === "rejected" ? (error.profileIssues ?? []) : [],
+          dependency: error.kind === "rejected" ? (error.dependency ?? null) : null,
         });
         return;
       }
@@ -501,7 +509,11 @@ function DecidePanel(props: {
   const status: ReactNode =
     phase.kind === "failed" ? (
       <div role="alert" className="grid gap-2">
-        <NoticeLine tone="danger">{t(FAILURE_WORD[phase.failure])}</NoticeLine>
+        {phase.dependency === null ? (
+          <NoticeLine tone="danger">{t(FAILURE_WORD[phase.failure])}</NoticeLine>
+        ) : (
+          <DependencyRefusal refusal={phase.dependency} />
+        )}
         {blocking.length === 0 ? null : (
           <ul className="rv-lines m-0 p-0" data-slot="review-profile-issues">
             {blocking.map((issue, index) => (

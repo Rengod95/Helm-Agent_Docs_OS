@@ -12,6 +12,7 @@ import {
   driveStackOf,
   driveVersionOf,
   type DriveLeaseFacts,
+  driveDisplayNameOf,
   drivingByPartsOf,
 } from "../../src/views/convo/drive-stack-model.ts";
 import { ProfileGlyph } from "../../src/views/convo/profile-glyph.tsx";
@@ -732,11 +733,27 @@ describe("Drive 띠와 카드 값(lcM6c)", () => {
 
 describe("Driving by 구절(lcM6g)", () => {
   test("번역 글을 이름 자리에서 나눈다: 앞 글, 이름, 뒤 글(빈칸은 그리는 쪽이 둔다)", () => {
-    expect([drivingByPartsOf("authoring"), drivingByPartsOf("a very long plugin name")]).toEqual([
-      { before: "Driving by", name: "authoring", after: "" },
-      { before: "Driving by", name: "a very long plugin name", after: "" },
+    expect([
+      drivingByPartsOf("플러그인 만들기"),
+      drivingByPartsOf("a very long plugin name"),
+    ]).toEqual([
+      { before: "", name: "플러그인 만들기", after: "플러그인이 주도하는 중" },
+      { before: "", name: "a very long plugin name", after: "플러그인이 주도하는 중" },
     ]);
-    expect(t("desktop.drive.drivingBy", { name: "authoring" })).toBe("Driving by authoring");
+    expect(t("desktop.drive.drivingBy", { name: "Helm" })).toBe("Helm 플러그인이 주도하는 중");
+  });
+
+  test("칸의 이름은 카탈로그 이름, 없으면 설치 목록의 보이는 이름이고, 멤버면 플러그인의 멤버, 목록에 없으면 그대로다(m6Mb)", () => {
+    const entries = [
+      { name: "authoring", displayName: "Authoring" },
+      { name: "notes-kit", displayName: "Notes kit" },
+    ];
+    expect([
+      driveDisplayNameOf("authoring", entries),
+      driveDisplayNameOf("notes-kit", entries),
+      driveDisplayNameOf("notes-kit/verifier", entries),
+      driveDisplayNameOf("helm", entries),
+    ]).toEqual([t("ext.name.authoring"), "Notes kit", "Notes kit의 verifier", "helm"]);
   });
 });
 

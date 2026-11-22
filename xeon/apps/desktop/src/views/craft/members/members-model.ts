@@ -1,7 +1,8 @@
 // 플러그인 상세 "구성원" 탭(m6Mb, AGE-33)의 순수 모델. 그리기와 엔진 호출은 하지 않는다.
 // 구성원은 플러그인 안의 작은 단위(Hook, Drive, 지침·도구만 있는 것)이고 순서가 등록 순서다(같은 자리에 걸린 Hook의 호출 순서).
 // 값의 출처: 원본 폴더가 있으면 `ext.members.read`(드래프트가 될 원본), 없으면 설치본 매니페스트(`ext.get`의 `plugins[]`)다.
-// 엔진이 구성원마다 주는 것은 Hook 이름, Drive 여부, 걸린 블록 id뿐이다: Inject와 도구는 구성원 단위로 오지 않아 지어내지 않는다.
+// 엔진이 멤버마다 주는 것은 Hook 이름, Drive 여부, 걸린 블록 id이고, Inject와 도구(`injects`, `tools`)는 칸만 있고 지금은 늘 비어 있다
+// (매니페스트에 멤버별 소유가 없다, enDep-b 2). 값이 있을 때만 그린다: 빈 칸이나 "없어요"를 그리지 않는다.
 import type { MessageId } from "@fresnel/client/i18n";
 import { compositionOf, memberIdErrorOf, type MemberIdProblem } from "@fresnel/client/workbench";
 import { assertNever, parse } from "@fresnel/contracts";
@@ -14,8 +15,8 @@ import { hookLabelOf } from "../detail-flow.tsx";
 /** 뿌리를 뺀 구성원 상한. 매니페스트 `plugins[]`는 뿌리를 포함해 16개까지다 */
 export const MEMBER_LIMIT = 15;
 
-/** 구성원이 선언한 일. 엔진이 구성원 단위로 알려 주는 것은 이 둘뿐이다 */
-type MemberKind = "drive" | "hook";
+/** 멤버가 선언한 일. 순서는 리뷰 화면의 `KIND_ORDER`와 같다. `tool`과 `inject`는 엔진이 값을 줄 때만 생긴다 */
+type MemberKind = "drive" | "hook" | "tool" | "inject";
 
 interface MemberBlock {
   readonly id: string;
@@ -35,6 +36,9 @@ export interface MemberRow {
   /** 걸린 Hook 자리의 사용자 말(중복 없이, 선언 순서). 이름표가 없는 훅은 세기만 한다 */
   readonly moments: readonly MessageId[];
   readonly otherHooks: number;
+  /** 이 멤버의 도구 수와 Inject 수. 지금 엔진은 늘 0이다 */
+  readonly tools: number;
+  readonly injects: number;
   readonly blocks: readonly MemberBlock[];
 }
 
@@ -106,6 +110,8 @@ export function memberRowsOf(
     const kinds: MemberKind[] = [];
     if (m.drives) kinds.push("drive");
     if (m.hooks.length > 0) kinds.push("hook");
+    if (m.tools.length > 0) kinds.push("tool");
+    if (m.injects.length > 0) kinds.push("inject");
     return {
       id: m.id,
       name: m.title ?? m.id,
@@ -113,6 +119,8 @@ export function memberRowsOf(
       kinds,
       moments,
       otherHooks,
+      tools: m.tools.length,
+      injects: m.injects.length,
       blocks: m.blockIds.map((id) => ({ id, title: blockTitles.get(id) ?? id })),
     };
   });

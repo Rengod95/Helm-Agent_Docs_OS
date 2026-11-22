@@ -32,6 +32,8 @@ import {
   Lock,
   Pencil,
   Plus,
+  Scissors,
+  SquarePen,
   Trash2,
 } from "@caustic/react/icons";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -65,6 +67,9 @@ import {
   type SendState,
 } from "./members-model.ts";
 import type { MembersData } from "./members-source.ts";
+import { DetachDialog } from "./split-dialogs.tsx";
+import type { SplitActions } from "./split-source.ts";
+import { useInstalledEntries } from "../installed-entries.ts";
 
 export type MembersLayout = "list" | "split";
 
@@ -96,14 +101,20 @@ interface Editor {
   readonly busy: boolean;
   readonly adding: boolean;
   readonly renaming: string | null;
+  /** 보이는 이름(제목)을 줄 안에서 고치는 멤버 */
+  readonly retitling: string | null;
   readonly removing: MemberRow | null;
+  /** 따로 떼기 상자를 연 멤버 */
+  readonly detaching: MemberRow | null;
   readonly lift: Lift | null;
   readonly notice: Notice | null;
   /** 낭독기에 알릴 말(옮김, 집음) */
   readonly spoken: string;
   readonly setAdding: (on: boolean) => void;
   readonly setRenaming: (id: string | null) => void;
+  readonly setRetitling: (id: string | null) => void;
   readonly setRemoving: (row: MemberRow | null) => void;
+  readonly setDetaching: (row: MemberRow | null) => void;
   readonly setLift: (lift: Lift | null) => void;
   readonly speak: (text: string) => void;
   readonly run: (ops: readonly MemberOp[]) => Promise<boolean>;
@@ -114,8 +125,19 @@ interface Editor {
 function useEditor(data: MembersData): Editor {
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renaming, setRenamingId] = useState<string | null>(null);
+  const [retitling, setRetitlingId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<MemberRow | null>(null);
+  const [detaching, setDetaching] = useState<MemberRow | null>(null);
+  // 한 줄에서 이름과 보이는 이름을 함께 고치지 않는다: 하나를 열면 다른 하나는 닫힌다
+  const setRenaming = useCallback((id: string | null) => {
+    setRenamingId(id);
+    if (id !== null) setRetitlingId(null);
+  }, []);
+  const setRetitling = useCallback((id: string | null) => {
+    setRetitlingId(id);
+    if (id !== null) setRenamingId(null);
+  }, []);
   const [lift, setLift] = useState<Lift | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [spoken, speak] = useState("");
@@ -148,13 +170,17 @@ function useEditor(data: MembersData): Editor {
     busy,
     adding,
     renaming,
+    retitling,
     removing,
+    detaching,
     lift,
     notice,
     spoken,
     setAdding,
     setRenaming,
+    setRetitling,
     setRemoving,
+    setDetaching,
     setLift,
     speak,
     run,
@@ -167,7 +193,7 @@ function useEditor(data: MembersData): Editor {
 
 // ── 줄의 조각 ──────────────────────────────────────────────────────────
 
-/** 종류 그림. 선언한 일이 없으면 같은 너비의 빈자리다(이름 줄을 맞춘다): Inject와 도구는 구성원 단위로 오지 않아 지어내지 않는다 */
+/** 종류 그림. 선언한 일이 없으면 같은 너비의 빈자리다(이름 줄을 맞춘다). Inject와 도구는 엔진이 값을 줄 때만 그림이 생긴다 */
 function KindTiles(props: { readonly row: MemberRow }): ReactNode {
   if (props.row.kinds.length === 0) {
     return <span aria-hidden="true" className="size-4 shrink-0" />;
@@ -189,6 +215,9 @@ function doesWordsOf(row: MemberRow): readonly string[] {
   if (row.otherHooks > 0) {
     words.push(t("desktop.craft.members.does.otherHooks", { count: row.otherHooks }));
   }
+  // 도구와 Inject는 값이 있을 때만 말한다(지금 엔진은 멤버 단위로 주지 않아 늘 0이다)
+  if (row.tools > 0) words.push(t("desktop.craft.members.does.tools", { count: row.tools }));
+  if (row.injects > 0) words.push(t("desktop.craft.members.does.injects", { count: row.injects }));
   if (words.length === 0) words.push(t("desktop.craft.members.does.none"));
   return words;
 }
@@ -249,7 +278,7 @@ function MemberName(props: { readonly row: MemberRow; readonly strong?: boolean 
   );
 }
 
-/** 줄 메뉴: 이름 바꾸기, 위로, 아래로, 빼기. 블록이 쓰는 구성원은 뺄 수 없다(엔진이 거절한다) */
+/** 줄 메뉴: 이름 바꾸기, 보이는 이름 바꾸기, 위로, 아래로, 따로 떼기, 빼기. 블록이 쓰는 멤버는 뺄 수 없다(엔진이 거절한다) */
 function RowMenu(props: {
   readonly row: MemberRow;
   readonly index: number;
@@ -284,6 +313,14 @@ function RowMenu(props: {
         {t("desktop.craft.members.rename")}
       </MenuItem>
       <MenuItem
+        icon={<SquarePen aria-hidden />}
+        onSelect={() => {
+          editor.setRetitling(row.id);
+        }}
+      >
+        {t("desktop.craft.members.retitle")}
+      </MenuItem>
+      <MenuItem
         icon={<ArrowUp aria-hidden />}
         disabled={index === 0}
         end="⌥↑"
@@ -304,6 +341,14 @@ function RowMenu(props: {
         {t("desktop.craft.members.moveDown")}
       </MenuItem>
       <MenuSeparator />
+      <MenuItem
+        icon={<Scissors aria-hidden />}
+        onSelect={() => {
+          editor.setDetaching(row);
+        }}
+      >
+        {t("desktop.craft.members.detach")}
+      </MenuItem>
       <MenuItem
         icon={<Trash2 aria-hidden />}
         tone={blocked ? "neutral" : "danger"}
@@ -591,6 +636,62 @@ function RenameField(props: {
   );
 }
 
+/**
+ * 보이는 이름(제목, `retitle`) 고치기. 이름 바꾸기와 같은 자리에 선다. 비우면 제목을 지워 이름(id)을 그대로 보인다.
+ * 지금 값과 같으면 저장하지 않고 닫는다
+ */
+function RetitleField(props: {
+  readonly row: MemberRow;
+  readonly busy: boolean;
+  readonly onSave: (title: string) => void;
+  readonly onCancel: () => void;
+}): ReactNode {
+  const current = props.row.hasTitle ? props.row.name : "";
+  const [title, setTitle] = useState(current);
+  const trimmed = title.trim();
+  const ready = trimmed !== current && !props.busy;
+  return (
+    <form
+      className="flex min-w-0 flex-1 items-center gap-2"
+      data-member-retitle={props.row.id}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ready) props.onSave(trimmed);
+        else if (trimmed === current) props.onCancel();
+      }}
+    >
+      <Input
+        size="xs"
+        autoFocus
+        value={title}
+        maxLength={64}
+        autoComplete="off"
+        placeholder={props.row.id}
+        aria-label={t("desktop.craft.members.retitle.label", { name: props.row.id })}
+        containerClassName="w-56"
+        onValueChange={setTitle}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            props.onCancel();
+          }
+        }}
+      />
+      <span className="flex min-w-0 items-center gap-1 text-ui-sm text-text-tertiary">
+        <span className="shrink-0 font-mono text-mono-sm">{props.row.id}</span>
+        <InfoTip text={t("desktop.craft.members.title.help")} />
+      </span>
+      <span aria-hidden className="flex-1" />
+      <Button type="button" size="xs" variant="ghost" onClick={props.onCancel}>
+        {t("desktop.craft.members.cancel")}
+      </Button>
+      <Button type="submit" size="xs" variant="solid" disabled={!ready}>
+        {t("desktop.craft.members.rename.save")}
+      </Button>
+    </form>
+  );
+}
+
 function RemoveDialog(props: { readonly editor: Editor }): ReactNode {
   const { editor } = props;
   const row = editor.removing;
@@ -757,6 +858,7 @@ interface LayoutProps {
   readonly existing: readonly string[];
   readonly onMove: (id: string, from: number, to: number) => void;
   readonly onRename: (id: string, to: string) => void;
+  readonly onRetitle: (id: string, title: string) => void;
 }
 
 /** 집어 든 동안의 보이는 순서(놓기 전 미리 보기) */
@@ -824,6 +926,7 @@ function ListLayout(props: LayoutProps): ReactNode {
         {rows.map((row, index) => {
           const lifted = editor.lift?.id === row.id;
           const renaming = editor.renaming === row.id;
+          const retitling = editor.retitling === row.id;
           return (
             <li
               key={row.id}
@@ -872,6 +975,17 @@ function ListLayout(props: LayoutProps): ReactNode {
                   }}
                   onCancel={() => {
                     editor.setRenaming(null);
+                  }}
+                />
+              ) : retitling ? (
+                <RetitleField
+                  row={row}
+                  busy={editor.busy}
+                  onSave={(title) => {
+                    props.onRetitle(row.id, title);
+                  }}
+                  onCancel={() => {
+                    editor.setRetitling(null);
                   }}
                 />
               ) : (
@@ -938,6 +1052,17 @@ function SplitDetail(props: {
                 editor.setRenaming(null);
               }}
             />
+          ) : editor.retitling === row.id ? (
+            <RetitleField
+              row={row}
+              busy={editor.busy}
+              onSave={(title) => {
+                layout.onRetitle(row.id, title);
+              }}
+              onCancel={() => {
+                editor.setRetitling(null);
+              }}
+            />
           ) : (
             <h4 className="m-0 min-w-0 truncate text-title-3 font-semibold text-text-primary">
               {row.name}
@@ -987,6 +1112,17 @@ function SplitDetail(props: {
           <Button
             size="xs"
             variant="ghost"
+            disabled={editor.busy}
+            onClick={() => {
+              editor.setRetitling(row.id);
+            }}
+          >
+            <SquarePen aria-hidden />
+            {t("desktop.craft.members.retitle")}
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
             disabled={editor.busy || props.index === 0}
             onClick={() => {
               layout.onMove(row.id, props.index, props.index - 1);
@@ -1005,6 +1141,17 @@ function SplitDetail(props: {
           >
             <ArrowDown aria-hidden />
             {t("desktop.craft.members.moveDown")}
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            disabled={editor.busy}
+            onClick={() => {
+              editor.setDetaching(row);
+            }}
+          >
+            <Scissors aria-hidden />
+            {t("desktop.craft.members.detach")}
           </Button>
           <span className="inline-flex items-center gap-1">
             <Button
@@ -1107,9 +1254,12 @@ function SplitLayout(props: LayoutProps & { readonly add: ReactNode }): ReactNod
 export function MembersView(props: {
   readonly data: MembersData;
   readonly layout: MembersLayout;
+  /** 따로 떼기의 엔진 호출. 없으면(서버 렌더 시험) 떼기 상자를 그리지 않는다 */
+  readonly split?: SplitActions;
 }): ReactNode {
   const { data } = props;
   const editor = useEditor(data);
+  const installed = useInstalledEntries();
   const { load } = data;
   if (load.status === "loading") {
     return (
@@ -1153,6 +1303,15 @@ export function MembersView(props: {
       rethrow,
     );
   };
+  const onRetitle = (id: string, title: string): void => {
+    detach(
+      editor.run([{ kind: "retitle", id, title }]).then((ok) => {
+        if (ok) editor.setRetitling(null);
+        return undefined;
+      }),
+      rethrow,
+    );
+  };
   const add = (
     <AddForm
       existing={existing}
@@ -1179,7 +1338,15 @@ export function MembersView(props: {
       }}
     />
   );
-  const layoutProps: LayoutProps = { rows, editable, editor, existing, onMove, onRename };
+  const layoutProps: LayoutProps = {
+    rows,
+    editable,
+    editor,
+    existing,
+    onMove,
+    onRename,
+    onRetitle,
+  };
   return (
     <div className="rv-root grid max-w-200 content-start gap-4" data-members="">
       <SendNotice state={state} editable={editable} editor={editor} onOpen={data.openReview} />
@@ -1205,6 +1372,18 @@ export function MembersView(props: {
         {editor.spoken}
       </span>
       <RemoveDialog editor={editor} />
+      {load.access.kind === "editable" && props.split !== undefined && (
+        <DetachDialog
+          member={editor.detaching}
+          rootName={data.rootName}
+          sourceDir={load.access.dir}
+          taken={installed.map((e) => e.name)}
+          actions={props.split}
+          onClose={() => {
+            editor.setDetaching(null);
+          }}
+        />
+      )}
     </div>
   );
 }

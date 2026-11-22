@@ -26,6 +26,7 @@ export type ListStatus = "idle" | "loading" | "ready" | "error";
 export const DETAIL_TABS = [
   "overview",
   "members",
+  "dependencies",
   "hooks",
   "settings",
   "metrics",
