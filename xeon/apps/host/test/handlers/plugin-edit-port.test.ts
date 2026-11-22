@@ -1,3 +1,4 @@
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +11,11 @@ import { createFakeHost } from "../fixtures/fake-host.ts";
 // M5c §4.7.3 승인의 프로필 쓰기: 실제 프로필 저장소(파일 잠금, 개정, `profile.changed` 알림) 위에서 돈다.
 // 플러그인 사실과 검사는 시험이 정한다. 쓰기는 `applyPluginEdit`만 한다.
 
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
+
 const roots: string[] = [];
 afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
@@ -20,6 +26,8 @@ const KIT: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("kit"),
   declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
 };
 const HELM: PluginFact = {
@@ -27,6 +35,8 @@ const HELM: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("helm"),
   declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
 };
 

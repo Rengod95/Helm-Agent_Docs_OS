@@ -18,7 +18,7 @@ import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import { hashPluginTree } from "../../src/assembly/plugins/content-hash.ts";
 import type { DevkitPluginFacts, M4HostEnv, M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
-import type { DevkitError } from "@fresnel/contracts/services";
+import type { DependencyOp, DevkitError } from "@fresnel/contracts/services";
 import type {
   ExtUiVersionSource,
   ReviewedVersions,
@@ -550,4 +550,221 @@ test("devkit port: readMembers lists the members and writes nothing; a refused o
   const reviewed = join(paths.store, "reviewed", "pilot", "c".repeat(64), "tree");
   await scaffoldAt(port, reviewed);
   expect((await port.readMembers(reviewed)).ok).toBe(true);
+});
+
+// 의존 편집(`ext.dependencies.edit`)도 구성원 편집과 같은 원본 폴더 규칙을 따른다. 설치본과 저장소 안의 폴더는 `denied`로 거절하고 아무 파일도 건드리지 않는다.
+
+const DENIED: DevkitError = {
+  kind: "denied",
+  message:
+    "the folder is an installed or stored copy, not a source folder; edit the source folder instead",
+};
+
+test("devkit port: editDependencies edits the source folder's dependsOn; it installs, approves and drafts nothing", async () => {
+  const state = fakes("deps-source");
+  const paths = storeOf("deps-source");
+  const port = membersPort(state, paths);
+  const source = join(paths.config, "plugins", "pilot");
+  await scaffoldAt(port, source);
+  const installed = join(state.extensionsDir, "pilot");
+  const reviewed = join(paths.store, "reviewed", "pilot", "d".repeat(64), "tree");
+  await scaffoldAt(port, installed);
+  await scaffoldAt(port, reviewed);
+  const keep = (): readonly string[] => [
+    bytesOf(installed),
+    bytesOf(reviewed),
+    bytesOf(paths.config, "profiles.json"),
+  ];
+  const frozen = keep();
+  const ops: DependencyOp[] = [{ kind: "add", dependency: { plugin: "base-kit", kind: "hard" } }];
+  const edited = await port.editDependencies({ dir: source, ops });
+  if (!edited.ok) throw new Error(edited.error.message);
+  expect(edited.value.dependencies).toEqual([
+    { from: "pilot", target: "base-kit", kind: "hard", range: null },
+  ]);
+  expect(edited.value.changedFiles).toEqual([MANIFEST]);
+  expect(bytesOf(source)).toContain('"plugin": "base-kit"');
+  expect(await port.readDependencies(source)).toEqual(ok(edited.value.dependencies));
+  expect(keep()).toEqual(frozen);
+  // 설치 기록과 등록 끄기는 그대로다: 편집은 설치도 승인도 하지 않는다
+  expect(state.recorded).toEqual([]);
+  expect(state.disabled).toEqual([]);
+});
+
+test("devkit port: editDependencies refuses an installed or stored copy as denied, the store folder itself too, and writes nothing there", async () => {
+  const state = fakes("deps-denied");
+  const paths = storeOf("deps-denied");
+  const port = membersPort(state, paths);
+  const installed = join(state.extensionsDir, "pilot");
+  const draft = join(paths.store, "drafts", "drf_2", "tree");
+  const reviewed = join(paths.store, "reviewed", "pilot", "e".repeat(64), "tree");
+  await Promise.all([installed, draft, reviewed].map((dir) => scaffoldAt(port, dir)));
+  const frozen = [installed, draft, reviewed].map((dir) => bytesOf(dir));
+  const ops: DependencyOp[] = [{ kind: "add", dependency: { plugin: "base-kit" } }];
+  const refusals = await Promise.all(
+    [installed, draft, reviewed, paths.store].map((dir) => port.editDependencies({ dir, ops })),
+  );
+  expect(refusals).toEqual([err(DENIED), err(DENIED), err(DENIED), err(DENIED)]);
+  expect([installed, draft, reviewed].map((dir) => bytesOf(dir))).toEqual(frozen);
+  // 저장소 안의 사본은 읽을 수 있다(읽기는 거절하지 않는다)
+  expect((await port.readDependencies(reviewed)).ok).toBe(true);
+});
+
+test("devkit port: editDependencies and readDependencies refuse a relative folder before any file is written", async () => {
+  const state = fakes("deps-relative");
+  const port = membersPort(state, storeOf("deps-relative"));
+  const relative: DevkitError = { kind: "invalid_input", message: "dir must be an absolute path" };
+  expect(await port.editDependencies({ dir: "pilot", ops: [] })).toEqual(err(relative));
+  expect(await port.readDependencies("pilot")).toEqual(err(relative));
+});
+
+// 구성원 떼기(`ext.members.detach`)는 원본 폴더를 읽고 새 폴더에만 쓴다. 설치본과 저장소 안의 폴더는 `dir`이든 `outDir`이든 `denied`다.
+
+test("devkit port: detachMember writes a new folder from a source member; it installs, approves and drafts nothing", async () => {
+  const state = fakes("detach-source");
+  const paths = storeOf("detach-source");
+  const port = membersPort(state, paths);
+  const source = join(paths.config, "plugins", "pilot");
+  await scaffoldAt(port, source);
+  const added = await port.editMembers({
+    dir: source,
+    ops: [{ kind: "add", id: "sync", mode: "hook" }],
+  });
+  if (!added.ok) throw new Error(added.error.message);
+  const installed = join(state.extensionsDir, "pilot");
+  const reviewed = join(paths.store, "reviewed", "pilot", "f".repeat(64), "tree");
+  await scaffoldAt(port, installed);
+  await scaffoldAt(port, reviewed);
+  const keep = (): readonly string[] => [
+    bytesOf(installed),
+    bytesOf(reviewed),
+    bytesOf(paths.config, "profiles.json"),
+  ];
+  const frozen = keep();
+  const sourceFrozen = [bytesOf(source), bytesOf(source, "src/members/sync.ts")];
+  const outDir = join(root, "detach-sync-out");
+  const detached = await port.detachMember({ dir: source, member: "sync", outDir });
+  if (!detached.ok) throw new Error(detached.error.message);
+  expect(detached.value).toEqual({
+    outDir,
+    name: "pilot-sync",
+    changedFiles: [MANIFEST, "src/root.ts", "src/index.ts"],
+    issues: [],
+    profileMove: { from: "pilot/sync", to: "pilot-sync" },
+  });
+  expect(bytesOf(outDir)).toContain('"name": "pilot-sync"');
+  expect(await port.readMembers(outDir)).toEqual(ok([]));
+  expect([bytesOf(source), bytesOf(source, "src/members/sync.ts")]).toEqual(sourceFrozen);
+  expect(keep()).toEqual(frozen);
+  // 설치 기록과 등록 끄기는 그대로다: 떼기는 설치도 승인도 하지 않는다
+  expect(state.recorded).toEqual([]);
+  expect(state.disabled).toEqual([]);
+});
+
+test("devkit port: detachMember refuses an installed or stored copy as denied for dir and for outDir, and a relative path before anything is read", async () => {
+  const state = fakes("detach-denied");
+  const paths = storeOf("detach-denied");
+  const port = membersPort(state, paths);
+  const source = join(paths.config, "plugins", "pilot");
+  const installed = join(state.extensionsDir, "pilot");
+  const draft = join(paths.store, "drafts", "drf_3", "tree");
+  const reviewed = join(paths.store, "reviewed", "pilot", "g".repeat(64), "tree");
+  await Promise.all([source, installed, draft, reviewed].map((dir) => scaffoldAt(port, dir)));
+  const frozen = [installed, draft, reviewed].map((dir) => bytesOf(dir));
+  const fresh = join(root, "detach-denied-out");
+  const attempts = [
+    { dir: installed, outDir: fresh },
+    { dir: draft, outDir: fresh },
+    { dir: reviewed, outDir: fresh },
+    { dir: source, outDir: installed },
+    { dir: source, outDir: reviewed },
+    { dir: source, outDir: paths.store },
+  ];
+  const refusals = await Promise.all(
+    attempts.map((attempt) => port.detachMember({ ...attempt, member: "sync" })),
+  );
+  expect(refusals).toEqual(attempts.map(() => err(DENIED)));
+  expect([installed, draft, reviewed].map((dir) => bytesOf(dir))).toEqual(frozen);
+  expect(existsSync(fresh)).toBe(false);
+  expect(await port.detachMember({ dir: "pilot", member: "sync", outDir: fresh })).toEqual(
+    err({ kind: "invalid_input", message: "dir must be an absolute path" }),
+  );
+});
+
+// 구성원 합치기(`ext.members.merge`)는 원본 폴더들을 읽고 새 폴더에만 쓴다. 어느 원본이나 새 폴더가 설치본이나 저장소 안이면 `denied`다.
+// 합치는 원본은 외부 플러그인 층(`plugin`)이어야 한다(뿌리가 `plugin`이라서). 그래서 여기서는 그 층으로 만든다.
+
+async function pluginAt(port: DevkitPort, dir: string, name: string): Promise<void> {
+  const made = await port.scaffold({ kind: "single-plugin", name, dir, layer: "plugin" });
+  if (!made.ok) throw new Error(made.error.message);
+}
+
+test("devkit port: mergeMembers writes a new folder from source folders; it installs, approves and drafts nothing", async () => {
+  const state = fakes("merge-source");
+  const paths = storeOf("merge-source");
+  const port = membersPort(state, paths);
+  const alpha = join(paths.config, "plugins", "alpha");
+  const beta = join(paths.config, "plugins", "beta");
+  await pluginAt(port, alpha, "alpha");
+  await pluginAt(port, beta, "beta");
+  const installed = join(state.extensionsDir, "alpha");
+  const reviewed = join(paths.store, "reviewed", "alpha", "h".repeat(64), "tree");
+  await scaffoldAt(port, installed, "alpha");
+  await scaffoldAt(port, reviewed, "alpha");
+  const keep = (): readonly string[] => [
+    bytesOf(installed),
+    bytesOf(reviewed),
+    bytesOf(paths.config, "profiles.json"),
+  ];
+  const frozen = keep();
+  const sourceFrozen = [bytesOf(alpha), bytesOf(beta)];
+  const outDir = join(root, "merge-pair-out");
+  const merged = await port.mergeMembers({ dirs: [alpha, beta], outDir, name: "pair" });
+  if (!merged.ok) throw new Error(merged.error.message);
+  expect(merged.value.outDir).toBe(outDir);
+  expect(merged.value.name).toBe("pair");
+  expect(merged.value.changedFiles).toEqual([MANIFEST]);
+  expect(merged.value.profileMove).toEqual([
+    { from: "alpha", to: "pair/alpha" },
+    { from: "beta", to: "pair/beta" },
+  ]);
+  expect(bytesOf(outDir)).toContain('"name": "pair"');
+  expect(await port.readMembers(outDir)).toEqual(ok(merged.value.members));
+  expect([bytesOf(alpha), bytesOf(beta)]).toEqual(sourceFrozen);
+  expect(keep()).toEqual(frozen);
+  // 설치 기록과 등록 끄기는 그대로다: 합치기는 설치도 승인도 하지 않는다
+  expect(state.recorded).toEqual([]);
+  expect(state.disabled).toEqual([]);
+});
+
+test("devkit port: mergeMembers refuses an installed or stored copy as denied for any folder or for outDir, and a relative path before anything is read", async () => {
+  const state = fakes("merge-denied");
+  const paths = storeOf("merge-denied");
+  const port = membersPort(state, paths);
+  const alpha = join(paths.config, "plugins", "alpha");
+  const beta = join(paths.config, "plugins", "beta");
+  const installed = join(state.extensionsDir, "alpha");
+  const draft = join(paths.store, "drafts", "drf_4", "tree");
+  const reviewed = join(paths.store, "reviewed", "alpha", "i".repeat(64), "tree");
+  await Promise.all(
+    [alpha, beta, installed, draft, reviewed].map((dir) => pluginAt(port, dir, "alpha")),
+  );
+  const frozen = [installed, draft, reviewed].map((dir) => bytesOf(dir));
+  const fresh = join(root, "merge-denied-out");
+  const attempts = [
+    { dirs: [installed, beta], outDir: fresh },
+    { dirs: [alpha, draft], outDir: fresh },
+    { dirs: [alpha, reviewed], outDir: fresh },
+    { dirs: [alpha, beta], outDir: installed },
+    { dirs: [alpha, beta], outDir: paths.store },
+  ];
+  const refusals = await Promise.all(
+    attempts.map((attempt) => port.mergeMembers({ ...attempt, name: "pair" })),
+  );
+  expect(refusals).toEqual(attempts.map(() => err(DENIED)));
+  expect([installed, draft, reviewed].map((dir) => bytesOf(dir))).toEqual(frozen);
+  expect(existsSync(fresh)).toBe(false);
+  expect(await port.mergeMembers({ dirs: ["pilot", beta], outDir: fresh, name: "pair" })).toEqual(
+    err({ kind: "invalid_input", message: "dirs must be absolute paths" }),
+  );
 });

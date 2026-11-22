@@ -96,6 +96,7 @@ function hooksFor(edits: Edits): ApprovalHookDeps {
     },
     loader: () => undefined,
     refreshPluginSet: () => Promise.resolve(),
+    facts: () => [],
     log: SILENT,
   };
 }

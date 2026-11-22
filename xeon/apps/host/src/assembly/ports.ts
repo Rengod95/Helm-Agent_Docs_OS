@@ -119,6 +119,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import { pluginFactOf } from "./m4/plugin-fact.ts";
 import { pluginLifecycleOf } from "./m4/plugin-lifecycle.ts";
 import {
   approvalHooksOf,
@@ -1389,6 +1390,9 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   });
   // 사용자 플러그인 폴더(`<config>/plugins`). 읽기 서비스, 한 줄 지침(§4.10), 마이그레이션 제출(§7.5)이 같이 본다
   const userPluginsDir = join(deps.configDir, "plugins");
+  // 설치된 플러그인 사실(AGE-33 의존 검사). 읽기 서비스와 프로필 검증이 보는 목록과 같은 원천이다
+  const installedFacts = () =>
+    deps.extRead.extensions().map((record) => pluginFactOf(record.manifest, record.location));
   const pluginReview = createPluginReview({
     store: deps.pluginStore,
     plugins: pluginService,
@@ -1400,6 +1404,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     log: deps.logger,
     envSandboxed: () => deps.settings.value("l0.sandbox.sandboxImportedHooks") === true,
     narrowDrafts: () => deps.settings.value("l0.sandbox.narrowDrafts") === true,
+    facts: installedFacts,
     // 승인의 프로필 반영과 커밋 뒤 실행 중인 판 맞추기(M5c §4.7.3, §4.6.7). 프로필과 플러그인 집합은 엔진 포트가 올라온 뒤에 읽는다
     approvalHooks: approvalHooksOf({
       profiles: {
@@ -1408,6 +1413,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       },
       loader: () => deps.extRead.loader(),
       refreshPluginSet: () => ports.m4.pluginSet.refresh(),
+      facts: installedFacts,
       log: deps.logger,
     }),
     // 돌려보내기 사유를 만든 대화의 다음 입력으로 넣는다(입력 큐, 사용자가 보낸 것으로 기록한다 [제안])

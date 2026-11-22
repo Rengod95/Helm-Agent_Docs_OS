@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
+import type { DependencyDecl } from "@fresnel/contracts/extensions";
 import type { ExtensionLoader, LoadedExtensionInfo } from "@fresnel/ext-host";
 import { pluginLifecycleOf } from "../../src/assembly/m4/plugin-lifecycle.ts";
 import { partial } from "../fixtures/unsafe.ts";
@@ -56,4 +57,128 @@ test("a name without a reviewed copy is skipped", async () => {
     }),
   );
   expect(await lifecycle.ensureLoaded("core-unit")).toBeUndefined();
+});
+
+// AGE-33: 기대는 확장은 싣기 전에 그 hard 대상을 먼저 싣는다.
+
+/** 로더 기록 한 개. `dependsOn`을 가진 매니페스트를 붙인다 */
+function recordOf(name: string, dependsOn: readonly DependencyDecl[] = []): LoadedExtensionInfo {
+  return partial<LoadedExtensionInfo>({
+    name,
+    state: "disabled",
+    manifest: {
+      schemaVersion: 2,
+      name,
+      version: "1.0.0",
+      entry: "./src/index.ts",
+      plugins: [{ layer: "plugin", hooks: [], dependsOn: [...dependsOn] }],
+    },
+  });
+}
+
+test("a hard target is ensured before the extension that depends on it", async () => {
+  const calls: string[] = [];
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [recordOf("aa-app", [{ plugin: "zz-lib", kind: "hard" }]), recordOf("zz-lib")],
+      ensureLoaded: (name) => {
+        calls.push(`ensure:${name}`);
+        return Promise.resolve(partial<LoadedExtensionInfo>({ name, state: "active" }));
+      },
+    }),
+  );
+  await lifecycle.ensureLoaded("aa-app");
+  expect(calls).toEqual(["ensure:zz-lib", "ensure:aa-app"]);
+});
+
+test("a soft target is not ensured first", async () => {
+  const calls: string[] = [];
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [recordOf("aa-app", [{ plugin: "zz-lib", kind: "soft" }]), recordOf("zz-lib")],
+      ensureLoaded: (name) => {
+        calls.push(`ensure:${name}`);
+        return Promise.resolve(partial<LoadedExtensionInfo>({ name, state: "active" }));
+      },
+    }),
+  );
+  await lifecycle.ensureLoaded("aa-app");
+  expect(calls).toEqual(["ensure:aa-app"]);
+});
+
+test("hard targets are followed through the chain, and a cycle is visited once", async () => {
+  const calls: string[] = [];
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [
+        recordOf("aa-app", [{ plugin: "bb-mid", kind: "hard" }]),
+        recordOf("bb-mid", [
+          { plugin: "cc-base", kind: "hard" },
+          { plugin: "aa-app", kind: "hard" },
+        ]),
+        recordOf("cc-base"),
+      ],
+      ensureLoaded: (name) => {
+        calls.push(`ensure:${name}`);
+        return Promise.resolve(partial<LoadedExtensionInfo>({ name, state: "active" }));
+      },
+    }),
+  );
+  await lifecycle.ensureLoaded("aa-app");
+  expect(calls).toEqual(["ensure:cc-base", "ensure:bb-mid", "ensure:aa-app"]);
+});
+
+test("a target that fails to load does not throw, and the dependent is still asked to load", async () => {
+  const calls: string[] = [];
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [recordOf("aa-app", [{ plugin: "zz-lib", kind: "hard" }]), recordOf("zz-lib")],
+      ensureLoaded: (name) => {
+        calls.push(`ensure:${name}`);
+        if (name === "zz-lib") return Promise.reject(new Error("target failed"));
+        return Promise.resolve(partial<LoadedExtensionInfo>({ name, state: "error" }));
+      },
+    }),
+  );
+  expect(await lifecycle.ensureLoaded("aa-app")).toEqual(
+    partial<LoadedExtensionInfo>({ name: "aa-app", state: "error" }),
+  );
+  expect(calls).toEqual(["ensure:zz-lib", "ensure:aa-app"]);
+});
+
+test("a hard target without a record is not loaded first", async () => {
+  const calls: string[] = [];
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [recordOf("aa-app", [{ plugin: "zz-lib", kind: "hard" }])],
+      ensureLoaded: (name) => {
+        calls.push(`ensure:${name}`);
+        return Promise.resolve(partial<LoadedExtensionInfo>({ name, state: "error" }));
+      },
+    }),
+  );
+  await lifecycle.ensureLoaded("aa-app");
+  expect(calls).toEqual(["ensure:aa-app"]);
+});
+
+test("a target that is already loading is awaited and loaded only once", async () => {
+  const calls: string[] = [];
+  const gate = Promise.withResolvers<void>();
+  const lifecycle = lifecycleOf(
+    partial<ExtensionLoader>({
+      list: () => [recordOf("aa-app", [{ plugin: "zz-lib", kind: "hard" }]), recordOf("zz-lib")],
+      ensureLoaded: async (name) => {
+        calls.push(`ensure:${name}`);
+        if (name === "zz-lib") await gate.promise;
+        calls.push(`done:${name}`);
+        return partial<LoadedExtensionInfo>({ name, state: "active" });
+      },
+    }),
+  );
+  // 대상이 먼저 진행 중이다. 기대는 쪽의 적재는 그 대상을 기다리고 두 번 부르지 않는다
+  const target = lifecycle.ensureLoaded("zz-lib");
+  const dependent = lifecycle.ensureLoaded("aa-app");
+  gate.resolve();
+  await Promise.all([target, dependent]);
+  expect(calls).toEqual(["ensure:zz-lib", "done:zz-lib", "ensure:aa-app", "done:aa-app"]);
 });

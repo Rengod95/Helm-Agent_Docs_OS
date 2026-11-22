@@ -11,6 +11,7 @@ import {
   type Result,
 } from "@fresnel/contracts";
 import type { LocalIdFactory } from "@fresnel/contracts/conversation";
+import { blockingDependents } from "@fresnel/ext-host";
 import type {
   EvidenceRef,
   ImportedHookOrigin,
@@ -42,7 +43,7 @@ import type { PluginChange } from "../../handlers/m5/plugin-review.ts";
 import { DEFAULT_PROFILE_ID } from "../m4/profile-defaults.ts";
 import { pluginFactOf, type PluginFact } from "../m4/plugin-fact.ts";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
-import { buildPluginCard } from "./card.ts";
+import { buildPluginCard, withInstalledDependencies } from "./card.ts";
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
 import { diffCards } from "./diff.ts";
 import {
@@ -146,6 +147,8 @@ export interface PluginReviewDeps {
   }) => Promise<boolean>;
   /** 승인 훅. 3a에서는 생략한다 */
   readonly approvalHooks?: ApprovalHooks;
+  /** 설치된 플러그인 사실. 제거 요청이 hard로 기대는 플러그인이 있는지 본다(AGE-33). 생략하면 검사하지 않는다 */
+  readonly facts?: () => readonly PluginFact[];
 }
 
 /** 초안 만들기의 결과(`plugin.draft.create`) */
@@ -434,6 +437,41 @@ function removalOf(
     affected.push({ profileId: "common", title: "common" });
   }
   return { affectedProfiles: affected, removes: { state: false, records: null }, baseCard };
+}
+
+/**
+ * 끄기나 삭제가 hard로 기대는 곳이 있으면 `required_by` 거절 값, 없으면 null이다(AGE-33). 꺼진 플러그인은 기대지 않으니
+ * 설치된 이름만 센다. 제거 요청과 승인 때 같은 검사를 쓴다
+ */
+export function requiredByRefusalOf(
+  name: string,
+  facts: readonly PluginFact[],
+): PluginPortFailure | null {
+  const nodes = facts.map((fact) => ({
+    name: fact.name,
+    version: fact.version,
+    manifest: fact.manifest,
+  }));
+  const dependents = blockingDependents([name], nodes, new Set(nodes.map((node) => node.name)));
+  if (dependents.length === 0) return null;
+  return {
+    kind: "dependency",
+    reason: "required_by",
+    plugin: name,
+    items: dependents.map(({ dependency }) => ({
+      from: dependency.from,
+      target: dependency.target,
+      kind: "hard",
+      range: dependency.range,
+      problem: "depended_on",
+      found: null,
+    })),
+  };
+}
+
+/** 항목의 카드 의존 칸을 설치된 사실로 다시 채운 응답 값(AGE-33). 저장된 항목은 바꾸지 않는다 */
+function withInstalledCard(item: ReviewItem, facts: readonly PluginFact[]): ReviewItem {
+  return { ...item, card: withInstalledDependencies(item.card, facts) };
 }
 
 /** 후보 폴더의 카드. 검토 칸은 대기 상태로 적는다. 프로젝트 출처는 프로젝트 id를 싣는다 */
@@ -1341,6 +1379,10 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
             item.state === "pending",
         );
         if (pendingRemove !== undefined) return ok({ itemId: pendingRemove.itemId });
+        // 다른 플러그인이 hard로 기대면 제거 항목을 만들지 않는다(AGE-33). 승인 때도 같은 검사를 한다
+        const dependedOn =
+          deps.facts === undefined ? null : requiredByRefusalOf(name, deps.facts());
+        if (dependedOn !== null) return err(dependedOn);
         const profiles = await deps.profiles.list();
         if (!profiles.ok) return err({ kind: "profiles", failure: profiles.error });
         const reviewed: Result<ReviewedVersion | null, PluginStoreError> =
@@ -1484,8 +1526,13 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       const items = listed.value
         .filter((item) => filter.state === undefined || item.state === filter.state)
         .filter((item) => filter.name === undefined || item.name === filter.name);
-      // 최신이 앞에 오도록 돌려준다
-      return ok({ items: oldestFirst(items).toReversed() });
+      // 최신이 앞에 오도록 돌려준다. 카드의 의존 칸은 응답에서만 설치된 사실로 다시 채운다(AGE-33)
+      const ordered = oldestFirst(items).toReversed();
+      const facts = deps.facts?.();
+      return ok({
+        items:
+          facts === undefined ? ordered : ordered.map((item) => withInstalledCard(item, facts)),
+      });
     },
 
     get: async (itemId) => {
@@ -1495,7 +1542,13 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
           ? err({ kind: "review_not_found", itemId })
           : err(storeFailure(read.error));
       }
-      return ok({ item: read.value });
+      // 카드의 의존 칸은 응답에서만 설치된 사실로 다시 채운다(AGE-33). 저장된 항목은 그대로다
+      const facts = deps.facts?.();
+      const item =
+        facts === undefined
+          ? read.value
+          : { ...read.value, card: withInstalledDependencies(read.value.card, facts) };
+      return ok({ item });
     },
 
     file: async (itemId, path, side = "candidate") => {

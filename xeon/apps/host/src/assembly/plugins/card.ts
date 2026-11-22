@@ -4,13 +4,18 @@ import {
   CARD_MCP_LAUNCH_LIMITS,
   HOOKS,
   HOOK_POSITIONS,
+  dependenciesOf,
   internalPluginLayer,
   isOrchestrationExtension,
   pluginDeclsOf,
+  pluginsOf,
+  splitDependencyTarget,
   SCRIPT_LIMITS,
   SCRIPT_ENV_SANDBOXED_USES,
   SCRIPT_ENV_USES,
   SCRIPT_USES,
+  type CardDependency,
+  type CardDependencyProblem,
   type CardHook,
   type CardMcpLaunch,
   type CardScript,
@@ -25,7 +30,12 @@ import {
   type PluginOriginKind,
   type PluginUiDecl,
 } from "@fresnel/contracts/extensions";
-import { scriptEnvNamesOf } from "@fresnel/ext-host";
+import {
+  dependentsOf,
+  satisfiesRange,
+  scriptEnvNamesOf,
+  type DependencyNode,
+} from "@fresnel/ext-host";
 import { compareUtf8 } from "./content-hash.ts";
 import { declaredCostOf } from "./declared-cost.ts";
 import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
@@ -445,6 +455,57 @@ function isInternalCard(kind: PluginOriginKind, manifest: CardSubject["manifest"
   return kind === "builtin" && !isOrchestrationExtension(manifest);
 }
 
+/** 의존 한 줄을 카드 칸으로 옮긴다. 문제(`problem`)는 설치된 집합을 봐야 알므로 호출자가 정한다 */
+function cardDependencyOf(
+  line: Omit<CardDependency, "problem">,
+  problem: CardDependencyProblem | null,
+): CardDependency {
+  return { from: line.from, target: line.target, kind: line.kind, range: line.range, problem };
+}
+
+/**
+ * 설치된 집합에서 본 의존 문제(AGE-33). `dependency-graph.ts`의 `problemIn`과 같은 판정이다: 대상 확장이 없으면 `target_missing`,
+ * 구성원이 없으면 `member_missing`, 범위를 어기면 `range_unmet`. `target_disabled`는 프로필 사정이라 여기서 보지 않는다
+ */
+function installedProblemOf(
+  target: string,
+  range: string | null,
+  nodes: readonly DependencyNode[],
+): CardDependencyProblem | null {
+  const { extension, member } = splitDependencyTarget(target);
+  const node = nodes.find((candidate) => candidate.name === extension);
+  if (node === undefined) return "target_missing";
+  if (member !== null && !pluginsOf(node.manifest).some((entry) => entry.decl.id === member)) {
+    return "member_missing";
+  }
+  if (range !== null && !satisfiesRange(node.version, range)) return "range_unmet";
+  return null;
+}
+
+/**
+ * 검토 카드의 의존 칸을 설치된 사실로 다시 채운다(AGE-33). `dependsOn`의 `problem`은 저장된 줄을 설치된 집합에서 다시 판정하고
+ * (후보 매니페스트는 다시 읽지 않는다), `dependents`는 이 플러그인에 기대는 설치된 줄이다. 이 플러그인 자신은 집합에서 뺀다.
+ * `dependencies`가 없는 옛 카드는 의존을 몰라 그대로 둔다. 저장된 항목은 바꾸지 않고 응답 값만 만든다
+ */
+export function withInstalledDependencies(
+  card: PluginCard,
+  nodes: readonly DependencyNode[],
+): PluginCard {
+  if (card.dependencies === undefined) return card;
+  const others = nodes.filter((node) => node.name !== card.name);
+  return {
+    ...card,
+    dependencies: {
+      dependsOn: card.dependencies.dependsOn.map((line) =>
+        cardDependencyOf(line, installedProblemOf(line.target, line.range, others)),
+      ),
+      dependents: dependentsOf(card.name, others).map(({ dependency }) =>
+        cardDependencyOf(dependency, null),
+      ),
+    },
+  };
+}
+
 /** 카드 한 장을 만든다. 코드는 실행하지 않는다 */
 export function buildPluginCard(input: BuildCardInput): PluginCard {
   const { folder } = input;
@@ -492,5 +553,10 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     ...(internalLayer === undefined ? {} : { internalLayer }),
     review: input.review,
     usedBy: input.usedBy,
+    // 매니페스트만 아는 자리라 `dependsOn`의 문제는 모르고(null), 이 플러그인에 기대는 쪽은 검토 서비스가 설치된 사실로 채운다
+    dependencies: {
+      dependsOn: dependenciesOf(manifest).map((line) => cardDependencyOf(line, null)),
+      dependents: [],
+    },
   };
 }

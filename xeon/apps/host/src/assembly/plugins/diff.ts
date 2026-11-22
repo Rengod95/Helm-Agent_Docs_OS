@@ -48,13 +48,23 @@ function scriptDetailOf(script: CardScript): string {
   return parts.join(" ");
 }
 
-/** 카드를 사실의 지도로 펼친다. 키는 칸과 이름이다 */
-function factsOf(card: PluginCard | null): Map<string, Fact> {
+/** 카드를 사실의 지도로 펼친다. 키는 칸과 이름이다. `withDependencies`가 거짓이면 의존 칸은 펼치지 않는다(옛 카드와 비교하지 않는다) */
+function factsOf(card: PluginCard | null, withDependencies: boolean): Map<string, Fact> {
   const facts = new Map<string, Fact>();
   if (card === null) return facts;
   const add = (row: DiffRow, what: string, detail: string): void => {
     facts.set(`${row}|${what}`, { row, what, detail });
   };
+  // 기대는 줄(`dependsOn`)만 본다. 이 플러그인에 기대는 쪽은 다른 플러그인의 선언이라 이 검토의 변화가 아니다
+  if (withDependencies && card.dependencies !== undefined) {
+    for (const line of card.dependencies.dependsOn) {
+      add(
+        "dependencies",
+        `dependsOn:${line.from}->${line.target}`,
+        `${line.kind}, range ${line.range ?? "any"}`,
+      );
+    }
+  }
   const inject = card.does.inject;
   if (inject !== null) {
     for (const item of inject.instructions.always) {
@@ -132,8 +142,12 @@ function costDeltaOf(
  * 강제력 변화는 두 카드가 모두 있을 때만 적는다. 비용 변화는 `CostFigures`의 항상·필요할 때 값의 차다.
  */
 export function diffCards(prev: PluginCard | null, next: PluginCard | null): WhatItDoesDiff {
-  const before = factsOf(prev);
-  const after = factsOf(next);
+  // 의존 칸은 두 쪽 모두 있을 때만 비교한다. 옛 카드(`dependencies` 없음)와 견주면 없던 줄이 늘어난 것처럼 보인다
+  const withDependencies =
+    (prev === null || prev.dependencies !== undefined) &&
+    (next === null || next.dependencies !== undefined);
+  const before = factsOf(prev, withDependencies);
+  const after = factsOf(next, withDependencies);
   const added: DiffEntry[] = [];
   const removed: DiffEntry[] = [];
   const changed: DiffEntry[] = [];
