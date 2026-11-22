@@ -15,6 +15,7 @@ export * from "./plugin-script.ts";
 export * from "./ext-method.ts";
 export * from "./composition.ts";
 export * from "./manifest.ts";
+export * from "./dependencies.ts";
 export * from "./trace-types.ts";
 export * from "./tool-call-trace.ts";
 export * from "./context-trace.ts";

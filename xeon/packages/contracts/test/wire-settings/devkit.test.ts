@@ -48,6 +48,11 @@ function removes(count: number): unknown[] {
   return Array.from({ length: count }, () => ({ kind: "remove", id: "aa" }));
 }
 
+/** 의존 줄을 빼는 건 `count`개(대상은 `base-kit`) */
+function dependencyRemoves(count: number): unknown[] {
+  return Array.from({ length: count }, () => ({ kind: "remove", plugin: "base-kit" }));
+}
+
 describe("fresnel.devkit and its wire methods", () => {
   test("service name, error kinds and the one extension kind", () => {
     expect(DevkitServiceName).toBe("fresnel.devkit");
@@ -259,6 +264,183 @@ describe("fresnel.devkit and its wire methods", () => {
     // 세 마디 이름이지만 확장 메서드가 아니라 코어 메서드다(확장 이름 `members`는 예약이다)
     expect(classifyMethodName("ext.members.edit")).toBe("core");
     expect(classifyMethodName("ext.members.read")).toBe("core");
+  });
+
+  test("ext.members.detach takes a member and a new folder, and returns the new folder with its profile move", () => {
+    const params = WIRE_METHODS["ext.members.detach"].params;
+    const input = { dir: "/work/pilot", member: "sync", outDir: "/work/pilot-sync" };
+    expect(parse(params, input).ok).toBe(true);
+    expect(
+      parse(params, {
+        ...input,
+        name: "sync-kit",
+        keepDependency: true,
+        dependencyKind: "hard",
+      }).ok,
+    ).toBe(true);
+    // 방식 이름이나 빈 구성원 id, 알 수 없는 키는 거절한다
+    expect(parse(params, { ...input, dependencyKind: "maybe" }).ok).toBe(false);
+    expect(parse(params, { ...input, member: "" }).ok).toBe(false);
+    expect(parse(params, { ...input, extra: true }).ok).toBe(false);
+    expect(parse(params, { dir: "/work/pilot", member: "sync" }).ok).toBe(false);
+    roundTrip(WIRE_METHODS["ext.members.detach"].result, {
+      outDir: "/work/pilot-sync",
+      name: "pilot-sync",
+      changedFiles: [".fresnel-plugin/plugin.json", "src/index.ts", "src/root.ts"],
+      issues: [],
+      profileMove: { from: "pilot/sync", to: "pilot-sync" },
+    });
+    expect(
+      parse(WIRE_METHODS["ext.members.detach"].result, {
+        outDir: "/work/pilot-sync",
+        name: "pilot-sync",
+        changedFiles: [],
+        issues: [],
+        profileMove: { from: "pilot/sync" },
+      }).ok,
+    ).toBe(false);
+    expect(classifyMethodName("ext.members.detach")).toBe("core");
+    expect(WIRE_METHODS["ext.members.detach"].stage).toBe("M4");
+  });
+
+  test("ext.members.merge takes 2 to 16 folders and a new name, and returns the new folder with its members and profile moves", () => {
+    const params = WIRE_METHODS["ext.members.merge"].params;
+    const input = { dirs: ["/work/alpha", "/work/beta"], outDir: "/work/pair", name: "pair" };
+    expect(parse(params, input).ok).toBe(true);
+    expect(parse(params, { ...input, title: "Pair" }).ok).toBe(true);
+    expect(
+      parse(params, {
+        ...input,
+        dirs: Array.from({ length: 16 }, (_folder, at) => `/work/m${at}`),
+      }).ok,
+    ).toBe(true);
+    // 폴더가 하나뿐이거나 열일곱이면, 이름이 없으면, 알 수 없는 키나 긴 제목이면 거절한다
+    expect(parse(params, { ...input, dirs: ["/work/alpha"] }).ok).toBe(false);
+    expect(
+      parse(params, {
+        ...input,
+        dirs: Array.from({ length: 17 }, (_folder, at) => `/work/m${at}`),
+      }).ok,
+    ).toBe(false);
+    expect(parse(params, { dirs: input.dirs, outDir: input.outDir }).ok).toBe(false);
+    expect(parse(params, { ...input, extra: true }).ok).toBe(false);
+    expect(parse(params, { ...input, title: "t".repeat(65) }).ok).toBe(false);
+    const merged = {
+      id: "alpha",
+      registrationId: "pair/alpha",
+      title: null,
+      layer: "plugin",
+      hooks: [],
+      drives: false,
+      defaultEnabled: false,
+      blockIds: [],
+    };
+    roundTrip(WIRE_METHODS["ext.members.merge"].result, {
+      outDir: "/work/pair",
+      name: "pair",
+      members: [merged],
+      changedFiles: [".fresnel-plugin/plugin.json"],
+      issues: [],
+      profileMove: [{ from: "alpha", to: "pair/alpha" }],
+    });
+    expect(
+      parse(WIRE_METHODS["ext.members.merge"].result, {
+        outDir: "/work/pair",
+        name: "pair",
+        members: [merged],
+        changedFiles: [],
+        issues: [],
+        profileMove: [{ from: "alpha" }],
+      }).ok,
+    ).toBe(false);
+    expect(classifyMethodName("ext.members.merge")).toBe("core");
+    expect(WIRE_METHODS["ext.members.merge"].stage).toBe("M4");
+  });
+
+  test("ext.dependencies.edit takes 1 to 32 typed ops and rejects unknown kinds, extra keys and bad values", () => {
+    const params = WIRE_METHODS["ext.dependencies.edit"].params;
+    const base = { dir: "/tmp/x" };
+    // 두 종류 모두 받는다. 구성원 `from`, 범위, 종류는 선택이다. 대상은 확장 이름이나 `이름/id`다
+    expect(
+      parse(params, {
+        ...base,
+        ops: [
+          {
+            kind: "add",
+            from: "sync",
+            dependency: { plugin: "base-kit", range: "^1.0.0", kind: "hard" },
+          },
+          { kind: "add", dependency: { plugin: "base-kit/drive" } },
+          { kind: "remove", plugin: "base-kit" },
+          { kind: "remove", from: "sync", plugin: "base-kit/drive" },
+        ],
+      }).ok,
+    ).toBe(true);
+    // 건수는 1~32
+    expect(parse(params, { ...base, ops: [] }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: dependencyRemoves(33) }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: dependencyRemoves(32) }).ok).toBe(true);
+    // 알 수 없는 종류, 닫힌 객체, 틀린 값
+    expect(parse(params, { ...base, ops: [{ kind: "replace", plugin: "base-kit" }] }).ok).toBe(
+      false,
+    );
+    expect(
+      parse(params, {
+        ...base,
+        ops: [{ kind: "add", dependency: { plugin: "base-kit", extra: 1 } }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(params, { ...base, ops: [{ kind: "add", dependency: { plugin: "Base_Kit" } }] }).ok,
+    ).toBe(false);
+    expect(
+      parse(params, {
+        ...base,
+        ops: [{ kind: "add", dependency: { plugin: "base-kit", kind: "maybe" } }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(params, {
+        ...base,
+        ops: [{ kind: "add", from: "Bad_Name", dependency: { plugin: "base-kit" } }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(params, { ...base, ops: [{ kind: "remove", plugin: "base-kit", range: "^1" }] }).ok,
+    ).toBe(false);
+    expect(parse(params, { ...base, ops: [{ kind: "add" }] }).ok).toBe(false);
+    // 바깥 객체: dir과 ops는 필수이고 모르는 키는 거절한다
+    expect(parse(params, { dir: "/tmp/x" }).ok).toBe(false);
+    expect(
+      parse(params, { ...base, ops: [{ kind: "remove", plugin: "base-kit" }], out: "/o" }).ok,
+    ).toBe(false);
+  });
+
+  test("ext.dependencies.edit and ext.dependencies.read return the dependency lines", () => {
+    const line = { from: "demo/sync", target: "base-kit", kind: "hard", range: "^1.0.0" };
+    roundTrip(WIRE_METHODS["ext.dependencies.edit"].result, {
+      dependencies: [line, { from: "demo", target: "base-kit/drive", kind: "soft", range: null }],
+      issues: [{ severity: "info", code: "x", path: "", message: "m" }],
+      changedFiles: [".fresnel-plugin/plugin.json"],
+    });
+    expect(
+      parse(WIRE_METHODS["ext.dependencies.edit"].result, {
+        dependencies: [{ ...line, kind: "maybe" }],
+        issues: [],
+        changedFiles: [],
+      }).ok,
+    ).toBe(false);
+    // 등록 id 규칙을 따른다(대문자는 거절)
+    expect(
+      parse(WIRE_METHODS["ext.dependencies.edit"].result, {
+        dependencies: [{ ...line, from: "Demo/Sync" }],
+        issues: [],
+        changedFiles: [],
+      }).ok,
+    ).toBe(false);
+    roundTrip(WIRE_METHODS["ext.dependencies.read"].result, { dependencies: [line] });
+    expect(parse(WIRE_METHODS["ext.dependencies.read"].params, { dir: "/tmp/x" }).ok).toBe(true);
+    expect(parse(WIRE_METHODS["ext.dependencies.read"].params, {}).ok).toBe(false);
   });
 
   test("ext.test.list replay carries one cut per commit and rejects a malformed cut", () => {

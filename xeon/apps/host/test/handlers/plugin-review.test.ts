@@ -198,3 +198,27 @@ test("plugin.requestRemove answers the item id of the removal item", async () =>
     itemId: "rvw_removal",
   });
 });
+
+// AGE-33: 의존 거절은 `plugin.dependency`(3627)다. 이유, 플러그인, 항목 값을 그대로 싣는다
+test("a dependency refusal answers plugin.dependency (3627) with the reason, the plugin and each item", async () => {
+  const items = [
+    {
+      from: "app",
+      target: "core",
+      kind: "hard",
+      range: "^2.0.0",
+      problem: "range_unmet",
+      found: "1.0.0",
+    },
+  ] as const;
+  const handlers = createPluginHandlers(
+    partial<PluginPort>({
+      requestRemove: () =>
+        Promise.resolve(err({ kind: "dependency", reason: "unmet", plugin: "app", items })),
+    }),
+  );
+  const error = await wireErrorOf(handlers["plugin.requestRemove"]({ name: "app" }, CONTEXT));
+  expect(error.code).toBe(3627);
+  expect(error.data.kind).toBe("plugin.dependency");
+  expect(error.data.details).toEqual({ reason: "unmet", plugin: "app", items });
+});

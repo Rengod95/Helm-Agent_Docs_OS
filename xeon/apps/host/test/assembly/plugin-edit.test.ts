@@ -1,3 +1,4 @@
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { CommonSet, Profile, ProfileIssue } from "@fresnel/contracts/wire";
@@ -12,12 +13,19 @@ import type { ProfileBody, ProfilePrevious } from "../../src/assembly/m4/profile
 // M5c §4.7.3: 승인의 프로필 반영 계산. 바뀌는 프로필과 공통 묶음을 새 값으로 만들고, 이름이 든 대상 프로필을 모두 검사한다.
 // 검사 함수는 가짜다. 드라이버가 목록에 없으면 오류라는 한 가지 규칙만 둔다.
 
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
+
 const NOW = "2026-11-18T00:00:00.000Z";
 const FACT: PluginFact = {
   name: "kit",
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("kit"),
   declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
 };
 

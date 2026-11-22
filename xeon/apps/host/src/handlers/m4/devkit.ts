@@ -12,12 +12,19 @@ import {
 import type { PluginSubmitRequest, PluginSubmitResult } from "@fresnel/contracts/extensions";
 import type {
   CraftContextView,
+  DependenciesEditInput,
+  DependenciesEditResult,
+  DependencyInfo,
   DevkitError,
   DraftSummary,
   KindEntry,
   MemberInfo,
+  MembersDetachInput,
+  MembersDetachResult,
   MembersEditInput,
   MembersEditResult,
+  MembersMergeInput,
+  MembersMergeResult,
   PackInput,
   PackResult,
   ScaffoldInput,
@@ -56,6 +63,25 @@ export interface DevkitPort {
   editMembers(input: MembersEditInput): Promise<Result<MembersEditResult, DevkitError>>;
   /** `ext.members.read`. 쓰지 않고 구성원 요약을 돌려준다 */
   readMembers(dir: string): Promise<Result<readonly MemberInfo[], DevkitError>>;
+  /**
+   * `ext.members.detach`(AGE-33). 원본 폴더는 읽기만 하고 구성원 하나를 새 폴더(`outDir`)에 독립 플러그인으로 쓴다.
+   * `dir`과 `outDir`이 설치본이나 저장소 폴더면 거절한다(`denied`). 설치도 승인도 초안 만들기도 하지 않는다
+   */
+  detachMember(input: MembersDetachInput): Promise<Result<MembersDetachResult, DevkitError>>;
+  /**
+   * `ext.members.merge`(AGE-33). 원본 폴더들은 읽기만 하고 독립 플러그인들을 한 플러그인의 구성원으로 묶은 새 폴더(`outDir`)에 쓴다.
+   * `dirs`나 `outDir`이 설치본이나 저장소 폴더면 거절한다(`denied`). 설치도 승인도 초안 만들기도 하지 않는다
+   */
+  mergeMembers(input: MembersMergeInput): Promise<Result<MembersMergeResult, DevkitError>>;
+  /**
+   * `ext.dependencies.edit`(AGE-33). 원본 폴더 매니페스트의 `dependsOn` 줄을 고친다. `editMembers`와 같은 폴더 거절(`denied`)을 하고,
+   * 설치도 승인도 초안 만들기도 하지 않는다
+   */
+  editDependencies(
+    input: DependenciesEditInput,
+  ): Promise<Result<DependenciesEditResult, DevkitError>>;
+  /** `ext.dependencies.read`. 쓰지 않고 의존 줄을 돌려준다 */
+  readDependencies(dir: string): Promise<Result<readonly DependencyInfo[], DevkitError>>;
   /** 기존 플러그인의 원본 폴더 사실(M5c §4.9.3). 빌더 서비스가 부른다. wire 메서드가 아니다 */
   sourceOf(name: string): Promise<Result<SourceFacts, DevkitError>>;
   /** 플러그인의 초안 목록, 최신 먼저(M5c §4.9.2). 빌더 서비스가 부른다. wire 메서드가 아니다 */
@@ -77,6 +103,10 @@ export type DevkitMethods =
   | "ext.test.list"
   | "ext.members.edit"
   | "ext.members.read"
+  | "ext.members.detach"
+  | "ext.members.merge"
+  | "ext.dependencies.edit"
+  | "ext.dependencies.read"
   | "ext.validateComposition";
 
 export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, DevkitMethods> {
@@ -90,6 +120,12 @@ export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, Devki
     "ext.members.edit": async (params) => unwrap(await port.editMembers(params), "/dir"),
     "ext.members.read": async (params) => ({
       members: unwrap(await port.readMembers(params.dir), "/dir"),
+    }),
+    "ext.members.detach": async (params) => unwrap(await port.detachMember(params), "/dir"),
+    "ext.members.merge": async (params) => unwrap(await port.mergeMembers(params), "/dirs"),
+    "ext.dependencies.edit": async (params) => unwrap(await port.editDependencies(params), "/dir"),
+    "ext.dependencies.read": async (params) => ({
+      dependencies: unwrap(await port.readDependencies(params.dir), "/dir"),
     }),
     "ext.validateComposition": (params) => Promise.resolve(port.validateComposition(params)),
   };

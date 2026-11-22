@@ -1,6 +1,7 @@
 // loading-trust 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
 import { basename, join } from "node:path";
 import {
+  assertNever,
   attemptAsync,
   Bug,
   err,
@@ -11,6 +12,7 @@ import {
 } from "@fresnel/contracts";
 import { isSemVer, type CapabilityId, type SemVer } from "@fresnel/contracts/capabilities";
 import {
+  dependenciesOf,
   effectiveLayer,
   pluginDeclsOf,
   validateManifest,
@@ -62,6 +64,11 @@ import type {
   LoadState,
 } from "./pipeline.ts";
 import { satisfiesRange } from "./semver.ts";
+import {
+  checkDependencies,
+  type DependencyNode,
+  type DependencyProblem,
+} from "./dependency-graph.ts";
 import {
   RESERVED_EXT_KEYS,
   reservedExtensionSettings,
@@ -184,6 +191,21 @@ export {
   type UiPolicy,
 } from "./ui-check.ts";
 export { satisfiesRange } from "./semver.ts";
+export {
+  blockingDependents,
+  checkDependencies,
+  dependencyViewOf,
+  dependentsOf,
+  enableOrder,
+  missingForEnabled,
+  updateBreaks,
+  type Dependent,
+  type DependencyNode,
+  type DependencyProblem,
+  type DependencyProblemCode,
+  type DependencyReport,
+  type DependencyView,
+} from "./dependency-graph.ts";
 export {
   findTrustRequiringResources,
   TRUST_REQUIRING_PROJECT_RESOURCES,
@@ -690,6 +712,47 @@ function versionOf(manifest: ExtensionManifest | undefined): SemVer {
   return version !== undefined && isSemVer(version) ? version : "0.0.0";
 }
 
+/** 의존 계산의 입력(확장 한 개). 매니페스트가 없으면 계산할 수 없다 */
+function dependencyNodeOf(record: ExtRecord): DependencyNode | undefined {
+  const manifest = record.manifest;
+  if (manifest === undefined) return undefined;
+  return { name: record.name, version: versionOf(manifest), manifest };
+}
+
+/** 살아 있는(resolved/active) 기록만 의존 계산의 집합으로 바꾼다 */
+function liveNodesOf(records: readonly ExtRecord[]): DependencyNode[] {
+  return records.flatMap((record) => {
+    if (record.state !== "resolved" && record.state !== "active") return [];
+    const node = dependencyNodeOf(record);
+    return node === undefined ? [] : [node];
+  });
+}
+
+/** 기대는 hard 의존의 대상 확장 이름들(선언 순서) */
+function hardTargetsOf(record: ExtRecord): readonly string[] {
+  const manifest = record.manifest;
+  if (manifest === undefined) return [];
+  return dependenciesOf(manifest).flatMap((dependency) =>
+    dependency.kind === "hard" ? [dependency.targetExtension] : [],
+  );
+}
+
+/** 의존이 맞지 않는 까닭을 사람이 읽는 문장으로 바꾼다. 대상과 범위, 찾은 판을 싣는다 */
+function dependencyMessageOf(problem: DependencyProblem): string {
+  switch (problem.code) {
+    case "target_missing":
+      return `${problem.from} depends on ${problem.target}, which is not loaded`;
+    case "member_missing":
+      return `${problem.from} depends on ${problem.target}, which the extension does not provide`;
+    case "range_unmet":
+      return `${problem.from} depends on ${problem.target} ${problem.range ?? "*"}, but found ${problem.found ?? "unknown"}`;
+    case "target_disabled":
+      return `${problem.from} depends on ${problem.target}, which is disabled`;
+    default:
+      return assertNever(problem.code, "dependency problem");
+  }
+}
+
 function messageOfError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -1145,7 +1208,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const owner = valid.find((record) => issue.path.startsWith(`${record.name}/`));
       if (owner === undefined) continue;
       if (issue.severity === "error") {
-        fail(owner, "rejected", "set", "name_conflict", issue.message, [issue]);
+        fail(
+          owner,
+          "rejected",
+          "set",
+          issue.code === "dependency_cycle" ? "dependency_cycle" : "name_conflict",
+          issue.message,
+          [issue],
+        );
       } else {
         diag(owner, "set", "warning", "manifest_invalid", issue.message, { issues: [issue] });
       }
@@ -1348,26 +1418,60 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /**
-   * 설치 순서. 로드 순서(디스패치의 두 번째 키, §4.2.3)는 그대로 두고, 공급자를 소비자보다 먼저 설치하도록 `requires`로만 안정 정렬한다.
+   * 의존 검사(AGE-33). hard 대상은 같은 집합에서 살아 있는(resolved/active) 확장이고 구성원과 범위가 맞아야 한다.
+   * 맞지 않으면 그 확장은 `dependency_missing`(오류)으로 실패하고, 실패한 대상에 기대던 확장도 다음 바퀴에서 같은 이유로 실패한다.
+   * soft가 맞지 않으면 같은 코드를 경고로만 남긴다. 판정은 dependency-graph가 한다. hard 순환은 집합 검사가 이미 막는다
+   */
+  function checkDependencyTargets(alive: ExtRecord[]): void {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const nodes = liveNodesOf(alive);
+      for (const record of alive.filter((candidate) => candidate.state === "resolved")) {
+        const subject = dependencyNodeOf(record);
+        if (subject === undefined) continue;
+        const [problem] = checkDependencies(subject, nodes).blocking;
+        if (problem === undefined) continue;
+        fail(record, "error", "capabilities", "dependency_missing", dependencyMessageOf(problem));
+        changed = true;
+        break;
+      }
+    }
+    // 경고는 대상이 모두 정해진 뒤 한 번만 남긴다(바퀴마다 남기면 같은 줄이 겹친다)
+    const nodes = liveNodesOf(alive);
+    for (const record of alive.filter((candidate) => candidate.state === "resolved")) {
+      const subject = dependencyNodeOf(record);
+      if (subject === undefined) continue;
+      for (const problem of checkDependencies(subject, nodes).warnings) {
+        diag(record, "capabilities", "warning", "dependency_missing", dependencyMessageOf(problem));
+      }
+    }
+  }
+
+  /**
+   * 설치 순서. 로드 순서(디스패치의 두 번째 키, §4.2.3)는 그대로 두고, 공급자와 hard 의존 대상을 소비자보다 먼저 설치하도록 안정 정렬한다.
    * 소비자가 공급자보다 앞서 설치되면 `capability_unavailable`로 영구 실패하기 때문이다. 순환은 풀 수 없어 로드 순서대로 두고 둘 다 설치에서 실패한다
+   * hard 순환은 집합 검사가 막아 여기까지 오지 않는다. soft 의존은 이 정렬에 넣지 않는다
    */
   function installSequence(loadOrdered: readonly ExtRecord[]): readonly ExtRecord[] {
     const providersOf = (record: ExtRecord): ExtRecord[] => {
       const requirements = declsOfManifest(record.manifest).flatMap(
         (plugin) => plugin.requires ?? [],
       );
+      const targets = hardTargetsOf(record);
       return loadOrdered.filter(
         (other) =>
           other !== record &&
-          declsOfManifest(other.manifest)
-            .flatMap((plugin) => plugin.provides ?? [])
-            .some((provision) =>
-              requirements.some(
-                (requirement) =>
-                  requirement.id === provision.id &&
-                  satisfiesRange(provision.version, requirement.range),
-              ),
-            ),
+          (targets.includes(other.name) ||
+            declsOfManifest(other.manifest)
+              .flatMap((plugin) => plugin.provides ?? [])
+              .some((provision) =>
+                requirements.some(
+                  (requirement) =>
+                    requirement.id === provision.id &&
+                    satisfiesRange(provision.version, requirement.range),
+                ),
+              )),
       );
     };
     const sequence: ExtRecord[] = [];
@@ -1400,6 +1504,19 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       if (!potential && !core) return toCapabilityIds([requirement.id])[0];
     }
     return undefined;
+  }
+
+  /** 기대는 hard 대상 가운데 활성화될 수 없게 된 것(기록이 없거나 실패했거나 꺼졌다). `deadProvider`와 같은 기준이다 */
+  function deadHardTargetOf(record: ExtRecord): string | undefined {
+    return hardTargetsOf(record).find(
+      (target) =>
+        !order.some(
+          (other) =>
+            other !== record &&
+            other.name === target &&
+            (other.state === "resolved" || other.state === "loading" || other.state === "active"),
+        ),
+    );
   }
 
   /** 격리 확장의 엔트리를 만든다. 감독 손잡이는 세션이 열릴 때 채운다. 다시 읽기는 새 손잡이와 세대를 준다 */
@@ -1557,6 +1674,17 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
       return;
     }
+    const deadTarget = deadHardTargetOf(record);
+    if (deadTarget !== undefined) {
+      fail(
+        record,
+        "error",
+        "activate",
+        "dependency_provider_failed",
+        `${record.name} depends on ${deadTarget}, which did not activate`,
+      );
+      return;
+    }
     record.state = "loading";
     const info: AdmitInfo = {
       name: record.name,
@@ -1618,29 +1746,44 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
   }
 
-  /** 9단계 뒤: 기능을 공급하기로 한 확장이 활성화되지 못했으면 그 기능을 요구한 확장도 내린다 */
-  async function cascadeProviderFailures(): Promise<void> {
-    const orphan = order
-      .filter((candidate) => candidate.state === "active")
-      .find((record) =>
-        declsOfManifest(record.manifest)
-          .flatMap((plugin) => plugin.requires ?? [])
-          .some((requirement) => !hasProvider(record, requirement.id)),
-      );
-    if (orphan === undefined) return;
-    const lost = declsOfManifest(orphan.manifest)
+  /** 활성 확장이 잃은 공급자: 기능을 공급하던 확장이거나 hard 대상이다. 잃은 것이 없으면 undefined */
+  function lostProviderOf(
+    record: ExtRecord,
+  ): { readonly code: LoadDiagnosticCode; readonly message: string } | undefined {
+    const capability = declsOfManifest(record.manifest)
       .flatMap((plugin) => plugin.requires ?? [])
-      .find((requirement) => !hasProvider(orphan, requirement.id));
-    fail(
-      orphan,
-      "error",
-      "activate",
-      "capability_provider_failed",
-      `${orphan.name} lost its provider of ${lost?.id ?? "?"}`,
+      .find((requirement) => !hasProvider(record, requirement.id));
+    if (capability !== undefined) {
+      return {
+        code: "capability_provider_failed",
+        message: `${record.name} lost its provider of ${capability.id}`,
+      };
+    }
+    const target = hardTargetsOf(record).find(
+      (name) =>
+        !order.some((other) => other !== record && other.name === name && other.state === "active"),
     );
-    await deps.host.uninstall(orphan.name);
-    retireRecord(orphan, "disabled");
-    deps.policy.forget(orphan.name);
+    if (target !== undefined) {
+      return {
+        code: "dependency_provider_failed",
+        message: `${record.name} lost its hard dependency ${target}`,
+      };
+    }
+    return undefined;
+  }
+
+  /** 9단계 뒤: 기능을 공급하기로 한 확장이나 hard 대상이 활성화되지 못했으면 그 확장도 내린다 */
+  async function cascadeProviderFailures(): Promise<void> {
+    const [orphan] = order.flatMap((record) => {
+      if (record.state !== "active") return [];
+      const lost = lostProviderOf(record);
+      return lost === undefined ? [] : [{ record, lost }];
+    });
+    if (orphan === undefined) return;
+    fail(orphan.record, "error", "activate", orphan.lost.code, orphan.lost.message);
+    await deps.host.uninstall(orphan.record.name);
+    retireRecord(orphan.record, "disabled");
+    deps.policy.forget(orphan.record.name);
     await cascadeProviderFailures();
   }
 
@@ -2109,9 +2252,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     record.diagnostics.length = 0;
     record.state = "resolved";
     if (checkEnabled(record)) {
-      checkCapabilities(
-        order.filter((candidate) => candidate.state === "resolved" || candidate.state === "active"),
+      const live = order.filter(
+        (candidate) => candidate.state === "resolved" || candidate.state === "active",
       );
+      checkCapabilities(live);
+      checkDependencyTargets(live);
       checkIsolation(record);
       if (currentState(record) === "resolved") await install(record, signal);
     }
@@ -2368,9 +2513,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       }
       assertNotEssentialFailure(record);
     }
-    checkCapabilities(
-      order.filter((record) => record.state === "resolved" || record.state === "active"),
-    );
+    const live = order.filter((record) => record.state === "resolved" || record.state === "active");
+    checkCapabilities(live);
+    checkDependencyTargets(live);
     for (const record of alive) assertNotEssentialFailure(record);
 
     // 5b단계 화면 검사: 설치 전에 한다. 항목의 진단은 확장의 진단에 남고 확장의 상태는 바꾸지 않는다(§4.3.4)

@@ -30,11 +30,15 @@ import type {
 } from "@fresnel/contracts/services";
 import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import {
+  detachMember,
+  editDependencies,
   editMembers,
   KIND_CATALOG,
   locateTemplateDirs,
   MANIFEST_PATH,
+  mergeMembers,
   packExtension,
+  readDependencies,
   readMembers,
   scaffoldExtension,
   validateCompositionReport,
@@ -261,6 +265,19 @@ async function storedCopyOf(deps: M4PortDeps, dir: string): Promise<boolean> {
   ];
   const resolved = await Promise.all(roots.map((root) => realPathOf(root)));
   return resolved.some((root) => isInside(root, target));
+}
+
+/**
+ * 구성원·의존 편집의 원본 폴더 규칙. 절대 경로이고 설치본이나 저장소 안의 폴더면 `denied`다.
+ * 상대 경로는 여기서 막지 않고 편집 함수가 `invalid_input`으로 거절한다
+ */
+async function sourceOnlyRefusal(deps: M4PortDeps, dir: string): Promise<DevkitError | undefined> {
+  if (!isAbsolute(dir) || !(await storedCopyOf(deps, dir))) return undefined;
+  return {
+    kind: "denied",
+    message:
+      "the folder is an installed or stored copy, not a source folder; edit the source folder instead",
+  };
 }
 
 const CRAFT_CONTEXT_MISSING: DevkitError = {
@@ -501,16 +518,34 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     // 구성원 편집은 원본 폴더만 고친다. 설치본과 저장소 안의 폴더는 `denied`로 거절하고, 아무것도 쓰지 않는다.
     // 설치도 승인도 `plugin.draft.create`도 부르지 않는다: 고친 폴더는 호출자가 다시 초안으로 만들어 검토를 다시 지난다
     editMembers: async (input) => {
-      if (isAbsolute(input.dir) && (await storedCopyOf(deps, input.dir))) {
-        return err({
-          kind: "denied",
-          message:
-            "the folder is an installed or stored copy, not a source folder; edit the source folder instead",
-        });
-      }
-      return editMembers(input);
+      const refused = await sourceOnlyRefusal(deps, input.dir);
+      return refused === undefined ? editMembers(input) : err(refused);
     },
     readMembers: (dir) => readMembers(dir),
+    // 떼기는 원본 폴더를 읽고 새 폴더(`outDir`)에 쓴다. 두 폴더가 설치본이나 저장소 안이면 거절한다(`denied`).
+    // 설치도 승인도 초안 만들기도 하지 않는다. 결과의 `outDir`로 화면이 `plugin.draft.create`를 부른다
+    detachMember: async (input) => {
+      const refused =
+        (await sourceOnlyRefusal(deps, input.dir)) ?? (await sourceOnlyRefusal(deps, input.outDir));
+      if (refused !== undefined) return err(refused);
+      return detachMember(input, { templates: templates(), installedNames: installedNames() });
+    },
+    // 합치기는 원본 폴더들을 읽고 새 폴더(`outDir`)에 쓴다. 어느 폴더든 설치본이나 저장소 안이면 거절한다(`denied`).
+    // 설치도 승인도 초안 만들기도 하지 않는다. 결과의 `outDir`로 화면이 `plugin.draft.create`를 부른다
+    mergeMembers: async (input) => {
+      const refusals = await Promise.all(
+        [...input.dirs, input.outDir].map((dir) => sourceOnlyRefusal(deps, dir)),
+      );
+      const refused = refusals.find((found) => found !== undefined);
+      if (refused !== undefined) return err(refused);
+      return mergeMembers(input, { installedNames: installedNames() });
+    },
+    // 의존 편집도 구성원 편집과 같은 규칙이다(원본 폴더만, 설치하지 않고 승인하지 않는다)
+    editDependencies: async (input) => {
+      const refused = await sourceOnlyRefusal(deps, input.dir);
+      return refused === undefined ? editDependencies(input) : err(refused);
+    },
+    readDependencies: (dir) => readDependencies(dir),
     // 원본 폴더의 자리는 플러그인 서비스가 안다(`get`의 `source`: 없으면 null). 서비스의 `matchesReviewed`는 마지막 훑기의
     // 캐시라서 원본을 고친 뒤에는 낡는다. 그래서 다른지는 지금 폴더의 내용 해시와 검토본 해시(카드)를 대조해 정한다.
     // 번들이고 원본이 없으면 고칠 수 없다(`bundled_not_editable`)

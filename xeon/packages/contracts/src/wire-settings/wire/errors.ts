@@ -171,6 +171,7 @@ export type WireErrorKind =
   | "plugin.exists"
   | "plugin.noReviewedCopy"
   | "plugin.requiredByCore"
+  | "plugin.dependency"
   | "pluginReview.notFound"
   | "pluginReview.notPending"
   | "pluginReview.pathInvalid"
@@ -270,6 +271,43 @@ const IdDetails = Type.Object(
 /** `plugin.requiredByCore`(M5c §4.1.17)가 싣는 플러그인 이름. 다른 플러그인 오류의 `name`과 이름이 다른 것은 spec이 정한 것이다 */
 const PluginDetails = Type.Object(
   { plugin: Type.String({ maxLength: 128 }) },
+  { additionalProperties: false },
+);
+
+/** 의존 거절의 까닭(AGE-33). 설치·승인은 `unmet`, 끄기·삭제는 `required_by`, 업데이트는 `breaks_range`다 */
+export const DEPENDENCY_REFUSAL_REASONS = ["unmet", "required_by", "breaks_range"] as const;
+export type DependencyRefusalReason = (typeof DEPENDENCY_REFUSAL_REASONS)[number];
+/** 거절을 낳은 의존 한 줄 */
+export const DEPENDENCY_PROBLEM_CODES = [
+  "target_missing",
+  "member_missing",
+  "range_unmet",
+  "target_disabled",
+  "depended_on",
+  /** hard 의존이 순환을 이룬다. 승인이 이 순환을 만들면 거절한다 */
+  "cycle",
+] as const;
+export type DependencyProblemKind = (typeof DEPENDENCY_PROBLEM_CODES)[number];
+const DependencyItemSchema = Type.Object(
+  {
+    /** 의존을 건 Registration id */
+    from: Type.String({ maxLength: 65 }),
+    /** 가리킨 Registration id */
+    target: Type.String({ maxLength: 65 }),
+    kind: Type.Union([Type.Literal("hard"), Type.Literal("soft")]),
+    range: Type.Union([Type.String({ maxLength: 64 }), Type.Null()]),
+    problem: Type.Union(DEPENDENCY_PROBLEM_CODES.map((code) => Type.Literal(code))),
+    /** `range_unmet`에서 찾은 대상 버전 */
+    found: Type.Union([Type.String({ maxLength: 64 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+const DependencyDetails = Type.Object(
+  {
+    reason: Type.Union(DEPENDENCY_REFUSAL_REASONS.map((reason) => Type.Literal(reason))),
+    plugin: Type.String({ maxLength: 128 }),
+    items: Type.Array(DependencyItemSchema, { maxItems: 128 }),
+  },
   { additionalProperties: false },
 );
 
@@ -861,6 +899,17 @@ export const WIRE_ERRORS: {
     kind: "plugin.requiredByCore",
     retryable: false,
     details: PluginDetails,
+  },
+  /**
+   * 플러그인 의존이 맞지 않아 거절했다(AGE-33). `reason`이 `unmet`이면 `plugin`이 기대는 hard 대상이 없다(설치·승인),
+   * `required_by`이면 `plugin`을 끄거나 지우면 hard로 기대는 곳이 깨진다(`items`가 기대는 쪽 목록),
+   * `breaks_range`이면 새 판이 기대는 쪽의 `range`를 깬다. `items`는 화면이 "함께 켜기·끄기"를 물을 목록이다
+   */
+  "plugin.dependency": {
+    code: 3627,
+    kind: "plugin.dependency",
+    retryable: false,
+    details: DependencyDetails,
   },
   /** 그 id의 검토 항목이 없다 */
   "pluginReview.notFound": {

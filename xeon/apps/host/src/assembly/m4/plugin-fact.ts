@@ -6,6 +6,10 @@ import type { DeclaredInventory } from "./profile-cost.ts";
 /** 플러그인 하나의 매니페스트 사실. 라이브러리가 검증에 쓴다 */
 export interface PluginFact {
   readonly name: string;
+  /** 매니페스트의 `version`. 다른 플러그인의 `range`를 이 값으로 검사한다 */
+  readonly version: string;
+  /** 매니페스트 전체. 의존(`dependsOn`)과 구성원을 여기서 읽는다 */
+  readonly manifest: ExtensionManifest;
   /** 대체하는 내장 도구(`PluginDecl.replaces`를 모두 모은 것) */
   readonly replaces: readonly string[];
   /** 시작 Drive를 등록할 수 있는가(`PluginDecl.drives`) */
@@ -21,6 +25,8 @@ export function pluginFactOf(manifest: ExtensionManifest, root: string): PluginF
   const plugins = manifest.plugins ?? [];
   return {
     name: manifest.name,
+    version: manifest.version,
+    manifest,
     replaces: plugins.flatMap((plugin) => plugin.replaces ?? []),
     drives: plugins.some((plugin) => plugin.drives === true),
     requiredKeys: Object.values(manifest.userConfig ?? {})

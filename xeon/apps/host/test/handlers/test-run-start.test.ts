@@ -1,3 +1,4 @@
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,6 +18,11 @@ import { invalidParams, partial } from "../fixtures/unsafe.ts";
 
 // M5c §4.8.1 `testRun.start`(처리기 값 시험). 프로필 저장은 실제 프로필 포트가, 엔진과 초안 목록은 가짜가 한다.
 // 시험하는 것: 기준 프로필로 대화를 만들고 표지를 다는 것, 검사가 대화를 만들기 전에 거절하는 것, 초안이 있으면 P1 전 게이트다.
+
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
 
 const roots: string[] = [];
 afterAll(() => {
@@ -60,8 +66,24 @@ function rigOf(): {
   const dir = mkdtempSync(join(tmpdir(), "xh-test-run-start-"));
   roots.push(dir);
   const facts: PluginFact[] = [
-    { name: "helm", replaces: [], drives: false, requiredKeys: [], declared: NONE },
-    { name: "demo", replaces: [], drives: false, requiredKeys: [], declared: NONE },
+    {
+      name: "helm",
+      replaces: [],
+      drives: false,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("helm"),
+      declared: NONE,
+    },
+    {
+      name: "demo",
+      replaces: [],
+      drives: false,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("demo"),
+      declared: NONE,
+    },
   ];
   const drafts: DraftInfo[] = [];
   const fakes: DraftFakes = {
@@ -287,7 +309,15 @@ test("a base profile that is invalid now for another reason is profile.invalid w
   facts.splice(
     facts.findIndex((fact) => fact.name === "demo"),
     1,
-    { name: "demo", replaces: [], drives: true, requiredKeys: [], declared: NONE },
+    {
+      name: "demo",
+      replaces: [],
+      drives: true,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("demo"),
+      declared: NONE,
+    },
   );
   await connection.request("profile.put", {
     profile: {
@@ -304,7 +334,15 @@ test("a base profile that is invalid now for another reason is profile.invalid w
   facts.splice(
     facts.findIndex((fact) => fact.name === "demo"),
     1,
-    { name: "demo", replaces: [], drives: false, requiredKeys: [], declared: NONE },
+    {
+      name: "demo",
+      replaces: [],
+      drives: false,
+      requiredKeys: [],
+      version: "1.0.0",
+      manifest: manifestStub("demo"),
+      declared: NONE,
+    },
   );
   const refused = await failureOf(
     connection.request("testRun.start", { baseProfileId: "work", drafts: [] }),

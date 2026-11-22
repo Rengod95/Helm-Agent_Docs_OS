@@ -1,3 +1,4 @@
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,6 +11,11 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M5c §3.4, §4.1.5: `profile.common.get`은 공통 묶음과, 지금 설치된 라이브러리에 비춘 검사 이슈 목록을 준다.
 // 저장된 묶음이 라이브러리와 맞지 않게 바뀌면(플러그인이 빠지면) 같은 묶음의 이슈가 달라진다. 가짜 엔진 위의 실제 처리기다.
+
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
 
 const roots: string[] = [];
 function tempDir(): string {
@@ -35,6 +41,8 @@ const DEMO: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [PERMISSION],
+  version: "1.0.0",
+  manifest: manifestStub("demo"),
   declared: NONE,
 };
 

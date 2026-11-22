@@ -71,6 +71,12 @@ export type LoadDiagnosticCode =
   | "config_required"
   | "capability_missing"
   | "capability_provider_failed"
+  /** hard 의존 대상이 없거나 구성원이 없거나 범위를 어겼다(오류, 그 확장은 실패). soft가 맞지 않으면 같은 코드를 warning으로 남긴다 [AGE-33] */
+  | "dependency_missing"
+  /** hard 의존이 순환을 이룬다(집합 검사). soft 순환은 허용한다 */
+  | "dependency_cycle"
+  /** hard 의존 대상이 활성화에 실패해 그 확장도 딸려 내려간다(`capability_provider_failed`와 같은 방식) [AGE-33] */
+  | "dependency_provider_failed"
   | "tier_rejected"
   | "entry_not_found"
   | "entry_import_failed"

@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
 import { INTERNAL_PLUGIN_LAYERS, type InternalPluginLayer } from "./internal-plugins.ts";
+import { DependencyKindSchema, type DependencyKind } from "./manifest.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 
@@ -418,6 +419,51 @@ const CardHookShape = Type.Object(
 );
 
 /**
+ * 카드의 의존 한 줄(AGE-33). `from`은 선언한 Registration id, `target`은 가리키는 id(확장 이름 또는 `이름/id`)다.
+ * `problem`은 설치된 집합에서 본 값이다. 매니페스트만 읽은 카드는 null이다. `target_disabled`는 프로필 사정이라 카드가 싣지 않는다
+ */
+export const CARD_DEPENDENCY_PROBLEMS = [
+  "target_missing",
+  "member_missing",
+  "range_unmet",
+] as const;
+export type CardDependencyProblem = (typeof CARD_DEPENDENCY_PROBLEMS)[number];
+const CardDependencyProblemShape = Type.Union(
+  CARD_DEPENDENCY_PROBLEMS.map((name) => Type.Literal(name)),
+);
+
+export interface CardDependency {
+  readonly from: string;
+  readonly target: string;
+  readonly kind: DependencyKind;
+  readonly range: string | null;
+  readonly problem: CardDependencyProblem | null;
+}
+const CardDependencyShape = Type.Object(
+  {
+    from: Type.String({ minLength: 1, maxLength: 256 }),
+    target: Type.String({ minLength: 1, maxLength: 256 }),
+    kind: DependencyKindSchema,
+    range: Type.Union([Type.String({ maxLength: 256 }), Type.Null()]),
+    problem: Type.Union([CardDependencyProblemShape, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+/** 카드의 의존 칸. `dependsOn`은 이 플러그인이 기대는 것, `dependents`는 이 플러그인에 기대는 쪽이다(`problem`은 null) */
+export interface CardDependencies {
+  readonly dependsOn: readonly CardDependency[];
+  readonly dependents: readonly CardDependency[];
+}
+const CardDependenciesShape = Type.Object(
+  {
+    dependsOn: Type.Array(CardDependencyShape, { maxItems: 256 }),
+    dependents: Type.Array(CardDependencyShape, { maxItems: 256 }),
+  },
+  { additionalProperties: false },
+);
+
+/**
  * 카드 한 장. 칸마다 값이 있으면 그 종류의 재료가 있다는 뜻이다. `does`의 세 칸은 종류이고 나머지는 층 2·3(실행과 사용처)이다.
  * `origin`과 `review`는 호스트 기록이고 `health`는 `ext.health`의 값이다
  */
@@ -478,6 +524,11 @@ export interface PluginCard {
   };
   /** 이 플러그인을 쓰는 프로필 id. 공통 묶음은 `"common"` */
   readonly usedBy: readonly string[];
+  /**
+   * 의존 칸(AGE-33). 선택 필드라 없는 옛 카드도 파싱된다. `buildPluginCard`는 매니페스트만 알아 `dependsOn`(problem null)까지만 싣고 `dependents`는 비운다.
+   * 검토 서비스가 목록과 항목을 줄 때 설치된 사실로 다시 채운다(저장된 항목은 바꾸지 않는다)
+   */
+  readonly dependencies?: CardDependencies;
 }
 const PluginCardShape = Type.Object(
   {
@@ -546,6 +597,7 @@ const PluginCardShape = Type.Object(
       { additionalProperties: false },
     ),
     usedBy: Type.Array(Id, { maxItems: 256 }),
+    dependencies: Type.Optional(CardDependenciesShape),
   },
   { additionalProperties: false },
 );

@@ -117,6 +117,23 @@ describe("review item (M5c-1)", () => {
     ).toBe(false);
   });
 
+  test("the dependency row (AGE-33) is a diff row next to the card rows", () => {
+    const diff = {
+      added: [{ row: "dependencies", what: "dependsOn:app->kit", detail: "hard, range ^1.0.0" }],
+      removed: [],
+      changed: [],
+      enforcementChange: null,
+      costDelta: { always: null, onDemand: null },
+    };
+    roundTrip(ReviewItemSchema, { ...NEW_ITEM, diff });
+    expect(
+      parse(ReviewItemSchema, {
+        ...NEW_ITEM,
+        diff: { ...diff, added: [{ row: "depends", what: "x" }] },
+      }).ok,
+    ).toBe(false);
+  });
+
   test("the reason is at most 2000 characters and the removal is null or an object", () => {
     expect(parse(ReviewItemSchema, { ...NEW_ITEM, reason: "a".repeat(2000) }).ok).toBe(true);
     expect(parse(ReviewItemSchema, { ...NEW_ITEM, reason: "a".repeat(2001) }).ok).toBe(false);

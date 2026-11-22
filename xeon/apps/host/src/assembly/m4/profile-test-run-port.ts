@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, TurnIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import { dependenciesOf, pluginsOf } from "@fresnel/contracts/extensions";
 import { checkSettingWrite, type ScopeStack } from "@fresnel/contracts/settings";
 import type { RegistrationInfo } from "@fresnel/ext-host";
 import type {
@@ -159,6 +160,9 @@ function libraryOf(
           drives: false,
           unmet: false,
           requiredKeys: [],
+          version: "0.0.0",
+          dependencies: [],
+          members: [],
         };
       }
       const infos: readonly RegistrationInfo[] = env
@@ -171,6 +175,11 @@ function libraryOf(
         drives: fact.drives,
         unmet: infos.some((info) => info.waiting.length > 0),
         requiredKeys: fact.requiredKeys,
+        version: fact.version,
+        dependencies: dependenciesOf(fact.manifest),
+        members: pluginsOf(fact.manifest).flatMap((entry) =>
+          entry.decl.id === undefined ? [] : [entry.decl.id],
+        ),
       };
     },
   };
@@ -322,6 +331,36 @@ function missingNamesOf(issues: readonly ProfileIssue[]): readonly string[] {
       ),
     ),
   ];
+}
+
+/**
+ * 이름을 빼면 함께 빠져야 하는 이름들(AGE-33 `withDependents`). 뺄 이름에 `hard`로 기대는 플러그인을 프로필 목록에서 모으고,
+ * 그 플러그인에 기대는 것까지 이어서 모은다. `soft`로만 기대는 것은 모으지 않는다. 공통 묶음의 것은 목록에 없어 모이지 않으며,
+ * 그 저장은 검증이 `dependency_disabled` 오류로 거절한다
+ */
+function withDependentsOf(
+  plugin: string,
+  plugins: readonly PluginRef[],
+  facts: readonly PluginFact[],
+): ReadonlySet<string> {
+  const removing = new Set<string>([plugin]);
+  let grown = true;
+  while (grown) {
+    grown = false;
+    for (const ref of plugins) {
+      if (removing.has(ref.name)) continue;
+      const fact = facts.find((item) => item.name === ref.name);
+      if (fact === undefined) continue;
+      const leans = dependenciesOf(fact.manifest).some(
+        (dependency) => dependency.kind === "hard" && removing.has(dependency.targetExtension),
+      );
+      if (leans) {
+        removing.add(ref.name);
+        grown = true;
+      }
+    }
+  }
+  return removing;
 }
 
 /** 선택 필드 `missingPlugins`는 있을 때만 싣는다(정확한 선택 속성 규칙) */
@@ -807,6 +846,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     ): Promise<Result<ProfileRemovePluginResult, ProfilePortFailure>> {
       if (params.id === CRAFT_PROFILE_ID) return err({ kind: "builtin_protected", id: params.id });
       const issuesOf = await checksOf();
+      const facts = deps.pluginFacts();
       const done = await store.transact<
         {
           readonly before: Profile;
@@ -832,15 +872,27 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
           }
           return err({ kind: "plugin_not_in_profile" as const, plugin: params.plugin });
         }
-        if (REQUIRED_BY_CORE.has(params.plugin)) {
-          return err({ kind: "required_by_core" as const, plugin: params.plugin });
+        // `withDependents`면 hard로 기대는 플러그인까지 함께 뺀다. 어느 이름이든 코어 필수면 거절한다(§4.1.17)
+        const removing =
+          params.withDependents === true
+            ? withDependentsOf(params.plugin, current.plugins, facts)
+            : new Set([params.plugin]);
+        const required = [...removing].find((name) => REQUIRED_BY_CORE.has(name));
+        if (required !== undefined) {
+          return err({ kind: "required_by_core" as const, plugin: required });
         }
-        // 그 플러그인의 설정 값도 함께 뺀다. 남겨 두면 소유 플러그인이 없어 저장이 막힌다(§4.2.2)
+        // 그 플러그인들의 설정 값도 함께 뺀다. 남겨 두면 소유 플러그인이 없어 저장이 막힌다(§4.2.2)
         const profile: Profile = {
           ...current,
-          plugins: current.plugins.filter((ref) => ref.name !== params.plugin),
-          settings: current.settings.filter((setting) => ownerOf(setting.key) !== params.plugin),
-          startDrive: current.startDrive === params.plugin ? null : current.startDrive,
+          plugins: current.plugins.filter((ref) => !removing.has(ref.name)),
+          settings: current.settings.filter((setting) => {
+            const owner = ownerOf(setting.key);
+            return owner === null || !removing.has(owner);
+          }),
+          startDrive:
+            current.startDrive !== null && removing.has(current.startDrive)
+              ? null
+              : current.startDrive,
           updatedAt: isoNow(env.clock.now()),
           rev: current.rev + 1,
         };
@@ -865,7 +917,6 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       const { before, profile, common, known } = done.value.value;
       const permission = permissionOf(profile, common, undefined);
       // 지우기 전과 뒤의 저장된 상태를 잰다(대화를 고르지 않으므로 캐시 영향은 싣지 않는다)
-      const facts = deps.pluginFacts();
       const toolsChanged = toolsChangedOf(
         toolNamesOf(resolvedOf(before, common), facts),
         toolNamesOf(resolvedOf(profile, common), facts),

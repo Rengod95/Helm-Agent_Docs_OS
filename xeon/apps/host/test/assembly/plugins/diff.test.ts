@@ -6,6 +6,7 @@ import {
   type InjectInventory,
   type PluginCard,
 } from "@fresnel/contracts/extensions";
+import type { DiffEntry } from "@fresnel/contracts/wire";
 import { buildPluginCard, type CardSubject } from "../../../src/assembly/plugins/card.ts";
 import { diffCards } from "../../../src/assembly/plugins/diff.ts";
 
@@ -235,4 +236,58 @@ test("a script whose runner, file arguments, env names or time limit changed is 
   expect(timeChanged.changed[0]?.detail).toBe(
     `${LINT_DETAIL} → sh ["scripts/lint.sh","--strict"] [env: TZ] [timeout: 60000ms]`,
   );
+});
+
+// AGE-33 enDep: 기대는 줄(`dependsOn`)의 추가·바뀜은 `dependencies` 칸으로 보인다. 옛 카드와는 비교하지 않는다.
+const DEPENDS_ON_BETA = {
+  plugins: [
+    { layer: "plugin", hooks: [], dependsOn: [{ plugin: "beta", kind: "hard", range: "^1.0.0" }] },
+  ],
+};
+const DEPENDS_ON_BETA_NEXT = {
+  plugins: [
+    { layer: "plugin", hooks: [], dependsOn: [{ plugin: "beta", kind: "hard", range: "^2.0.0" }] },
+  ],
+};
+
+test("a new dependsOn line is an added dependencies row, and a changed range is a changed one", () => {
+  const prev = cardOf(PLAIN);
+  expect(diffCards(prev, cardOf({ ...PLAIN, ...DEPENDS_ON_BETA })).added).toEqual([
+    { row: "dependencies", what: "dependsOn:kit->beta", detail: "hard, range ^1.0.0" },
+  ]);
+
+  expect(
+    diffCards(
+      cardOf({ ...PLAIN, ...DEPENDS_ON_BETA }),
+      cardOf({ ...PLAIN, ...DEPENDS_ON_BETA_NEXT }),
+    ).changed,
+  ).toEqual([
+    {
+      row: "dependencies",
+      what: "dependsOn:kit->beta",
+      detail: "hard, range ^1.0.0 → hard, range ^2.0.0",
+    },
+  ]);
+});
+
+test("a dependsOn line that is removed is a removed dependencies row", () => {
+  const removed = diffCards(cardOf({ ...PLAIN, ...DEPENDS_ON_BETA }), cardOf(PLAIN));
+  expect(removed.removed).toEqual([
+    { row: "dependencies", what: "dependsOn:kit->beta", detail: "hard, range ^1.0.0" },
+  ]);
+});
+
+/** 차이 가운데 의존 칸의 줄만 모은다 */
+function dependencyRowsOf(diff: ReturnType<typeof diffCards>): DiffEntry[] {
+  return [...diff.added, ...diff.removed, ...diff.changed].filter(
+    (entry) => entry.row === "dependencies",
+  );
+}
+
+test("an old card without the dependency cell is not compared with the dependency lines of the new one", () => {
+  const withCell = cardOf({ ...PLAIN, ...DEPENDS_ON_BETA });
+  const { dependencies, ...legacy } = withCell;
+  expect(dependencies).toBeDefined();
+  expect(dependencyRowsOf(diffCards(legacy, withCell))).toEqual([]);
+  expect(dependencyRowsOf(diffCards(withCell, legacy))).toEqual([]);
 });

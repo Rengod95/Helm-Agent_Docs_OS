@@ -1,3 +1,4 @@
+import type { DependencyDecl, ExtensionManifest } from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { err, ok, type Logger } from "@fresnel/contracts";
 import type { ReviewItem } from "@fresnel/contracts/wire";
@@ -15,14 +16,43 @@ import { partial } from "../fixtures/unsafe.ts";
 
 // M5c §4.7.3 승인 훅: 승인 한 번이 프로필에 하는 일과, 커밋 뒤 실행 중인 판을 맞추는 일. 프로필 쪽과 로더는 가짜다.
 
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
+
 const NOW = "2026-11-18T00:00:00.000Z";
 const FACT: PluginFact = {
   name: "kit",
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("kit"),
   declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
 };
+/** 의존을 건 플러그인 사실. `dependsOn`은 루트 플러그인 한 개에 싣는다 */
+function factOf(
+  name: string,
+  version: string,
+  dependsOn: readonly DependencyDecl[] = [],
+): PluginFact {
+  return {
+    name,
+    version,
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: {
+      schemaVersion: 2,
+      name,
+      version,
+      plugins: [{ layer: "plugin", hooks: [], dependsOn: [...dependsOn] }],
+    },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+}
+
 const APPROVE = { kind: "approve", profileIds: [], libraryOnly: false } as const;
 
 function contextOf(
@@ -66,6 +96,7 @@ function depsOf(
     readonly loader?: ExtensionLoader | undefined;
     readonly refreshes?: { count: number };
     readonly warnings?: string[];
+    readonly facts?: () => readonly PluginFact[];
   } = {},
 ): ApprovalHookDeps {
   const refreshes = overrides.refreshes ?? { count: 0 };
@@ -81,6 +112,7 @@ function depsOf(
       refreshes.count += 1;
       return Promise.resolve();
     },
+    facts: overrides.facts ?? (() => []),
     log: partial<Logger>({
       warn: (message: string) => {
         warnings.push(message);
@@ -180,4 +212,192 @@ test("a removal reflects only the plugin set, without touching the loader", asyn
   );
   await hooks.reflect?.(contextOf({ kind: "remove" }, null));
   expect(refreshes.count).toBe(1);
+});
+
+// AGE-33: 승인은 프로필 검사보다 먼저 의존을 본다. hard는 막고, soft는 막지 않는다.
+
+test("an add whose hard dependency is not installed is refused before the profile check, and names the missing target", async () => {
+  const checked: string[] = [];
+  const hooks = approvalHooksOf(
+    depsOf({
+      check: () => {
+        checked.push("check");
+        return Promise.resolve(ok(undefined));
+      },
+    }),
+  );
+  const app = factOf("app", "1.0.0", [{ plugin: "core", kind: "hard" }]);
+  expect(
+    await hooks.beforeCommit?.(contextOf({ kind: "new", name: "app", originProfileId: null }, app)),
+  ).toEqual(
+    err({
+      kind: "dependency",
+      reason: "unmet",
+      plugin: "app",
+      items: [
+        {
+          from: "app",
+          target: "core",
+          kind: "hard",
+          range: null,
+          problem: "target_missing",
+          found: null,
+        },
+      ],
+    }),
+  );
+  expect(checked).toEqual([]);
+});
+
+test("a missing soft dependency does not block an add", async () => {
+  const hooks = approvalHooksOf(depsOf());
+  const app = factOf("app", "1.0.0", [{ plugin: "core" }]);
+  expect(
+    await hooks.beforeCommit?.(contextOf({ kind: "new", name: "app", originProfileId: null }, app)),
+  ).toEqual(ok(undefined));
+});
+
+test("an add whose hard dependency is installed outside its range is refused with the found version, and one in range passes", async () => {
+  const app = factOf("app", "1.0.0", [{ plugin: "core", kind: "hard", range: "^2.0.0" }]);
+  const outside = approvalHooksOf(depsOf({ facts: () => [factOf("core", "1.0.0")] }));
+  expect(
+    await outside.beforeCommit?.(
+      contextOf({ kind: "new", name: "app", originProfileId: null }, app),
+    ),
+  ).toEqual(
+    err({
+      kind: "dependency",
+      reason: "unmet",
+      plugin: "app",
+      items: [
+        {
+          from: "app",
+          target: "core",
+          kind: "hard",
+          range: "^2.0.0",
+          problem: "range_unmet",
+          found: "1.0.0",
+        },
+      ],
+    }),
+  );
+  const inside = approvalHooksOf(depsOf({ facts: () => [factOf("core", "2.1.0")] }));
+  expect(
+    await inside.beforeCommit?.(
+      contextOf({ kind: "new", name: "app", originProfileId: null }, app),
+    ),
+  ).toEqual(ok(undefined));
+});
+
+test("an update that moves a hard dependent's range is refused with the dependents; a compatible update and a soft dependent pass", async () => {
+  const core = factOf("core", "1.0.0");
+  const hard = approvalHooksOf(
+    depsOf({
+      facts: () => [
+        core,
+        factOf("app", "1.0.0", [{ plugin: "core", kind: "hard", range: "^1.0.0" }]),
+      ],
+    }),
+  );
+  expect(
+    await hard.beforeCommit?.(
+      contextOf({ kind: "update", name: "core", originProfileId: null }, factOf("core", "2.0.0")),
+    ),
+  ).toEqual(
+    err({
+      kind: "dependency",
+      reason: "breaks_range",
+      plugin: "core",
+      items: [
+        {
+          from: "app",
+          target: "core",
+          kind: "hard",
+          range: "^1.0.0",
+          problem: "range_unmet",
+          found: "2.0.0",
+        },
+      ],
+    }),
+  );
+  expect(
+    await hard.beforeCommit?.(
+      contextOf({ kind: "update", name: "core", originProfileId: null }, factOf("core", "1.1.0")),
+    ),
+  ).toEqual(ok(undefined));
+  const soft = approvalHooksOf(
+    depsOf({ facts: () => [core, factOf("app", "1.0.0", [{ plugin: "core", range: "^1.0.0" }])] }),
+  );
+  expect(
+    await soft.beforeCommit?.(
+      contextOf({ kind: "update", name: "core", originProfileId: null }, factOf("core", "2.0.0")),
+    ),
+  ).toEqual(ok(undefined));
+});
+
+test("a removal that a hard dependent still needs is refused with the dependent; a soft dependent does not block it", async () => {
+  const core = factOf("core", "1.0.0");
+  const hard = approvalHooksOf(
+    depsOf({ facts: () => [core, factOf("app", "1.0.0", [{ plugin: "core", kind: "hard" }])] }),
+  );
+  expect(
+    await hard.beforeCommit?.(
+      contextOf({ kind: "remove", name: "core", originProfileId: null }, null),
+    ),
+  ).toEqual(
+    err({
+      kind: "dependency",
+      reason: "required_by",
+      plugin: "core",
+      items: [
+        {
+          from: "app",
+          target: "core",
+          kind: "hard",
+          range: null,
+          problem: "depended_on",
+          found: null,
+        },
+      ],
+    }),
+  );
+  const soft = approvalHooksOf(
+    depsOf({ facts: () => [core, factOf("app", "1.0.0", [{ plugin: "core" }])] }),
+  );
+  expect(
+    await soft.beforeCommit?.(
+      contextOf({ kind: "remove", name: "core", originProfileId: null }, null),
+    ),
+  ).toEqual(ok(undefined));
+});
+
+test("an update that closes a hard dependency cycle is refused with the cycle edges; a soft cycle passes", async () => {
+  const app = factOf("app", "1.0.0", [{ plugin: "core", kind: "hard" }]);
+  const hooks = approvalHooksOf(depsOf({ facts: () => [factOf("core", "1.0.0"), app] }));
+  expect(
+    await hooks.beforeCommit?.(
+      contextOf(
+        { kind: "update", name: "core", originProfileId: null },
+        factOf("core", "1.1.0", [{ plugin: "app", kind: "hard" }]),
+      ),
+    ),
+  ).toEqual(
+    err({
+      kind: "dependency",
+      reason: "unmet",
+      plugin: "core",
+      items: [
+        { from: "app", target: "core", kind: "hard", range: null, problem: "cycle", found: null },
+        { from: "core", target: "app", kind: "hard", range: null, problem: "cycle", found: null },
+      ],
+    }),
+  );
+  expect(
+    await hooks.beforeCommit?.(
+      contextOf(
+        { kind: "update", name: "core", originProfileId: null },
+        factOf("core", "1.1.0", [{ plugin: "app", kind: "soft" }]),
+      ),
+    ),
+  ).toEqual(ok(undefined));
 });

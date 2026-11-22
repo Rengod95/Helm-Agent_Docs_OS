@@ -203,7 +203,7 @@ export type LoadDiagnosticCode =
   | "manifest_missing" | "manifest_parse" | "manifest_invalid"
   | "name_conflict" | "trust_exceeds_source" | "trust_denied" | "trust_undecided" | "trust_store_corrupt"
   | "settings_rejected" | "settings_reserved_key" | "config_required"
-  | "capability_missing" | "capability_provider_failed"
+  | "capability_missing" | "capability_provider_failed" | "dependency_missing" | "dependency_provider_failed" | "dependency_cycle"
   | "tier_rejected"
   | "entry_not_found" | "entry_import_failed" | "entry_not_function" | "entry_threw"
   | "setup_threw" | "setup_timeout" | "setup_action" | "reload_failed" | "reload_rejected"
@@ -882,7 +882,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 - [제안] 순서 키는 (설치 위치 순서, 내장 층 순서, 이름)이다. `SOURCE_ORDER`는 `builtin` → `managed` → `user` → `project`, 내장 층 순서는 `L1` → `L2` → `L3` → `plugin`이다. 같은 위치·같은 층은 `name`의 코드 포인트 사전순이다.
 - L0 플랫폼 패키지는 매니페스트 층 값(`ExtensionLayerSchema`)에 L0가 없으므로 이 파이프라인 밖에서 조립 루트가 `ExtHost.registerPlatform`(X.primitives.spec §3.2)으로 먼저 등록한다. L0 등록 실패는 시작 실패다.
 - 순서는 파일 시스템 나열 순서, 입력 배열 순서와 무관하게 같아야 한다. 이 순서는 디스패치 순서의 두 번째 키다(F.extensions.spec §4.2).
-- 설치 순서는 로드 순서와 따로 정한다. 7단계 설치는 `requires`를 만족시키는 공급자를 소비자보다 먼저 설치하도록 로드 순서를 안정 정렬한 순서로 한다(로드 순서와 `loadIndex`는 바뀌지 않는다). 순환 의존은 풀 수 없어 로드 순서대로 설치하고, 관련 확장은 모두 `capability_missing`으로 `error`가 된다. 같은 묶음 안에서 이름이 앞선 소비자가 공급자 때문에 영구 실패하는 일을 막는다.
+- 설치 순서는 로드 순서와 따로 정한다. 7단계 설치는 `requires`를 만족시키는 공급자를 소비자보다 먼저 설치하도록 로드 순서를 안정 정렬한 순서로 한다(로드 순서와 `loadIndex`는 바뀌지 않는다). `dependsOn`의 `hard` 대상도 같은 정렬에서 소비자보다 먼저 설치한다(AGE-33). 순환 의존은 풀 수 없어 로드 순서대로 설치하고, 관련 확장은 모두 `capability_missing`으로 `error`가 된다. 같은 묶음 안에서 이름이 앞선 소비자가 공급자 때문에 영구 실패하는 일을 막는다.
 
 ### 4.3 로드 파이프라인
 
@@ -901,6 +901,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | 5a 앞 | 시작 지연 [제안] | `LoadOptions.defaultNames`(없으면 건너뜀). 이름이 기본 집합에 없으면 매니페스트 `defaultEnabled`와 무관하게 싣지 않는다("기본으로 켜짐"은 번들에만 효력이 있다, 2026-11-18 AGE-49). 5a의 켜짐 확인은 이 확장에 하지 않는다(대화가 쓸 때 `ensureLoaded`가 한다) | `disabled` | `lazy_deferred` |
 | 5b | 화면 검사 | `checkUiDecl`(§4.3.4): 거부되지 않은 확장의 `ui`를 파일과 정책으로 본다 | 확장 상태는 그대로다. 항목만 `invalid`나 `disabled`가 된다 | `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported` |
 | 6 | 기능 요구 충족 | `requires` × 집합의 `provides`·코어 기능 | `error` | `capability_missing` |
+| 6 | 의존 확인 | `dependsOn` × 집합의 살아 있는 확장(대상 확장, 구성원, `range`)(AGE-33) | `hard`면 `error`, `soft`면 `warning`(확장은 실패하지 않음) | `dependency_missing` |
 | 6a | tier 등록 | `policy.admit`(X.operations.spec §3.8) | `error` | `tier_rejected` |
 | 7 | 설치 | 엔트리 import(외부) → `ExtensionUnit` → `ExtHost.install` → `InstallResult` | `error` | `entry_not_found`, `entry_import_failed`, `entry_not_function`, `entry_threw`, `setup_threw`, `setup_timeout`, `setup_action` |
 | 8 | 사용 대조 결과 반영 | `InstallResult.setups[].issues`(primitives가 부른 `validateUsage`) → 진단 | `error`(오류만) | `usage_invalid`, `usage_warning` |
@@ -922,6 +923,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 - [제안] 내장 필수가 아닌 확장 하나의 실패는 그 확장만 멈춘다. 다른 확장의 단계 진행과 엔진 시작은 계속한다. 이 규칙은 모든 단계에 적용된다(항목 카탈로그 X절 실패 격리 행, .
 - 예외 1: `essential: true` 내장 확장이 `rejected`, `disabled`, `error` 중 하나가 되면 `loadAll`은 `essential_failed` 진단과 함께 `LoadAbortError`를 던진다. 조립 루트는 연 자원을 닫고 시작을 거부한다(L4.host-service.spec §4.1). [제안] L1 코어 패키지(`core-*`)의 확장 모듈은 필수다. L2 기능과 L3 플러그인은 필수가 아니다.
 - 예외 2: 로더 자신이 쓰는 주입 의존이 없으면 시작 실패다(architecture.layers.spec §4.3.3 1번). 대상은 `host`, `policy`, `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`다. `TrustPrompter`가 없으면 headless로 보고, `IsolationProcessPort`가 없으면 격리 설정 확장만 `error`(`isolation_unavailable`)다.
+- 의존 연쇄(AGE-33): `hard` 대상이 활성화되지 못했으면 그 대상에 기대는 확장도 `error`(`dependency_provider_failed`)가 된다. `soft`는 영향이 없다. 대화가 확장을 처음 쓸 때(`ensureLoaded`)는 `hard` 대상을 먼저 싣는다.
 - 기능 연쇄: 6단계는 매니페스트의 `provides`로 정적으로 판정한다. 9단계 뒤 실제로 활성화되지 못한 provider가 있으면, 그 기능을 `requires`로 선언한 확장도 `error`(`capability_provider_failed`)로 바꾼다. `optional`은 영향이 없다. 작업 폴더 신뢰 전 집합의 확장이 작업 폴더 확장만 제공하는 기능을 `requires`하면 `capability_missing`이다 [제안].
 - 같은 이유로 확장 A의 실패가 B의 setup을 막지 않도록 각 단계는 확장마다 `try`로 감싸고, 진단 레코드만 모은다.
 

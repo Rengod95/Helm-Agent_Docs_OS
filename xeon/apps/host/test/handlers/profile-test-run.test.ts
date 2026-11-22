@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
+import type {
+  DependencyDecl,
+  ExtensionManifest,
+  TestRunControlPort,
+  TraceReadPort,
+} from "@fresnel/contracts/extensions";
 import { WIRE_METHODS, WireError } from "@fresnel/contracts/wire";
 import type { ProfileCostFigures, ProfileInput } from "@fresnel/contracts/wire";
 import type { RegistrationInfo } from "@fresnel/ext-host";
@@ -18,6 +23,11 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M5c §3.4 프로필 처리기. 저장은 임시 폴더의 실제 `profiles.json`(v2)이고, 검증은 실제 설정 카탈로그를 쓴다.
 // 플러그인 사실(`pluginFacts`)과 열린 대화 수, 설정 값은 시험이 넣는다.
+
+/** 시험용 최소 매니페스트. 의존과 구성원이 없다 */
+function manifestStub(name: string): ExtensionManifest {
+  return { schemaVersion: 2, name, version: "1.0.0" };
+}
 
 const roots: string[] = [];
 function tempDir(): string {
@@ -39,8 +49,24 @@ const NONE: DeclaredInventory = {
   skills: [],
 };
 const DEMO_FACTS: readonly PluginFact[] = [
-  { name: "helm", replaces: [], drives: false, requiredKeys: [], declared: NONE },
-  { name: "demo", replaces: [], drives: true, requiredKeys: [], declared: NONE },
+  {
+    name: "helm",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    version: "1.0.0",
+    manifest: manifestStub("helm"),
+    declared: NONE,
+  },
+  {
+    name: "demo",
+    replaces: [],
+    drives: true,
+    requiredKeys: [],
+    version: "1.0.0",
+    manifest: manifestStub("demo"),
+    declared: NONE,
+  },
 ];
 
 interface Rig {
@@ -343,8 +369,24 @@ test("profile.common.put stores the common set with the matching baseRev and bum
 /** 코어가 기대는 내장 단위 두 개와 데모 플러그인의 사실. 저장 검증이 목록을 알아야 한다 */
 const REQUIRED_FACTS: readonly PluginFact[] = [
   ...DEMO_FACTS,
-  { name: "cap-workspace", replaces: [], drives: false, requiredKeys: [], declared: NONE },
-  { name: "cap-dialog", replaces: [], drives: false, requiredKeys: [], declared: NONE },
+  {
+    name: "cap-workspace",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    version: "1.0.0",
+    manifest: manifestStub("cap-workspace"),
+    declared: NONE,
+  },
+  {
+    name: "cap-dialog",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    version: "1.0.0",
+    manifest: manifestStub("cap-dialog"),
+    declared: NONE,
+  },
 ];
 
 test("a profile edit that drops a core-required unit is plugin.requiredByCore and stores nothing; adding it back is fine", async () => {
@@ -480,9 +522,19 @@ test("profile.preview of the stored default counts the open threads and reports 
         replaces: [],
         drives: false,
         requiredKeys: ["ext.helm.token"],
+        version: "1.0.0",
+        manifest: manifestStub("helm"),
         declared: NONE,
       },
-      { name: "demo", replaces: [], drives: true, requiredKeys: [], declared: NONE },
+      {
+        name: "demo",
+        replaces: [],
+        drives: true,
+        requiredKeys: [],
+        version: "1.0.0",
+        manifest: manifestStub("demo"),
+        declared: NONE,
+      },
     ],
   });
   const connection = await connect(rig);
@@ -499,8 +551,24 @@ test("profile.preview of the stored default counts the open threads and reports 
 test("profile.preview names a plugin the library does not have, and a replaced tool that two plugins claim", async () => {
   const rig = rigOf({
     pluginFacts: [
-      { name: "alpha", replaces: ["web.fetch"], drives: false, requiredKeys: [], declared: NONE },
-      { name: "beta", replaces: ["web.fetch"], drives: false, requiredKeys: [], declared: NONE },
+      {
+        name: "alpha",
+        replaces: ["web.fetch"],
+        drives: false,
+        requiredKeys: [],
+        version: "1.0.0",
+        manifest: manifestStub("alpha"),
+        declared: NONE,
+      },
+      {
+        name: "beta",
+        replaces: ["web.fetch"],
+        drives: false,
+        requiredKeys: [],
+        version: "1.0.0",
+        manifest: manifestStub("beta"),
+        declared: NONE,
+      },
     ],
   });
   const connection = await connect(rig);
@@ -536,6 +604,8 @@ const TOOLY: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("tooly"),
   declared: {
     code: true,
     root: "/ext/tooly",
@@ -550,6 +620,8 @@ const RUNNER: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("runner"),
   declared: {
     code: true,
     root: "/ext/runner",
@@ -567,6 +639,8 @@ const NOTES: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("notes"),
   declared: {
     code: false,
     root: "/ext/notes",
@@ -581,6 +655,8 @@ const BARE: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("bare"),
   declared: { code: true, root: "/ext/bare", tools: [], instructions: [], skills: [] },
 };
 /** 선언한 지침 파일이 없다 */
@@ -589,6 +665,8 @@ const GONE: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("gone"),
   declared: { code: false, root: "/ext/gone", tools: [], instructions: ["MISSING.md"], skills: [] },
 };
 const HELM: PluginFact = {
@@ -596,6 +674,8 @@ const HELM: PluginFact = {
   replaces: [],
   drives: false,
   requiredKeys: [],
+  version: "1.0.0",
+  manifest: manifestStub("helm"),
   declared: NONE,
 };
 
@@ -857,6 +937,132 @@ test("profile.removePlugin drops the plugin and clears it as the startDrive; a p
       connection.request("profile.removePlugin", { id: "review", plugin: "helm", baseRev: 1 }),
     ),
   ).toMatchObject({ data: { kind: "profile.conflict" } });
+  await connection.close();
+});
+
+/** 다른 플러그인에 `dependsOn`으로 기대는 플러그인의 사실. `drives`면 시작 Drive가 될 수 있다 */
+function dependentOf(name: string, dependsOn: DependencyDecl[], drives = false): PluginFact {
+  return {
+    name,
+    version: "1.0.0",
+    manifest: {
+      schemaVersion: 2,
+      name,
+      version: "1.0.0",
+      plugins: [{ layer: "plugin", hooks: [], dependsOn }],
+    },
+    replaces: [],
+    drives,
+    requiredKeys: [],
+    declared: NONE,
+  };
+}
+
+test("profile.removePlugin refuses to drop a plugin a hard dependent still needs; the issue names the dependent and the target, and nothing is stored", async () => {
+  const rig = rigOf({
+    pluginFacts: [...DEMO_FACTS, dependentOf("lib", [{ plugin: "demo", kind: "hard" }])],
+  });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "helm" }, { name: "demo" }, { name: "lib" }] }),
+    baseRev: null,
+  });
+  expect(
+    await failureOf(
+      connection.request("profile.removePlugin", { id: "review", plugin: "demo", baseRev: 1 }),
+    ),
+  ).toMatchObject({
+    data: {
+      kind: "profile.invalid",
+      details: {
+        issues: [{ code: "dependency_disabled", severity: "error", plugin: "lib", other: "demo" }],
+      },
+    },
+  });
+  const listed = await connection.request("profile.list", {});
+  expect(listed.profiles.find((profile) => profile.id === "review")).toMatchObject({
+    rev: 1,
+    plugins: [{ name: "helm" }, { name: "demo" }, { name: "lib" }],
+  });
+  await connection.close();
+});
+
+test("profile.removePlugin with withDependents drops the plugins that lean on it hard, down the whole chain, in one save; a soft dependent stays and the start drive clears", async () => {
+  const rig = rigOf({
+    pluginFacts: [
+      ...DEMO_FACTS,
+      dependentOf("mid", [{ plugin: "demo", kind: "hard" }]),
+      dependentOf("top", [{ plugin: "mid", kind: "hard" }], true),
+      dependentOf("side", [{ plugin: "demo" }]),
+    ],
+  });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({
+      plugins: [
+        { name: "helm" },
+        { name: "top" },
+        { name: "mid" },
+        { name: "demo" },
+        { name: "side" },
+      ],
+      startDrive: "top",
+    }),
+    baseRev: null,
+  });
+  const removed = await connection.request("profile.removePlugin", {
+    id: "review",
+    plugin: "demo",
+    baseRev: 1,
+    withDependents: true,
+  });
+  expect(removed.profile).toMatchObject({
+    plugins: [{ name: "helm" }, { name: "side" }],
+    startDrive: null,
+    rev: 2,
+  });
+  await connection.close();
+});
+
+test("a soft dependent does not block the removal of its target, so the plugin is dropped and the dependent is kept", async () => {
+  const rig = rigOf({
+    pluginFacts: [...DEMO_FACTS, dependentOf("side", [{ plugin: "demo" }])],
+  });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "helm" }, { name: "demo" }, { name: "side" }] }),
+    baseRev: null,
+  });
+  const removed = await connection.request("profile.removePlugin", {
+    id: "review",
+    plugin: "demo",
+    baseRev: 1,
+  });
+  expect(removed.profile).toMatchObject({ plugins: [{ name: "helm" }, { name: "side" }], rev: 2 });
+  await connection.close();
+});
+
+test("profile.removePlugin with withDependents is plugin.requiredByCore when a dependent to drop is a core-required unit, and stores nothing", async () => {
+  const rig = rigOf({
+    pluginFacts: [...DEMO_FACTS, dependentOf("cap-workspace", [{ plugin: "demo", kind: "hard" }])],
+  });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ plugins: [{ name: "cap-workspace" }, { name: "demo" }] }),
+    baseRev: null,
+  });
+  expect(
+    await failureOf(
+      connection.request("profile.removePlugin", {
+        id: "review",
+        plugin: "demo",
+        baseRev: 1,
+        withDependents: true,
+      }),
+    ),
+  ).toMatchObject({
+    data: { kind: "plugin.requiredByCore", details: { plugin: "cap-workspace" } },
+  });
   await connection.close();
 });
 

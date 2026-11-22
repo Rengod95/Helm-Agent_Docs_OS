@@ -307,3 +307,55 @@ describe("internal plugin marker (AGE-33)", () => {
     expect(isInternalPluginName("guide")).toBe(false);
   });
 });
+
+describe("card dependency cells (AGE-33)", () => {
+  const LINE = { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: null };
+  const WITH_CELL = {
+    ...PLUGIN_CARD,
+    dependencies: {
+      dependsOn: [LINE, { ...LINE, problem: "range_unmet" }],
+      dependents: [{ ...LINE, from: "tool", target: "app", range: null }],
+    },
+  };
+
+  test("the dependency cell round trips by value, and a card without it (an old card) still parses", () => {
+    roundTrip(PluginCardSchema, WITH_CELL);
+    expect("dependencies" in PLUGIN_CARD).toBe(false);
+    roundTrip(PluginCardSchema, PLUGIN_CARD);
+  });
+
+  test("the problem takes only the card's three values or null; target_disabled is a profile matter and is rejected", () => {
+    for (const problem of ["target_missing", "member_missing", "range_unmet", null]) {
+      expect(
+        parse(PluginCardSchema, {
+          ...PLUGIN_CARD,
+          dependencies: { dependsOn: [{ ...LINE, problem }], dependents: [] },
+        }).ok,
+      ).toBe(true);
+    }
+    expect(
+      parse(PluginCardSchema, {
+        ...PLUGIN_CARD,
+        dependencies: { dependsOn: [{ ...LINE, problem: "target_disabled" }], dependents: [] },
+      }).ok,
+    ).toBe(false);
+  });
+
+  test("the kind is hard or soft, and the line and the cell take no extra fields", () => {
+    expect(
+      parse(PluginCardSchema, {
+        ...PLUGIN_CARD,
+        dependencies: { dependsOn: [{ ...LINE, kind: "optional" }], dependents: [] },
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(PluginCardSchema, {
+        ...PLUGIN_CARD,
+        dependencies: { dependsOn: [{ ...LINE, extra: 1 }], dependents: [] },
+      }).ok,
+    ).toBe(false);
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, dependencies: { dependsOn: [] } }).ok).toBe(
+      false,
+    );
+  });
+});

@@ -7,6 +7,21 @@ import { readDoc } from "../support/docs.ts";
 
 /** 문서 표에 없지만 조립 루트가 필요해 더한 이름 [제안]. 문서 반영을 요청한다 */
 const ADDITIONS: ReadonlySet<string> = new Set([
+  // 플러그인 의존(`dependsOn`, AGE-33) 계산과 버전 범위 비교: 호스트의 프로필 검증, 승인, 삭제, 업데이트가 같은 함수를 쓴다 [제안: 표 반영 요청]
+  "satisfiesRange",
+  "blockingDependents",
+  "checkDependencies",
+  "dependencyViewOf",
+  "dependentsOf",
+  "enableOrder",
+  "missingForEnabled",
+  "updateBreaks",
+  "Dependent",
+  "DependencyNode",
+  "DependencyProblem",
+  "DependencyProblemCode",
+  "DependencyReport",
+  "DependencyView",
   // `fresnel.settings` 포트 키(호스트가 `settingValue` 의존으로 내고 플러그인 시험이 같은 키로 대역을 올린다) [제안: 표 반영 요청]
   "SETTINGS_READ_PORT",
   // 후보 실행기(isolation/candidate-runner.ts): 지난 턴에 돌려 보기의 후보를 격리 자식에서만 돌린다 [제안: 표 반영 요청]

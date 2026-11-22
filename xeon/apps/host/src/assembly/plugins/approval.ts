@@ -1,9 +1,17 @@
 import { attemptAsync, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
-import type { ExtensionLoader } from "@fresnel/ext-host";
+import { hardDependencyCycles } from "@fresnel/contracts/extensions";
+import {
+  checkDependencies,
+  updateBreaks,
+  type DependencyNode,
+  type DependencyProblem,
+  type ExtensionLoader,
+} from "@fresnel/ext-host";
 import type { PluginEditApplied, PluginEditFailure } from "../../handlers/m4/profile-test-run.ts";
-import type { PluginPortFailure } from "../../handlers/m5/plugins.ts";
+import type { DependencyItem, PluginPortFailure } from "../../handlers/m5/plugins.ts";
 import type { PluginEditRequest } from "../m4/plugin-edit.ts";
-import type { ApprovalContext, ApprovalHooks } from "./review.ts";
+import type { PluginFact } from "../m4/plugin-fact.ts";
+import { requiredByRefusalOf, type ApprovalContext, type ApprovalHooks } from "./review.ts";
 
 // 승인 훅(M5c §4.7.3). 승인 한 번이 프로필에 하는 일과, 커밋 뒤 실행 중인 판을 맞추는 일을 묶는다.
 // 검토 서비스(`review.ts`)는 순서와 되돌리기를 맡고, 여기서는 무엇을 쓸지와 어떻게 다시 읽을지만 정한다.
@@ -20,7 +28,84 @@ export interface ApprovalHookDeps {
   readonly loader: () => ExtensionLoader | undefined;
   /** 플러그인 집합(E(T))을 다시 맞춘다. 열린 대화의 적용을 다음 경계에 예약한다 */
   readonly refreshPluginSet: () => Promise<void>;
+  /** 설치된 플러그인 사실. 추가, 업데이트, 삭제가 의존을 이 집합으로 확인한다(AGE-33) */
+  readonly facts: () => readonly PluginFact[];
   readonly log: Logger;
+}
+
+/** 의존 검사가 쓰는 노드. 사실에서 이름, 판, 매니페스트만 뽑는다 */
+function nodeOf(fact: PluginFact): DependencyNode {
+  return { name: fact.name, version: fact.version, manifest: fact.manifest };
+}
+
+/** 의존 문제 한 줄을 wire 상세의 항목으로 옮긴다. 검사 코드가 wire의 `problem`이 된다 */
+function itemOf(problem: DependencyProblem): DependencyItem {
+  return {
+    from: problem.from,
+    target: problem.target,
+    kind: problem.kind,
+    range: problem.range,
+    problem: problem.code,
+    found: problem.found,
+  };
+}
+
+/**
+ * 승인 한 번의 의존 거절(AGE-33). 삭제는 hard로 기대는 곳이 없어야 한다. 추가와 업데이트는 새 판의 hard 대상이 설치되어 범위에 맞아야 하고,
+ * 업데이트는 기대는 쪽의 hard 범위를 깨지 않아야 한다. soft는 막지 않는다. 프로필 검사보다 먼저 본다
+ */
+function dependencyRefusalOf(
+  context: ApprovalContext,
+  installed: readonly PluginFact[],
+): PluginPortFailure | null {
+  const { item, facts } = context;
+  if (item.kind === "remove") return requiredByRefusalOf(item.name, installed);
+  if (facts === null) return null;
+  const nodes = installed.map(nodeOf);
+  const subject = nodeOf(facts);
+  const report = checkDependencies(subject, nodes);
+  if (report.blocking.length > 0) {
+    return {
+      kind: "dependency",
+      reason: "unmet",
+      plugin: item.name,
+      items: report.blocking.map(itemOf),
+    };
+  }
+  // hard 순환은 승인이 만들지 못하게 막는다(soft 순환은 허용). 순환에 이 플러그인이 든 것만 센다
+  const cycles = hardDependencyCycles([
+    ...nodes.filter((node) => node.name !== subject.name).map((node) => node.manifest),
+    subject.manifest,
+  ]).filter((cycle) => cycle.some((id) => id.split("/")[0] === subject.name));
+  if (cycles.length > 0) {
+    return {
+      kind: "dependency",
+      reason: "unmet",
+      plugin: item.name,
+      items: cycles.flatMap((cycle) =>
+        cycle.map((from, index) => ({
+          from,
+          target: cycle[(index + 1) % cycle.length] ?? from,
+          kind: "hard" as const,
+          range: null,
+          problem: "cycle" as const,
+          found: null,
+        })),
+      ),
+    };
+  }
+  if (item.kind === "update") {
+    const breaks = updateBreaks(subject, nodes).filter((problem) => problem.kind === "hard");
+    if (breaks.length > 0) {
+      return {
+        kind: "dependency",
+        reason: "breaks_range",
+        plugin: item.name,
+        items: breaks.map(itemOf),
+      };
+    }
+  }
+  return null;
 }
 
 /**
@@ -91,6 +176,8 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
 export function approvalHooksOf(deps: ApprovalHookDeps): ApprovalHooks {
   return {
     async beforeCommit(context) {
+      const refused = dependencyRefusalOf(context, deps.facts());
+      if (refused !== null) return err(refused);
       const request = editOf(context);
       if (request === null) return ok(undefined);
       const checked = await deps.profiles.checkPluginEdit(request);

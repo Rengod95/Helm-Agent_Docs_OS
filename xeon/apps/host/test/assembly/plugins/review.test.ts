@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
+import type { CardDependencies } from "@fresnel/contracts/extensions";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
 import {
@@ -65,6 +66,7 @@ function openRig(
   root: string,
   hooks?: ApprovalHooks,
   projectRoots: () => Promise<readonly DiscoverProjectRoot[]> = () => Promise.resolve([]),
+  facts?: () => readonly PluginFact[],
 ): Rig {
   const store = createPluginStore({
     root: join(root, "plugin-store"),
@@ -94,6 +96,7 @@ function openRig(
       return true;
     },
     ...(hooks === undefined ? {} : { approvalHooks: hooks }),
+    ...(facts === undefined ? {} : { facts }),
   });
   const notified: PluginChange[] = [];
   review.onChanged((change) => notified.push(change));
@@ -112,6 +115,13 @@ function rigOf(): Rig {
   const root = tempRoot("plugin-review-");
   roots.push(root);
   return openRig(root);
+}
+
+/** 설치된 플러그인 사실을 시험이 정하는 검토 서비스 한 벌(의존 검사용) */
+function rigWithFacts(facts: () => readonly PluginFact[]): Rig {
+  const root = tempRoot("plugin-review-");
+  roots.push(root);
+  return openRig(root, undefined, undefined, facts);
 }
 
 /** 결과가 값이면 값을 준다. 실패면 시험을 실패시킨다 */
@@ -395,6 +405,44 @@ test("a remove request is an item that stays pending until approved, and approvi
   expect(outcome.item.state).toBe("approved");
   expect(valueOf(await rig.store.current("kit"))).toBeNull();
   expect(errorOf(await rig.review.requestRemove("nothing")).kind).toBe("unknown_plugin");
+});
+
+test("a remove request that a hard dependent still needs is refused with the dependent, and makes no item", async () => {
+  // AGE-33: `app`이 `kit`에 hard로 기댄다. 제거 요청은 항목을 만들지 않고 거절 값을 준다
+  const app: PluginFact = {
+    name: "app",
+    version: "1.0.0",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: {
+      schemaVersion: 2,
+      name: "app",
+      version: "1.0.0",
+      plugins: [{ layer: "plugin", hooks: [], dependsOn: [{ plugin: "kit", kind: "hard" }] }],
+    },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+  const rig = rigWithFacts(() => [app]);
+  await approvedKit(rig);
+  expect(errorOf(await rig.review.requestRemove("kit"))).toEqual({
+    kind: "dependency",
+    reason: "required_by",
+    plugin: "kit",
+    items: [
+      {
+        from: "app",
+        target: "kit",
+        kind: "hard",
+        range: null,
+        problem: "depended_on",
+        found: null,
+      },
+    ],
+  });
+  expect(valueOf(await rig.review.list({ state: "pending" })).items).toEqual([]);
+  // 검토본은 그대로 돈다
+  expect(valueOf(await rig.store.current("kit"))).not.toBeNull();
 });
 
 test("a user folder that disappears becomes a remove item, and a discarded remove is not made again", async () => {
@@ -981,4 +1029,75 @@ test("a draft file is cut at 256 KiB, a binary file has no text, and a draft cha
   writeFileSync(join(rig.store.draftDir(draftId), "tree", "big.md"), "tampered");
   const changed = errorOf(await rig.review.draftFiles(draftId));
   expect(changed).toEqual({ kind: "store", code: "draft_changed" });
+});
+
+// AGE-33 enDep: 목록과 항목 응답의 카드 의존 칸은 설치된 사실로 다시 채운다. 저장된 항목은 매니페스트 값 그대로다.
+test("get and list answer the card's dependency cell from the installed facts, and the stored item keeps the manifest values", async () => {
+  const root = tempRoot("plugin-review-deps-");
+  roots.push(root);
+  // `kit`은 2.0.0이라 `^1.0.0`을 어긴다. `tool`은 `app`에 hard로 기댄다
+  const kit: PluginFact = {
+    name: "kit",
+    version: "2.0.0",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: { schemaVersion: 2, name: "kit", version: "2.0.0" },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+  const tool: PluginFact = {
+    name: "tool",
+    version: "1.0.0",
+    replaces: [],
+    drives: false,
+    requiredKeys: [],
+    manifest: {
+      schemaVersion: 2,
+      name: "tool",
+      version: "1.0.0",
+      plugins: [{ layer: "plugin", hooks: [], dependsOn: [{ plugin: "app", kind: "hard" }] }],
+    },
+    declared: { code: false, root: "", tools: [], instructions: [], skills: [] },
+  };
+  const rig = openRig(root, undefined, undefined, () => [kit, tool]);
+  writeFiles(join(rig.pluginsDir, "app"), {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "app",
+      version: "1.0.0",
+      purpose: "Uses kit",
+      plugins: [
+        {
+          layer: "plugin",
+          hooks: [],
+          dependsOn: [{ plugin: "kit", kind: "hard", range: "^1.0.0" }, { plugin: "ghost" }],
+        },
+      ],
+    }),
+  });
+  const itemId = firstOf(valueOf(await rig.review.scan()).queued);
+
+  const expected: CardDependencies = {
+    dependsOn: [
+      { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: "range_unmet" },
+      { from: "app", target: "ghost", kind: "soft", range: null, problem: "target_missing" },
+    ],
+    dependents: [{ from: "tool", target: "app", kind: "hard", range: null, problem: null }],
+  };
+  expect(valueOf(await rig.review.get(itemId)).item.card.dependencies).toEqual(expected);
+  expect(
+    valueOf(await rig.review.list({ state: "pending" })).items.map(
+      (item) => item.card.dependencies,
+    ),
+  ).toEqual([expected]);
+
+  // 설치 사실을 주지 않은 서비스는 저장된 값(매니페스트만 본 problem null, dependents 빈 목록)을 그대로 준다
+  const stored = valueOf(await openRig(root).review.get(itemId)).item;
+  expect(stored.card.dependencies).toEqual({
+    dependsOn: [
+      { from: "app", target: "kit", kind: "hard", range: "^1.0.0", problem: null },
+      { from: "app", target: "ghost", kind: "soft", range: null, problem: null },
+    ],
+    dependents: [],
+  });
 });
