@@ -6,6 +6,7 @@ import {
   folderBlocksOf,
   isProjectCollapsed,
   isWithinRoot,
+  pathSplitOf,
   projectOfThread,
   projectPanelOf,
   relativeFolder,
@@ -134,6 +135,17 @@ describe("capRows", () => {
     const far = capRows(rows, 1, thr(14));
     expect(ids(far.shown)).toEqual([thr(1), thr(11), thr(4), thr(14)]);
     expect(far.hidden).toBe(2);
+  });
+});
+
+describe("pathSplitOf", () => {
+  test("the last folder name is kept whole and the rest is the part that gets cut", () => {
+    expect(pathSplitOf("services/billing-worker/src")).toEqual({
+      head: "services/billing-worker/",
+      tail: "src",
+    });
+    expect(pathSplitOf("drafts")).toEqual({ head: "", tail: "drafts" });
+    expect(pathSplitOf("apps\\desktop")).toEqual({ head: "apps\\", tail: "desktop" });
   });
 });
 

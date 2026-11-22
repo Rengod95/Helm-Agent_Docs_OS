@@ -29,6 +29,7 @@ import {
   isProjectCollapsed,
   folderBlocksOf,
   isWithinRoot,
+  pathSplitOf,
   PROJECT_ROW_LIMIT,
   projectPanelOf,
   type FolderRow,
@@ -414,15 +415,17 @@ function FolderBlockRows(props: {
   readonly onStart: (path: string | null) => void;
 }): ReactNode {
   const { block } = props;
+  const split = pathSplitOf(block.rel);
   return (
     <>
       <li data-project-folder={block.rel} className="flex h-control-sm items-center ps-2 pe-2">
+        {/* 가운데 줄임: 앞 경로는 끝을 줄이고 마지막 폴더 이름은 남긴다. 전체 경로는 툴팁 */}
         <span
-          dir="rtl"
-          className="min-w-0 flex-1 truncate text-left text-footnote text-text-tertiary"
+          className="flex min-w-0 flex-1 text-footnote text-text-tertiary contain-inline-size"
           title={block.path}
         >
-          <bdi dir="ltr">{block.rel}</bdi>
+          {split.head === "" ? null : <span className="min-w-0 truncate">{split.head}</span>}
+          <span className="max-w-full shrink-0 truncate">{split.tail}</span>
         </span>
         <IconButton
           size="xs"
@@ -441,7 +444,7 @@ function FolderBlockRows(props: {
   );
 }
 
-/** 프로젝트 머리: 이름(누르면 접거나 펼친다), 접혔을 때 도는 대화의 구슬, 리뷰 대기 수. 올리면 루트 경로 */
+/** 프로젝트 머리: 이름(누르면 접거나 펼친다), 접혔을 때 도는 대화의 구슬, 리뷰 대기 수. 올리면 루트 경로. 크기가 다른 이름과 "리뷰 n"은 한 기준선, 구슬은 세로 가운데(DP-227) */
 function ProjectHeading(props: {
   readonly project: ProjectListItem;
   readonly collapsed: boolean;
@@ -449,8 +452,9 @@ function ProjectHeading(props: {
   readonly pending: number;
   readonly onToggle: () => void;
 }): ReactNode {
+  // 긴 이름이 묶음 머리 칸의 최소 폭을 늘려 사이드바가 옆으로 밀리지 않게(`contain-inline-size`) 한다. 이름은 끝을 줄이고 루트 경로는 툴팁
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+    <span className="flex min-w-0 flex-1 items-center gap-1.5 contain-inline-size">
       <button
         type="button"
         aria-expanded={!props.collapsed}
@@ -459,7 +463,7 @@ function ProjectHeading(props: {
         })}
         title={props.project.root}
         data-slot="project-toggle"
-        className="flex min-w-0 cursor-pointer items-center gap-1 rounded-xs border-0 bg-transparent p-0 text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
+        className="flex min-w-0 cursor-pointer items-center gap-1 self-baseline rounded-xs border-0 bg-transparent p-0 text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
         onClick={props.onToggle}
       >
         <span className="min-w-0 truncate text-ui font-medium">{props.project.name}</span>
@@ -477,7 +481,7 @@ function ProjectHeading(props: {
       ) : null}
       {props.pending > 0 ? (
         <span
-          className="shrink-0 text-footnote text-text-tertiary tabular-nums"
+          className="shrink-0 self-baseline text-footnote text-text-tertiary tabular-nums"
           title={t("desktop.projects.pendingTitle", { count: props.pending })}
         >
           {t("desktop.projects.pending", { count: props.pending })}

@@ -457,8 +457,12 @@ function OtherFolder(props: {
  */
 function FolderHeading(props: { readonly path: string }): ReactNode {
   const { name, parent } = folderPartsOf(props.path);
+  // 글 폭이 묶음 머리 칸의 최소 폭을 늘려 사이드바가 옆으로 밀리지 않게(`contain-inline-size`) 한다. 이름은 끝, 부모 경로는 앞을 줄인다
   return (
-    <span className="flex min-w-0 flex-1 items-baseline gap-1.5" title={props.path}>
+    <span
+      className="flex min-w-0 flex-1 items-baseline gap-1.5 contain-inline-size"
+      title={props.path}
+    >
       <span className="max-w-full shrink-0 truncate text-ui font-medium text-text-secondary">
         {name}
       </span>

@@ -94,6 +94,22 @@ describe("project panel", () => {
     expect(out).not.toContain("질문6");
   });
 
+  test("a test run conversation is not drawn in the project panel", () => {
+    const out = html(
+      [
+        summary(thr(1), { title: "보통 대화", workspace: "/w/app" }),
+        summary(thr(2), {
+          title: "시험 실행 대화",
+          workspace: "/w/app",
+          testRun: { profileId: null, target: "helm", paused: false },
+        }),
+      ],
+      { status: "ready", projects: [project("prj_app", "/w/app", "app")], pending: new Map() },
+    );
+    expect(out).toContain("보통 대화");
+    expect(out).not.toContain("시험 실행 대화");
+  });
+
   test("an engine without projects keeps the folder groups", () => {
     const out = html(THREADS, { status: "unsupported" });
     expect(out).not.toContain("data-project-panel");
