@@ -6,7 +6,7 @@ export const METHOD_NAME_PATTERN: string =
   "^(\\$/[a-z][A-Za-z0-9]*|[a-z][A-Za-z0-9]*\\.[a-z][A-Za-z0-9]*|(?!ext\\.)[a-z][A-Za-z0-9]*\\.[a-z][A-Za-z0-9]*\\.[a-z][A-Za-z0-9]*|ext\\.[a-z][a-z0-9-]*\\.[a-z][A-Za-z0-9]*)$";
 
 /** `ext.<영역>.<동사>` 세 마디 코어 메서드의 영역. 확장 이름으로 쓸 수 없다(`RESERVED_EXTENSION_NAMES`에도 있다) */
-export const CORE_EXT_NAMESPACES: readonly string[] = ["ui", "test"];
+export const CORE_EXT_NAMESPACES: readonly string[] = ["ui", "test", "members"];
 
 /** 확장 메서드의 wire 이름 `ext.<확장이름>.<동사>`(F.wire-settings.spec §4.2). 검사는 하지 않는다 */
 export function extMethodName(extension: string, verb: string): string {

@@ -15,6 +15,7 @@ import type {
   DriveOptions,
   DriveStep,
   ExtensionManifest,
+  PluginDecl,
   PortKey,
   ProviderResourceDef,
   RegistrationApi,
@@ -71,7 +72,7 @@ export interface OrchestrationHostAccess {
   registerMethod(verb: string, def: ExtMethodResourceDef): void;
   registerProvider(name: string, config: ProviderResourceDef): void;
   migrateState(fn: StateMigration): void;
-  /** 설정 읽기. 내장 그룹은 모든 키, 그 밖의 그룹은 자기 `ext.<id>.*` 키만 값이 나온다 */
+  /** 설정 읽기. 내장 플러그인은 모든 키, 그 밖의 플러그인은 자기 `ext.<id>.*` 키만 값이 나온다 */
   settingsSource(): OrchestrationSettingsSource | undefined;
   /** L1 위임 서비스(`fresnel.agents`). 없거나 내장 확장이 아니면 undefined */
   agents(): AgentService | undefined;
@@ -103,7 +104,7 @@ export function realHostAccess<S>(api: RegistrationApi<S>): OrchestrationHostAcc
     migrateState: (fn) => {
       hostOf(api).migrateState(fn);
     },
-    // 내장이 아닌 그룹은 `fresnel.*` 포트를 못 쓰므로 X의 `settingValue`를 거친다. 자기 `ext.<id>.*` 키만 읽힌다(X.primitives.spec §3.8)
+    // 내장이 아닌 플러그인은 `fresnel.*` 포트를 못 쓰므로 X의 `settingValue`를 거친다. 자기 `ext.<id>.*` 키만 읽힌다(X.primitives.spec §3.8)
     settingsSource: () => ({ value: (key) => hostOf(api).settingValue(key) }),
     agents: () => optionalPort(api, AgentServicePortKey),
     callContext: () => hostOf(api).callContext(),
@@ -120,9 +121,14 @@ function optionalPort<S, Api>(api: RegistrationApi<S>, key: PortKey<Api>): Api |
   return rethrow(cause);
 }
 
-/** wrap이 읽는 GroupDef의 부분 */
+/** wrap이 읽는 OrchestrationDef의 부분 */
 export interface WrapDef<S, D extends OrchestrationSettingDefs> {
   readonly manifest: ExtensionManifest;
+  /**
+   * 이 Registration의 플러그인 선언. 구성원이면 그 구성원의 선언이고, 생략하면 뿌리 플러그인(`orchestrationOf`)이다.
+   * 구성원은 계측 등록부에 올리지 않고 경계 기록도 쓰지 않는다(§4.9). 설정 묶음도 뿌리만 가진다
+   */
+  readonly plugin?: PluginDecl;
   readonly state?: StateDecl<S>;
   readonly migrations?: StateMigrations;
   readonly settings?: SettingGroup<OrchestrationSettingNamespace, D>;
@@ -160,18 +166,18 @@ function readSettings<D extends OrchestrationSettingDefs>(
     }
     if (isSettingValues(group, values)) return values;
     throw new Bug(
-      `group.settings: ${groupName} has a setting with neither a valid value nor a default`,
+      `plugin.settings: ${groupName} has a setting with neither a valid value nor a default`,
     );
   }
   return emptySettings<D>(values);
 }
 
-/** 설정 묶음이 없는 그룹의 값. 키가 없는 빈 객체다 */
+/** 설정 묶음이 없는 플러그인의 값. 키가 없는 빈 객체다. 구성원은 설정 묶음을 가지지 않으므로 여기로 온다 */
 function emptySettings<D extends OrchestrationSettingDefs>(
   values: Readonly<Record<string, unknown>>,
 ): OrchestrationSettingValues<D> {
   if (Object.keys(values).length === 0 && isEmptyValues<D>(values)) return values;
-  throw new Bug("group.settings: a group without settings produced values");
+  throw new Bug("plugin.settings: a plugin without settings produced values");
 }
 
 function isEmptyValues<D extends OrchestrationSettingDefs>(
@@ -250,7 +256,7 @@ function instrumentCommand<S>(
   }
 }
 
-/** `runScript`의 모양. GroupApi의 메서드와 같다 */
+/** `runScript`의 모양. OrchestrationApi의 메서드와 같다 */
 type RunScriptFn = (
   name: string,
   options?: RunScriptOptions,
@@ -291,11 +297,15 @@ export function wrap<S, D extends OrchestrationSettingDefs>(
   hostAccess: HostAccessFactory<S>,
 ): OrchestrationApi<S, D> {
   const access = hostAccess(api);
+  // 구성원(def.plugin이 있다)은 계측 등록부에 올리지 않고 경계 기록도 쓰지 않는다. 등록부 키와 기록 kind가 오케스트레이션 이름 하나라서
+  // 구성원이 쓰면 뿌리의 값과 섞인다. 구성원의 `metrics`는 메모리 집계로만 남는다
+  const member = def.plugin !== undefined;
+  const plugin = def.plugin ?? orchestrationOf(def.manifest);
   const counter = createMetricsCounter(def.manifest.name);
-  defaultMetricsRegistry.register(def.manifest.name, counter.handle);
-  // 경계 기록은 그룹 자신의 boundary.settle.after 핸들러가 끝난 뒤 그 호출 안에서 쓴다(§4.9). 설정을 읽지 못하면 켠 것으로 본다
+  if (!member) defaultMetricsRegistry.register(def.manifest.name, counter.handle);
+  // 경계 기록은 뿌리 플러그인의 boundary.settle.after 핸들러가 끝난 뒤 그 호출 안에서 쓴다(§4.9). 설정을 읽지 못하면 켠 것으로 본다
   const afterSettle =
-    orchestrationOf(def.manifest)?.hooks.includes("boundary.settle.after") === true
+    !member && plugin?.hooks.includes("boundary.settle.after") === true
       ? createBoundaryRecorder({
           api,
           groupId: def.manifest.name,
@@ -318,7 +328,7 @@ export function wrap<S, D extends OrchestrationSettingDefs>(
     return rethrow(found.error.cause);
   };
   agentsOf();
-  /** onDispose가 시작되면 참. 꺼지는 중인 그룹의 delegate는 group.disabling이다(§4.10) */
+  /** onDispose가 시작되면 참. 꺼지는 중인 플러그인의 delegate는 orchestration.disabling이다(§4.10) */
   let disposing = false;
   api.onDispose(() => {
     disposing = true;
@@ -364,7 +374,7 @@ export function wrap<S, D extends OrchestrationSettingDefs>(
       return committed;
     },
     record: async (kind, subject, payload) => {
-      ensure(checkRecordKind(def.manifest, kind), api.id);
+      ensure(checkRecordKind(def.manifest, kind, plugin), api.id);
       await api.record(kind, subject, payload);
       counter.bump("records");
     },

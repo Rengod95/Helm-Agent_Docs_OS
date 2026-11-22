@@ -80,6 +80,54 @@ export interface ScaffoldResult {
   readonly files: readonly string[];
 }
 
+/**
+ * 구성원 편집 한 건(`editMembers`, L3.authoring.spec §3.3). 뿌리 플러그인은 구성원이 아니라 바꾸지 않는다.
+ * 여러 건은 위에서 아래로 차례로 적용하고, 하나라도 실패하면 아무 파일도 쓰지 않는다
+ */
+export type MemberOp =
+  | {
+      readonly kind: "add";
+      readonly id: string;
+      /** 생략하면 뿌리 플러그인의 층(뿌리가 `plugin`이면 `plugin`) */
+      readonly layer?: ExtensionLayer;
+      readonly title?: string;
+      /** 생략하면 `hook`. `inject`는 지침 선언만, `drive`는 층 L3에서만 */
+      readonly mode?: PluginMode;
+    }
+  | { readonly kind: "rename"; readonly id: string; readonly to: string }
+  | { readonly kind: "remove"; readonly id: string }
+  /** 구성원끼리의 순서를 바꾼다(0부터, 구성원 목록 기준). 이 순서가 `plugins[]` 순서이고 등록·훅 순서가 된다 */
+  | { readonly kind: "move"; readonly id: string; readonly toIndex: number };
+
+/** 구성원 하나(뿌리 제외)의 요약. `members`는 매니페스트 `plugins[]` 순서다 */
+export interface MemberInfo {
+  readonly id: string;
+  readonly registrationId: string;
+  readonly title: string | null;
+  readonly layer: ExtensionLayer;
+  readonly hooks: readonly string[];
+  readonly drives: boolean;
+  readonly defaultEnabled: boolean;
+  /** `orchestration.composition.blocks` 가운데 `plugin`이 이 구성원인 블록 id */
+  readonly blockIds: readonly string[];
+}
+
+export interface MembersEditInput {
+  /** 플러그인 원본 폴더의 절대 경로(`.fresnel-plugin/plugin.json`이 있어야 한다) */
+  readonly dir: string;
+  readonly ops: readonly MemberOp[];
+}
+
+export interface MembersEditResult {
+  readonly members: readonly MemberInfo[];
+  /** 검사 경고와 알림. 오류가 있었으면 편집이 거절되어 여기 오지 않는다 */
+  readonly issues: readonly DevkitIssue[];
+  /** 쓰거나 옮긴 파일(dir 기준 상대 경로). 옮긴 파일은 새 경로로 적는다 */
+  readonly changedFiles: readonly string[];
+  /** `generated`: 엔트리가 생성 파일을 가져온다. `manual`: 호출자가 엔트리 배선을 직접 확인해야 한다 */
+  readonly entryWiring: "generated" | "manual";
+}
+
 /** 검사 결과 한 건. F `ManifestIssue`와 AU 규칙(`AU-NNN`)을 함께 싣는다 */
 export interface DevkitIssue {
   readonly severity: "error" | "warning" | "info";

@@ -810,6 +810,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
           forcedPlugins: () => [],
           defaultPlugins: () => ["helm"],
           stateDir: join(tmpdir(), "fresnel-fake-profiles-state"),
+          pluginStoreDir: join(tmpdir(), "fresnel-fake-plugin-store"),
           configDir: fakeConfigDir,
           fileLock: fakeFileLock,
           clock: fakeClock,

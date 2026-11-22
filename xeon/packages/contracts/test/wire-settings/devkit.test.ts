@@ -6,7 +6,7 @@ import {
   DevkitServiceName,
   EXTENSION_KINDS,
 } from "../../src/services/index.ts";
-import { WIRE_METHODS } from "../../src/wire-settings/wire/index.ts";
+import { classifyMethodName, WIRE_METHODS } from "../../src/wire-settings/wire/index.ts";
 
 function roundTrip(schema: TSchema, value: unknown): void {
   const result = parse(schema, value);
@@ -42,6 +42,11 @@ const kind = {
   decisions: ["layer"],
   security: [],
 };
+
+/** 구성원 편집 건 `count`개(id는 규칙에 맞는 값이다: 한 글자 id는 PluginIdSchema가 거절한다) */
+function removes(count: number): unknown[] {
+  return Array.from({ length: count }, () => ({ kind: "remove", id: "aa" }));
+}
 
 describe("fresnel.devkit and its wire methods", () => {
   test("service name, error kinds and the one extension kind", () => {
@@ -157,6 +162,103 @@ describe("fresnel.devkit and its wire methods", () => {
         },
       ],
     });
+  });
+
+  test("ext.members.edit takes 1 to 32 typed ops and rejects unknown kinds, extra keys and bad values", () => {
+    const params = WIRE_METHODS["ext.members.edit"].params;
+    const base = { dir: "/tmp/x" };
+    // 네 가지 건 모두 받는다
+    expect(
+      parse(params, {
+        ...base,
+        ops: [
+          { kind: "add", id: "sync", layer: "L3", title: "Sync", mode: "drive" },
+          { kind: "rename", id: "sync", to: "sync-2" },
+          { kind: "remove", id: "sync-2" },
+          { kind: "move", id: "guard", toIndex: 0 },
+        ],
+      }).ok,
+    ).toBe(true);
+    expect(parse(params, { ...base, ops: [{ kind: "add", id: "sync" }] }).ok).toBe(true);
+    // 건수는 1~32
+    expect(parse(params, { ...base, ops: [] }).ok).toBe(false);
+    // 건수 경계만 본다: id는 규칙에 맞는 값을 쓴다(한 글자 id는 PluginIdSchema가 거절한다)
+    expect(parse(params, { ...base, ops: removes(33) }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: removes(32) }).ok).toBe(true);
+    expect(parse(params, { ...base, ops: [{ kind: "remove", id: "a" }] }).ok).toBe(false);
+    // 알 수 없는 종류, 닫힌 객체, 틀린 값
+    expect(parse(params, { ...base, ops: [{ kind: "replace", id: "sync" }] }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: [{ kind: "add", id: "sync", extra: 1 }] }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: [{ kind: "add", id: "Bad_Name" }] }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: [{ kind: "add", id: "sync", layer: "L9" }] }).ok).toBe(
+      false,
+    );
+    expect(parse(params, { ...base, ops: [{ kind: "add", id: "sync", mode: "bogus" }] }).ok).toBe(
+      false,
+    );
+    expect(parse(params, { ...base, ops: [{ kind: "move", id: "sync", toIndex: -1 }] }).ok).toBe(
+      false,
+    );
+    expect(parse(params, { ...base, ops: [{ kind: "move", id: "sync", toIndex: 1.5 }] }).ok).toBe(
+      false,
+    );
+    expect(parse(params, { ...base, ops: [{ kind: "rename", id: "sync" }] }).ok).toBe(false);
+    // 바깥 객체: dir과 ops는 필수이고 모르는 키는 거절한다
+    expect(parse(params, { ops: [{ kind: "remove", id: "a" }] }).ok).toBe(false);
+    expect(parse(params, { dir: "/tmp/x" }).ok).toBe(false);
+    expect(parse(params, { ...base, ops: [{ kind: "remove", id: "a" }], out: "/o" }).ok).toBe(
+      false,
+    );
+  });
+
+  test("ext.members.edit and ext.members.read return the member summaries; the registry names are core", () => {
+    const member = {
+      id: "sync",
+      registrationId: "demo/sync",
+      title: null,
+      layer: "L3",
+      hooks: ["boundary.settle.after"],
+      drives: false,
+      defaultEnabled: false,
+      blockIds: ["b1"],
+    };
+    roundTrip(WIRE_METHODS["ext.members.edit"].result, {
+      members: [member],
+      issues: [
+        {
+          severity: "info",
+          code: "member_file_kept",
+          path: "",
+          file: "src/members/a.ts",
+          message: "m",
+        },
+      ],
+      changedFiles: ["src/members/sync.ts", ".fresnel-plugin/plugin.json"],
+      entryWiring: "generated",
+    });
+    expect(
+      parse(WIRE_METHODS["ext.members.edit"].result, {
+        members: [],
+        issues: [],
+        changedFiles: [],
+        entryWiring: "maybe",
+      }).ok,
+    ).toBe(false);
+    // 구성원 요약의 등록 id는 등록 id 규칙을 따른다(대문자는 거절)
+    expect(
+      parse(WIRE_METHODS["ext.members.edit"].result, {
+        members: [{ ...member, registrationId: "Demo/Sync" }],
+        issues: [],
+        changedFiles: [],
+        entryWiring: "manual",
+      }).ok,
+    ).toBe(false);
+    roundTrip(WIRE_METHODS["ext.members.read"].result, { members: [member] });
+    expect(parse(WIRE_METHODS["ext.members.read"].params, { dir: "/tmp/x" }).ok).toBe(true);
+    expect(parse(WIRE_METHODS["ext.members.read"].params, {}).ok).toBe(false);
+    // 세 마디 이름이지만 확장 메서드가 아니라 코어 메서드다(확장 이름 `members`는 예약이다)
+    expect(classifyMethodName("ext.members.edit")).toBe("core");
+    expect(classifyMethodName("ext.members.read")).toBe("core");
   });
 
   test("ext.test.list replay carries one cut per commit and rejects a malformed cut", () => {
