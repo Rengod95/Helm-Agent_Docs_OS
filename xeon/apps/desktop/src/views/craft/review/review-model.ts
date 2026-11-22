@@ -151,7 +151,10 @@ export type RunLine =
       /** 없으면 엔진이 이 칸을 채우지 않은 옛 카드다(`CardScript.uses`가 선택 필드) */
       readonly uses: readonly ScriptUse[] | null;
       readonly timeoutMs: number;
+      /** 실제로 넘어가는 이름만(엔진이 허용 목록으로 거른 `launch.envNames`) */
       readonly envNames: readonly string[];
+      /** 스크립트가 선언했지만 받지 못하는 이름(허용 목록 밖이거나 토큰, 키 이름). 엔진이 싣지 않으면 비어 있다(AGE-63, enPp6-b) */
+      readonly envNotPassed: readonly string[];
       /** 가져온 훅(환경 모드)이면 원래 명령, 셸, 찾지 못한 실행 파일, 읽는 파일. 아니면 null이다 */
       readonly env: CardScriptEnv | null;
     }
@@ -178,6 +181,7 @@ function scriptLine(script: CardScript): RunLine {
     uses: script.uses ?? null,
     timeoutMs: script.timeoutMs,
     envNames: script.launch.envNames,
+    envNotPassed: script.envNotPassed ?? [],
     env: script.env ?? null,
   };
 }

@@ -75,7 +75,7 @@ describe("en locale: no Hangul on the main screen models", () => {
     });
     expect([...turns, usage].filter((text) => HANGUL.test(text))).toEqual([]);
     expect(turns).toEqual(["Idle", "Running", "Waiting for approval", "Waiting for an answer"]);
-    expect(usage).toBe("Turn total 1.5K tokens · $0.03");
+    expect(usage).toBe("Turn total 1.5K tokens ($0.03)");
   });
 
   test("slash command list: the engine's Korean descriptions and hints are replaced", () => {

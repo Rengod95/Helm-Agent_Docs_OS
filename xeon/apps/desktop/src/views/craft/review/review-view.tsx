@@ -25,7 +25,6 @@ import {
   type ReactNode,
 } from "react";
 import { useThreadSummaries } from "../../../state/engine/index.ts";
-import { takeReviewFocus } from "./focus.ts";
 import { useRailAvoid } from "../../shell/rail-avoid.ts";
 import { ScreenHeader } from "../../shell/screen-header.tsx";
 import { SIDE_ROW } from "../../side-row.ts";
@@ -39,6 +38,7 @@ import {
 } from "./review-detail.tsx";
 import { KindTile, ToneGlyph } from "./review-glyphs.tsx";
 import { agoText, ENTRY_WORD } from "./review-parts.tsx";
+import { clearReviewItem, peekReviewItem } from "./review-pick.ts";
 import {
   entryKindOf,
   nextAfter,
@@ -119,8 +119,9 @@ function useReviewState(data: ReviewData, ready: Ready) {
   );
   const groups = useMemo(() => groupsOf(pending, decidedItems), [pending, decidedItems]);
   const ids = useMemo(() => groups.flatMap((g) => g.items.map((i) => i.itemId)), [groups]);
-  // 테스트 챗 창의 "리뷰에서 보기"가 둔 항목이 있으면 그것을 먼저 고른다(`focus.ts`)
-  const [selected, setSelected] = useState<string | null>(takeReviewFocus);
+  // 다른 화면이 건넨 항목(구성원 탭과 테스트 챗 창의 "리뷰에서 보기", `review-pick.ts`)이 있으면 그 항목부터 연다
+  const [selected, setSelected] = useState<string | null>(peekReviewItem);
+  useEffect(clearReviewItem, []);
   const current = selected !== null && ids.includes(selected) ? selected : (ids[0] ?? null);
   const item = pending.find((i) => i.itemId === current) ?? kept.get(current ?? "") ?? null;
   const handleRef = useRef<DecisionHandle | null>(null);
@@ -278,7 +279,12 @@ function Empty(props: { readonly dev: ReviewDevSlot | null }): ReactNode {
 function KeysTip(): ReactNode {
   return (
     <InfoTip
-      text={t("desktop.craft.review.keys.hint")}
+      text={[
+        t("desktop.craft.review.keys.move"),
+        t("desktop.craft.review.keys.approve"),
+        t("desktop.craft.review.keys.reject"),
+        t("desktop.craft.review.keys.files"),
+      ]}
       label={t("desktop.craft.review.keys.label")}
     />
   );

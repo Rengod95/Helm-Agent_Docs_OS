@@ -71,7 +71,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 ### 3.1 진입점과 import
 
 ```text
-@fresnel/orchestration-sdk           defineOrchestration, validateOrchestrationDef, orchestrationManifest, isOrchestrationModule, OrchestrationDef, OrchestrationApi, OrchestrationModule, RunScriptOptions,
+@fresnel/orchestration-sdk           defineOrchestration, defineOrchestrationMember, validateOrchestrationDef, orchestrationManifest, isOrchestrationModule, OrchestrationDef, OrchestrationMember, OrchestrationApi, OrchestrationModule, RunScriptOptions,
                           DelegateSpec, DelegateToolPolicy, DelegateLimits, DelegateFork, DelegateReceipt,
                           DelegateResult, OrchestrationService, OrchestrationServiceName,
                           OrchestrationStatus, 명령·상태줄 함수, OrchestrationMetrics, PromotionReport, 설정 정의
@@ -156,6 +156,11 @@ export interface OrchestrationDef<S = never, D extends OrchestrationSettingDefs 
   /** defineSettings("l3.<이름>", …) 또는 defineSettings("ext.<이름>", …)의 결과 */
   readonly settings?: SettingGroup<OrchestrationSettingNamespace, D>;
   readonly setup: (g: OrchestrationApi<S, D>) => void | Promise<void>;
+  /**
+   * 구성원 정의 [제안]. 키는 매니페스트 `plugins[]`에서 id가 있는 플러그인의 id다(`orchestration.members`가 있으면 그 안의 id만).
+   * 선언된 구성원마다 정의가 하나 있어야 한다(`member_missing`). `defineOrchestrationMember`가 만든 값만 받는다.
+   */
+  readonly members?: Readonly<Record<string, OrchestrationMember>>;
 }
 
 /** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
@@ -193,6 +198,29 @@ export interface RunScriptOptions {
   readonly stdin?: string;
 }
 
+/** 구성원 정의의 인자 [제안]. 구성원 setup은 뿌리와 같은 OrchestrationApi를 받는다 */
+export interface OrchestrationMemberDef<S = never> {
+  readonly state?: StateDecl<S>;
+  readonly migrations?: StateMigrations;
+  readonly setup: (g: OrchestrationApi<S>) => void | Promise<void>;
+}
+
+/** 불투명 구성원 값 [제안]. S는 `mount` 클로저 안에 갇히고, 값에는 검사가 읽는 상태 모양만 보인다 */
+export interface OrchestrationMember {
+  readonly state?: StateDecl<unknown>;
+  readonly migrations?: StateMigrations;
+  /** 엔트리 안에서 구성원 Registration 하나를 등록한다. registrationId는 `registrationIdOf(manifest, id)`다 */
+  readonly mount: (
+    register: RegistrationFn,
+    registrationId: RegistrationId,
+    manifest: ExtensionManifest,
+    plugin: PluginDecl,
+  ) => void;
+}
+
+/** 구성원 정의를 만든다 [제안]. setup은 실행하지 않는다. 검사는 `defineOrchestration`이 뿌리와 함께 한다 */
+export function defineOrchestrationMember<S = never>(def: OrchestrationMemberDef<S>): OrchestrationMember;
+
 export interface OrchestrationModule {
   readonly manifest: OrchestrationManifest;
   /** X 로더가 부르는 엔트리. F ExtensionEntry */
@@ -222,6 +250,10 @@ export function defineOrchestration<S = never, const D extends OrchestrationSett
 - `drive` 단계 함수는 `DriveStepInput`(커밋된 `state`, 직전 명령의 결과 `last`, `budget`, `frame`)만 받는다. 돌려준 명령은 엔진이 실행하고, 그 결과는 같은 호출 안의 다음 단계에서 `last`로만 돌아온다. 호출 사이에 클로저 값을 넘기지 않는다(`architecture.runtime-flow.design` §4.3 완화책).
 - `drive`의 명령 검사와 계측 [결정: 계약 커밋 121f2d5b8, drive-isolation.md §1.1]: `spawn` 명령은 `spawns`를 올린다. `commit` 명령(`next` 사슬 안의 것 포함)은 `commit`과 같은 `checkStateCommit`과 같은 `PrimitiveError`(`state_schema`, `state_too_large`)로 검사하고, 직전 커밋 값(사슬의 첫 값은 단계 함수가 받은 `state`)과 값이 다른 것만 `commits`로 센다. 같은 값이면 상태 사건을 쓰지 않고 `next`만 실행한다(§4.5 3번). 검사에 실패하면 단계 함수가 던진 것이 되어 drive lock이 `error`로 반납된다(§5 9번). `turn`, `ask`, `yield`, `done`, `model`, `tool`은 그대로 넘기고 `handoff`는 자리표시자다(E3). 명령과 결과의 정의는 F.extensions.spec §4.6이다.
 - `OrchestrationDef<S>`의 두 번째 타입 인자 `D`는 기본값이 있으므로 설정이 없는 플러그인은 `OrchestrationDef<S>`로 쓴다.
+- 구성원 [제안]: 한 확장 안에서 뿌리 말고 구성원도 둘 수 있다. 구성원은 `plugins[]`의 id가 있는 L3 플러그인이고, 같은 `defineOrchestration` 정의의 `members`에 `defineOrchestrationMember`로 정의한다. 구성원의 Registration id는 `registrationIdOf(manifest, id)`, 즉 `<이름>/<id>`다. `entry`는 뿌리를 먼저 등록하고 구성원을 `plugins[]` 순서로 등록한다(§4.2).
+- 구성원의 setup은 뿌리와 같은 `OrchestrationApi`(wrap)를 받는다. `on`, `post`, `drive`, `commit`, `record` 같은 연산은 구성원 자기 Registration의 선언(`plugins[i]`의 `hooks`, `usesPost`, `drives`, `recordKinds`, `readsRecordKinds`)을 따른다. 구성원은 설정 묶음을 선언하지 않으므로 `settings()`는 빈 값이다.
+- 구성원의 계측은 `metrics` 핸들로만 읽는다 [제안]. 계측 등록부(`defaultMetricsRegistry`)에 올리지 않고 `grp.<이름>.metrics.recorded` 경계 기록도 쓰지 않는다. 등록부 키와 기록 kind가 모두 오케스트레이션 이름 하나에 붙어서, 구성원이 쓰면 뿌리의 값과 섞이기 때문이다.
+- `g.record`의 자기 접두 검사는 그 Registration의 선언(`checkRecordKind`의 `plugin` 인자)의 `recordKinds`를 본다. 뿌리 선언만 보면 구성원의 kind가 모두 거부되므로 구성원은 자기 선언을 본다 [제안].
 - 예(설명용, 플러그인 내부 설계 아님):
 
 ```ts
@@ -266,6 +298,8 @@ export type OrchestrationDefIssueCode =
   | "composition_conflict"     // def.composition이 매니페스트 group.composition과 다름(M4, X-16)
   | "state_initial_invalid"    // initial이 schema를 통과하지 못함
   | "state_migration_missing"  // version ≥ 2인데 migrations에 빠진 출발 버전이 있음
+  | "member_unknown"           // members의 키가 plugins[]의 구성원 id가 아니거나 orchestration.members에 없음 [제안]
+  | "member_missing"           // 매니페스트가 선언한 구성원 id인데 members에 정의가 없음 [제안]
   | "delegate_capability"     // delegate를 쓰는데 매니페스트 requires/optional에 위임 기능이 없음(검사는 checkOrchestration, M3)
   | "setup_threw";            // checkGroup이 setup을 실행하다 선언과 무관한 예외를 만남(M2에서 더한 코드)
 
@@ -301,6 +335,7 @@ export function checkOrchestration(module: OrchestrationModule): Promise<readonl
 | 매니페스트 집합 | F `validateManifestSet` | 없음 | X 로더 | `name_conflict` 오류, `drive_conflict` 경고 |
 | 주도 정책 | X 설치 시점(`PrimitiveError`) | 없음. 루트 플러그인은 구성원이라 `checkOrchestration`이 거부하지 않는다 | X 설치 | `drive_requires_orchestration`은 정책 `x.primitives.driveRequiresOrchestration`이 참일 때 구성원이 아닌 플러그인이 drive를 등록하면 난다(F.extensions.spec §4.6) |
 
+- 구성원 검사 [제안]: 정의의 키는 구성원 id여야 한다(`member_unknown`, 경로 `/members/<id>`). 매니페스트가 선언한 구성원마다 정의가 있어야 한다(`member_missing`, 경로 `/members/<id>`). 구성원 정의의 상태 검사(version, migrations, initial)는 뿌리와 같은 규칙이고 경로는 `/members/<id>/state/...`, migrations는 `/members/<id>/migrations/<출발 버전>`이다. `checkOrchestration`은 검사 호스트에서 구성원도 켜서 구성원 setup의 선언 오류(`hook_undeclared` 등)를 그 구성원의 `/plugins/<위치>/...` 경로로 돌려준다. 구성원은 기본으로 꺼져 있어 켜지 않으면 setup이 돌지 않기 때문이다.
 - `defineOrchestration`은 순수 검사만 한다. setup을 실행하지 않는다. 그래서 `validateUsage`는 로드 시점에 X가, 테스트 시점에 `checkOrchestration`이 부른다.
 - `isOrchestrationModule(value: unknown): value is OrchestrationModule` [제안]: 이 모듈 인스턴스의 `defineOrchestration`이 돌려준 객체만 참이다(모듈 안의 `WeakSet`으로 판별). 동적 import로 읽은 default export를 단언 없이 `OrchestrationModule`로 좁힌다. 같은 모양의 손으로 쓴 객체는 거짓이다.
 - X는 선언하지 않은 `on`·`post`·`drive`·`capability`를 그 자리에서 `PrimitiveError`로 던진다. `checkOrchestration`은 이 오류의 code가 `validateUsage` 코드(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`)와 같으면 같은 이슈로 돌려주고, 그 밖의 setup 예외는 `setup_threw`로 돌려준다. setup은 첫 예외에서 멈추므로 그 뒤의 등록은 보지 못한다.
@@ -921,6 +956,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 2. `orchestration-sdk` 플러그인은 `fresnel.ext`를 주입받고 `fresnel.orchestration`(`OrchestrationService`)를 제공한다. 중재 포트는 없다(E3). `choose`는 계약에서 걷었다(§3.5). [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 3. X 로더가 오케스트레이션 모듈마다 `validateManifest`, `validateManifestSet`을 부르고, 설정 묶음을 카탈로그에 넣고, `entry`를 부른다. setup 직후 X가 `validateUsage`를 부른다.
 4. 플러그인 setup 안의 `g.drive(fn)`은 등록만 한다. drive lock은 §4.3이 정한다.
+5. 구성원이 있으면 뿌리 Registration 뒤에 구성원 Registration을 `plugins[]` 순서로 등록한다 [제안]. 구성원의 켜짐 기본값은 `pluginDefaultEnabled`가 정한다. 구성원은 `defaultEnabled`를 적지 않으면 꺼져 있고, 꺼진 동안 구성원 setup은 돌지 않는다 [근거: packages/contracts/src/extensions/manifest.ts `pluginDefaultEnabled`].
 
 ### 4.3 drive 역할 계산과 주도 시작
 
@@ -937,8 +973,11 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 - 요청과 적용 사이에 `OrchestrationStatus.pendingToggle`이 채워지고 상태줄에 "다음 단계 경계에 적용"이 붙는다(§3.9).
 - 비활성화 적용 순서는 F.extensions.spec §4.5 [제안](on 핸들러 제외 → drive lock 반납 → `onDispose`)을 따른다. orchestration-sdk `wrap`은 `onDispose` 목록 끝에 계측 마감(2차)을 더한다.
 - 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec §4.5.5가 정한다(유휴 thread는 즉시 적용, [결정: 2026-11-04 사용자, 결정 목록 R19]). 그 시점이 "즉시"이므로 `ToggleReceipt.appliesAt`은 `"now"`다.
+- 구성원은 뿌리와 따로 켜고 끈다. 설치 때 구성원 가운데 하나의 setup이 실패하면 이미 켜진 구성원을 함께 끈다(X `install`의 구성원 묶음 규칙, [제안: F.extensions.spec §4.5]).
 
 ### 4.5 상태 커밋 규칙
+
+- 구성원의 상태 문서는 그 구성원 Registration에만 속한다 [제안]. `g.state()`, `g.commit()`, drive 단계 함수의 `state`는 자기 구성원의 문서만 읽고 쓰며 뿌리 문서와 섞이지 않는다.
 
 1. `g.commit(next)`는 상태 문서 전체를 교체한다. 부분 패치는 없다(F `RegistrationApi.commit`).
 2. 커밋 전 `checkStateCommit`이 `StateDecl.schema` 검사와 크기 검사(직렬화 UTF-8 64 KiB 이하)를 한다. 실패하면 `commit`은 거부되고 상태는 그대로다. 오류는 `OrchestrationError{kind:"orchestration.stateInvalid"}`로 남는다.
@@ -1033,6 +1072,8 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 13 | (E3에서 걷음) `x.primitives.activeDriver` 키가 없어 이 경우가 생기지 않는다 | 해당 없음 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 | 14 | drive 플러그인이 하나도 없음 | 스택이 비어 있으면 상태줄에 `[구동]` 항목이 없다 | [근거: E3 구현(packages/orchestration-sdk/src/service.ts), drive-isolation.md 2.2]
 | 15 | 저장 상태가 스키마를 어겨 켜지지 못함(X `state_schema`) | `OrchestrationStatus.lastError = orchestration.stateInvalid`. 상태는 그대로 두고 플러그인을 켜지 않는다. `/group reset <이름>`(B4-GRP, §3.9)이 선언 초기값을 새 판으로 쓰고 오류를 지운다. 켜기 상태(`scope`)는 바꾸지 않으며 적용은 다음 단계 경계에 일어난다(시험 `reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next-boundary`) |
+| 16 | 매니페스트가 선언한 구성원 id에 정의가 없거나, 정의 키가 구성원이 아님 | `defineOrchestration`이 `Bug`를 던진다(`member_missing`, `member_unknown`). 정의가 없으면 구성원 Registration도 없다 [제안] |
+| 17 | `orchestration.members` 밖에 있는 id 있는 플러그인 | 구성원이 아니므로 SDK는 등록하지 않는다. 로더가 `plugin_not_registered` 경고를 낸다 [미결, §10] |
 
 ## 6. 설정 노출
 
@@ -1124,6 +1165,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 25. (M3b, G-17) `on` 래퍼는 first 훅의 정의된 반환을 `denies`, chain 훅의 정의된 반환을 `chainPatches`, 던진 오류를 `handlerErrors`로 올리고 오류를 같은 값으로 다시 던진다. `undefined` 반환은 세지 않는다.
 26. (M3b, LR-17) `metrics.addUsage`는 `tokens`와 `costUsd`를 더한다. 음수나 유한하지 않은 값이면 `Bug`를 던지고 그 호출은 아무 값도 바꾸지 않는다.
 27. (M3b, G-17) `/group status`는 현재 thread의 `lease.*`·`turn.*` 이벤트로 drive lock 시간과 비용을 채운다. 조회가 실패하면 이전 캐시를 두고 명령은 성공한다. 계측 기록은 경계마다 증가분만 쓴다. 두 번째 기록에 첫 기록의 값이 다시 들지 않는다.
+28. (M4, 구성원) 뿌리와 구성원 `alpha`, `beta`를 `plugins[]`에 선언하고 두 구성원을 `members`로 정의하면 `install`의 `unregistered`가 빈 배열이고, Registration은 `[이름, 이름/alpha, 이름/beta]` 순서다. `members`가 없는 뿌리 전용 정의는 Registration 하나와 이전과 같은 계측 등록부 항목을 낸다. 구성원의 setup은 자기 Registration에서 돌고, 그 `on` 훅은 `extReadViewOf(host).handlers()`에서 `<이름>/<id>`에 붙는다. 정의가 빠지거나 정의 키가 구성원이 아니면 각각 `member_missing`, `member_unknown`이다. 시험: `packages/orchestration-sdk/test/members.test.ts`, `define-group.test.ts`.
 
 ## 10. 미결 사항
 
@@ -1163,5 +1205,8 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: 오케스트레이터 기본값, M3b] 별도 `boundary.settle.after` 핸들러로 쓰는 안은 같은 scope의 호출 키 충돌로 학습 플러그인의 기록을 거부시켰다(시험 6건). 그래서 기록은 플러그인 핸들러 안에서 쓴다(§4.9).
 - [미결] M3b의 이벤트 집계는 마지막으로 갱신한 thread만 보인다. 여러 thread의 drive lock 시간과 비용을 한 줄로 보일지는 정하지 않았다.
 - (닫힘) [B4-GRP] 학습 플러그인의 `addUsage` 연결(LR-17)은 학습 스펙 §10 17에 따라 검토 종료 때 연결했다.
+- [미결] 구성원이 아닌 id 있는 플러그인(`orchestration.members` 밖에 있고 `plugins[]`에는 있음)은 SDK가 등록하지 않아 로더가 `plugin_not_registered` 경고를 낸다. 이런 플러그인을 어떻게 등록하거나 검사에서 막을지 정하지 않았다.
+- [미결] 구성원의 `settings()`(뿌리 설정 묶음 읽기)와 구성원 계측의 `OrchestrationStatus` 합산은 이번에 넣지 않았다.
+- [제안] `defineOrchestrationMember`와 `OrchestrationMember`는 F에 없는 새 이름이다. F 이름 정리 때 확정한다.
 - [결정: review.decisions-2 U-17] `orchestration-sdk`의 `@fresnel/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 플러그인 패키지는 `@fresnel/ext-host`를 import하지 않는다(L3.readme §3).
 - [미결] [근거: packages/ext-host/src/primitives/lease.ts] [엔진, X.primitives.spec §4.4.1 소관] 단계 함수의 기본 `requestId`는 `${lineageId}:${상태 판}.${단계 번호}`인데, 단계 번호(`DriveInvocation.i`)가 단계마다 0부터 다시 센다(`packages/ext-host/src/primitives/lease.ts`의 `runSteps`와 `executeCommand`의 `nextId`). 같은 상태 판에서 기본 id를 받은 턴 명령과 뒤 단계의 `commit` 명령이 같은 id를 받으면, 두 번째 결과 사건이 같은 키에 다른 내용으로 쓰여 `invalid`로 거부되고 단계가 `storage_unavailable`로 끝나 drive lock이 `error`로 반납된다. 플러그인 쪽은 턴 명령에 `requestId`를 명시해 피한다(§3.2 예, §4.6). 계약의 `DriveCommandBase.requestId` 주석(`단계 번호`의 뜻)과 맞추려면 엔진이 단계 번호를 drive lock 안에서 이어 세야 한다.

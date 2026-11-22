@@ -42,7 +42,7 @@ export const ExtensionLayerSchema: TUnion<
 
 export type ExtensionLayer = Static<typeof ExtensionLayerSchema>;
 
-/** 매니페스트 형식 버전. 2는 `plugins[]`와 선택적 `group`을 쓰는 형식이다. 옛 형식(1)은 읽지 않는다 */
+/** 매니페스트 형식 버전. 2는 `plugins[]`와 선택적 `orchestration`을 쓰는 형식이다. 옛 형식(1)은 읽지 않는다 */
 export const MANIFEST_SCHEMA_VERSION = 2 as const;
 
 export const CapabilityRequirementSchema: TObject<{
@@ -334,7 +334,7 @@ export const PluginDeclSchema: TObject<{
 );
 export type PluginDecl = Static<typeof PluginDeclSchema>;
 
-/** 플러그인 그룹 선언. 있으면 그 확장은 플러그인 그룹이다 */
+/** 오케스트레이션 선언. 있으면 그 확장은 구성원이 있는 플러그인이다 */
 export const OrchestrationDeclSchema: TObject<{
   members: TOptional<TArray<typeof PluginIdSchema>>;
   composition: TOptional<TUnsafe<CompositionDecl>>;
@@ -345,7 +345,7 @@ export const OrchestrationDeclSchema: TObject<{
      * 루트 플러그인(id 없음)은 적지 않으며 `members`가 있어도 항상 구성원이다
      */
     members: Type.Optional(Type.Array(PluginIdSchema, { minItems: 1, maxItems: 16 })),
-    /** 구성 선언(X-16). 작성자가 선언하고 없으면 구성기는 블록 하나로 보인다. 플러그인 그룹만 둘 수 있다 */
+    /** 구성 선언(X-16). 작성자가 선언하고 없으면 구성기는 블록 하나로 보인다. 오케스트레이션 선언이 있는 플러그인만 둘 수 있다 */
     composition: Type.Optional(CompositionDeclSchema),
   },
   { additionalProperties: false },
@@ -432,14 +432,14 @@ export function defineManifest<const M extends ExtensionManifest>(manifest: M): 
   return manifest;
 }
 
-/** `group` 선언이 있으면 플러그인 그룹이다. 기록·상태 접두를 이 함수 하나로 고른다 */
+/** `orchestration` 선언이 있으면 구성원이 있는 플러그인이다. 기록·상태 접두를 이 함수 하나로 고른다 */
 export function isOrchestrationExtension(
   manifest: Pick<ExtensionManifest, "orchestration">,
 ): boolean {
   return manifest.orchestration !== undefined;
 }
 
-/** 확장 접두: 플러그인 그룹이면 "grp", 아니면 "x" */
+/** 확장 접두: `orchestration` 선언이 있으면 "grp", 아니면 "x" */
 export function extensionPrefix(manifest: Pick<ExtensionManifest, "orchestration">): "grp" | "x" {
   return isOrchestrationExtension(manifest) ? "grp" : "x";
 }
@@ -472,7 +472,7 @@ export interface PluginEntry {
   readonly decl: PluginDecl;
   /** id가 없는 루트 플러그인인가 */
   readonly root: boolean;
-  /** 플러그인 그룹의 구성원인가. `group.members`가 없으면 모든 플러그인, 있으면 루트와 목록의 플러그인 */
+  /** 구성원이 있는 플러그인의 구성원인가. `orchestration.members`가 없으면 모든 플러그인, 있으면 루트와 목록의 플러그인 */
   readonly inOrchestration: boolean;
 }
 

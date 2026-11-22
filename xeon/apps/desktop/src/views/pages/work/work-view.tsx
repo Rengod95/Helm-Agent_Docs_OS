@@ -182,9 +182,15 @@ function GoalSummary(props: { readonly goal: GoalVM }): ReactNode {
       {verdict === null || goal.verdict === null ? null : (
         <p
           aria-label={t("desktop.work.goal.verdicts")}
-          className="m-0 line-clamp-2 text-ui-sm font-normal text-text-secondary"
+          className="m-0 flex min-w-0 items-baseline gap-2 text-ui-sm font-normal text-text-secondary"
         >
-          {goal.verdict.reason === "" ? verdict : `${verdict} · ${goal.verdict.reason}`}
+          <span className="flex-none">{verdict}</span>
+          {goal.verdict.reason === "" ? null : (
+            <>
+              {" "}
+              <span className="line-clamp-2 min-w-0">{goal.verdict.reason}</span>
+            </>
+          )}
         </p>
       )}
       {goal.endRef === null ? null : (

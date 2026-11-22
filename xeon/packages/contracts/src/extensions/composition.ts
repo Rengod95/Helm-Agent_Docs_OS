@@ -5,7 +5,7 @@ import { RecordKindSchema, type RecordKind } from "./group-record.ts";
 import { PluginIdSchema } from "./registration-id.ts";
 import { HookNameSchema, type HookName } from "./hooks.ts";
 
-// F.extensions.spec §3.1.2 구성 선언(X-16, L4.desktop-ux.spec §6.28). 플러그인 그룹의 `group.composition`에 두는, 작성자가 선언하는 읽기용 설계 모델이다.
+// F.extensions.spec §3.1.2 구성 선언(X-16, L4.desktop-ux.spec §6.28). 구성원이 있는 플러그인의 `orchestration.composition`에 두는, 작성자가 선언하는 읽기용 설계 모델이다.
 // 런타임에는 블록이 없고 플러그인 선언(hooks, requires, drives, usesPost)과 setup(g) 코드가 실제 동작을 정한다.
 // 선언이 없으면 구성기는 "구성 정보 없음" 블록 하나로 보인다. Hook 이름으로 추정하지 않는다.
 
@@ -24,7 +24,7 @@ export const CompositionOpSchema: TUnion<
   Type.Literal("register"),
 ]);
 
-/** 블록이 내는 것: 공개 기록(`grp.<그룹>.*`), 입력 큐 post, 비공개 상태 문서 */
+/** 블록이 내는 것: 공개 기록(`grp.<이름>.*`), 입력 큐 post, 비공개 상태 문서 */
 export type CompositionProduct =
   | { readonly kind: "record"; readonly recordKind: RecordKind }
   | { readonly kind: "post" }
@@ -46,7 +46,7 @@ export const CompositionProductSchema: TUnsafe<CompositionProduct> =
   );
 
 export interface CompositionBlock {
-  /** 플러그인 그룹 안에서 유일 */
+  /** 구성원이 있는 플러그인 안에서 유일 */
   readonly id: string;
   /** Stage 이름(역할). 작성자가 붙이는 자유 이름이고 목록은 제작 확장 카탈로그가 정한다 [제안] */
   readonly stage: string;

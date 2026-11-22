@@ -17,6 +17,7 @@ import {
   type HookEntry,
 } from "./model.ts";
 import { DecisionMark, OUTCOME_WORD } from "./timeline.tsx";
+import { MetaParts } from "../../meta-parts.tsx";
 
 /**
  * Hook 실행 하나의 작은 표. 외곽선 칩: 결정의 점 구슬 + 플러그인 + 결정 글. 점 구슬의 배치만으로도 막음·물음·고침·통과·고장이
@@ -66,53 +67,60 @@ function HookRow(props: {
 }
 
 /** 블록이 이 턴에서 한 일을 한 줄로. 기록에 없는 것은 말하지 않는다 */
-function doneText(block: BlockId, record: TurnRecord): string {
+function doneParts(block: BlockId, record: TurnRecord): readonly string[] {
   const totals = totalsOf(record);
   switch (block) {
     case "context": {
       const loaded = loadedOf(record);
       const sum = (pick: (g: (typeof loaded)[number]) => number): number =>
         loaded.reduce((s, g) => s + pick(g), 0);
-      return t("desktop.craft.trace.flow.context", {
-        instruction: tokensText(sum((g) => g.instruction)),
-        skills: tokensText(sum((g) => g.skills)),
-        tools: tokensText(sum((g) => g.tools)),
-      });
+      return [
+        t("desktop.craft.trace.flow.instructions", {
+          tokens: tokensText(sum((g) => g.instruction)),
+        }),
+        t("desktop.craft.trace.flow.skills", { tokens: tokensText(sum((g) => g.skills)) }),
+        t("desktop.craft.trace.flow.toolDefs", { tokens: tokensText(sum((g) => g.tools)) }),
+      ];
     }
     case "model": {
       const ms = record.steps.reduce(
         (s, st) => s + st.modelCalls.reduce((a, c) => a + c.durationMs, 0),
         0,
       );
-      return t("desktop.craft.trace.flow.model", {
-        n: countText(totals.modelCalls),
-        input: tokensText(totals.input),
-        output: tokensText(totals.output),
-        time: msText(ms),
-      });
+      return [
+        t("desktop.craft.trace.flow.calls", { n: countText(totals.modelCalls) }),
+        t("desktop.craft.trace.flow.input", { tokens: tokensText(totals.input) }),
+        t("desktop.craft.trace.flow.output", { tokens: tokensText(totals.output) }),
+        msText(ms),
+      ];
     }
     case "tools": {
       const calls = record.steps.flatMap((s) => s.calls);
       const stopped = calls.filter((c) => c.verdict !== "allowed").length;
-      return t("desktop.craft.trace.flow.tools", {
-        n: countText(calls.length),
-        stopped: countText(stopped),
-      });
+      return [
+        t("desktop.craft.trace.flow.calls", { n: countText(calls.length) }),
+        t("desktop.craft.trace.flow.notRun", { n: countText(stopped) }),
+      ];
     }
     case "ask": {
       const calls = record.steps.flatMap((s) => s.calls).filter((c) => c.approval !== null);
       const wait = calls.reduce((s, c) => s + (c.approval?.waitMs ?? 0), 0);
-      return t("desktop.craft.trace.flow.ask", { n: countText(calls.length), wait: msText(wait) });
+      return [
+        t("desktop.craft.trace.flow.asks", { n: countText(calls.length) }),
+        t("desktop.craft.trace.flow.waited", { time: msText(wait) }),
+      ];
     }
     case "agents":
-      return t("desktop.craft.trace.flow.agents", {
-        children: countText(record.children.length),
-        drive: countText(record.frames.length),
-      });
+      return [
+        t("desktop.craft.trace.flow.childChats", { n: countText(record.children.length) }),
+        t("desktop.craft.trace.flow.driveLayers", { n: countText(record.frames.length) }),
+      ];
     case "record":
-      return record.complete
-        ? t("desktop.craft.trace.flow.recordDone")
-        : t("desktop.craft.trace.flow.recordPartial");
+      return [
+        record.complete
+          ? t("desktop.craft.trace.flow.recordDone")
+          : t("desktop.craft.trace.flow.recordPartial"),
+      ];
     default:
       return assertNever(block, "BlockId");
   }
@@ -172,8 +180,8 @@ export function BlockFlow(props: {
               </div>
             </div>
             <div className="grid min-w-0 content-start gap-1.5 pt-1 pb-4">
-              <div className="text-ui leading-5 text-text-secondary">
-                {doneText(block, props.record)}
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-ui leading-5 text-text-secondary">
+                <MetaParts parts={doneParts(block, props.record)} />
               </div>
               <HookRow side={t("desktop.craft.trace.side.before")} entries={before} />
               <HookRow side={t("desktop.craft.trace.side.event")} entries={events} />

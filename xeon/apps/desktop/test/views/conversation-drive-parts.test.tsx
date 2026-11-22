@@ -246,7 +246,7 @@ describe("턴의 원샷 표지(turn.started.invoked)와 칩 줄", () => {
       />,
     );
     expect(visible(html)).toBe(
-      `${t("desktop.oneShot.group")} /review · /lint-kit · ${t("desktop.oneShot.draft")}`,
+      `${t("desktop.oneShot.group")} /review /lint-kit ${t("desktop.oneShot.draft")}`,
     );
     expect(renderToString(<InvokedMark invoked={[]} />)).toBe("");
   });

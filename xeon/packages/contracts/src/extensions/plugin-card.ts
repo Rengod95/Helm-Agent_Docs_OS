@@ -237,6 +237,11 @@ export interface CardScript {
   readonly timeoutMs: number;
   /** 승인하면 이 스크립트가 쓸 수 있는 것(`ScriptCard.uses`와 같은 값). 선택 필드라 없는 옛 카드도 파싱된다. 없으면 화면은 알리지 못한다 */
   readonly uses?: readonly ScriptUse[];
+  /**
+   * Fresnel에서 만든 스크립트(환경 모드 아님)가 선언했지만 받지 못하는 환경 변수 이름: 허용 목록 밖이거나 토큰·키 이름이다. 없으면 비어 있다(필드 없음).
+   * `launch.envNames`는 실제로 넘어가는 이름만 싣는다. 환경 모드 스크립트에는 이 필드가 없다 [결정: 2026-11-22, 사용자, AGE-63]
+   */
+  readonly envNotPassed?: readonly string[];
   /** 환경 모드(가져온 훅)일 때만. 리뷰 화면은 이것으로 "당신의 셸 명령 그대로 돈다"를 그린다 [제안, AGE-58] */
   readonly env?: CardScriptEnv;
 }
@@ -317,6 +322,11 @@ const CardScriptShape = Type.Object(
         ]),
         { maxItems: 6 },
       ),
+    ),
+    envNotPassed: Type.Optional(
+      Type.Array(Type.String({ maxLength: CARD_MCP_LAUNCH_LIMITS.envName }), {
+        maxItems: CARD_MCP_LAUNCH_LIMITS.envNames,
+      }),
     ),
     env: Type.Optional(CardScriptEnvShape),
   },
@@ -432,7 +442,7 @@ export interface PluginCard {
     readonly code: boolean;
     readonly isolated: boolean | null;
     /**
-     * 참일 때만 있다. 설정 `l0.sandbox.narrowDrafts`가 켜져 있어, 이 플러그인이 승인되기 전(드래프트)에는 코드와 스크립트가 좁은 샌드박스
+     * 참일 때만 있다. 설정 `l0.sandbox.narrowDrafts`가 켜져 있어, 이 플러그인이 승인되기 전(드래프트)에는 코드(격리 프로세스)와 Fresnel에서 만든 스크립트(코드 없이 스크립트만 있어도)가 좁은 샌드박스
      * (자기 폴더만 읽고 쓰지 못함, 환경 변수는 허용 목록만)에서 돈다는 뜻이다. 승인된 뒤에는 `isolated`가 말하는 열린 샌드박스다. 없으면 승인 전에도 같다
      * [결정: 2026-11-22, 사용자, AGE-63]
      */

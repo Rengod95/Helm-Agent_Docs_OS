@@ -274,9 +274,9 @@ describe("Strata hook row: the handle, and the one warning line", () => {
       saved: new Set(["tool.call.before"]),
       warnings: { "tool.call.before": warning({ skipped: [denySkipped, more, more] }) },
     });
-    expect(rowHtml("tool.call.before", "first", ctx)).toContain(
-      "Allow 먼저 끝내면 Deny 건너뛰어요 · 외 2개",
-    );
+    const html = rowHtml("tool.call.before", "first", ctx);
+    expect(html).toContain("Allow 먼저 끝내면 Deny 건너뛰어요");
+    expect(html).toContain("외 2개");
   });
 
   test("a guard plugin that may be skipped is named as a guard plugin", () => {

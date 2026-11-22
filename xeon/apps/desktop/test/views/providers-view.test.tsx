@@ -102,7 +102,9 @@ describe("ProvidersView", () => {
     );
     expect(html).toContain("Anthropic");
     expect(html).toContain(t("desktop.providers.status.connected", { count: 12 }));
-    expect(html).toContain(usageLineOf({ tokens: 1_200_000, usd: 3.4, requests: 120 }));
+    for (const part of usageLineOf({ tokens: 1_200_000, usd: 3.4, requests: 120 })) {
+      expect(html).toContain(part);
+    }
     expect(html).toContain(t("desktop.providers.key.add"));
     expect(html).toContain(t("desktop.providers.add"));
     expect(html).not.toContain('data-slot="check-steps"');
@@ -179,9 +181,7 @@ describe("card status words", () => {
       />,
     );
     expect(html).toContain(t("desktop.providers.status.unchecked"));
-    expect(html).toContain(
-      `${t("desktop.providers.status.unchecked")} · ${t("desktop.providers.check.detail.timeout")}`,
-    );
+    expect(html).toContain(t("desktop.providers.check.detail.timeout"));
     expect(html).toContain(t("desktop.providers.status.rejected"));
     expect(html).not.toContain(t("desktop.providers.status.connected", { count: 12 }));
   });

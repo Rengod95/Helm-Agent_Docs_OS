@@ -227,11 +227,16 @@ export function Timeline(props: TimelineProps): ReactNode {
         <div ref={ref} className="relative">
           {hotSpan === null ? null : (
             <Readout>
-              <span className="text-text-secondary">{t(LANE_WORD[hotSpan.lane])}</span>{" "}
-              <span className="font-medium">{hotSpan.label}</span>
-              {hotSpan.outcome === null ? null : (
-                <span className="text-text-secondary"> · {t(OUTCOME_WORD[hotSpan.outcome])}</span>
-              )}{" "}
+              <span className="inline-flex items-baseline gap-2">
+                <span className="text-text-secondary">{t(LANE_WORD[hotSpan.lane])}</span>{" "}
+                <span className="font-medium">{hotSpan.label}</span>
+                {hotSpan.outcome === null ? null : (
+                  <>
+                    {" "}
+                    <span className="text-text-secondary">{t(OUTCOME_WORD[hotSpan.outcome])}</span>
+                  </>
+                )}
+              </span>{" "}
               <span className="viz-figure text-text-secondary">
                 {msText(hotSpan.startMs)} +{" "}
                 {hotSpan.endMs === null

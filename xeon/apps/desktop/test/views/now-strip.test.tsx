@@ -40,7 +40,7 @@ describe("NowStripView", () => {
     const html = renderToStaticMarkup(
       <NowStripView view={view} open={false} onOpenChange={noop} />,
     );
-    expect(textOf(html)).toContain("시험 통과 · 판정 1/3");
+    expect(textOf(html)).toContain("시험 통과 판정 1/3");
     expect(html).toContain('aria-expanded="false"');
   });
 

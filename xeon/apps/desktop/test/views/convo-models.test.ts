@@ -100,7 +100,7 @@ describe("groupHeadOf (DP-154)", () => {
       seconds: 7,
       currentVerb: "읽는 중",
     });
-    expect(head.title).toBe("도구 10개를 한 번에 부르는 중");
+    expect(head.title).toEqual(["도구 10개를 한 번에 부르는 중"]);
     expect(head.meta).toEqual([
       { text: "4개 실행 중", tone: null },
       { text: "2개 실패", tone: "danger" },
@@ -118,7 +118,7 @@ describe("groupHeadOf (DP-154)", () => {
       seconds: 0,
       currentVerb: "실행 중",
     });
-    expect(head.title).toBe("실행 중");
+    expect(head.title).toEqual(["실행 중"]);
     expect(head.meta).toEqual([{ text: "3단계", tone: null }]);
   });
 
@@ -132,7 +132,7 @@ describe("groupHeadOf (DP-154)", () => {
       seconds: 0,
       currentVerb: null,
     });
-    expect(parallel.title).toBe(activitySummaryOf(calls(3)));
+    expect(parallel.title).toEqual(activitySummaryOf(calls(3)));
     expect(parallel.meta).toEqual([
       { text: "3개 한 번에", tone: null },
       { text: "1개 실패", tone: "danger" },
@@ -158,8 +158,8 @@ describe("groupHeadOf (DP-154)", () => {
       { name: "mcp_servers", args: {}, server: null },
     ];
     const summary = activitySummaryOf(mixed);
-    expect(summary.split(" · ")).toHaveLength(3);
-    expect(summary.endsWith("외 3가지")).toBe(true);
+    expect(summary).toHaveLength(3);
+    expect(summary.at(-1)?.endsWith("외 3가지")).toBe(true);
   });
 
   test("실패 줄의 한 줄 요약은 첫 빈 줄 아닌 줄이다", () => {
@@ -189,10 +189,11 @@ describe("durationText", () => {
       durationMs: 1500,
       server: null,
     };
-    expect(commandMetaOf(view)).toBe(
-      `${t("desktop.convo.exitCode", { code: 2 })} · ${durationText(1500)}`,
-    );
-    expect(commandMetaOf({ ...view, exitCode: null, durationMs: null })).toBeNull();
+    expect(commandMetaOf(view)).toEqual([
+      t("desktop.convo.exitCode", { code: 2 }),
+      durationText(1500),
+    ]);
+    expect(commandMetaOf({ ...view, exitCode: null, durationMs: null })).toEqual([]);
   });
 });
 
@@ -216,9 +217,10 @@ describe("activitySummaryOf", () => {
       { name: "bash", args: { command: "ls" }, server: null },
       { name: "bash", args: { command: "pwd" }, server: null },
     ]);
-    expect(summary).toBe(
-      `${t("desktop.convo.group.read", { count: 3 })} · ${t("desktop.convo.group.command", { count: 2 })}`,
-    );
+    expect(summary).toEqual([
+      t("desktop.convo.group.read", { count: 3 }),
+      t("desktop.convo.group.command", { count: 2 }),
+    ]);
   });
 
   test("읽은 파일이 둘 이하면 이름을 적는다", () => {
@@ -226,7 +228,7 @@ describe("activitySummaryOf", () => {
       { name: "read", args: { path: "src/a.ts" }, server: null },
       { name: "read", args: { path: "src/b.ts" }, server: null },
     ]);
-    expect(summary).toBe(t("desktop.convo.group.readNames", { names: "a.ts, b.ts" }));
+    expect(summary).toEqual([t("desktop.convo.group.readNames", { names: "a.ts, b.ts" })]);
   });
 });
 
@@ -344,7 +346,11 @@ describe("turn foot", () => {
   });
 
   test("메타는 이번 턴이 새로 쓴 토큰을 앞세우고 모델은 화면 이름이다", () => {
-    expect(turnMetaOf(turnOf({ usage: GREETING_USAGE }))).toBe("1단계 · 2.2초 · 새로 412 토큰");
+    expect(turnMetaOf(turnOf({ usage: GREETING_USAGE }))).toEqual([
+      "1단계",
+      "2.2초",
+      "새로 412 토큰",
+    ]);
     expect(
       turnMetaOf(
         turnOf({
@@ -352,7 +358,7 @@ describe("turn foot", () => {
           model: "anthropic/claude-sonnet-5-5",
         }),
       ),
-    ).toBe("1단계 · 2.2초 · 새로 3만 토큰 · Claude Sonnet 5.5");
+    ).toEqual(["1단계", "2.2초", "새로 3만 토큰", "Claude Sonnet 5.5"]);
   });
 
   test("상세는 전체(캐시 포함)·입력·출력·캐시·비용·모델 참조 순이다", () => {
@@ -362,7 +368,8 @@ describe("turn foot", () => {
       "전체 13,512 토큰(캐시 포함)",
       "입력 12 토큰",
       "출력 400 토큰",
-      "캐시 읽기 0 · 쓰기 13,100",
+      "캐시 읽기 0",
+      "캐시 쓰기 13,100",
       t("desktop.convo.foot.cost", { cost: 0.0006 }),
       "anthropic/claude-sonnet-5-5",
     ]);

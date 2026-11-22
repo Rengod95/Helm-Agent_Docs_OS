@@ -130,11 +130,13 @@ function TurnLine(props: {
       meta={
         turn === null ? undefined : (
           <span className="flex items-center gap-3">
-            <span className="viz-figure hidden text-ui-sm text-text-tertiary @[40rem]/metrics:inline">
-              {t("desktop.craft.trace.rail.counts", {
-                steps: countText(turn.stepCount),
-                calls: countText(turn.callCount),
-              })}
+            <span className="viz-figure hidden items-baseline gap-2 text-ui-sm text-text-tertiary @[40rem]/metrics:inline-flex">
+              <span>
+                {t("desktop.craft.trace.rail.steps", { steps: countText(turn.stepCount) })}
+              </span>{" "}
+              <span>
+                {t("desktop.craft.trace.rail.calls", { calls: countText(turn.callCount) })}
+              </span>
             </span>
             <TurnDecisions turn={turn} />
             <StatusChip turn={turn} />

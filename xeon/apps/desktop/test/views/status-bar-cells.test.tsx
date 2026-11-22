@@ -72,7 +72,7 @@ describe("status bar engine cell", () => {
       busy: false,
     });
     expect(healthOf(RUNNING, "live", 0, remote)).toEqual({
-      text: "원격 · box",
+      text: "원격 box",
       tone: undefined,
       busy: false,
     });
@@ -208,7 +208,7 @@ describe("status bar in-progress cell", () => {
     );
     expect(html.indexOf("예약")).toBeLessThan(html.indexOf("대화</h3>"));
     expect(html).toContain("매일 정리");
-    expect(html).toContain("실패 · rate_limited");
+    expect(html).toContain("실패 (rate_limited)");
     expect(html.match(/bg-danger-soft text-danger-text/g)?.length).toBe(1);
   });
 
@@ -706,9 +706,9 @@ describe("status bar engine cell names the attached target", () => {
       label: "build-box",
     });
     const html = barWithUi(mirrorRunning(), ui.read.getState());
-    expect(cellTextOf(html, "health")).toBe("원격 · build-box");
+    expect(cellTextOf(html, "health")).toBe("원격 build-box");
     expect(html).toContain(
-      '<span role="status" class="sr-only">엔진 실행 중 (원격 · build-box)</span>',
+      '<span role="status" class="sr-only">엔진 실행 중 (원격 build-box)</span>',
     );
   });
 
@@ -835,9 +835,9 @@ describe("status bar goal cell", () => {
   test("an active goal reads judged over max with its state in the description", () => {
     expect(goalCellOf(goal("active"))).toEqual({
       text: "목표 2/3",
-      description: "판정 2/3 · 진행 중",
+      description: "판정 2/3 (진행 중)",
     });
-    expect(goalCellOf(goal("exhausted"))?.description).toBe("판정 2/3 · 멈춤");
+    expect(goalCellOf(goal("exhausted"))?.description).toBe("판정 2/3 (멈춤)");
   });
   test("no goal or a cleared one leaves no cell", () => {
     expect(goalCellOf(null)).toBeNull();
@@ -850,7 +850,7 @@ describe("status bar ended goal", () => {
     const ended = goal("met");
     const idle = goalShownOf(ended, thr(1), false, null);
     expect(idle.goal).toEqual(ended);
-    expect(goalCellOf(idle.goal)?.description).toBe("판정 2/3 · 충족");
+    expect(goalCellOf(idle.goal)?.description).toBe("판정 2/3 (충족)");
     const next = goalShownOf(ended, thr(1), true, idle.dismissed);
     expect(next.goal).toBeNull();
     expect(goalShownOf(ended, thr(1), false, next.dismissed).goal).toBeNull();

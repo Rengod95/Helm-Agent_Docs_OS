@@ -53,7 +53,7 @@ import { ProgressOrb } from "../../effects/progress-orb.tsx";
 import { Transcript } from "../../transcript.tsx";
 import { TrustCard } from "../../trust.tsx";
 import { InfoTip } from "../info-tip.tsx";
-import { focusReviewItem } from "../review/focus.ts";
+import { requestReviewItem } from "../review/review-pick.ts";
 import {
   SHAPE_TEXT,
   TEST_CHAT_SHAPES,
@@ -348,7 +348,7 @@ function DraftCard(props: { readonly row: DraftRow; readonly onSent: () => void 
   const [failed, setFailed] = useState(false);
   if (row.kind === "none") return null;
   const openReview = (itemId: string): void => {
-    focusReviewItem(itemId);
+    requestReviewItem(itemId);
     shell.updatePlace({ screen: "craftReview", scroll: 0 });
   };
   const send = (draftId: string): void => {

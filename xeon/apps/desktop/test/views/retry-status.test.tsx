@@ -32,12 +32,12 @@ describe("재시도 남은 초", () => {
 describe("입력창 재시도 상태 줄", () => {
   test("남은 초를 보인다", () => {
     const markup = renderToString(<RetryStatus retry={RETRY} clock={() => 1_000_000} />);
-    expect(markup).toContain(">다시 시도하는 중 (2/3) · 4초<");
+    expect(markup).toContain(">4초 뒤 다시 시도해요 (2/3)<");
   });
 
   test("대기가 끝났으면 곧이라고 보인다", () => {
     const markup = renderToString(<RetryStatus retry={RETRY} clock={() => 1_005_000} />);
-    expect(markup).toContain(">다시 시도하는 중 (2/3) · 곧<");
+    expect(markup).toContain(">곧 다시 시도해요 (2/3)<");
   });
 });
 

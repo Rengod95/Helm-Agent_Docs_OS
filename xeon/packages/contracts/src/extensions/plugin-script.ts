@@ -43,7 +43,7 @@ export interface ScriptRunRequest {
 /**
  * 승인 카드에 싣는 실행 내용(설계 B, AGE-58 [제안]). 카드는 이것으로 "무엇이 돌게 되는지"를 보여 준다.
  * `command`는 실행기의 절대 경로, `args`는 스크립트 파일(절대 경로)과 선언된 인자다. `envNames`는 스크립트가 선언한 환경 변수 가운데 자식에게 넘기는 이름이고 값은 싣지 않는다.
- * 열린 정책은 사용자 환경 전부(`FRESNEL_` 이름 제외)를 더 넘기며, 그것은 `uses`의 `user_environment`가 알린다.
+ * Fresnel에서 만든 스크립트는 어느 정책이든 셸 도구와 같은 허용 목록(`BASE_ENV_PASS_NAMES`)의 부모 값과 선언한 이름 가운데 허용 목록에 든 것만 받는다 [결정: 2026-11-22, 사용자, AGE-63].
  * `stdinPreview`는 표준 입력의 앞부분(가림 규칙을 지난 값)이다
  */
 export interface ScriptCard {
@@ -54,7 +54,7 @@ export interface ScriptCard {
   readonly stdinPreview: string;
   /**
    * 승인하면 이 스크립트가 쓸 수 있는 것(AGE-58 [제안]). 열린 정책의 스크립트는 `sandbox_full_access`(읽기·쓰기·시스템 도구, 막는 것은 보호 셋뿐),
-   * `user_environment`(자식 env는 사용자 환경에서 `FRESNEL_` 이름만 뺀 것), `network`(차단 목록 밖 전체)를 싣는다. 승인 전 드래프트의 좁은 길은 `SCRIPT_NARROW_USES`다
+   * `network`(차단 목록 밖 전체)를 싣는다. 자식 env는 허용 목록뿐이라 `user_environment`는 싣지 않는다. 승인 전 드래프트의 좁은 길은 `SCRIPT_NARROW_USES`다
    */
   readonly uses: readonly ScriptUse[];
 }
@@ -69,7 +69,7 @@ export type ScriptUse =
   /** 좁은 길(승인 전 드래프트, 설정 `narrowDrafts`): `/bin`, `/usr/bin`의 도구(`grep`, `sed`, `git` 등)를 읽고 실행하는 것. 쓰기와 폴더 밖 읽기는 막힌다 */
   | "system_tools"
   | "network"
-  /** 사용자의 PATH와 환경 변수로 돈다. Fresnel 자신의 내부 값(`FRESNEL_*`)만 뺀다. 환경 모드와 열린 정책이 같다 [결정: 2026-11-20, 사용자, AGE-58; 2026-11-21, AGE-63] */
+  /** 사용자의 PATH와 환경 변수로 돈다. Fresnel 자신의 내부 값(`FRESNEL_*`)만 뺀다. 가져온 훅의 환경 모드에만 싣는다. Fresnel에서 만든 스크립트는 허용 목록 환경 변수만 받는다 [결정: 2026-11-20, 사용자, AGE-58; 2026-11-22, AGE-63] */
   | "user_environment"
   /** 환경 모드(기본): 사용자 권한 그대로 돈다. Fresnel이 읽기·쓰기·도구를 막지 않는다(샌드박스 없음) [결정: 2026-11-20, 사용자, AGE-58 "다른애들도 허용하면 우리도 막지말고 허용해"] */
   | "user_full_access"
@@ -80,14 +80,10 @@ export type ScriptUse =
 
 /**
  * 열린 정책의 스크립트가 쓸 수 있는 것 전부 [결정: 2026-11-21, 사용자, AGE-63]. 셸 도구와 같이 읽고 쓰고 시스템 도구를 쓴다. 막는 것은 사용자가 막은 경로,
- * Fresnel 자신의 비밀·데이터·설정, 차단 도메인뿐이다. 자식 env는 사용자 환경 전부에서 `FRESNEL_` 이름만 뺀 값이다.
+ * Fresnel 자신의 비밀·데이터·설정, 차단 도메인뿐이다. 자식 env는 셸 도구와 같은 허용 목록뿐이다 [결정: 2026-11-22, 사용자, AGE-63].
  * 승인 카드(초안 호출)와 검토 카드(`CardScript.uses`)가 같은 값을 싣는다. 승인된 플러그인의 스크립트와, 좁은 길을 끈 승인 전 드래프트의 스크립트가 이 값이다
  */
-export const SCRIPT_USES: readonly ScriptUse[] = [
-  "sandbox_full_access",
-  "user_environment",
-  "network",
-];
+export const SCRIPT_USES: readonly ScriptUse[] = ["sandbox_full_access", "network"];
 
 /**
  * 승인 전 드래프트의 스크립트가 좁은 길(설정 `l0.sandbox.narrowDrafts`를 켰을 때)에서 쓸 수 있는 것 [결정: 2026-11-21, 사용자, AGE-63].

@@ -203,9 +203,19 @@ function FailingRows(props: { readonly failing: readonly FailingExtensionVM[] })
   return (
     <ul className="m-0 grid list-none gap-0.5 p-0">
       {props.failing.map((row) => (
-        <li key={row.name} className="text-text-primary">
-          {t("desktop.workbench.keepOff.consecutive", { name: row.name, count: row.consecutive })}
-          {row.autoDisabled ? ` · ${t("desktop.inspect.failures.autoOff")}` : ""}
+        <li
+          key={row.name}
+          className="flex min-w-0 flex-wrap items-baseline gap-2 text-text-primary"
+        >
+          <span>
+            {t("desktop.workbench.keepOff.consecutive", { name: row.name, count: row.consecutive })}
+          </span>
+          {row.autoDisabled ? (
+            <>
+              {" "}
+              <span className="text-text-secondary">{t("desktop.inspect.failures.autoOff")}</span>
+            </>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -271,11 +281,17 @@ function Ready(props: {
             {view.toRead.map((row) => (
               <li key={row.turnId}>
                 <OpenButton turnId={row.turnId} number={row.number} onOpenTurn={props.onOpenTurn}>
-                  {t("desktop.measure.perf.toReadRow", {
-                    number: row.number,
-                    tokens: numberText(row.totalTokens),
-                    count: row.signals.length,
-                  })}
+                  <span className="flex min-w-0 flex-wrap items-baseline gap-2">
+                    <span>{t("desktop.measure.perf.toReadRow", { number: row.number })}</span>{" "}
+                    <span className="text-text-secondary">
+                      {t("desktop.measure.perf.toReadTokens", {
+                        tokens: numberText(row.totalTokens),
+                      })}
+                    </span>{" "}
+                    <span className="text-text-secondary">
+                      {t("desktop.measure.perf.toReadSignals", { count: row.signals.length })}
+                    </span>
+                  </span>
                 </OpenButton>
               </li>
             ))}

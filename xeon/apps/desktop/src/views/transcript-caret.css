@@ -6,7 +6,7 @@
   display: inline-block;
   width: 0.125rem;
   height: 1.1em;
-  margin-inline-start: 0.125rem;
+  margin-inline-start: var(--cs-space-0_5);
   border-radius: 9999px;
   background: var(--fx-crystal-b, var(--cs-color-text-secondary));
   transform: translateY(0.2em);

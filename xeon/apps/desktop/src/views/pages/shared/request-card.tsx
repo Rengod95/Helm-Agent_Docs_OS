@@ -14,7 +14,7 @@ export function RequestCard(props: {
   readonly count: number;
   /** 크리스탈 표시의 낭독 이름(무엇이 몇 개 기다리는지) */
   readonly markLabel: string;
-  /** 요청 종류(예: "제안"). 제목 앞에 " · "로 잇는다 */
+  /** 요청 종류(예: "제안"). 제목 앞에 간격을 두고 놓는다 */
   readonly lead: string;
   readonly title: string;
   /** 오른쪽 끝 동작(caustic Button size="sm") */
@@ -31,12 +31,9 @@ export function RequestCard(props: {
       {/* 면의 빛깔은 머리의 크리스탈과 같은 오로라 계열이다(DP-223, lcMk2) */}
       <AttendGlow pending kind="proposal" />
       <CrystalMark present count={props.count} size={20} label={props.markLabel} />
-      <p id={labelId} className="m-0 min-w-0 flex-1 truncate" title={props.title}>
-        <span className="font-medium text-text-secondary">{props.lead}</span>
-        <span aria-hidden className="text-text-tertiary">
-          {" · "}
-        </span>
-        <span className="text-text-primary">{props.title}</span>
+      <p id={labelId} className="m-0 flex min-w-0 flex-1 items-baseline gap-2" title={props.title}>
+        <span className="flex-none font-medium text-text-secondary">{props.lead}</span>{" "}
+        <span className="min-w-0 truncate text-text-primary">{props.title}</span>
       </p>
       <span className="flex shrink-0 items-center">{props.action}</span>
     </section>

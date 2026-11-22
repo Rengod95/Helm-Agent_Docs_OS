@@ -157,7 +157,7 @@ describe("third round", () => {
   const DEV: ReviewDevSlot = {
     menu: (
       <button type="button" data-review-switcher="">
-        표본 · 실제 엔진
+        실제 엔진 표본
       </button>
     ),
     showSample: () => undefined,
@@ -337,6 +337,21 @@ describe("fourth round (m6R4)", () => {
     );
     // 가져온 훅은 여전히 사용자 환경으로 돈다
     expect(IMPORTED).toContain(">환경 변수<");
+  });
+
+  test("a declared name the script does not receive is told as a fact under its run, by name only (AGE-63, enPp6-b)", () => {
+    const draft = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_script_draft")));
+    // 스크립트만 있는 드래프트도 좁은 실행 안내를 받는다
+    expect(draft).toContain("승인 전 드래프트라 지금은 좁게 돌아요.");
+    expect(draft).toContain("환경 변수 LANG<");
+    expect(attrs(draft, "data-slot").filter((slot) => slot === "review-env-not-passed")).toEqual([
+      "review-env-not-passed",
+    ]);
+    expect(draft).toContain(">선언했지만 받지 못하는 환경 변수 GITHUB_TOKEN<");
+    const fetch = render(ready(ITEMS.filter((item) => item.itemId === "rvw_sample_fetch")));
+    expect(fetch).toContain(">선언했지만 받지 못하는 환경 변수 FETCH_API_KEY<");
+    // 엔진이 싣지 않으면 줄이 없다
+    expect(LINT_HTML).not.toContain("review-env-not-passed");
   });
 
   test("an observe-only hook is not the model's call: the chip says the engine watches", () => {

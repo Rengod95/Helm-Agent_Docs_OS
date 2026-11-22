@@ -101,7 +101,7 @@ function OpenTasksOverview(): ReactNode {
   );
 }
 
-/** well 머리 요약(DP-193): "3/7 끝남 · 1개 막힘". 대화가 없거나 작업이 없으면 그리지 않는다 */
+/** well 머리 요약(DP-193): "3/7 끝남"과 "1개 막힘"을 간격으로 나눠 놓는다. 대화가 없거나 작업이 없으면 그리지 않는다 */
 export function TasksSummary(): ReactNode {
   const threadId = useSelectedThreadId();
   return threadId === null ? null : <ThreadTasksSummary threadId={threadId} />;
@@ -112,7 +112,12 @@ function ThreadTasksSummary(props: { readonly threadId: ThreadId }): ReactNode {
   const board = useMemo(() => taskBoardOf(tasks), [tasks]);
   if (board.total === 0) return null;
   const done = t("desktop.tasks.summary.done", board.progress);
-  return board.blocked === 0
-    ? done
-    : `${done} · ${t("desktop.tasks.summary.blocked", { count: board.blocked })}`;
+  return board.blocked === 0 ? (
+    done
+  ) : (
+    <span className="flex min-w-0 items-baseline gap-2">
+      <span className="flex-none">{done}</span>{" "}
+      <span>{t("desktop.tasks.summary.blocked", { count: board.blocked })}</span>
+    </span>
+  );
 }

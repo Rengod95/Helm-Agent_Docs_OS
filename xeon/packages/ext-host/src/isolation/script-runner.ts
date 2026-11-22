@@ -30,7 +30,7 @@ import {
   type ScriptRunResult,
 } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
+import { BASE_ENV_PASS_NAMES, SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 import { isAbsolute, join } from "node:path";
 import { kindOf, within } from "../loading-trust/app-files.ts";
 
@@ -94,8 +94,8 @@ export interface ScriptRunnerDeps {
   /** 실행기가 시작하는 데 읽어야 하는 경로(읽기 전용, `python3`의 설치 폴더 등). 없으면 실행 파일 말고는 더 열지 않는다 */
   readonly runnerReadRoots?: (name: ScriptRunner, command: string) => readonly string[];
   /**
-   * 허용 목록에 든 환경 값. 선언된 `envNames` 가운데 여기 있는 것을 `spec.env`로 싣는다. 열린 정책은 사용자 환경 전부(`FRESNEL_` 이름 제외)를 더 옮기고,
-   * 좁은 길만 허용 목록 env가 자식 env의 전부다 [결정: 2026-11-21, 사용자, AGE-63]
+   * 허용 목록에 든 환경 값. 선언된 `envNames` 가운데 여기 있는 것을 `spec.env`로 싣는다. 어느 정책이든 허용 목록 env가 자식 env의 전부다
+   * [결정: 2026-11-22, 사용자, AGE-63]
    */
   readonly allowedEnv: Readonly<Record<string, string>>;
   /** 기한과 정리 시계. 취소 함수를 돌려준다(격리의 다른 시계와 같은 모양이다) */
@@ -142,6 +142,22 @@ function escapeRegExp(text: string): string {
 
 function isSensitiveEnvName(name: string): boolean {
   return SENSITIVE_ENV.some((pattern) => pattern.test(name));
+}
+
+/**
+ * 선언된 환경 변수 이름이 자식에게 실제로 넘어가는지 이름만으로 가른다(값은 보지 않는다). 시크릿 거부 패턴에 걸리지 않고 허용 목록(`BASE_ENV_PASS_NAMES`)에 든 이름만
+ * `passed`이고, 나머지(예: `FETCH_API_KEY`)는 선언해도 받지 못하는 `ignored`다. 검토 카드가 이것으로 "선언했지만 받지 못한다"를 알린다 [결정: 2026-11-22, 사용자, AGE-63]
+ */
+export function scriptEnvNamesOf(declared: readonly string[]): {
+  readonly passed: readonly string[];
+  readonly ignored: readonly string[];
+} {
+  const passed: string[] = [];
+  const ignored: string[] = [];
+  for (const name of declared) {
+    (!isSensitiveEnvName(name) && BASE_ENV_PASS_NAMES.includes(name) ? passed : ignored).push(name);
+  }
+  return { passed, ignored };
 }
 
 /** 선언된 이름 가운데 시크릿 거부 패턴에 걸리지 않고 허용 목록에 있는 것만 값으로 싣는다 */

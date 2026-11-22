@@ -35,6 +35,7 @@ import {
   type ToolOutcome,
   type ToolResultView,
 } from "./tool-view-model.ts";
+import { MetaParts } from "../meta-parts.tsx";
 
 // 도구 호출 하나의 줄(dzT2a 시안 3.3). 결과·진행 출력·개입·승인 기록을 구독해 `ToolLine`에 넘긴다. 결과가 오면 같은 줄이 결과를 따른다.
 
@@ -264,12 +265,15 @@ export function CallRow(props: {
   const sources =
     WEB_TOOLS.includes(name) && view?.outcome.kind === "done" ? webSourcesOf(view.output) : [];
   const tail = pending && isCommand && progress !== null ? progress.lines.slice(-TAIL_LINES) : [];
+  const commandParts = isCommand && view !== null ? commandMetaOf(view) : [];
   const meta =
     change !== null ? (
       <DiffStats view={change} />
-    ) : isCommand && view !== null ? (
-      commandMetaOf(view)
-    ) : null;
+    ) : commandParts.length === 0 ? null : (
+      <span className="inline-flex items-baseline gap-2">
+        <MetaParts parts={commandParts} />
+      </span>
+    );
   const commandFull =
     isCommand &&
     head.target.kind === "command" &&

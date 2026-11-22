@@ -1,4 +1,4 @@
-// 테스트 챗 창을 여는 길과 창의 드래프트 줄을 읽는 훅. 입구(플러그인 상세의 "테스트 챗", 개요의 "새로 만들기", 메트릭의 "고치기"·"막기로 올리기")가
+// 테스트 챗 창을 여는 길과 창의 드래프트 줄을 읽는 훅. 입구(플러그인 상세의 "테스트 챗", 개요의 "새로 만들기", 메트릭의 "고치기"와 "막기로 올리기")가
 // 모두 `useOpenTestChat`을 부른다. 창은 바로 서고(머리와 뼈대), `craftChat.open`의 답이 오면 그 대화를 그린다.
 import { useCallback, useEffect, useState } from "react";
 import { detach, err, ok, rethrow, type Result } from "@fresnel/contracts";

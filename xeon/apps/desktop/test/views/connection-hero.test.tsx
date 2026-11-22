@@ -7,6 +7,7 @@ import type {
   SectionContext,
 } from "../../src/views/pages/connection/connection-sections.ts";
 import {
+  addressKindOf,
   addressSummaryOf,
   attachedCountOf,
   ConnectionHero,
@@ -36,6 +37,12 @@ function render(context: SectionContext, extras: HeroExtras = NO_EXTRAS): string
 /** data-slot 요소 안의 글(태그를 걷어 낸다) */
 function slotText(html: string, slot: string): string | null {
   const match = new RegExp(`data-slot="${slot}"[^>]*>([\\s\\S]*?)</(?:div|p|span)>`).exec(html);
+  return match === null ? null : (match[1] ?? "").replace(/<[^>]+>/g, "");
+}
+
+/** 글이 여러 조각(span)으로 나뉜 문단 칸의 글. 조각 사이 빈칸은 그대로 남는다 */
+function paragraphText(html: string, slot: string): string | null {
+  const match = new RegExp(`data-slot="${slot}"[^>]*>([\\s\\S]*?)</p>`).exec(html);
   return match === null ? null : (match[1] ?? "").replace(/<[^>]+>/g, "");
 }
 
@@ -99,9 +106,8 @@ describe("attachedCountOf and addressSummaryOf", () => {
   });
 
   test("ssh address reads as kind and user@host", () => {
-    expect(addressSummaryOf(DEV_BOX.address)).toBe(
-      `${t("desktop.connection.host.badge.ssh")} · dev@10.0.0.5`,
-    );
+    expect(addressKindOf(DEV_BOX.address)).toBe(t("desktop.connection.host.badge.ssh"));
+    expect(addressSummaryOf(DEV_BOX.address)).toBe("dev@10.0.0.5");
   });
 });
 
@@ -168,7 +174,9 @@ describe("ConnectionHero", () => {
       }),
     );
     expect(html).toContain("dev-box");
-    expect(slotText(html, "hero-address")).toBe(addressSummaryOf(DEV_BOX.address));
+    expect(paragraphText(html, "hero-address")).toBe(
+      `${t("desktop.connection.host.badge.ssh")} ${addressSummaryOf(DEV_BOX.address)}`,
+    );
     expect(slotText(html, "hero-state")).toBe(t("desktop.connection.hero.state.connected"));
     const back = buttonOf(html, t("desktop.connection.hero.backToLocal"));
     expect(back).not.toBeNull();

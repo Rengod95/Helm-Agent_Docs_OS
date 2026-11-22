@@ -360,7 +360,7 @@ function McpServerRowView(props: McpServerRowViewProps): ReactNode {
 function HiddenLine(props: { readonly model: McpRowModel }): ReactNode {
   const { hidden } = props.model;
   if (hidden === null) return null;
-  const reasons = hidden.reasons.map((kind) => t(hiddenIdOf(kind))).join(" · ");
+  const reasons = hidden.reasons.map((kind) => t(hiddenIdOf(kind))).join(", ");
   return <RowNote>{t("desktop.settings.mcp.hidden", { count: hidden.count, reasons })}</RowNote>;
 }
 

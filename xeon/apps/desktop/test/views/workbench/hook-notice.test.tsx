@@ -133,21 +133,21 @@ const at = (h: number, m: number, s: number): string =>
   new Date(2026, 10, 4, h, m, s).toISOString();
 
 describe("외부 훅 최근 실패: 기록 시각은 지역 HH:MM:SS로 점 앞에 온다", () => {
-  test("시각이 있으면 `시각 · 훅 · 메시지` 순서이고, 여러 줄은 기록 순서대로다", () => {
+  test("시각이 있으면 시각, 훅, 메시지 순서로 간격을 두고 서며, 여러 줄은 기록 순서대로다", () => {
     const html = renderOff(
       OFF_HOOK,
       [failureAt(at(14, 3, 22), "first"), failureAt(at(9, 5, 7), "second")],
       false,
     );
     expect(recentLinesOf(html)).toEqual([
-      "14:03:22 · tool.call.before · first",
-      "09:05:07 · tool.call.before · second",
+      "14:03:22 tool.call.before first",
+      "09:05:07 tool.call.before second",
     ]);
   });
 
-  test("시각이 날짜로 읽히지 않으면 시각 없이 점과 메시지만 남는다", () => {
+  test("시각이 날짜로 읽히지 않으면 시각 없이 훅과 메시지만 남는다", () => {
     const html = renderOff(OFF_HOOK, [failureAt("not-a-date", "boom")], false);
-    expect(recentLinesOf(html)).toEqual(["tool.call.before · boom"]);
+    expect(recentLinesOf(html)).toEqual(["tool.call.before boom"]);
   });
 });
 

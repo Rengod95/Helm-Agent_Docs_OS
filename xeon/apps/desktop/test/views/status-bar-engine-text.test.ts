@@ -89,9 +89,9 @@ describe("engine line names where the engine runs", () => {
   });
 
   test("a running engine on a remote target names the target, even when the relay reports the sidecar", () => {
-    expect(engineLineOf(SIDECAR, REMOTE)).toBe("엔진 실행 중 (원격 · build-box)");
+    expect(engineLineOf(SIDECAR, REMOTE)).toBe("엔진 실행 중 (원격 build-box)");
     expect(engineLineOf({ kind: "running", source: "service", pid: null }, REMOTE)).toBe(
-      "엔진 실행 중 (원격 · build-box)",
+      "엔진 실행 중 (원격 build-box)",
     );
   });
 
@@ -108,7 +108,7 @@ describe("engine line names where the engine runs", () => {
 
   test("the remote name reads in English with the same parenthesis form", () => {
     setActiveLocale("en");
-    expect(engineLineOf(SIDECAR, REMOTE)).toBe("Engine running (remote · build-box)");
+    expect(engineLineOf(SIDECAR, REMOTE)).toBe("Engine running (remote build-box)");
   });
 });
 

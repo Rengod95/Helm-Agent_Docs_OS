@@ -483,7 +483,7 @@ const SCRIPTS_DECLARED = {
       runner: "sh",
       file: "scripts/lint.sh",
       args: ["--strict", "src"],
-      envNames: ["ZETA", "ALPHA", "ZETA"],
+      envNames: ["ZETA", "PATH", "ALPHA", "ZETA", "TZ", "FETCH_API_KEY", "HOME"],
     },
     { name: "report", runner: "python3", file: "scripts/report.py", timeoutMs: 5000 },
   ],
@@ -499,17 +499,20 @@ test("a declared script's card line is its runner, then the relative file and ar
       launch: {
         command: "sh",
         args: ["scripts/lint.sh", "--strict", "src"],
-        envNames: ["ALPHA", "ZETA"],
+        // 실제로 넘어가는 이름(허용 목록)만 싣는다
+        envNames: ["HOME", "PATH", "TZ"],
         cwd: null,
       },
+      // 선언했지만 받지 못하는 이름: 허용 목록 밖(`ALPHA`, `ZETA`)과 토큰·키 이름(`FETCH_API_KEY`)
+      envNotPassed: ["ALPHA", "FETCH_API_KEY", "ZETA"],
       timeoutMs: 10000,
-      uses: ["sandbox_full_access", "user_environment", "network"],
+      uses: ["sandbox_full_access", "network"],
     },
     {
       name: "report",
       launch: { command: "python3", args: ["scripts/report.py"], envNames: [], cwd: null },
       timeoutMs: 5000,
-      uses: ["sandbox_full_access", "user_environment", "network"],
+      uses: ["sandbox_full_access", "network"],
     },
   ]);
   expect(parse(PluginCardSchema, card).ok).toBe(true);
@@ -551,7 +554,8 @@ test("a script line longer than the launch limits is cut with a mark, and a long
   expect(script?.launch.args.length).toBe(128);
   expect(script?.launch.args[0]).toBe(`${"s".repeat(1023)}…`);
   expect(script?.launch.args.at(-1)).toBe("…(+4)");
-  expect(script?.launch.envNames).toEqual([`${"N".repeat(127)}…`]);
+  expect(script?.launch.envNames).toEqual([]);
+  expect(script?.envNotPassed).toEqual([`${"N".repeat(127)}…`]);
   expect(script?.timeoutMs).toBe(10000);
   expect(parse(PluginCardSchema, card).ok).toBe(true);
 });
@@ -736,8 +740,8 @@ test("the environment-mode uses are the user's own access by default and the san
     envSandboxed: true,
   });
   expect(open.does.inject?.scripts?.map((script) => script.uses)).toEqual([
-    ["sandbox_full_access", "user_environment", "network"],
-    ["sandbox_full_access", "user_environment", "network"],
+    ["sandbox_full_access", "network"],
+    ["sandbox_full_access", "network"],
   ]);
 });
 
@@ -759,10 +763,45 @@ test("a tool that is not on PATH is listed as missing, and a script without an e
   const scripted = cardOf(
     folderOf("script-kit", { ".fresnel-plugin/plugin.json": JSON.stringify(SCRIPTS_DECLARED) }),
   );
-  expect(scripted.does.inject?.scripts?.[0]?.uses).toEqual([
-    "sandbox_full_access",
-    "user_environment",
-    "network",
-  ]);
+  expect(scripted.does.inject?.scripts?.[0]?.uses).toEqual(["sandbox_full_access", "network"]);
   expect(scripted.does.inject?.scripts?.[0]?.env).toBeUndefined();
+});
+
+const folderWith = (name: string, manifest: Record<string, unknown>) =>
+  folderOf(name, {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name,
+      version: "1.0.0",
+      purpose: "p",
+      ...manifest,
+    }),
+    "plugin.ts": "export {};",
+  });
+
+const run = (folder: PluginFolder, narrowDrafts: boolean, kind: "user" | "builtin" = "user") =>
+  buildPluginCard({
+    folder,
+    origin: { kind },
+    review: REVIEW,
+    usedBy: [],
+    health: HEALTH,
+    narrowDrafts,
+  }).runs;
+
+test("narrowBeforeApproval: a script-only plugin gets it with narrowDrafts on; code, scripts and env-mode hooks follow the case table [결정: 2026-11-22, 사용자, AGE-63]", () => {
+  const scriptsOnly = folderWith("only-scripts", {
+    scripts: [{ name: "lint", runner: "sh", file: "scripts/lint.sh" }],
+  });
+  const codeOnly = folderWith("only-code", { entry: "./plugin.ts" });
+  const neither = folderWith("neither", {});
+  expect(run(scriptsOnly, true)).toEqual({
+    code: false,
+    isolated: null,
+    narrowBeforeApproval: true,
+  });
+  expect(run(scriptsOnly, false)).toEqual({ code: false, isolated: null });
+  expect(run(codeOnly, true)).toEqual({ code: true, isolated: true, narrowBeforeApproval: true });
+  expect(run(codeOnly, true, "builtin")).toEqual({ code: true, isolated: false });
+  expect(run(neither, true)).toEqual({ code: false, isolated: null });
 });

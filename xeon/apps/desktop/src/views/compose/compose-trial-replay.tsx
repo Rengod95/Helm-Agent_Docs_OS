@@ -273,7 +273,16 @@ function ResultRow(props: { readonly row: LastResultVM; readonly latest: boolean
       tone={tag.tone}
       title={t(tag.text)}
       time={timeTextOf(row.startedMs)}
-      detail={latest ? `${duration} · ${t("desktop.compose.trial.results.latest")}` : duration}
+      detail={
+        latest ? (
+          <span className="inline-flex items-baseline gap-2">
+            <span>{duration}</span>
+            <span>{t("desktop.compose.trial.results.latest")}</span>
+          </span>
+        ) : (
+          duration
+        )
+      }
     />
   );
 }

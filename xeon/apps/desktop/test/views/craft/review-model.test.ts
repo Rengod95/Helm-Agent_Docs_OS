@@ -58,6 +58,16 @@ const IMPORTED = sample("rvw_sample_imported");
 const IMPORTED_BOX = sample("rvw_sample_imported_box");
 const IMPORTED_UNKNOWN = sample("rvw_sample_imported_unknown");
 const NOTES = sample("rvw_sample_notes");
+const SCRIPT_DRAFT = sample("rvw_sample_script_draft");
+
+/** 스크립트 줄마다 [넘어가는 이름, 받지 못하는 이름] */
+function envPairsOf(
+  item: ReviewItem,
+): readonly (readonly [readonly string[], readonly string[]])[] {
+  return runLinesOf(item.card).flatMap((line) =>
+    line.kind === "script" ? [[line.envNames, line.envNotPassed] as const] : [],
+  );
+}
 
 describe("what the list says the item is", () => {
   test("wire kinds become four screen kinds: a thread-made or rule-added new item is a draft, a folder import is an install", () => {
@@ -106,12 +116,33 @@ describe("what runs when approved", () => {
         kind: "script",
         name: "check",
         command: "bash hooks/check.sh",
-        uses: ["sandbox_full_access", "user_environment", "network"],
+        uses: ["sandbox_full_access", "network"],
         timeoutMs: 10_000,
         envNames: [],
+        envNotPassed: [],
         env: null,
       },
     ]);
+  });
+
+  test("a script line keeps the names that pass apart from the declared names that do not (AGE-63, enPp6-b)", () => {
+    expect(envPairsOf(FETCH)).toEqual([[[], ["FETCH_API_KEY"]]]);
+    expect(envPairsOf(SCRIPT_DRAFT)).toEqual([[["LANG"], ["GITHUB_TOKEN"]]]);
+    // 엔진이 싣지 않은 카드는 받지 못하는 이름이 없다
+    expect(envPairsOf(LINT)).toEqual([[[], []]]);
+  });
+
+  test("a script-only draft (no plugin code) also gets the narrow notice from narrowBeforeApproval", () => {
+    expect(SCRIPT_DRAFT.card.runs.code).toBe(false);
+    expect(codeNoticeOf(SCRIPT_DRAFT.card)).toEqual({
+      mode: "narrow",
+      isolated: null,
+      serverEnv: false,
+      usesUnknown: false,
+    });
+    expect(
+      codeNoticeOf({ ...SCRIPT_DRAFT.card, runs: { code: false, isolated: null } })?.mode,
+    ).toBe("open");
   });
 
   test("the code notice reads the open policy, and the narrow draft only from the card's narrowBeforeApproval", () => {
