@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, TurnIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import { dependenciesOf, pluginsOf } from "@fresnel/contracts/extensions";
+import { normalizeStoredMode } from "@fresnel/core-tools";
 import { checkSettingWrite, type ScopeStack } from "@fresnel/contracts/settings";
 import type { RegistrationInfo } from "@fresnel/ext-host";
 import type {
@@ -53,6 +54,7 @@ import {
   CRAFT_PROFILE_ID,
   craftProfile,
   DEFAULT_PROFILE_ID,
+  FACTORY_PERMISSION_MODE,
   NEVER_EDITED_ISO,
   PERMISSION_MODE_KEY,
   REQUIRED_BY_CORE,
@@ -119,6 +121,14 @@ function lastValueOf(settings: readonly ProfileSetting[], key: string): unknown 
   let value: unknown = undefined;
   for (const setting of settings) if (setting.key === key) value = setting.value;
   return value;
+}
+
+/** 프로필(공통 묶음 위에 프로필)이 정한 권한 모드. 둘 다 없으면 공장 값 `bypass`다(`plugin-set.ts`의 `profile` 층과 같은 규칙) */
+function profileModeOf(body: ProfileBody, common: CommonSet): unknown {
+  return (
+    lastValueOf([...common.settings, ...body.settings], PERMISSION_MODE_KEY) ??
+    FACTORY_PERMISSION_MODE
+  );
 }
 
 /** 저장된 목록에 기본 프로필을 더한다. 기본이 저장되어 있지 않으면 공장 값이다(§4.1.2) */
@@ -529,15 +539,40 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
     return policy.midConversationToolChanges ? "tool_change_append" : "readvertise";
   }
 
-  /** 권한 모드가 바뀌는 경우의 `from`, `to`. `to`는 공통 묶음과 프로필 가운데 프로필 쪽 값이 이긴다(§4.2.7) */
+  /**
+   * 프로필 층 위에서 권한 모드를 정한 값이 있나: 관리 설정, 그리고 대화가 있으면 그 대화에 따로 정한 값(`launch`, 입력창의 칩).
+   * 있으면 프로필을 바꿔도 그 대화(들)의 모드는 그대로다
+   */
+  function modeHeldAbove(threadId: ThreadId | undefined): boolean {
+    return env.settings
+      .layers(threadId)
+      .some(
+        (layer) =>
+          (layer.scope === "managed" || (threadId !== undefined && layer.scope === "launch")) &&
+          normalizeStoredMode(layer.values.get(PERMISSION_MODE_KEY)) !== undefined,
+      );
+  }
+
+  /**
+   * 권한 모드가 바뀌는 경우의 `from`, `to`(§4.2.7). `to`는 공통 묶음과 프로필 가운데 프로필 쪽 값이 이기고, 둘 다 없으면 공장 값이다
+   * (프로필이 실행 방식을 정한다 [결정: 2026-11-23 사용자, AGE-71 질문 3]). 대화가 있으면 `from`은 그 대화의 지금 값이다.
+   * 대화가 없으면 `from`은 같은 id의 저장된 값(`before`)이고, 그것도 없으면(새 프로필) 바뀌는 대화가 없어 싣지 않는다.
+   * 전역 사용자 값과는 견주지 않는다: 그 값은 대화의 모드를 정하지 않는다
+   */
   function permissionOf(
     body: ProfileBody,
     common: CommonSet,
     threadId: ThreadId | undefined,
+    before: { readonly body: ProfileBody; readonly common: CommonSet } | undefined,
   ): PermissionChange | undefined {
-    const to = lastValueOf([...common.settings, ...body.settings], PERMISSION_MODE_KEY);
-    if (typeof to !== "string") return undefined;
-    const from = env.settingValue(PERMISSION_MODE_KEY, threadId);
+    const to = profileModeOf(body, common);
+    if (typeof to !== "string" || modeHeldAbove(threadId)) return undefined;
+    const from =
+      threadId !== undefined
+        ? env.settingValue(PERMISSION_MODE_KEY, threadId)
+        : before === undefined
+          ? undefined
+          : profileModeOf(before.body, before.common);
     if (typeof from !== "string" || from === to) return undefined;
     return { from, to };
   }
@@ -809,7 +844,14 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       const resolved = resolvedOf(body, common);
       const facts = deps.pluginFacts();
       const byPlugin = await costsOf(resolved, facts, deps.readText);
-      const permission = permissionOf(body, common, threadId);
+      const permission = permissionOf(
+        body,
+        common,
+        threadId,
+        stored === undefined
+          ? undefined
+          : { body: stored, common: commonOf(stored.id, snapshot.value.common) },
+      );
       // 기준이 없으면 도구 변화와 캐시 영향을 싣지 않는다. 기준이 있고 바뀜이 없으면 도구 변화는 생략하고 캐시 영향은 none이다
       const before = baselineOf(snapshot.value.profiles, id, common, threadId);
       const toolsChanged =
@@ -917,7 +959,7 @@ export function createProfileTestRunPort(deps: ProfileTestRunPortDeps): ProfileT
       });
       if (!done.ok) return done;
       const { before, profile, common, known } = done.value.value;
-      const permission = permissionOf(profile, common, undefined);
+      const permission = permissionOf(profile, common, undefined, { body: before, common });
       // 지우기 전과 뒤의 저장된 상태를 잰다(대화를 고르지 않으므로 캐시 영향은 싣지 않는다)
       const toolsChanged = toolsChangedOf(
         toolNamesOf(resolvedOf(before, common), facts),

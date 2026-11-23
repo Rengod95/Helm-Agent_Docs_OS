@@ -5,7 +5,11 @@ import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
 // M3b B1-SCH2 (int): 예약 플러그인이 올린 도구 `schedule_create`가 조립된 호스트의 도구 목록에 있다. 모델이 부르면 실행 등급 exec로
@@ -28,6 +32,7 @@ async function runCall(decision: "allow" | "deny") {
   const connection = createHostConnection(host.client);
   try {
     await connection.request("host.hello", HELLO_PARAMS);
+    await askOnDefaultProfile(connection);
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});

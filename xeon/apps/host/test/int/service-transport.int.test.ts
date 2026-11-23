@@ -13,7 +13,11 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { isLoopbackAddress, ownListeners } from "../fixtures/listeners.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { connectedClient, manualTime, scratchRuntimeDir } from "../fixtures/service-harness.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // X5(M3b B2-RMT): 원격 사용. `socat` 중계로 만든 가짜 터널(ssh -L의 대역: 로컬 Unix 소켓을 서비스 Unix 소켓에 잇는다) 너머에서
@@ -101,6 +105,8 @@ describe("remote use through a tunnel (X5)", () => {
         // 1. 터널 너머의 클라이언트가 세션 목록을 읽는다
         const remote = await connectThroughTunnel(remoteText, tunnels);
         opened.push(remote);
+        // 이 연결이 대화를 만든다. 대화를 만들기 전에 기본 프로필을 묻는 모드로 저장한다
+        await askOnDefaultProfile(remote);
         expect(tunnels.requests).toEqual([
           { target: "me@fake-box", remoteSocket: registration.socket, port: 2222 },
         ]);

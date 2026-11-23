@@ -345,6 +345,12 @@ test("a profile write asks every open thread again, and reports only the changed
   });
   h.open.push(OTHER);
   await h.set.refresh();
+  // 첫 복사가 실리면 프로필 층에 권한 모드(값이 없는 프로필은 공장 값)가 들어 대화마다 그 키를 알린다
+  expect(h.settingsEvents).toEqual([
+    { keys: ["l1.tools.permissionMode"], threadId: THREAD },
+    { keys: ["l1.tools.permissionMode"], threadId: OTHER },
+  ]);
+  h.settingsEvents.length = 0;
   h.threadProfile.set(THREAD, "work");
   h.threadProfile.set(OTHER, "other");
   h.requested.length = 0;
@@ -393,11 +399,36 @@ test("the profile layer is the common settings under the profile settings, and t
     ["l1.models.default", "m"],
     ["l1.tools.permissionMode", "default"],
   ]);
-  // 프로필을 고르지 않은 대화는 기본을 쓰고, 저장하지 않은 기본은 공통 묶음 값만 싣는다(공장 값의 권한 모드는 사용자 파일을 가리지 않는다)
+  // 프로필을 고르지 않은 대화는 기본을 쓴다. 저장하지 않은 기본도 공장 값의 권한 모드(`bypass`)를 싣는다:
+  // 실행 방식은 프로필이 정하고 사용자 파일의 값은 정하지 않는다 [결정: 2026-11-23 사용자, AGE-71 질문 3]
   expect([...h.set.settingsOf(OTHER)]).toEqual([
     ["l1.loop.maxSteps", 99],
     ["l1.models.default", "m"],
+    ["l1.tools.permissionMode", "bypass"],
   ]);
+});
+
+test("a profile that sets no permission mode reads as bypass, a common set mode still applies under the profile, and craft keeps its own default", async () => {
+  const h = harness({
+    profiles: [
+      profileOf("work", ["beta"]),
+      profileOf("ask", ["beta"], [{ key: "l1.tools.permissionMode", value: "default" }]),
+    ],
+  });
+  await h.set.refresh();
+  h.threadProfile.set(THREAD, "work");
+  expect([...h.set.settingsOf(THREAD)]).toEqual([["l1.tools.permissionMode", "bypass"]]);
+  h.threadProfile.set(THREAD, "ask");
+  expect([...h.set.settingsOf(THREAD)]).toEqual([["l1.tools.permissionMode", "default"]]);
+  // 공통 묶음이 정한 모드는 값이 없는 프로필에서 그대로 쓰인다(공장 값은 둘 다 없을 때만이다)
+  h.profiles.write({
+    profiles: [profileOf("work", ["beta"], [], 2)],
+    common: commonOf([], [{ key: "l1.tools.permissionMode", value: "acceptEdits" }]),
+  });
+  h.threadProfile.set(THREAD, "work");
+  expect(h.set.settingsOf(THREAD).get("l1.tools.permissionMode")).toBe("acceptEdits");
+  h.threadProfile.set(OTHER, "craft");
+  expect(h.set.settingsOf(OTHER).get("l1.tools.permissionMode")).toBe("default");
 });
 
 test("a thread with no stored profile uses the default profile's settings", async () => {

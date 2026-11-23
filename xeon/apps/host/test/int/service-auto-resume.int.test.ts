@@ -11,7 +11,11 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { connectedClient, manualTime, scratchRuntimeDir } from "../fixtures/service-harness.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M3-REQ-80 (int): `l1.persistence.autoResume`은 기본 꺼짐이고 서비스 모드에서 켜면 표식이 남은 thread를 서비스가 시작 때 이어서 실행한다.
@@ -101,6 +105,8 @@ realTest(
         }),
       );
       await first.request("host.hello", HELLO_PARAMS);
+      // 프로필은 같은 저장소(profiles.json)에 남아 재시작한 서비스도 이 값을 읽는다. 첫 대화를 만들기 전에 한 번만 부른다
+      await askOnDefaultProfile(first);
       const seen = collectEvents(first);
       await first.request("events.subscribe", { from: "head" });
       const created = await first.request("thread.create", { workspace });

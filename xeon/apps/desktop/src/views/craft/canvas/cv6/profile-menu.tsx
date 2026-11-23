@@ -297,7 +297,7 @@ export function ProfileHead(props: {
  * 엔진이 거절한 까닭 한 줄. 표지는 캔버스의 다른 상태 줄과 같은 구슬(`cv6-orb` danger)이고, 구슬은 글의 첫 줄 높이(`1lh`) 안에서
  * 가운데에 선다(글이 두 줄로 넘쳐도 첫 줄에 맞는다)
  */
-function Refusal(props: { readonly id?: string; readonly text: string }): ReactElement {
+export function Refusal(props: { readonly id?: string; readonly text: string }): ReactElement {
   return (
     <p
       id={props.id}

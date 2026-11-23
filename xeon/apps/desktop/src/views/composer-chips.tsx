@@ -26,8 +26,8 @@ import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-mode
 export const COMPOSER_CHIP_CLASS =
   "min-w-0 gap-1 px-2 font-normal text-text-tertiary hover:bg-neutral-hover hover:text-text-secondary [&_svg]:size-3.5 [&_svg]:shrink-0";
 
-/** 모드마다 앞 아이콘 14 */
-function modeIcon(mode: PermissionMode): ReactNode {
+/** 모드마다 앞 아이콘 14. 프로필 화면의 실행 방식 줄(`craft/canvas/cv6/profile-mode.tsx`)도 같은 아이콘을 쓴다 */
+export function modeIcon(mode: PermissionMode): ReactNode {
   switch (mode) {
     case "default":
       return <Shield aria-hidden />;
@@ -161,30 +161,45 @@ export function PermissionModeChip(props: {
           <MenuSeparator />
         </>
       )}
-      {permissionModeOptionsOf(mode, props.bypassAllowed).map((option) => {
-        const selected = note === null && option.selected;
-        return (
-          <MenuItem
-            key={option.mode}
-            role="menuitemradio"
-            selected={selected}
-            tone={option.mode === "bypass" ? "danger" : "neutral"}
-            className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
-            icon={modeIcon(option.mode)}
-            end={selected ? <Check aria-hidden className="size-3.5" /> : undefined}
-            onSelect={() => {
-              if (!selected) props.onChange(option.mode);
-            }}
-          >
-            <MenuText
-              title={permissionModeChipText(option.mode)}
-              hint={t(MODE_HINT_ID[option.mode])}
-            />
-          </MenuItem>
-        );
-      })}
+      <PermissionModeMenuItems
+        mode={mode}
+        bypassAllowed={props.bypassAllowed}
+        marked={note === null}
+        onChange={props.onChange}
+      />
     </Menu>
   );
+}
+
+/**
+ * 모드 메뉴의 줄들: 묻기, 편집 자동 허용, 허락되면 모두 허용(`permissionModeOptionsOf`). 줄마다 아이콘, 이름, 한 줄 설명이고 모두 허용은 위험 색이다.
+ * 입력창 칩과 프로필 화면의 실행 방식 줄이 같이 쓴다. `marked`가 거짓이면(지금 값을 모름) 어느 줄도 골라져 보이지 않는다
+ */
+export function PermissionModeMenuItems(props: {
+  readonly mode: PermissionMode;
+  readonly bypassAllowed: boolean;
+  readonly marked: boolean;
+  readonly onChange: (mode: PermissionMode) => void;
+}): ReactNode {
+  return permissionModeOptionsOf(props.mode, props.bypassAllowed).map((option) => {
+    const selected = props.marked && option.selected;
+    return (
+      <MenuItem
+        key={option.mode}
+        role="menuitemradio"
+        selected={selected}
+        tone={option.mode === "bypass" ? "danger" : "neutral"}
+        className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
+        icon={modeIcon(option.mode)}
+        end={selected ? <Check aria-hidden className="size-3.5" /> : undefined}
+        onSelect={() => {
+          if (!selected) props.onChange(option.mode);
+        }}
+      >
+        <MenuText title={permissionModeChipText(option.mode)} hint={t(MODE_HINT_ID[option.mode])} />
+      </MenuItem>
+    );
+  });
 }
 
 /** 칩에 보이는 모델 이름: 카탈로그 이름(없으면 참조의 모델 부분) */
