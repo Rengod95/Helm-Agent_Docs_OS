@@ -24,7 +24,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto queues the inquiry until you run /helm start",
+          "help": "What to do when an inquiry signal fires. Off only records it, Suggest posts a proposal message, and Queue holds the inquiry until you run /helm start",
           "helpKey": "settings.ext.helm.autoStart.help",
           "label": "Helm auto start",
           "labelKey": "settings.ext.helm.autoStart.label",
@@ -69,7 +69,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Turn, sub-agent, and token limits used by a Helm inquiry. Overrides x.primitives.driveDefaultLimits for Helm only, and cannot exceed the ceiling x.primitives.driveLimits.",
+          "help": "Turn, sub-agent, and token limits for one Helm inquiry. They replace the app-wide default limits for Helm only, and cannot go past the app-wide ceiling.",
           "helpKey": "settings.ext.helm.driveLimits.help",
           "label": "Helm drive limits",
           "labelKey": "settings.ext.helm.driveLimits.label",

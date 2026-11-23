@@ -1376,6 +1376,8 @@ export function guardWrite(g: OrchestrationApi<HelmState>, marker: ExplorationMa
 | `ext.helm.maxLenses` | integer | `3` [제안] | 1~8 | `nextTurn`(다음 탐구 시작 때) | managed, user, project, local, launch | number |
 | `ext.helm.writeGuard` | boolean | `true` | | `nextTurn` | managed, user, project, local, launch | toggle |
 
+- 화면의 말 [구현: 2026-11-23, uiTog]: 설정 화면과 크래프트 플러그인 상세 "화면과 설정" 탭은 값과 칸 이름을 그대로 보이지 않고 클라이언트 카탈로그의 사람 말로 보입니다. `autoStart`의 선택지는 `settings.ext.helm.autoStart.option.<값>`(끄기, 제안, 준비해 두기 / Off, Suggest, Queue)이고, `driveLimits`의 표 열은 `settings.ext.helm.driveLimits.column.<칸>`(최대 턴 수, 최대 하위 에이전트 수, 최대 토큰 수)입니다. 설명의 영어 대체 문구는 en 카탈로그와 같고, 설정 키 이름(`x.primitives.*`)을 글에 넣지 않습니다.
+
 ```ts
 // src/settings.ts
 export const AutoStartSchema = Type.Union([Type.Literal("off"), Type.Literal("suggest"), Type.Literal("auto")]);
