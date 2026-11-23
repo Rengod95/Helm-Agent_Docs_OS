@@ -3752,6 +3752,7 @@
   "desktop.workbench.detail.tab.versions": "버전",
   "desktop.workbench.detail.tab.record": "기록",
   "desktop.workbench.detail.origin": "설치 위치",
+  "desktop.workbench.detail.origin.dataFolder": "Fresnel 데이터 폴더",
   "desktop.workbench.detail.origin.revealMissing": "이 컴퓨터에 설치 폴더가 없어요",
   "desktop.workbench.detail.origin.revealFailed": "설치 폴더를 열지 못했어요",
   "desktop.workbench.detail.diagnostics": "진단",

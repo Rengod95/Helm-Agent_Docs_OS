@@ -8,7 +8,7 @@ import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Alert, Button, ListDescription, ListDescriptionRow, toast } from "@caustic/react";
 import { CircleCheck, Clock, TriangleAlert } from "@caustic/react/icons";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { revealFullOutput } from "../convo/reveal-full-output.ts";
 import { useDesktopShell, type DesktopShell } from "../desktop-shell-context.ts";
@@ -18,7 +18,12 @@ import { addonDetailOf } from "../plugin/addon-model.ts";
 import { RiskSection } from "../plugin/addon-parts.tsx";
 import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
 import { originText } from "./origin-text.ts";
-import { LOCATION_LIMIT, middleEllipsisOf, revealablePathOf } from "./location-text.ts";
+import {
+  LOCATION_LIMIT,
+  locationTextOf,
+  middleEllipsisOf,
+  revealablePathOf,
+} from "./location-text.ts";
 import type { ProfileSetLoad } from "./profile-put-menu.tsx";
 import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
 import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
@@ -206,18 +211,54 @@ function TrustColumn(props: {
   );
 }
 
+/** 데이터 폴더 경로를 이 실행 동안 한 번 알아 둔다(한 번 읽으면 다시 셸을 부르지 않는다). 모르면 null */
+let knownDataDir: string | null = null;
+
 /**
- * 설치 위치 칸(AGE-77 S-09 라): 출처 글 뒤에 경로를 가운데 말줄임으로 보이고, 전체 경로는 제목 글로 둔다.
+ * 데이터 폴더 경로. 클라이언트는 이 값을 연결 응답으로 받지 않으므로, 셸의 저장 공간 읽기(`db usage`)로 한 번 읽는다.
+ * 읽지 못하면(웹 셸, 실패) null이고 설치 위치는 홈 줄이기만 한다
+ */
+function useDataDir(): string | null {
+  const commands = useCommands();
+  const [dir, setDir] = useState<string | null>(knownDataDir);
+  useEffect(() => {
+    if (knownDataDir !== null) return undefined;
+    let stale = false;
+    detach(
+      commands.storage.usage().then((read) => {
+        if (!read.ok) return undefined;
+        knownDataDir = read.value.dataDir;
+        if (!stale) setDir(read.value.dataDir);
+        return undefined;
+      }),
+      rethrow,
+    );
+    return () => {
+      stale = true;
+    };
+  }, [commands]);
+  return dir;
+}
+
+/**
+ * 설치 위치 칸(AGE-77 S-09 라, rerun3 T-04): 출처 글 뒤에 경로를 가운데 말줄임으로 보이고, 전체 경로는 제목 글로 둔다.
+ * 데이터 폴더 아래는 "Fresnel 데이터 폴더" 뒤 상대 경로로, 홈 아래는 `~/…`로 보인다.
  * 셸이 있고 실제 경로면 "폴더에서 보기" 단추를 옆에 둔다. 웹처럼 셸이 없으면 단추를 그리지 않는다
  */
 function LocationValue(props: { readonly origin: string; readonly location: string }): ReactNode {
   const shell = useDesktopShell();
+  const dataDir = useDataDir();
   const path = revealablePathOf(props.location);
+  const shown = locationTextOf(
+    props.location,
+    dataDir,
+    t("desktop.workbench.detail.origin.dataFolder"),
+  );
   return (
     <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
       <span>{props.origin}</span>
       <span className="min-w-0 font-mono text-mono-sm text-text-tertiary" title={props.location}>
-        {middleEllipsisOf(props.location, LOCATION_LIMIT)}
+        {middleEllipsisOf(shown, LOCATION_LIMIT)}
       </span>
       {shell === null || path === null ? null : <RevealButton shell={shell} path={path} />}
     </span>

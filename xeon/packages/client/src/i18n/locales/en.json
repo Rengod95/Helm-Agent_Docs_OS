@@ -3752,6 +3752,7 @@
   "desktop.workbench.detail.tab.versions": "Versions",
   "desktop.workbench.detail.tab.record": "Record",
   "desktop.workbench.detail.origin": "Location",
+  "desktop.workbench.detail.origin.dataFolder": "Fresnel data folder",
   "desktop.workbench.detail.origin.revealMissing": "The install folder is not on this computer",
   "desktop.workbench.detail.origin.revealFailed": "Could not show the install folder",
   "desktop.workbench.detail.diagnostics": "Diagnostics",
