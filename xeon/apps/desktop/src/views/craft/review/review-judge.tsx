@@ -475,7 +475,10 @@ function DecidePanel(props: {
 
   const send = (what: "approve" | "reject"): void => {
     const decision =
-      what === "approve" ? approveDecisionOf(item, target, purpose) : rejectDecisionOf(reason);
+      what === "approve"
+        ? // 목적은 카드가 비었을 때만 싣는다. 이미 있는 목적을 기본 문장(도구 설명)으로 덮지 않는다
+          approveDecisionOf(item, target, needsPurpose ? purpose : "")
+        : rejectDecisionOf(reason);
     setPhase({ kind: "sending", what });
     const run = async (): Promise<void> => {
       const result = await props.data.decide(item.itemId, decision);

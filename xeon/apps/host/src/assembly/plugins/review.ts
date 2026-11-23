@@ -1041,7 +1041,10 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     ) {
       return err({ kind: "hand_edit", itemId: item.itemId });
     }
-    const purpose = decision.purpose ?? item.card.purpose;
+    // 매니페스트가 이미 목적을 가졌으면 그 목적이 카드의 목적이다. 결정이 싣는 목적은 비어 있던 목적을 채울 때만 쓴다
+    // (화면이 도구 설명으로 만든 기본 문장을 항상 실어도 사람이 쓴 목적을 덮지 않는다, rerun5 U-01)
+    const ownPurpose = (item.card.purpose ?? "").trim() === "" ? null : item.card.purpose;
+    const purpose = ownPurpose ?? decision.purpose ?? item.card.purpose;
     if (!removing && (purpose === null || purpose.trim() === "")) {
       return err({ kind: "purpose_required", itemId: item.itemId });
     }
