@@ -170,7 +170,7 @@ function entryText(values: AppSkeletonValues): string {
     '      description: "앱 목록에 항목 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다",',
     "      parameters: addParams,",
     '      replay: "unsafe",',
-    '      risk: "write",',
+    "      // risk를 생략한다. 외부 확장이 read나 write를 선언하면 등록이 거부되고, 생략하면 exec가 기본이다",
     "      execute: async (args) => {",
     "        const checked = parse(addParams, args);",
     '        if (!checked.ok) return { ok: false, reason: "invalid_input" };',

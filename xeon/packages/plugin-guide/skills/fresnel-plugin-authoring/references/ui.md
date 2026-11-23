@@ -94,10 +94,11 @@ Screen calls and model calls must reach the same state through the same function
 - The state belongs to a conversation (thread). `g.state()` works only when the thread is open. A read with no thread, or with `ctx.threadOpen === false`, must answer with an empty value, not fail. A write with no thread must refuse with a value such as `{ ok: false, reason: "no_thread" }`.
 - Every method must be listed in the manifest `methods` (verb, `params` and `result` as JSON Schema, `readOnly`). A method registered but not declared is refused by the host; a declared method never registered fails the check (`method_unregistered`, `method_undeclared`).
 - Keep `params` and `result` small and closed (`additionalProperties: false`). The manifest schemas are documents, not compiled checks: parse `params` again in the handler (the scaffold uses a TypeBox `parse`).
-- Live updates: poll with `query` no more often than every 5 seconds, or wait for `invalidate`. Not every build sends `invalidate` yet.
+- The model tool declares no `risk` (the default is `exec`). A plugin that is not built in and declares `read` or `write` has its tool refused at registration (`tool_risk_reserved`), and the registration stays off.
+- Live updates: poll with `query` no more often than every 5 seconds, or wait for `invalidate`. The shell sends `invalidate` after the extension's state or a record changes; a burst of changes within 100 ms arrives as one. Re-read with `query` when it arrives.
 
 ## Reference
 
 - Minimal bridge handshake and ping: `xeon/examples/viewdemo/ui/app/app.js`, and the manifest in `xeon/examples/viewdemo/.fresnel-plugin/plugin.json`.
-- A larger board example (drag and drop, several methods): `xeon/examples/kanban` (when present).
+- A larger board example (drag and drop, one read method and two write methods, two model tools that share their functions with the methods): `xeon/examples/kanban`.
 - Scaffold: `authoring_scaffold` with `mode: "app"` writes the manifest, `src/index.ts`, and `ui/app/` (`index.html`, `app.js`, `bridge.js`, `theme.css`). `authoring_validate` checks the folder, the entry file, and the method registrations.
