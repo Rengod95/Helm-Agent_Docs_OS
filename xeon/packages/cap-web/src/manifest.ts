@@ -14,7 +14,9 @@ export function webManifest(): ExtensionManifest {
     name: WEB_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Web tools",
-    description: "Web search and page fetch with policy, caching and cost accounting (L2).",
+    purpose: "Lets the agent search the web and read pages.",
+    description:
+      "Provides web search and page fetching with usage limits, caching and cost totals; without it, the agent cannot reach the web.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

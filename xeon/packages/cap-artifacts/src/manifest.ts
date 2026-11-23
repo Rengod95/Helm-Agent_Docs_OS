@@ -18,7 +18,9 @@ export function artifactsManifest(): ExtensionManifest {
     name: ARTIFACTS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Artifacts and reviews",
-    description: "Keep session artifacts and approve or reject file changes hunk by hunk (L2).",
+    purpose: "Keeps the files you make and lets you review changes.",
+    description:
+      "Stores the files a conversation makes and lets you approve or reject each part of the agent's edits; without it, changes cannot be reviewed.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

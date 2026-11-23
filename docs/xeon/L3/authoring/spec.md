@@ -80,7 +80,7 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
 | `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다. `resident`는 일반 대화에서만 모델이 넘긴 값을 쓴다. 테스트 대화(craft 표지)에서는 호스트가 상주로 정한다(아래, [제안]) | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
-| `authoring_scaffold` | `{ sessionId, mode? }`(`mode`: `hook`, `inject`, `drive`) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
+| `authoring_scaffold` | `{ sessionId, mode?, description? }`(`mode`: `hook`, `inject`, `drive`. 목적은 대화의 목적 한 문장을, 설명은 입력을 매니페스트에 쓴다 [결정: 2026-11-23 사용자, AGE-31]) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
 | `authoring_trial` | `{ sessionId }` | Test run 대화 id | Test run 생성(설치 없음) |
 | `authoring_replay` | `{ sessionId, maxCommits? }` | `ReplayDriveReport`(개발 모드만) | 실행 |

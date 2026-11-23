@@ -12,8 +12,9 @@ export const guideManifest: OrchestrationManifest = orchestrationManifest(
     name: GUIDE_ORCHESTRATION_NAME,
     version: "0.1.0",
     displayName: "Fresnel Guide",
+    purpose: "Lets the agent explain how to use Fresnel.",
     description:
-      "Skills that teach the model how Fresnel works: plugins, settings, assets, data and diagnostics",
+      "Gives the agent skills about how Fresnel works, such as plugins, settings, assets, data and diagnostics, and it reads only the part that fits your question.",
     entry: "./src/index.ts",
     defaultEnabled: false,
     trust: { level: "builtin" },

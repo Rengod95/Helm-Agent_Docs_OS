@@ -411,11 +411,12 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const scaffold = tool(
     "authoring_scaffold",
-    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module, inject: an instructions file, drive: a drive step function in a group) and the composition draft.",
+    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module, inject: an instructions file, drive: a drive step function in a group) and the composition draft. The manifest needs purpose (one sentence, the user's words) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
     Type.Object(
       {
         ...sessionShape,
         mode: Type.Optional(Type.Union(PLUGIN_MODES.map((mode) => Type.Literal(mode)))),
+        description: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
       },
       { additionalProperties: false },
     ),
@@ -437,11 +438,14 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           "the files were already created: edit them and call authoring_validate",
         );
       const mode = PLUGIN_MODES.find((found) => found === input["mode"]);
+      const description = optStr(input, "description");
       const made = await devkit.scaffold({
         kind: state.kind,
         name: state.name,
         dir: state.dir,
         ...(mode === undefined ? {} : { mode }),
+        ...(state.purpose === null ? {} : { purpose: state.purpose }),
+        ...(description === undefined ? {} : { description }),
         ...(state.composition === null
           ? {}
           : { orchestration: { composition: state.composition } }),

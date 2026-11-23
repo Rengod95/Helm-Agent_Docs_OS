@@ -27,7 +27,9 @@ export const authoringManifest: OrchestrationManifest = defineManifest({
   name: "authoring",
   version: "0.1.0",
   displayName: "Plugin Builder",
-  description: "플러그인을 만드는 도구, 단계 머신, 쓰기 범위 가드",
+  purpose: "Builds and fixes plugins through a conversation.",
+  description:
+    "Guides you from choosing a kind and a name through the scaffold, checks, a test and sending to review, and keeps writes inside the plugin folder while it works.",
   entry: "./src/index.ts",
   defaultEnabled: true,
   trust: { level: "builtin" },

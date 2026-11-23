@@ -14,7 +14,9 @@ export function workManifest(): ExtensionManifest {
     name: WORK_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Work management",
-    description: "Task list and goals that survive across turns (L2).",
+    purpose: "Keeps to-dos and goals across turns.",
+    description:
+      "Keeps a to-do list and goals that last across turns; without it, the agent forgets its plan every turn.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

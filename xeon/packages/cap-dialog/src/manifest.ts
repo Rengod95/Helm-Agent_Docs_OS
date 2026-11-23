@@ -21,7 +21,9 @@ export function dialogManifest(): ExtensionManifest {
     name: DIALOG_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Client Services",
-    description: "Questions, slash commands, status line, attachments and notices (L2).",
+    purpose: "Shows questions, slash commands and notices in the conversation.",
+    description:
+      "Handles questions, slash commands, the status line, attachments and notices in a conversation; without it, none of these appear.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [
