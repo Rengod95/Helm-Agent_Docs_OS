@@ -95,7 +95,7 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
       </div>
     );
   }
-  // 첫 줄이 설명을 올렸으면(`fromDescription`) 아래 설명 줄은 그리지 않는다(같은 글을 두 번 보이지 않게)
+  // 첫 줄이 설명을 올렸거나 설명과 같은 글이면 아래 설명 줄은 그리지 않는다(같은 글을 두 번 보이지 않게)
   const lead = doesLeadOfCard(card);
   const description = cardTextIn(card, "description");
   const kind = pluginKindOf(card);
@@ -109,7 +109,9 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
       ) : (
         <p className="m-0 text-ui-strong text-text-primary">{lead.text}</p>
       )}
-      {description === null || lead?.fromDescription === true ? null : (
+      {description === null ||
+      lead?.fromDescription === true ||
+      description === lead?.text ? null : (
         <p className="m-0 text-ui text-text-secondary">{description}</p>
       )}
       <ListDescription
