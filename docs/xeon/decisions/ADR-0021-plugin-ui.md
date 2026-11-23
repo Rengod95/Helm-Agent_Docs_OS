@@ -13,7 +13,7 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 ## 1. 상태와 날짜
 
 - 상태: accepted(방식). 스키마와 이름의 세부는 [제안]이고 정본은 F가 정합니다(§6).
-- 날짜: 2026-10-30 초안, 2026-10-31 개정, 2026-11-04 개정, 2026-11-11 개정(§3.11 "플레이그라운드"), 2026-11-23 개정(§3.12 숨기기와 순서)
+- 날짜: 2026-10-30 초안, 2026-10-31 개정, 2026-11-04 개정, 2026-11-11 개정(§3.11 "플레이그라운드"), 2026-11-23 개정(§3.12 숨기기와 순서), 2026-11-24 개정(§3.4.1 보드와 순서 목록)
 - [결정: 2026-10-30 사용자] Fresnel은 층별 플러그인(F, X, L0~L3)을 조립하고 적응시키는 대화형 에이전트 런타임입니다. Helm 같은 의도 그룹(에이전트 안의 에이전트 시스템)이 핵심 단위입니다.
 - [결정: 2026-10-30 사용자] 대화 화면과 런타임 작업이 둘 다 1급입니다. 원문: "핵심은 대화화면이라는 건 어쨋든 에이전트 런타임의 숙명이라고 봄. 그래서 둘다 1급인느낌."
 - [결정: 2026-10-30 사용자] 플러그인마다 클라이언트 안에서 자기 화면을 구성할 수 있어야 합니다. 원문: "플러그인 별로 우리 클라이언트 안에서 자기만의 ui 화면을 구성할 수 있는 시스템을 지원했으면 해, 단순 특정 파일을 렌더링 한다기 보다는, 어떤 플러그인을 어댑팅 했을 때, 이 플러그인이 만약 l3고 자기만의 워크플로우나 에이전틱한 흐름에서 대화창이 아닌 커스텀한 화면을 요구한다면 이를 지원할 수 있어야 해."
@@ -146,7 +146,9 @@ interface ExtMethodDecl {
 - 표현식: 데이터 경로(JSON Pointer)와 같음·있음·없음 비교, 배열 반복(`each`)만 둡니다. 스크립트와 함수 호출은 두지 않습니다. 숫자·시간·바이트·상대 시각 서식은 호스트가 이름으로 제공합니다(`format: "duration"` 등).
 - 배열 bind [결정: 2026-11-04 사용자]: `List.items`, `Table.rows`, `ListDescription.items`, `ActivityTree.items`, `Timeline.items`, `Sparkline.points`, `Select.options`, `SegmentedControl.options`에 배열이 오면 렌더러는 목록(`lists`)으로 풉니다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드(`__proto__`, `constructor`, `prototype` 키 제외)이고, 앞 500개만 보며 넘치면 `truncated`입니다. 원소 하나가 일 한 단위입니다. `format`은 배열에 적용하지 않습니다.
 - 일 예산 [결정: 2026-11-04 사용자]: 렌더러는 `each` 복사 한 벌과 `when` 판정 한 번을 일 한 단위로 세고 `treeNodes`의 10배(2000 × 10)에서 멈춥니다. 그리지 않는 복사(거짓 `when`)도 세므로 중첩 `each`가 앱을 얼리지 못합니다. 멈추면 `truncated`가 참입니다. 선언형 화면은 프로젝트 신뢰 아래에서도 열리므로 복제한 저장소가 앱을 멈출 수 없어야 합니다.
-- 위젯 카탈로그 v1(초안): 배치(`Stack`, `Row`, `Section`, `Tabs`, `Split`), 글(`Text`, `Heading`, `Markdown`(HTML 없는 부분 집합), `Code`), 자료(`List`, `Table`, `ListDescription`, `Badge`, `Chip`, `Progress`, `Meter`, `Stepper`, `ActivityTree`, `Timeline`, `Sparkline`), 알림(`Alert`, `EmptyState`, `Skeleton`), 입력(`Button`, `Switch`, `Select`, `TextField`, `NumberField`, `SegmentedControl`, `Form`), 연결(`ThreadLink`, `TurnLink`, `ViewLink`, `ApprovalLink`). 이름은 caustic export와 같게 두고, caustic에 없는 것은 `L4.desktop-ux.spec` §9 간극으로 올립니다.
+- 위젯 카탈로그 v1(초안): 배치(`Stack`, `Row`, `Section`, `Tabs`, `Split`), 글(`Text`, `Heading`, `Markdown`(HTML 없는 부분 집합), `Code`), 자료(`List`, `Table`, `ListDescription`, `Badge`, `Chip`, `Progress`, `Meter`, `Stepper`, `ActivityTree`, `Timeline`, `Sparkline`), 알림(`Alert`, `EmptyState`, `Skeleton`), 입력(`Button`, `Switch`, `Select`, `TextField`, `NumberField`, `SegmentedControl`, `Form`), 연결(`ThreadLink`, `TurnLink`, `ViewLink`, `ApprovalLink`), 옮기기(`Board`, `SortableList`, 카탈로그 1.1.0). 이름은 caustic export와 같게 두고, caustic에 없는 것은 `L4.desktop-ux.spec` §9 간극으로 올립니다.
+
+- 쓰기 메서드를 부르는 위젯 [결정: 2026-11-24 AGE-78 질문 7. 2026-10-31 "두 방식 다 지원"의 후속으로 칸반 같은 보드를 native로도 만들 수 있게 한다]: `Board`(열과 카드)와 `SortableList`(한 줄 목록)는 끌거나 키보드로 옮긴 결과를 매니페스트가 선언한 쓰기 메서드로 보낸다. 트리는 메서드를 prop(`move`, `add`)에 동사 이름으로만 적고(bind 불가), 인자는 렌더러가 정한 모양(`Board.move` `{ id, column, index }`, `Board.add` `{ column, title }`, `SortableList.move` `{ id, index }`)뿐이다. 부르는 길은 프레임 `call`과 같은 판정과 확인 규칙이다(`ownDataOnly`는 확인 줄 없이, 그 밖은 매번 확인 줄). "사용자 조작 뒤에만"은 렌더러가 놓기와 누르기를 보고 지킨다. 플러그인 코드는 여전히 화면에서 돌지 않는다. 로더와 제작 검사가 메서드 이름을 매니페스트와 맞춰 본다(`F.extensions.spec` §3.1.1 `checkUiTreeActions`). 모양과 동작은 `L4.desktop-ux.spec` P-18 "보드와 순서 목록"이다.
 
 #### 3.4.2 프레임 다리
 
@@ -164,7 +166,7 @@ interface ExtMethodDecl {
 
 | 질문 | 선언형 | 프레임 |
 |---|---|---|
-| 위젯 카탈로그로 그릴 수 있는가(목록, 표, 상태, 단계, 폼, 활동 트리) | 예 → 선언형 | |
+| 위젯 카탈로그로 그릴 수 있는가(목록, 표, 상태, 단계, 폼, 활동 트리, 칸반 같은 보드, 끌어 순서를 바꾸는 목록) | 예 → 선언형 | |
 | 자유 배치, 그래프·노드 편집, 캔버스, 사용자 정의 차트, 지속적 애니메이션이 핵심인가 | | 예 → 프레임 |
 | CLI·원격·나중의 웹 클라이언트에서 같은 화면이 필요한가 | 예 → 선언형(같은 트리를 글로 렌더) | 프레임이면 `fallback` 트리를 함께 냄 |
 | 카드, 상태 칸, 설정 구역인가 | 선언형만 | 허용 안 됨 |

@@ -22,3 +22,20 @@ export {
   type ResolvedNode,
   type ResolvedTree,
 } from "./resolve.ts";
+export {
+  BOARD_TONES,
+  boardLayoutOf,
+  moveCard,
+  moveItem,
+  placeOf,
+  samePlace,
+  sortableItemsOf,
+  stepPlace,
+  type BoardCard,
+  type BoardColumn,
+  type BoardLayout,
+  type BoardPlace,
+  type BoardStep,
+  type BoardTone,
+  type SortableItem,
+} from "./board.ts";

@@ -10,14 +10,14 @@ import {
 } from "@fresnel/client/views/app";
 import type { NativeTreeActions } from "./native-tree.tsx";
 
-// 선언형 화면의 두 길: 데이터 읽기(`readTreeOf`)와 버튼 명령(`treeActionsOf`). 둘 다 `decide`를 거치고 실행기(`ActionRunner`)로 간다.
+// 선언형 화면의 길: 데이터 읽기(`readTreeOf`)와 동작(`treeActionsOf`: 버튼 명령, 보드와 순서 목록의 쓰기 메서드). 모두 `decide`를 거치고 실행기(`ActionRunner`)로 간다.
 // React와 DOM이 없어서 시험이 화면과 같은 길(연결 대역 → 백엔드 → 실행기 → 확인 줄)을 그대로 돈다.
 
 /** 한 동작을 판정(`decide`)하고 실행기로 돌린다. 판정이 거부하면 실행하지 않는다. 팔레트 명령도 이 길을 쓴다 */
 export async function runDecided(
   runner: ActionRunner,
   context: BridgePolicyContext,
-  op: "query" | "host" | "command",
+  op: "query" | "host" | "command" | "call",
   args: unknown,
 ): Promise<{ readonly ok: true; readonly value: unknown } | { readonly ok: false }> {
   const decision = decide({ v: BRIDGE_VERSION, id: 0, op, args }, context);
@@ -85,8 +85,19 @@ function commandArgsOf(
   return [...words, ...(bare === "" ? [] : [bare]), ...pairs].join(" ");
 }
 
+/** 쓰기 메서드의 결과가 `{ ok: false, ... }`이면 확장이 거절한 것이다(칸반 본보기의 `reason` 모양). 그 밖의 값은 성공이다 */
+export function methodRefused(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getOwnPropertyDescriptor(value, "ok")?.value === false
+  );
+}
+
 /**
  * 선언형 화면의 동작 묶음. `Button`·`Form`의 명령은 `command` 동작으로 실행기를 거치고(확인 줄, 쿨다운, 장부),
+ * `Board`·`SortableList`의 쓰기 메서드는 `call` 동작으로 같은 실행기를 거친다(`ownDataOnly` 메서드는 확인 줄 없이, 그 밖은 매번 확인 줄),
  * 대화 링크는 `openChat`으로, 화면 링크(`ViewLink`)는 `openView`(같은 확장의 화면 id)로 간다. 외부 링크는 확인 줄이 아직 없어 열지 않는다
  */
 export function treeActionsOf(options: {
@@ -110,6 +121,13 @@ export function treeActionsOf(options: {
         if (done.ok) ledger.succeed(screenKey);
       };
       detach(run(), rethrow);
+    },
+    async callMethod(verb, params) {
+      // 프레임의 `call`과 같은 길이다: `decide`(선언한 쓰기 메서드만), 확인 규칙, 장부. 거절, 실패, 확장의 `{ ok: false }`는 모두 거짓이다
+      const done = await runDecided(runner, context(), "call", { verb, params });
+      if (!done.ok || methodRefused(done.value)) return false;
+      ledger.succeed(screenKey);
+      return true;
     },
     openLink(link) {
       if (link.kind === "thread") openChat();

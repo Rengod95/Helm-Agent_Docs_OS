@@ -322,3 +322,47 @@ test("a rejected extension contributes no screen entries", async () => {
   ]);
   expect(harness.loader.uiEntries()).toEqual([]);
 });
+
+/** 매니페스트 `methods`의 원소 하나 */
+function methodOf(verb: string, readOnly: boolean): object {
+  return { verb, params: { type: "object" }, result: { type: "object" }, readOnly };
+}
+
+test("a board tree is checked against the manifest methods: a declared write verb passes, an undeclared one is a readable ui_invalid", async () => {
+  const root = await writePlugin(userExtensions, "demo", {
+    name: "demo",
+    methods: [methodOf("board", true), methodOf("move", false)],
+    ui: {
+      schemaVersion: 1,
+      widgets: "^1.0.0",
+      items: [{ id: "page", placement: "page", title: "Page", file: "ui/page.json" }],
+    },
+  });
+  await putFile(
+    join(root, "ui", "page.json"),
+    '{"type":"Board","props":{"move":"move","add":"add"},"bind":{"columns":{"path":"/board/columns"},"cards":{"path":"/board/cards"}}}',
+  );
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([["demo", "active"]]);
+  expect(
+    harness.loader
+      .uiEntries()
+      .map((entry) => [
+        entry.id,
+        entry.state,
+        entry.issues.map((issue) => [issue.path, issue.message]),
+      ]),
+  ).toEqual([
+    [
+      "page",
+      "invalid",
+      [
+        [
+          "/ui/items/0/file#/props/add",
+          'ui/page.json: Board.add names "add", but manifest methods does not declare it: add { "verb": "add", "readOnly": false, ... } to methods',
+        ],
+      ],
+    ],
+  ]);
+});

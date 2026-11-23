@@ -1863,6 +1863,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         name: manifest.name,
         ...(manifest.orchestration === undefined ? {} : { orchestration: manifest.orchestration }),
         readsRecordKinds: pluginDeclsOf(manifest).flatMap((decl) => decl.readsRecordKinds ?? []),
+        methods: (manifest.methods ?? []).map((method) => ({
+          verb: method.verb,
+          readOnly: method.readOnly,
+        })),
       },
       policy: uiPolicy,
       hostWidgetsVersion: HOST_WIDGETS_VERSION,

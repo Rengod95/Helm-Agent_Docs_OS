@@ -50,6 +50,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
+import { BoardView, SortableListView } from "./native-board.tsx";
 import { LINE_GLYPH } from "../illustrations/line-glyph.ts";
 import { stepperLive } from "../thinking-indicator.tsx";
 
@@ -78,6 +79,14 @@ export interface NativeTreeActions {
     name: string,
     values: Readonly<Record<string, string | number | boolean>>,
   ) => void;
+  /**
+   * Board.move / Board.add / SortableList.move: calls one of the extension's write methods with the given params after a user action.
+   * Resolves true when the call went through and the method did not answer `{ ok: false }`; never rejects
+   */
+  readonly callMethod: (
+    verb: string,
+    params: Readonly<Record<string, unknown>>,
+  ) => Promise<boolean>;
   readonly openLink: (link: NativeLink) => void;
 }
 
@@ -489,6 +498,10 @@ function NodeBody({ node }: NodeProps): ReactNode {
       return <ViewLinkNode node={node} />;
     case "ApprovalLink":
       return <ApprovalLinkNode node={node} />;
+    case "Board":
+      return <BoardNode node={node} />;
+    case "SortableList":
+      return <SortableListNode node={node} />;
     default:
       return assertNever(type, "NodeBody");
   }
@@ -617,6 +630,18 @@ function CodeNode({ node }: NodeProps): ReactNode {
       </pre>
     </div>
   );
+}
+
+// ---------- 보드와 순서 목록(쓰기 메서드를 부른다, native-board.tsx) ----------
+
+function BoardNode({ node }: NodeProps): ReactNode {
+  const { actions } = useNative();
+  return <BoardView node={node} callMethod={actions.callMethod} />;
+}
+
+function SortableListNode({ node }: NodeProps): ReactNode {
+  const { actions } = useNative();
+  return <SortableListView node={node} callMethod={actions.callMethod} />;
 }
 
 // ---------- 자료 ----------

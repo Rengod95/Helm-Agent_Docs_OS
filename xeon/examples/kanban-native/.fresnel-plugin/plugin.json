@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 2,
+  "name": "kanban-native",
+  "version": "1.0.0",
+  "displayName": "칸반 보드",
+  "description": "할 일, 진행 중, 끝 세 열의 카드 보드를 Fresnel 기본 부품(native)으로 그린다. 카드를 끌거나 키보드로 옮기고, 열 아래에서 카드를 더하며, 할 일의 순서를 따로 바꾼다. 모델도 같은 함수로 카드를 옮기고 더한다",
+  "purpose": "플러그인 코드를 화면에서 돌리지 않고 칸반 보드를 쓴다. 화면과 모델이 같은 함수로 같은 보드를 고친다",
+  "entry": "./src/index.ts",
+  "plugins": [
+    {
+      "layer": "L3",
+      "hooks": []
+    }
+  ],
+  "defaultEnabled": false,
+  "trust": {
+    "level": "user"
+  },
+  "tools": [
+    {
+      "name": "kanban_native_move_card",
+      "description": "보드의 카드 하나를 열과 자리로 옮긴다. 화면의 move 메서드와 같은 함수를 쓴다"
+    },
+    {
+      "name": "kanban_native_add_card",
+      "description": "열 맨 끝에 카드 하나를 더한다(열을 안 주면 할 일). 화면의 add 메서드와 같은 함수를 쓴다"
+    }
+  ],
+  "methods": [
+    {
+      "verb": "board",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "columns": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "title"],
+              "additionalProperties": false
+            }
+          },
+          "cards": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "column": {
+                  "enum": ["todo", "doing", "done"]
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "title", "column", "order"],
+              "additionalProperties": false
+            }
+          },
+          "todo": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "column": {
+                  "enum": ["todo", "doing", "done"]
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "title", "column", "order"],
+              "additionalProperties": false
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": true
+    },
+    {
+      "verb": "move",
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "column": {
+            "enum": ["todo", "doing", "done"]
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "required": ["id", "column", "index"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": false,
+      "label": "카드 옮기기",
+      "ownDataOnly": true
+    },
+    {
+      "verb": "add",
+      "params": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "enum": ["todo", "doing", "done"]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": ["column", "title"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": false,
+      "label": "카드 추가",
+      "ownDataOnly": true
+    },
+    {
+      "verb": "reorder",
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "required": ["id", "index"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": false,
+      "label": "할 일 순서 바꾸기",
+      "ownDataOnly": true
+    }
+  ],
+  "ui": {
+    "schemaVersion": 1,
+    "widgets": "^1.1.0",
+    "items": [
+      {
+        "id": "board",
+        "placement": "page",
+        "mode": "native",
+        "title": "칸반",
+        "file": "./ui/native/board.view.json"
+      },
+      {
+        "id": "order",
+        "placement": "page",
+        "mode": "native",
+        "title": "할 일 순서",
+        "file": "./ui/native/order.view.json"
+      },
+      {
+        "id": "side",
+        "placement": "panel",
+        "mode": "native",
+        "title": "옆 보드",
+        "file": "./ui/native/board.view.json"
+      }
+    ]
+  }
+}

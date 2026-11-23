@@ -1,0 +1,15 @@
+{
+  "type": "Board",
+  "props": {
+    "move": "move",
+    "add": "add"
+  },
+  "bind": {
+    "columns": {
+      "path": "/board/columns"
+    },
+    "cards": {
+      "path": "/board/cards"
+    }
+  }
+}

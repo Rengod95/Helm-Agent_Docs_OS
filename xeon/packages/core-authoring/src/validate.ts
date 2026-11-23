@@ -20,6 +20,7 @@ import {
 import { appViewIssues } from "./app-check.ts";
 import { au004, au008, au010, au011, au013, type SourceText } from "./au-rules.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
+import { nativeViewIssues } from "./native-check.ts";
 
 // L3.authoring.spec §3.3 `validate`, §3.5 제작 검사. F 검사 함수(validateManifest, validateComposition)와
 // orchestration-sdk 재생 규율 검사(검사기를 넘기면 scanDriveSource)를 차례로 돌리고 AU 규칙을 더한다. 규칙을 복사하지 않는다.
@@ -284,6 +285,7 @@ export async function validateExtensionDir(
   if (manifest !== undefined) {
     if (drives) issues.push(...au010(manifest, texts), ...au011(texts));
     issues.push(...(await appViewIssues(dir, manifest, texts)));
+    issues.push(...(await nativeViewIssues(dir, manifest)));
   }
   issues.push(...au008(arrayOf(recordOf(recordOf(parsed.value.raw)?.["ui"])?.["items"])));
   return ok(reportOf(issues));

@@ -123,3 +123,72 @@ test("the native skeleton passes validateExtensionDir with no error once its fil
   expect(report.value.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   expect(report.value.ok).toBe(true);
 });
+
+test("the entry says in one comment line that boards and reorderable lists are native too", () => {
+  const lines = fileText("src/index.ts")
+    .split("\n")
+    .filter((line) => line.includes("Board") || line.includes("SortableList"));
+  expect(lines).toEqual([
+    "// 보드(열과 카드)와 끌어 순서를 바꾸는 목록도 native로 된다: 트리의 Board, SortableList가 move에 적은 쓰기 메서드를 부른다(examples/kanban-native).",
+  ]);
+});
+
+/** 뼈대를 폴더에 쓰고 화면 파일만 바꾼다. 바꾼 글이 undefined면 화면 파일을 쓰지 않는다 */
+async function skeletonWithView(name: string, view: string | undefined): Promise<string> {
+  const dir = join(root, name);
+  await Promise.all(
+    nativeSkeletonFiles({ ...VALUES, id: name })
+      .filter((file) => view !== undefined || file.path !== "ui/native/main.view.json")
+      .map(async (file) => {
+        const target = join(dir, file.path);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(
+          target,
+          file.path === "ui/native/main.view.json" ? (view ?? "") : file.text,
+        );
+      }),
+  );
+  return dir;
+}
+
+test("authoring validate reads the native view: a board naming an undeclared write method is an error that says how to fix it", async () => {
+  const board = {
+    type: "Board",
+    props: { move: "move" },
+    bind: { columns: { path: "/list/columns" }, cards: { path: "/list/cards" } },
+  };
+  const dir = await skeletonWithView("boardbad", JSON.stringify(board));
+  const report = await validateExtensionDir(dir);
+  if (!report.ok) throw new Error(report.error.message);
+  expect(report.value.ok).toBe(false);
+  expect(report.value.issues.filter((issue) => issue.code.startsWith("native_"))).toEqual([
+    {
+      severity: "error",
+      code: "native_tree_invalid",
+      path: "/ui/items/0/file#/props/move",
+      message:
+        'ui/native/main.view.json: Board.move names "move", but manifest methods does not declare it: add { "verb": "move", "readOnly": false, ... } to methods',
+      file: "ui/native/main.view.json",
+    },
+  ]);
+});
+
+test("authoring validate reports a missing view file and a tree that breaks the schema", async () => {
+  const missing = await validateExtensionDir(await skeletonWithView("noview", undefined));
+  if (!missing.ok) throw new Error(missing.error.message);
+  expect(
+    missing.value.issues
+      .filter((issue) => issue.code.startsWith("native_"))
+      .map((issue) => [issue.code, issue.path]),
+  ).toEqual([["native_file_missing", "/ui/items/0/file"]]);
+
+  const broken = await validateExtensionDir(
+    await skeletonWithView("lowercase", '{"type":"board"}'),
+  );
+  if (!broken.ok) throw new Error(broken.error.message);
+  expect(
+    broken.value.issues
+      .filter((issue) => issue.code.startsWith("native_"))
+      .map((issue) => [issue.code, issue.path]),
+  ).toEqual([["native_tree_invalid", "/ui/items/0/file#/type"]]);
+});

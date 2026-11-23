@@ -1,10 +1,13 @@
 import { assertNever } from "@fresnel/contracts";
-import type { UiScalar } from "@fresnel/contracts/extensions";
+import { EXT_VERB_PATTERN, type UiScalar } from "@fresnel/contracts/extensions";
 
 // 위젯 카탈로그 v1. 이름, prop, bind, 자식 허용을 정한다. 색, 크기 숫자, CSS, HTML, 핸들러는 어디에도 없다(DP-08).
 
-/** 위젯 카탈로그 버전(SemVer). 확장의 `widgets` 범위가 이 값과 맞아야 한다 */
-export const WIDGET_CATALOG_VERSION: string = "1.0.0";
+/**
+ * 위젯 카탈로그 버전(SemVer). 확장의 `widgets` 범위가 이 값과 맞아야 한다. 로더의 `HOST_WIDGETS_VERSION`과 같은 값이다.
+ * 1.1.0: 쓰기 메서드를 부르는 `Board`, `SortableList`를 더했다(AGE-78 질문 7)
+ */
+export const WIDGET_CATALOG_VERSION: string = "1.1.0";
 
 export const WIDGET_NAMES = [
   "Stack",
@@ -41,6 +44,8 @@ export const WIDGET_NAMES = [
   "TurnLink",
   "ViewLink",
   "ApprovalLink",
+  "Board",
+  "SortableList",
 ] as const;
 
 export type WidgetName = (typeof WIDGET_NAMES)[number];
@@ -51,11 +56,15 @@ export function isWidgetName(name: string): name is WidgetName {
   return NAME_SET.has(name);
 }
 
-/** prop 하나가 받는 값의 종류. enum은 허용 목록 밖의 글자를 받지 않는다 */
+/**
+ * prop 하나가 받는 값의 종류. enum은 허용 목록 밖의 글자를 받지 않는다.
+ * `verb`는 확장의 쓰기 메서드 동사(`EXT_VERB_PATTERN`)다. 메시지 카탈로그로 풀지 않고 bind로 채울 수 없다(로더가 매니페스트와 맞춰 본 값만 쓴다)
+ */
 export type PropSpec =
   | { readonly kind: "string" }
   | { readonly kind: "number" }
   | { readonly kind: "boolean" }
+  | { readonly kind: "verb" }
   | { readonly kind: "enum"; readonly values: readonly string[] };
 
 export interface WidgetSpec {
@@ -69,6 +78,8 @@ export interface WidgetSpec {
 
 const STRING: PropSpec = { kind: "string" };
 const NUMBER: PropSpec = { kind: "number" };
+const VERB: PropSpec = { kind: "verb" };
+const VERB_RE = new RegExp(EXT_VERB_PATTERN, "u");
 const GAP: PropSpec = { kind: "enum", values: ["none", "sm", "md", "lg"] };
 const ALIGN: PropSpec = { kind: "enum", values: ["start", "center", "end"] };
 const TONE: PropSpec = {
@@ -145,6 +156,11 @@ export const WIDGET_SPECS: Readonly<Record<WidgetName, WidgetSpec>> = {
   TurnLink: { props: { text: STRING }, binds: ["thread", "turn"], children: "none" },
   ViewLink: { props: { text: STRING, view: STRING }, binds: [], children: "none" },
   ApprovalLink: { props: { text: STRING }, binds: ["approval"], children: "none" },
+  // 열(`columns`: { id, title })과 카드(`cards`: { id, title, column, detail?, tag?, tone?, order? }). `move`는 { id, column, index }로,
+  // `add`는 { column, title }로 쓰기 메서드를 부른다. 메서드 prop이 없으면 그 동작이 없다(F `UI_ACTION_WIDGETS`)
+  Board: { props: { move: VERB, add: VERB }, binds: ["columns", "cards"], children: "none" },
+  // 한 줄 목록(`items`: { id, title, detail? } 또는 글자). `move`는 { id, index }로 쓰기 메서드를 부른다
+  SortableList: { props: { move: VERB }, binds: ["items"], children: "none" },
 };
 
 /** 어떤 위젯에도 쓸 수 없는 prop 이름. 스타일, 마크업, 핸들러다. 비교는 대소문자를 무시한다 */
@@ -197,9 +213,11 @@ export function propSpecOf(widget: WidgetSpec, key: string): PropSpec | undefine
   return Object.hasOwn(widget.props, key) ? widget.props[key] : undefined;
 }
 
-/** bind 키가 위젯에 허용되는지. prop 이름이거나 binds 목록에 있어야 한다 */
+/** bind 키가 위젯에 허용되는지. prop 이름이거나 binds 목록에 있어야 한다. 메서드 동사(`verb`) prop은 bind로 채울 수 없다 */
 export function bindAllowed(widget: WidgetSpec, key: string): boolean {
-  return widget.binds.includes(key) || propSpecOf(widget, key) !== undefined;
+  if (widget.binds.includes(key)) return true;
+  const prop = propSpecOf(widget, key);
+  return prop !== undefined && prop.kind !== "verb";
 }
 
 /** 스칼라 값이 prop 종류에 맞는지. 맞으면 undefined, 아니면 사람이 읽을 이유 한 줄이다(값은 넣지 않는다) */
@@ -211,6 +229,10 @@ export function scalarMismatch(prop: PropSpec, value: UiScalar): string | undefi
       return typeof value === "number" && Number.isFinite(value) ? undefined : "must be a number";
     case "boolean":
       return typeof value === "boolean" ? undefined : "must be a boolean";
+    case "verb":
+      return typeof value === "string" && VERB_RE.test(value)
+        ? undefined
+        : "must be a method verb (letters and digits, starting lowercase)";
     case "enum":
       return typeof value === "string" && prop.values.includes(value)
         ? undefined
