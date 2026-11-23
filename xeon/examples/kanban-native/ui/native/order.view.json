@@ -1,0 +1,11 @@
+{
+  "type": "SortableList",
+  "props": {
+    "move": "reorder"
+  },
+  "bind": {
+    "items": {
+      "path": "/board/todo"
+    }
+  }
+}

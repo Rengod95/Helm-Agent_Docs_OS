@@ -138,7 +138,7 @@
           "root": "./ui/app",
           "entry": "index.html",
           "bridge": "^1.0.0",
-          "reason": "카드를 끌어 다른 칸으로 옮기는 보드는 목록, 표, 버튼 같은 선언형 부품으로 그릴 수 없어 직접 그리는 화면이 필요하다"
+          "reason": "카드를 끄는 모양과 움직임을 플러그인이 직접 정하는 본보기라 직접 그리는 화면이 필요하다. 같은 보드를 Fresnel 부품으로 그린 판은 examples/kanban-native다"
         },
         "fallback": "./ui/native/fallback.json"
       }
