@@ -202,6 +202,7 @@ function headerHtml(target: ExtListEntry): string {
         entry={target}
         tab="overview"
         card={null}
+        readiness={null}
         profiles={{ set: null, reload: noop }}
         onTab={noop}
         onBack={noop}

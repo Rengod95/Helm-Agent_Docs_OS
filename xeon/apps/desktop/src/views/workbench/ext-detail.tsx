@@ -57,7 +57,7 @@ import { SurfacesTab } from "./surfaces-tab.tsx";
 import { ColumnHead, MUTED, PLAIN_TABLE, TwoColumns } from "./tab-body.tsx";
 import { originText } from "./origin-text.ts";
 import { kindWord, pluginKindOf } from "./plugin-kind.tsx";
-import { readinessBlocked, toolReadinessOf } from "./tool-ready.ts";
+import { readinessBlocked, type ToolReadinessVM } from "./tool-ready.ts";
 import { VersionsTab } from "./versions-tab.tsx";
 
 /** 칸에 값이 없을 때의 자리 글 */
@@ -370,13 +370,15 @@ export function ExtDetail(props: {
   readonly tab: DetailTab;
   /** 플러그인 카드(`plugin.list`). 읽지 못했으면 null이다. 개요 탭이 쓴다 */
   readonly card: PluginCard | null;
+  /** 준비 상태(`usePluginCards().readinessOf`). 도구와 상관없는 플러그인이면 null이다. 개요 탭과 머리의 상태가 쓴다 */
+  readonly readiness: ToolReadinessVM | null;
   readonly profiles: ProfileSetLoad;
   readonly onTab: (tab: DetailTab) => void;
   readonly onBack: () => void;
   readonly onRetry: () => void;
   readonly onStop: () => void;
   readonly onRemove: () => void;
-  /** 준비 상태의 "다시 확인": 카드를 다시 읽는다 */
+  /** 준비 상태의 "다시 확인": 엔진에 도구 점검을 다시 시키고 카드를 다시 읽는다 */
   readonly onRecheck: () => void;
 }): ReactNode {
   const commands = useCommands();
@@ -411,7 +413,7 @@ export function ExtDetail(props: {
   // 머리의 종류는 목록의 종류 칸과 같은 규칙(카드의 종류)이다. 카드를 못 읽었으면 묶음 종류(옛 글)로 둔다
   const cardKind = pluginKindOf(props.card);
   const kindLine = cardKind === null ? kindText(row.kind) : kindWord(cardKind);
-  const blocked = readinessBlocked(props.card === null ? null : toolReadinessOf(props.card));
+  const blocked = readinessBlocked(props.readiness);
   return (
     <article className="@container/detail grid min-h-0 content-start gap-3 p-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -490,6 +492,7 @@ export function ExtDetail(props: {
           <DetailOverview
             entry={entry}
             card={props.card}
+            readiness={props.readiness}
             profiles={props.profiles}
             onRecheck={props.onRecheck}
           />

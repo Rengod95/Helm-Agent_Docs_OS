@@ -171,7 +171,8 @@ export function ExtensionsScreen(): ReactNode {
               key={detailEntry.name}
               entry={detailEntry}
               card={cards.cardOf(detailEntry.name)}
-              onRecheck={cards.reload}
+              readiness={cards.readinessOf(detailEntry.name)}
+              onRecheck={cards.recheck}
               tab={state.detailTab}
               profiles={profiles}
               onTab={(tab) => {

@@ -3,7 +3,7 @@
 // 엔진의 영어 원문(`message`)은 보이지 않는다: 거절 사유(`reasons[].code`)와 결과 알림(`issues[].code`)을 사람 말로 옮긴다.
 import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import { EXTENSION_NAME_PATTERN } from "@fresnel/contracts/extensions";
+import { EXTENSION_NAME_PATTERN, type PluginCard } from "@fresnel/contracts/extensions";
 import type { DevkitIssue, MemberInfo } from "@fresnel/contracts/services";
 import type { ExtListEntry, ProfilePlan } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
@@ -152,6 +152,36 @@ export function mergeCandidatesOf(entries: readonly ExtListEntry[]): readonly Ex
 export function extensionNameOf(registration: string): string {
   const cut = registration.indexOf("/");
   return cut < 0 ? registration : registration.slice(0, cut);
+}
+
+/** 합칠 원본 하나와 거기에 hard로 기대는 다른 플러그인들(확장 이름, 고른 순서와 카드 순서) */
+export interface MergeDependents {
+  readonly source: string;
+  readonly dependents: readonly string[];
+}
+
+/**
+ * 합치기 상자의 미리 알림(plugWire): 고른 원본에 hard로 기대는, 고르지 않은 플러그인. 승인하면 원본이 프로필에서 빠지므로 엔진이 그 승인을
+ * 거절한다(AGE-33). 카드(`plugin.list`)의 `dependencies.dependsOn`에서 읽고, 고른 것끼리의 의존과 자기 자신은 세지 않는다
+ */
+export function mergeDependentsOf(
+  picked: readonly string[],
+  cards: readonly PluginCard[],
+): readonly MergeDependents[] {
+  const chosen = new Set(picked);
+  return picked.flatMap((source) => {
+    const dependents = cards
+      .filter(
+        (card) =>
+          !chosen.has(card.name) &&
+          (card.dependencies?.dependsOn ?? []).some(
+            (dependency) =>
+              dependency.kind === "hard" && extensionNameOf(dependency.target) === source,
+          ),
+      )
+      .map((card) => card.name);
+    return dependents.length === 0 ? [] : [{ source, dependents }];
+  });
 }
 
 /** 합치기가 프로필에서 뺄 원래 플러그인들(확장 이름, 같은 이름은 한 번만) */

@@ -10,7 +10,8 @@ import { ChevronDown, ChevronRight, Lock } from "@caustic/react/icons";
 import { useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { PluginCardGrid } from "./plugin-cards.tsx";
-import { HealthCell, notReadyOf, RowName, UseText } from "./plugin-cells.tsx";
+import { HealthCell, RowName, UseText } from "./plugin-cells.tsx";
+import { readinessBlocked } from "./tool-ready.ts";
 import { originText } from "./origin-text.ts";
 import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
 import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
@@ -37,15 +38,17 @@ function GroupTable(props: {
   const actions = useWorkbenchActions();
   const byName = new Map(props.rows.map((row) => [row.name, row] as const));
   const set = props.profiles.set;
-  // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다. 열 폭은 세 묶음이 같다(이름 열만 남은 폭을 쓴다)
+  // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다. 열 폭은 세 묶음이 같다(이름 열만 남은 폭을 쓴다).
+  // 다른 열은 가장 긴 값(종류 꼬리표, "어느 프로필에도 없음", "직접 설치", "준비 안 됨"과 구슬, "프로필에 넣기" 단추)이 들어가는 폭까지만 잡아
+  // 한국어 이름이 다 보일 자리를 이름 열에 준다(plugWire)
   const columns: TableColumn[] = [
     { key: "name", header: t("desktop.workbench.col.name"), sortable: true },
-    { key: "kind", header: t("desktop.workbench.col.kind"), width: 112, sortable: true },
+    { key: "kind", header: t("desktop.workbench.col.kind"), width: 96, sortable: true },
     { key: "use", header: t("desktop.workbench.col.use"), width: 152 },
-    { key: "origin", header: t("desktop.workbench.versions.col.source"), width: 112 },
-    { key: "version", header: t("desktop.workbench.versions.col.version"), width: 88 },
-    { key: "health", header: t("desktop.workbench.col.state"), width: 128 },
-    { key: "put", header: "", align: "end", width: 136 },
+    { key: "origin", header: t("desktop.workbench.versions.col.source"), width: 96 },
+    { key: "version", header: t("desktop.workbench.versions.col.version"), width: 72 },
+    { key: "health", header: t("desktop.workbench.col.state"), width: 112 },
+    { key: "put", header: "", align: "end", width: 128 },
   ];
   return (
     <Table
@@ -92,7 +95,9 @@ function GroupTable(props: {
           );
         }
         if (column.key === "health") {
-          return <HealthCell row={row} blocked={notReadyOf(props.cards.cardOf(row.name))} />;
+          return (
+            <HealthCell row={row} blocked={readinessBlocked(props.cards.readinessOf(row.name))} />
+          );
         }
         if (column.key !== "put" || row.appCore) return null;
         // 메뉴를 누르는 것이 줄 열기로 번지지 않게 막는다

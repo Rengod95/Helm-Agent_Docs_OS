@@ -234,6 +234,7 @@ function detailOf(row: ExtListEntry, tab: DetailTab): string {
         entry={row}
         tab={tab}
         card={null}
+        readiness={null}
         profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
         onBack={() => undefined}

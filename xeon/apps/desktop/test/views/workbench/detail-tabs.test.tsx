@@ -175,6 +175,7 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
         entry={row}
         tab="overview"
         card={null}
+        readiness={null}
         profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
         onBack={() => undefined}

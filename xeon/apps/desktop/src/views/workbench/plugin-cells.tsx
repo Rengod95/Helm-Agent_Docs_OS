@@ -2,11 +2,9 @@
 // 표(`plugin-list.tsx`)와 카드(`plugin-cards.tsx`)가 서로 가져오지 않도록 여기 둔다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ExtRowVM } from "@fresnel/client/workbench";
-import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import { DotOrb } from "../effects/dot-orb.tsx";
 import { profileUseOf, profileUseText, type ProfileSet } from "./profile-use.ts";
-import { readinessBlocked, toolReadinessOf } from "./tool-ready.ts";
 
 /** 줄의 상태 한 칸. 문제가 있을 때만 주의 구슬과 글, 아니면 흐린 "준비됨". "준비 안 됨"은 꼭 필요한 도구가 없을 때다 */
 export type RowHealth = "stopped" | "safeMode" | "problem" | "notReady" | "ready";
@@ -49,12 +47,17 @@ export function HealthCell(props: {
   );
 }
 
-/** 표시 이름과 회색 mono id. 표시 이름이 없으면 id만 보인다 */
+/**
+ * 표시 이름과 회색 mono id. 표시 이름이 없으면 id만 보인다. 칸이 좁으면 id가 먼저 줄고(`min-w-0`), 이름은 혼자서도 넘칠 때만 줄인다
+ * (`shrink-0` + `max-w-full`)
+ */
 export function RowName(props: { readonly row: ExtRowVM }): ReactNode {
   const { row } = props;
   return (
     <span className="flex min-w-0 items-baseline gap-2">
-      <span className="min-w-0 truncate text-text-primary">{row.displayName ?? row.name}</span>
+      <span className="max-w-full shrink-0 truncate text-text-primary">
+        {row.displayName ?? row.name}
+      </span>
       {row.displayName !== null && (
         <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
           {row.name}
@@ -75,9 +78,4 @@ export function UseText(props: {
       {profiles === null ? "" : profileUseText(profileUseOf(row.name, row.appCore, profiles))}
     </span>
   );
-}
-
-/** 카드가 준 도구 준비 상태에서 꼭 필요한 도구가 없는가. 카드가 없으면 아니다 */
-export function notReadyOf(card: PluginCard | null): boolean {
-  return card !== null && readinessBlocked(toolReadinessOf(card));
 }
