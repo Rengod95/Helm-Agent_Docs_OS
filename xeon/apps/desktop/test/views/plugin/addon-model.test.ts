@@ -131,6 +131,18 @@ describe("addonRowsOf", () => {
     ).toBe(true);
   });
 
+  test("an app-only extension is not off when ext.list says disabled or the profile lacks it, only when the host marks its screens disabled", () => {
+    const deferred = new Map([
+      ["viewdemo", addonMetaOf(entry("viewdemo", { status: "disabled" }), undefined)],
+    ]);
+    const rowOff = (
+      entries: readonly ExtUiEntry[],
+      inactive: readonly string[],
+    ): boolean | undefined => addonRowsOf(sourceOf(entries, { inactive }), deferred, "ko")[0]?.off;
+    expect(rowOff(appEntries("ok"), ["viewdemo"])).toBe(false);
+    expect(rowOff(appEntries("disabled"), [])).toBe(true);
+  });
+
   test("danger for an invalid entry or an error diagnostic, warning for a blocked app screen or a keep-off question", () => {
     expect(attentionOf(VIEWDEMO)).toBeUndefined();
     expect(attentionOf([uiEntryOf({ extension: "x", state: "invalid" })])).toBe("danger");
@@ -180,6 +192,10 @@ describe("addonRowsOf", () => {
     ]);
   });
 });
+
+function appEntries(state: "ok" | "disabled"): readonly ExtUiEntry[] {
+  return [uiEntryOf({ extension: "viewdemo", id: "frame", mode: "app", state, app: APP_DECL })];
+}
 
 describe("risksOf", () => {
   test("names tool and request hooks, write methods and capabilities first, then other hooks and read-only methods", () => {

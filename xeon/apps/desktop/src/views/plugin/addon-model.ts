@@ -221,8 +221,21 @@ function compareText(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
-function offOf(name: string, source: AddonSource, meta: AddonMeta | undefined): boolean {
-  return source.inactive.has(name) || meta?.enabled === false || meta?.safeMode === true;
+/**
+ * 꺼졌나. 앱 화면만 가진 확장은 프로필에 없거나 시작 때 미뤄 두어 아직 싣지 않았어도 열린다(AGE-78 질문 3, W-05):
+ * 그때는 `ext.list`의 상태나 프로필 소속이 아니라 호스트가 낸 화면 항목 상태(`disabled`)만 본다
+ */
+function offOf(
+  name: string,
+  source: AddonSource,
+  meta: AddonMeta | undefined,
+  entries: readonly ExtUiEntry[],
+): boolean {
+  if (meta?.safeMode === true) return true;
+  if (entries.length > 0 && entries.every((entry) => entry.mode === "app")) {
+    return entries.some((entry) => entry.state === "disabled");
+  }
+  return source.inactive.has(name) || meta?.enabled === false;
 }
 
 function screensOf(
@@ -328,7 +341,7 @@ function rowOf(
   locale: string,
 ): AddonRow {
   const first = entries[0];
-  const off = offOf(name, source, meta);
+  const off = offOf(name, source, meta, entries);
   const screens = screensOf(entries, source, off, locale);
   const title = stripUnsafeText(meta?.displayName ?? "", false).trim() || name;
   const fromScreens = screens.map((screen) => screen.title).join(", ");
@@ -471,7 +484,7 @@ function problemsOf(
 ): readonly AddonProblem[] {
   const problems: AddonProblem[] = [];
   if (meta?.safeMode === true) problems.push({ kind: "safeMode" });
-  else if (offOf(name, source, meta)) problems.push({ kind: "off" });
+  else if (offOf(name, source, meta, entries)) problems.push({ kind: "off" });
   const invalid = entries.filter((entry) => entry.state === "invalid").length;
   if (invalid > 0) problems.push({ kind: "invalid", count: invalid });
   const blocked = screens.filter((screen) => screen.state === "blocked").length;
