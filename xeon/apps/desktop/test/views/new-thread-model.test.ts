@@ -102,3 +102,17 @@ test("at most five recent folders are offered", () => {
     "/w/5",
   ]);
 });
+
+test("a thread's own default folder (<default>/<thread id>) is not a recent folder (R-07)", () => {
+  const threads = [
+    summary({ threadId: thr(1), workspace: `/home/u/.fresnel/threads/${thr(1)}` }),
+    summary({ threadId: thr(2), workspace: `/home/u/.fresnel/threads/${thr(2)}/` }),
+    summary({ threadId: thr(3), workspace: "/w/a" }),
+    // 다른 대화의 id와 같은 이름이어도 그 대화의 기본 폴더가 아니면 일반 폴더다
+    summary({ threadId: thr(4), workspace: `/w/${thr(9)}` }),
+  ];
+  expect(recentWorkspacesOf(threads)).toEqual([
+    { path: "/w/a", count: 1 },
+    { path: `/w/${thr(9)}`, count: 1 },
+  ]);
+});
