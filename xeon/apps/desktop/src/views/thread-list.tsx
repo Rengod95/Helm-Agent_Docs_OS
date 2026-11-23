@@ -89,7 +89,7 @@ const LIST_COLUMN =
 const ROW_HEIGHT = SIDE_ROW;
 
 /** 기다리는 수의 읽는 글. 모두 질문이면 "답변", 아니면 "승인" */
-export function waitingTextOf(count: number, questionsOnly: boolean): string {
+function waitingTextOf(count: number, questionsOnly: boolean): string {
   return t(
     questionsOnly ? "desktop.threads.questionsWaiting" : "desktop.threads.approvalsWaiting",
     { count },
