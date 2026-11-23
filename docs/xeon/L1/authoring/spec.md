@@ -14,7 +14,7 @@ binds: [xeon/packages/core-authoring/**]
 
 ## 1. 정하는 것
 
-- 코어가 가진 것: 종류 카탈로그(`KIND_CATALOG`, `kindEntryOf`), 뼈대 만들기(`scaffoldExtension`, 템플릿 세 방식 `templates/`와 `locateTemplateDirs`), 플러그인 폴더 검사(`validateExtensionDir`, AU 규칙 `au-rules.ts`), 구성 검사(`validateCompositionReport`), 묶기(`packExtension`), 종류 카탈로그 적합 시험(`catalogConformance`).
+- 코어가 가진 것: 종류 카탈로그(`KIND_CATALOG`, `kindEntryOf`), 뼈대 만들기(`scaffoldExtension`, 템플릿 세 방식 `templates/`와 `locateTemplateDirs`), 뼈대 그대로인지 판정(`isSkeletonFolder`: 파일이 하나 이상 있고 모두 어느 방식의 뼈대와 파일마다 같은가. 다시 만들기와 같은 비교 규칙을 쓴다), 플러그인 폴더 검사(`validateExtensionDir`, AU 규칙 `au-rules.ts`), 구성 검사(`validateCompositionReport`), 묶기(`packExtension`), 종류 카탈로그 적합 시험(`catalogConformance`).
 - 코어가 하지 않는 것: 대화, 도구, 단계 머신, 쓰기 범위 가드, 묶기 확인 카드(모두 대화하는 빌더). 호스트 상태(설치된 확장 이름, 검토 제출, 시험 기록, 테스트 런 대화 열기)는 호스트 포트(`apps/host/src/assembly/m4/devkit-port.ts`)가 이 함수들과 이어 준다.
 - 지난 턴에 돌려 보기(`runInstalledReplay`)는 orchestration-sdk의 모듈과 하니스가 필요하다. L1은 P를 import할 수 없어(DR-01) 이 함수는 `plugin-builder`에 남고, 호스트가 실행기(`ReplayRunner`, `assembly/m4/replay-run.ts`)로 주입한다. 호스트는 빌더 플러그인의 켜짐과 무관하게 이 실행기를 부른다 [제안: orchestration-sdk가 코어로 내려오면 코어로 옮긴다].
 
