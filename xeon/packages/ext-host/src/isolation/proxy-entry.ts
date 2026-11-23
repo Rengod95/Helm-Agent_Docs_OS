@@ -51,7 +51,7 @@ import {
   type ToolResourceDef,
 } from "@fresnel/contracts/extensions";
 import { handlerOfHook, stateAs } from "../erase.ts";
-import { ambient, inOwnDataMethod, type Ambient } from "../primitives/ambient.ts";
+import { ambient, inOwnDataMethod, inReadOnlyMethod, type Ambient } from "../primitives/ambient.ts";
 import type { AnyState } from "../primitives/erased-types.ts";
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { hostOf } from "../primitives/host-api.ts";
@@ -61,7 +61,7 @@ import type {
   RendererResourceDef,
 } from "../primitives/resources.ts";
 import { isHookName } from "./child-api.ts";
-import { createEngineCallRouter, type OpenWaits } from "./engine-calls.ts";
+import { createEngineCallRouter, type EngineMethodScope, type OpenWaits } from "./engine-calls.ts";
 import { DriveCommandError, PluginProcessError } from "./errors.ts";
 import { createNotifyGate, notifyKeyOf, type NotifyGate } from "./notify-gate.ts";
 import { parseDriveStepReply } from "./params.ts";
@@ -261,6 +261,8 @@ interface Session {
   readonly waits: Map<number, OpenWaits>;
   /** `ownDataOnly` 쓰기 메서드를 부른 요청 id. 자식이 그 요청 중에 보내는 엔진 호출에 같은 제한을 건다 */
   readonly ownData: Set<number>;
+  /** 확장 메서드 처리기(`method.call`)를 부른 요청의 표지(readOnly, ownDataOnly). 플러그인 전용 저장소의 쓰기 자격이 읽는다 */
+  readonly methods: Map<number, EngineMethodScope>;
 }
 
 /** 훅 디스패처가 넘기는 문맥(`{scopeId, state, threadId, signal}`). 모양을 확인한 뒤 읽는다 */
@@ -508,6 +510,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     const changes = new Map<number, ToolChangeReport>();
     const waits = new Map<number, OpenWaits>();
     const ownData = new Set<number>();
+    const methods = new Map<number, EngineMethodScope>();
     const router = createEngineCallRouter({
       gOf: (registration) => registrations.get(registration),
       replayOf: () => false,
@@ -515,6 +518,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
       waitsOf: (requestId) => (requestId === null ? undefined : waits.get(requestId)),
       ownDataOf: (requestId) => requestId !== null && ownData.has(requestId),
+      methodScopeOf: (requestId) => (requestId === null ? undefined : methods.get(requestId)),
       ...(deps.scripts === undefined ? {} : { scripts: deps.scripts }),
     });
     // 흐름 제어는 감독이 보내는 알림을 쓰고, 감독의 확인과 종료를 받는다. 두 값이 서로를 가리키므로 흐름 제어는 감독 뒤에 만든다
@@ -550,7 +554,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       now: deps.now,
       logger,
     });
-    return { supervisor, gate, ambients, changes, waits, ownData };
+    return { supervisor, gate, ambients, changes, waits, ownData, methods };
   }
 
   /** 떠 있는 세션을 돌려준다. 없으면 연다(다시 켜진 등록이 부른다) */
@@ -602,6 +606,9 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       onRequestId: (id) => {
         requestId = id;
         if (inOwnDataMethod()) session.ownData.add(id);
+        if (method === "method.call") {
+          session.methods.set(id, { readOnly: inReadOnlyMethod(), ownData: inOwnDataMethod() });
+        }
         if (amb !== undefined) {
           session.ambients.set(id, amb);
           session.waits.set(id, {
@@ -619,6 +626,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       session.changes.delete(requestId);
       session.waits.delete(requestId);
       session.ownData.delete(requestId);
+      session.methods.delete(requestId);
       // 요청이 끝났는데 자식이 `end`를 보내지 못했다(죽음, 시간 초과): 남은 사용자 대기만큼 예산 시계를 푼다
       const gate = amb?.handler?.gate;
       if (gate !== undefined) {

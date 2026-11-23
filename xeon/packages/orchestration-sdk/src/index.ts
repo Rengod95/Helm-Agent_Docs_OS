@@ -105,3 +105,13 @@ export type {
   OrchestrationService,
   OrchestrationStatus,
 } from "@fresnel/contracts/services";
+export {
+  PLUGIN_STORE_ERROR_KINDS,
+  PLUGIN_STORE_KEY_PATTERN,
+  PLUGIN_STORE_LIMITS,
+  PLUGIN_STORE_PREFIX_PATTERN,
+  type PluginStoreApi,
+  type PluginStoreEntry,
+  type PluginStoreError,
+  type PluginStoreErrorKind,
+} from "@fresnel/contracts/extensions";

@@ -51,6 +51,8 @@ const PRIMITIVE_ERROR_CODES = [
   "method_schema_invalid",
   "read_only_method",
   "own_data_method",
+  "store_outside_method",
+  "store_value_invalid",
 ] as const;
 export type PrimitiveErrorCode = (typeof PRIMITIVE_ERROR_CODES)[number];
 

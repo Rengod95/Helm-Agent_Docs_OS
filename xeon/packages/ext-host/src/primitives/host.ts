@@ -23,6 +23,7 @@ import type {
   Unsubscribe,
   PostItem,
   DriveFrameView,
+  PluginStorePort,
 } from "@fresnel/contracts/extensions";
 import { isHookUnitName } from "../operations/hooks/names.ts";
 import {
@@ -100,6 +101,7 @@ import {
   type MethodRun,
 } from "./ext-method.ts";
 import { createStateService, type StateService } from "./state.ts";
+import { createPluginStoreService } from "./plugin-store.ts";
 import { createStepPause, type StepPause } from "./step-pause.ts";
 
 export type {} from "./errors.ts";
@@ -147,6 +149,11 @@ export interface ExtHostDeps {
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 선언 없는 쓰기 요청 워커(ADR-0015 §3.5). 없으면 X의 기본 워커 */
   readonly effectWorker?: EffectWorkerPort;
+  /**
+   * 플러그인 전용 저장소의 호스트 포트(X.primitives.spec §4.6.7). 없으면 저장소 연산은 `storage_unavailable` 값으로 답한다.
+   * 키 형식, 값 크기, 키 수, 총량은 ext-host가 포트를 부르기 앞에서 강제한다. 저장소 구현(sqlite 등)은 호스트가 맡는다
+   */
+  readonly pluginStore?: PluginStorePort;
   /**
    * 계측 설정 읽기(x.operations.trace.*, X.operations §3.9). 없으면 기본값(켬). 조립 루트가 OperationsPolicy.trace를 넘긴다.
    * 값은 Turn이 처음 보일 때 읽는다
@@ -799,6 +806,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   });
   services.state = state;
   const post = createPostQueue(core);
+  const pluginStore = createPluginStoreService(deps.pluginStore);
   const effects =
     deps.effectWorker ?? createEffectWorker(core, deps.capabilityDefs ?? EMPTY_CAPABILITY_DEFS);
   // 순환 참조(경계 ↔ 임대 ↔ scope)는 지연 호출 자리로 푼다
@@ -813,6 +821,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         {
           core,
           state,
+          pluginStore,
           post,
           bindings,
           resources,

@@ -114,3 +114,15 @@ export function withOwnDataMethod<T>(fn: () => T): T {
 export function inOwnDataMethod(): boolean {
   return ownDataStorage.getStore() === true;
 }
+
+// 확장 메서드 처리기의 비동기 흐름 표지(플러그인 전용 저장소의 쓰기 자격). `ctx.threadId`가 null이면 ambient가 없으므로 ambient와 따로 둔다.
+// 쓰기(`put`, `delete`)는 이 표지와, 있으면 `invocation === "method"`인 ambient가 함께 있을 때만 된다(X.primitives.spec §4.6.7)
+const extMethodStorage = new AsyncLocalStorage<true>();
+
+export function withExtMethod<T>(fn: () => T): T {
+  return extMethodStorage.run(true, fn);
+}
+
+export function inExtMethod(): boolean {
+  return extMethodStorage.getStore() === true;
+}

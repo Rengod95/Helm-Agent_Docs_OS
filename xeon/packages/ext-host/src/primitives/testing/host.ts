@@ -5,6 +5,7 @@ import {
   LoopPortKey,
   RecordCommitPortKey,
   type ExtCommitResult,
+  type PluginStorePort,
 } from "@fresnel/contracts/extensions";
 import type { CapabilityDefLookup } from "../capability-guard.ts";
 import type { DispatchPolicy } from "../dispatch-types.ts";
@@ -60,6 +61,8 @@ export interface TestHostOptions {
     readonly queue?: MemoryInputQueue;
     readonly records?: MemoryRecordStore;
   };
+  /** 플러그인 전용 저장소 포트(`ExtHostDeps.pluginStore`). 없으면 저장소 연산은 `storage_unavailable`이다 */
+  readonly pluginStore?: PluginStorePort;
   /** 포트를 등록하지 않을 이름. 포트 부재를 시험한다 */
   readonly without?: readonly ("loop" | "queue" | "records")[];
 }
@@ -138,6 +141,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     ...(options.onMethodSettled === undefined ? {} : { onMethodSettled: options.onMethodSettled }),
     ...(options.methodRun === undefined ? {} : { methodRun: options.methodRun }),
     ...(options.trace === undefined ? {} : { trace: options.trace }),
+    ...(options.pluginStore === undefined ? {} : { pluginStore: options.pluginStore }),
   });
   const without = new Set(options.without ?? []);
   await host.registerPlatform({

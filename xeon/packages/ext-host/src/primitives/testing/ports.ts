@@ -25,6 +25,10 @@ import {
   type LoopTurnRequest,
   type LoopTurnResult,
   type OpenLease,
+  type PluginStoreError,
+  type PluginStorePort,
+  type PluginStoreRow,
+  type PluginStoreUsage,
   type ProjectorRegistryPort,
   type RecordCommitPort,
   type ScopedStorePort,
@@ -687,5 +691,61 @@ export function memoryScopedStore(factory: (owner: string) => StoreDb): ScopedSt
       return db;
     },
     owners: () => [...dbs.keys()],
+  };
+}
+
+// ── 플러그인 전용 저장소 (X.primitives.spec §4.6.7) ───────────────────────────
+
+/**
+ * 인메모리 플러그인 전용 저장소 포트. 확장 이름마다 키-값 표를 따로 둔다. 형식과 한도는 ext-host가 강제하므로 여기서는 저장만 한다.
+ * `fail`을 참으로 두면 모든 연산이 `storage_unavailable`을 돌려준다(포트 장애 시험)
+ */
+export function memoryPluginStore(options: { readonly fail?: boolean } = {}): PluginStorePort {
+  const tables = new Map<string, Map<string, string>>();
+  const failure: Result<never, PluginStoreError> = err({ kind: "storage_unavailable" });
+  function tableOf(extension: string): Map<string, string> {
+    const found = tables.get(extension);
+    if (found !== undefined) return found;
+    const created = new Map<string, string>();
+    tables.set(extension, created);
+    return created;
+  }
+  return {
+    get(extension, key) {
+      if (options.fail === true) return Promise.resolve(failure);
+      return Promise.resolve(ok(tableOf(extension).get(key) ?? null));
+    },
+    put(extension, key, valueJson) {
+      if (options.fail === true) return Promise.resolve(failure);
+      tableOf(extension).set(key, valueJson);
+      return Promise.resolve(ok(undefined));
+    },
+    delete(extension, key) {
+      if (options.fail === true) return Promise.resolve(failure);
+      tableOf(extension).delete(key);
+      return Promise.resolve(ok(undefined));
+    },
+    list(extension, prefix) {
+      if (options.fail === true) return Promise.resolve(failure);
+      const rows: PluginStoreRow[] = [];
+      for (const [key, valueJson] of tableOf(extension)) {
+        if (key.startsWith(prefix)) rows.push({ key, valueJson });
+      }
+      return Promise.resolve(ok(rows));
+    },
+    usage(extension) {
+      if (options.fail === true) return Promise.resolve(failure);
+      const table = tableOf(extension);
+      let bytes = 0;
+      for (const valueJson of table.values())
+        bytes += new TextEncoder().encode(valueJson).byteLength;
+      const usage: PluginStoreUsage = { keys: table.size, bytes };
+      return Promise.resolve(ok(usage));
+    },
+    clear(extension) {
+      if (options.fail === true) return Promise.resolve(failure);
+      tables.delete(extension);
+      return Promise.resolve(ok(undefined));
+    },
   };
 }

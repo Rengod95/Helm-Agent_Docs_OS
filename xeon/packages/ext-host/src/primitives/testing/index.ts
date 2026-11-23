@@ -5,6 +5,7 @@ export {
   fakeUsage,
   memoryInputQueue,
   memoryLoopPort,
+  memoryPluginStore,
   memoryProjectorRegistry,
   memoryRecordStore,
   memoryScopedStore,
