@@ -3732,6 +3732,7 @@
   "desktop.workbench.detail.overview.trust": "쓰임과 믿음",
   "desktop.workbench.detail.overview.noPurpose": "목적이 없어요",
   "desktop.workbench.detail.overview.noCard": "플러그인 카드를 읽지 못했어요",
+  "desktop.workbench.detail.overview.toolCount": "도구 {count}개를 모델에 줘요.",
   "desktop.workbench.detail.overview.kind": "종류",
   "desktop.workbench.detail.overview.yes": "있어요",
   "desktop.workbench.detail.overview.profiles": "쓰는 프로필",

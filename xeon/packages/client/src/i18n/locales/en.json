@@ -3732,6 +3732,7 @@
   "desktop.workbench.detail.overview.trust": "Where it's used and trust",
   "desktop.workbench.detail.overview.noPurpose": "No purpose given",
   "desktop.workbench.detail.overview.noCard": "Couldn't read the plugin card",
+  "desktop.workbench.detail.overview.toolCount": "Gives the model {count, plural, one {# tool} other {# tools}}.",
   "desktop.workbench.detail.overview.kind": "Kind",
   "desktop.workbench.detail.overview.yes": "Yes",
   "desktop.workbench.detail.overview.profiles": "Used in profiles",

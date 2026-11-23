@@ -24,6 +24,7 @@ import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
 import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
 import {
   cardTextIn,
+  doesLeadOfCard,
   hookCountOf,
   profilesWithOf,
   readinessWordOf,
@@ -94,7 +95,8 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
       </div>
     );
   }
-  const purpose = cardTextIn(card, "purpose");
+  // 첫 줄이 설명을 올렸으면(`fromDescription`) 아래 설명 줄은 그리지 않는다(같은 글을 두 번 보이지 않게)
+  const lead = doesLeadOfCard(card);
   const description = cardTextIn(card, "description");
   const kind = pluginKindOf(card);
   const hooks = hookCountOf(card);
@@ -102,12 +104,12 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
   return (
     <div className="grid gap-3">
       {head}
-      {purpose === null ? (
+      {lead === null ? (
         <p className={MUTED}>{t("desktop.workbench.detail.overview.noPurpose")}</p>
       ) : (
-        <p className="m-0 text-ui-strong text-text-primary">{purpose}</p>
+        <p className="m-0 text-ui-strong text-text-primary">{lead.text}</p>
       )}
-      {description === null ? null : (
+      {description === null || lead?.fromDescription === true ? null : (
         <p className="m-0 text-ui text-text-secondary">{description}</p>
       )}
       <ListDescription

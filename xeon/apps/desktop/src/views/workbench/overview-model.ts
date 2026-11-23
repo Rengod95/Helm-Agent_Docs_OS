@@ -1,5 +1,5 @@
 // 플러그인 상세 "개요" 탭의 순수 모델(plugTab, AGE-76). 카드와 프로필 값을 화면이 쓰는 글 키와 세는 수로 바꾼다. 그림은 `detail-overview.tsx`가 그린다.
-import { tKey, type MessageId } from "@fresnel/client/i18n";
+import { t, tKey, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { builtinPluginTextKey, type PluginCard } from "@fresnel/contracts/extensions";
 import type { Profile } from "@fresnel/contracts/wire";
@@ -22,6 +22,57 @@ export function cardTextIn(card: PluginCard, field: "purpose" | "description"): 
   const own = cardTextOf(field === "purpose" ? card.purpose : card.description);
   const key = card.origin.kind === "builtin" ? builtinPluginTextKey(card.name, field) : undefined;
   return key === undefined ? own : cardTextOf(tKey(key, own ?? ""));
+}
+
+/** "하는 일" 첫 줄. `fromDescription`이면 글은 설명이라 아래 설명 줄을 또 그리지 않는다 */
+export interface DoesLead {
+  readonly text: string;
+  readonly fromDescription: boolean;
+}
+
+/**
+ * 리뷰가 도구 이름으로 채우는 기본 목적 글(`desktop.craft.review.purpose.toolOne`·`toolMany`, 리뷰의 상한 200자와 같다).
+ * 목적이 이 글과 같으면 그 목적은 도구 이름을 싣고 있는 것이다
+ */
+function toolsDraftTextOf(names: readonly string[]): string {
+  const text =
+    names.length === 1
+      ? t("desktop.craft.review.purpose.toolOne", { name: names[0] ?? "" })
+      : t("desktop.craft.review.purpose.toolMany", {
+          count: names.length,
+          names: names.join(", "),
+        });
+  return text.slice(0, 200);
+}
+
+/**
+ * "하는 일" 첫 줄(AGE-77 S-09 나). 목적이 도구 이름을 싣고 있으면(리뷰가 채운 기본 문장) 이름 원문을 빼고, 설명이 있으면 설명을,
+ * 없으면 "도구 N개를 모델에 줘요"를 쓴다. 사람이 쓴 목적은 그대로다. 목적이 없으면 null이다
+ */
+export function doesLeadOf(input: {
+  readonly purpose: string | null;
+  readonly description: string | null;
+  readonly toolNames: readonly string[];
+}): DoesLead | null {
+  const { purpose, description, toolNames } = input;
+  if (purpose === null) return null;
+  if (toolNames.length === 0 || purpose !== toolsDraftTextOf(toolNames)) {
+    return { text: purpose, fromDescription: false };
+  }
+  if (description !== null) return { text: description, fromDescription: true };
+  return {
+    text: t("desktop.workbench.detail.overview.toolCount", { count: toolNames.length }),
+    fromDescription: false,
+  };
+}
+
+/** 카드의 "하는 일" 첫 줄. 카드를 못 읽었으면 null(호출하는 쪽이 자리 글을 쓴다) */
+export function doesLeadOfCard(card: PluginCard): DoesLead | null {
+  return doesLeadOf({
+    purpose: cardTextIn(card, "purpose"),
+    description: cardTextIn(card, "description"),
+    toolNames: card.does.inject === null ? [] : card.does.inject.tools.map((tool) => tool.name),
+  });
 }
 
 /** Hook 수: 훅 칸이 없으면 0 */
