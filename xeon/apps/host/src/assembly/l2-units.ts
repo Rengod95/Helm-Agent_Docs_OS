@@ -137,8 +137,9 @@ export function dialogBridgePlugin(
     name: DIALOG_BRIDGE_NAME,
     version: "0.1.0",
     displayName: "Ask Service Bridge",
+    purpose: "Connects the agent's questions to the app.",
     description:
-      "Registers the ask_user tool and hands the command action registry to cap-work (host assembly).",
+      "Gives the agent a question tool and connects commands, the status line, attachments and notices to the app; without it, the agent cannot ask you anything.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

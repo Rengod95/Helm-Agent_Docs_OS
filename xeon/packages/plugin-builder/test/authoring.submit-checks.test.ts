@@ -4,14 +4,17 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
-import { tempRoot, templateDirs } from "./support.ts";
+import { SAMPLE_TEXT, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
 
 async function scaffolded(name: string): Promise<string> {
   const dir = root.path(name);
-  const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
+  const made = await scaffoldExtension(
+    { kind: "single-plugin", name, dir, ...SAMPLE_TEXT },
+    { templates },
+  );
   if (!made.ok) throw new Error(made.error.message);
   return dir;
 }

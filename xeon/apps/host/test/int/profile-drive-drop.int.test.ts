@@ -35,6 +35,7 @@ function writeDrivePlugin(home: EngineHome): void {
       name: DRIVE,
       version: "1.0.0",
       purpose: "Drive that stays on the stack until told to finish",
+      description: "Keeps a drive frame on the stack until the user finishes it.",
       defaultEnabled: false,
       entry: "./src/index.ts",
       orchestration: {},

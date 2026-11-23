@@ -5,8 +5,13 @@
 // 필드 이름은 계약을 따른다: 매니페스트(`ExtensionManifest`의 version·author·license·purpose, `PluginDecl`의 requires·optional·provides·
 // readsRecordKinds·replaces, `group.members`), 카드(`PluginCard`의 origin·review·enforcement·runs·cost·health·usedBy), 드래프트(`DraftInfo`).
 // 묶음은 매니페스트 `plugins[]` + `group`을 가진 패키지 하나이고 프로필은 그 이름 하나를 참조한다(`PluginRef.name`).
-import { t, type MessageId } from "@fresnel/client/i18n";
-import type { CardMcpLaunch, HookName } from "@fresnel/contracts/extensions";
+import { t, tKey, type MessageId } from "@fresnel/client/i18n";
+import {
+  builtinPluginTextKey,
+  type CardMcpLaunch,
+  type HookName,
+  type InternalPluginTextField,
+} from "@fresnel/contracts/extensions";
 import { SHARED_PROFILES, type SharedProfileId } from "./shared-sample.ts";
 
 /** `PLUGIN_ORIGIN_KINDS` */
@@ -48,6 +53,8 @@ export interface PluginMeta {
   readonly purpose: MessageId;
   /** 엔진 카드의 목적 글(카드 `purpose`). 있으면 `purpose` 대신 그린다. null이면 카드에 목적이 없다 */
   readonly purposeText?: string | null;
+  /** 엔진 카드의 설명(카드 `description`, 매니페스트 `description`). null이면 카드에 설명이 없다. 표본에는 없다 */
+  readonly descriptionText?: string | null;
   readonly version: string;
   /** 작성자. 카드에는 없어 엔진 값에서는 null이다 */
   readonly author: string | null;
@@ -93,10 +100,46 @@ export interface PluginMeta {
   readonly requiredBy?: readonly string[];
 }
 
-/** 화면에 그릴 목적 한 문장: 엔진 카드의 글이 있으면 그것, 카드에 목적이 없으면 "목적이 적혀 있지 않아요", 표본은 카탈로그 글 */
-export function purposeOf(meta: Pick<PluginMeta, "purpose" | "purposeText">): string {
+/**
+ * 엔진이 스스로 싣는 플러그인(내부 부품 21과 내장 그룹 둘)의 글은 클라이언트 카탈로그에 한국어와 영어로 있다(`builtinPluginTextKey`).
+ * 매니페스트의 영어 글보다 그것을 먼저 쓴다 [결정: 2026-11-23 사용자, AGE-31]. 카탈로그에 없으면 null
+ */
+function builtinText(
+  meta: Pick<PluginMeta, "origin" | "pkg">,
+  field: InternalPluginTextField,
+): string | null {
+  if (meta.origin !== "builtin") return null;
+  const key = builtinPluginTextKey(meta.pkg, field);
+  if (key === undefined) return null;
+  const text = tKey(key, "").trim();
+  return text === "" ? null : text;
+}
+
+function filled(text: string | null | undefined): string | null {
+  const trimmed = text?.trim() ?? "";
+  return trimmed === "" ? null : trimmed;
+}
+
+type TextMeta = Pick<PluginMeta, "purpose" | "purposeText" | "origin" | "pkg">;
+
+/** 목적 한 문장: 내장이면 카탈로그 글, 엔진 카드면 카드의 글, 표본이면 카탈로그 키의 글. 카드에 목적이 없으면 null */
+export function purposeTextOf(meta: TextMeta): string | null {
+  const builtin = builtinText(meta, "purpose");
+  if (builtin !== null) return builtin;
   if (meta.purposeText === undefined) return t(meta.purpose);
-  return meta.purposeText ?? t("desktop.craft.canvas.cv9.purposeNone");
+  return filled(meta.purposeText);
+}
+
+/** 화면에 그릴 목적 한 문장: 목적이 없으면 "목적이 적혀 있지 않아요" */
+export function purposeOf(meta: TextMeta): string {
+  return purposeTextOf(meta) ?? t("desktop.craft.canvas.cv9.purposeNone");
+}
+
+/** 설명(카드 안쪽 면의 글): 내장이면 카탈로그 글, 엔진 카드면 카드의 `description`. 없으면 null(표본의 글은 각 시안이 덧붙인다) */
+export function descriptionTextOf(
+  meta: Pick<PluginMeta, "descriptionText" | "origin" | "pkg">,
+): string | null {
+  return builtinText(meta, "description") ?? filled(meta.descriptionText);
 }
 
 const APPROVED = (hash: string, at: string): PluginMeta["review"] => ({

@@ -257,6 +257,7 @@ function devkitErrorOfDraft(failure: PluginPortFailure): DevkitError {
     case "path_invalid":
     case "hand_edit":
     case "purpose_required":
+    case "description_required":
     case "profile_invalid":
     case "dependency":
       return devkitErrorOfPlugin(failure);

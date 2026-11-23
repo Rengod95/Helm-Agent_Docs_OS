@@ -52,9 +52,9 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 | Tool | Input | What it does | Refuses when | User confirms |
 |---|---|---|---|---|
 | `authoring_kinds` | `layer?`, `query?` | lists kinds, status, and decisions. Read-only | never | no |
-| `authoring_start` | `kind` (`single-plugin`), `name`, `dir`, `displayName?` | opens a session. `dir` is absolute, or relative to the work folder | another session is open; kind blocked; name not allowed; relative `dir` with no work folder (`needs_folder`: ask the user for a folder) | kind and name. "No" closes the session |
+| `authoring_start` | `kind` (`single-plugin`), `name`, `dir`, `displayName?`, `purpose?` | opens a session. `dir` is absolute, or relative to the work folder | another session is open; kind blocked; name not allowed; relative `dir` with no work folder (`needs_folder`: ask the user for a folder) | kind and name. "No" closes the session |
 | `authoring_compose` | `sessionId`, `composition` | checks and saves the composition draft (plugin groups) | kind and name not yet confirmed | no |
-| `authoring_scaffold` | `sessionId` | writes the files into `dir` | folder not empty; files already exist | no |
+| `authoring_scaffold` | `sessionId`, `description?` | writes the files into `dir`, with the session's `purpose` and `description?` in the manifest | folder not empty; files already exist | no |
 | `authoring_validate` | `sessionId` | runs manifest, composition, drive replay, and AU checks. A pass moves on to trial | no files yet (`not_scaffolded`) | no. After 3 runs in a row with the same error codes and paths, it asks whether to keep fixing; "no" ends the session |
 | `authoring_trial` | `sessionId` | opens a Test run thread that carries the folder as a draft (nothing is installed). Tell the user to try the plugin in that thread; `authoring_submit` needs a `turnId` from it | validation has not passed | yes (it uses model calls). Denied runs ask again on the next call |
 | `authoring_replay` | `sessionId`, `maxCommits?` | replays the drive | not in development mode (`l3.authoring.devMode`, default off): `dev_mode_required` | no |
@@ -66,6 +66,7 @@ Notes:
 
 - `authoring_trial` takes only `sessionId`. It does not take a prompt or a profile: the user sends the first message in the Test run thread.
 - `authoring_scaffold` only writes into an empty or missing folder. To work on an existing extension, edit its files directly.
+- The review refuses an empty `purpose` or `description` (`pluginReview.purposeRequired`, `pluginReview.descriptionRequired`). Pass `purpose` to `authoring_start` and `description` to `authoring_scaffold`, or write both into `plugin.json` before `authoring_validate`.
 - Plugin group templates: `scaffold` picks `drive` when the composition has a drive block or no composition is given; `policy` when every `on` block hooks only `tool.call.before`; `observe` otherwise. Single plugins use `xeon/packages/core-authoring/templates/single-plugin/`.
 - Placeholders `__ID__`, `__TITLE__`, `__VERSION__` are filled in. The version starts at `0.1.0`.
 - Write guard: while a session is open, a write or exec tool call must stay inside `dir`. `bash` runs in `dir` (the host pins the shell to it), even when the conversation's work folder is somewhere else; a relative path in a file tool also starts from `dir`. Shell command strings are not inspected for paths; only the working folder is checked.

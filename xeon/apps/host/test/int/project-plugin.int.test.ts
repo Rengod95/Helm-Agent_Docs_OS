@@ -38,6 +38,7 @@ function projectExtension(project: string, marker: string, name: string = CARRIE
       name,
       version: "1.0.0",
       purpose: "Carried by the project",
+      description: "Carried by the project so it runs there after approval.",
       entry: "./src/index.ts",
       plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
     }),

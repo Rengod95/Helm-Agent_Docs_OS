@@ -31,6 +31,7 @@ function writeSkillPlugin(home: EngineHome): void {
       name: FOLDER,
       version: "1.0.0",
       purpose: "Skill-only plugin for the overlay invocation record",
+      description: "Skill-only plugin for the overlay invocation record (test fixture).",
       defaultEnabled: false,
     }),
   );

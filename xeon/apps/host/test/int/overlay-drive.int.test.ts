@@ -33,6 +33,7 @@ function writeDrivePlugin(home: EngineHome): void {
       name: DRIVE,
       version: "1.0.0",
       purpose: "One-time drive for the overlay start test",
+      description: "One-time drive for the overlay start test (test fixture).",
       defaultEnabled: false,
       entry: "./src/index.ts",
       // 주도를 선언한 플러그인은 그룹이어야 한다(`drive_requires_orchestration`)

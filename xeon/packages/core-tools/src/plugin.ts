@@ -103,7 +103,9 @@ export function toolsManifest(extra: readonly AnyCapabilityDef[] = []): Extensio
     name: TOOLS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Tool runtime",
-    description: "Tool advertising, policy, approvals, effect records and result bounding (L1).",
+    purpose: "Lets the model use tools.",
+    description:
+      "Offers tools to the model, applies permission rules and approvals and trims results that are too large; without it, the agent cannot use tools.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [{ layer: "L1", hooks: [], optional }],

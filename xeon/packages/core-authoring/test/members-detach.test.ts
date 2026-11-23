@@ -179,6 +179,10 @@ test("the source's purpose moves to the new folder; a source without one gets no
   expect(rawOf(join(root, "purpose-kept-out"))["purpose"]).toBe("동기화를 맡는다");
 
   const bare = await sourceFolder("purpose-none");
+  // 뼈대는 목적 칸을 빈 글자로 쓴다(AGE-31). 목적이 없는 원본은 그 칸을 아예 뺀다
+  editManifest(bare, (raw) =>
+    Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "purpose")),
+  );
   must(
     await detachMember(
       { dir: bare, member: "sync", outDir: join(root, "purpose-none-out") },

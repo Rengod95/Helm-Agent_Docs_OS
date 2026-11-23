@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { packExtension, scaffoldExtension } from "@fresnel/core-authoring";
 import { runInstalledReplay } from "../src/index.ts";
-import { driveOrchestrationFixture, tempRoot, templateDirs } from "./support.ts";
+import { driveOrchestrationFixture, SAMPLE_TEXT, tempRoot, templateDirs } from "./support.ts";
 
 // 설치된 플러그인 그룹의 재생(`runInstalledReplay`). 뼈대를 묶어 설치 폴더 모양을 만든 뒤 재생한다. 실제 모델은 부르지 않는다.
 
@@ -21,7 +21,10 @@ async function packed(
 ): Promise<string> {
   const dir = root.path(`src-${name}`);
   if (fixture === "single-plugin") {
-    const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
+    const made = await scaffoldExtension(
+      { kind: "single-plugin", name, dir, ...SAMPLE_TEXT },
+      { templates },
+    );
     if (!made.ok) throw new Error(made.error.message);
   } else {
     await driveOrchestrationFixture(name, dir, templates);

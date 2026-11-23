@@ -16,6 +16,7 @@ import {
   TAB_ROOM,
   type Rect,
 } from "../../../src/views/craft/canvas/cv6/layout.ts";
+import { lodOf, zoomInverse } from "../../../src/views/craft/canvas/cv6/lod.ts";
 import { attachProfile, profileFromSample } from "../../../src/views/craft/canvas/cv6/model.ts";
 
 const overlaps = (a: Rect, b: Rect): boolean =>
@@ -147,5 +148,24 @@ describe("layoutProfile", () => {
       return l.wires.filter((w) => !keys.has(w.socket)).map((w) => `${id}:${w.id}:${w.socket}`);
     });
     expect(stray).toEqual([]);
+  });
+});
+
+describe("배율과 글 크기 (AGE-31)", () => {
+  test("확대의 역수를 소수 셋째 자리로 돌려주고, 0이나 음수, NaN은 1로 본다", () => {
+    expect([0.3, 0.5, 0.75, 1, 1.5, 0, -1, Number.NaN].map(zoomInverse)).toEqual([
+      3.333, 2, 1.333, 1, 0.667, 1, 1, 1,
+    ]);
+  });
+
+  test("단계 경계는 그대로다: 0.48 아래 멀리, 0.85 아래 중간, 그 위 가까이", () => {
+    expect([0.3, 0.47, 0.48, 0.84, 0.85, 1.5].map(lodOf)).toEqual([
+      "far",
+      "far",
+      "mid",
+      "mid",
+      "near",
+      "near",
+    ]);
   });
 });

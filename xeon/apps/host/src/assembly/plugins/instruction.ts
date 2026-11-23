@@ -13,6 +13,8 @@ import { hashPluginTree } from "./content-hash.ts";
 const INSTRUCTION_TEXT_MAX = 2000;
 /** 목적 한 문장 상한. 매니페스트 `purpose`의 상한과 같다 */
 const INSTRUCTION_PURPOSE_MAX = 200;
+/** 설명 상한. 매니페스트 `description`의 상한과 같다 */
+const INSTRUCTION_DESCRIPTION_MAX = 1024;
 /** 지침 파일. 폴더 루트에 있다 */
 const INSTRUCTION_FILE = "instructions.md";
 /** 매니페스트 위치(폴더 기준) */
@@ -86,15 +88,28 @@ export function purposeOf(text: string): string {
 }
 
 /**
- * 최소 매니페스트 텍스트. 스키마 2, 이름, 버전, 목적(있을 때만), 지침 파일 하나의 `components`만 둔다.
+ * 설명: 지침 글 그대로(앞뒤 공백을 뗀다), 매니페스트 상한 안에서 자른다. 한 줄 지침은 승인 때 채울 설명 입력이 없어서 글이 곧 설명이다 [제안]
+ */
+export function descriptionOf(text: string): string {
+  let description = "";
+  for (const char of text) {
+    if (description.length + char.length > INSTRUCTION_DESCRIPTION_MAX) break;
+    description += char;
+  }
+  return description.trim();
+}
+
+/**
+ * 최소 매니페스트 텍스트. 스키마 2, 이름, 버전, 목적과 설명(있을 때만), 지침 파일 하나의 `components`만 둔다.
  * 코드도 훅도 도구도 없어 카드는 권고(advisory)의 지침 칸 하나가 된다
  */
-export function manifestTextOf(name: string, purpose: string): string {
+export function manifestTextOf(name: string, purpose: string, description: string): string {
   const manifest = {
     schemaVersion: 2,
     name,
     version: INSTRUCTION_VERSION,
     ...(purpose === "" ? {} : { purpose }),
+    ...(description === "" ? {} : { description }),
     components: { instructions: [INSTRUCTION_FILE] },
   };
   return `${JSON.stringify(manifest, null, 2)}\n`;

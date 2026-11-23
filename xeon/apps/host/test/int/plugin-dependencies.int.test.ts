@@ -18,6 +18,7 @@ import { WireError } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
+import { fillScaffoldTextsOf } from "../fixtures/plugin-review.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { recordingModels } from "../fixtures/recording-tape.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
@@ -109,6 +110,7 @@ function writePlugin(dir: string, spec: PluginSpec, calls: CallLog): void {
         name: spec.name,
         version: spec.version,
         purpose: `Dependency fixture ${spec.name}`,
+        description: `Dependency fixture ${spec.name} (test fixture).`,
         defaultEnabled: false,
         entry: "./src/index.ts",
         plugins: [decl],
@@ -235,6 +237,7 @@ function manifestOf(name: string, target: string, kind: "hard" | "soft"): Extens
     name,
     version: "1.0.0",
     purpose: `Cycle fixture ${name}`,
+    description: `Cycle fixture ${name} (test fixture).`,
     defaultEnabled: false,
     entry: "./src/index.ts",
     plugins: [{ layer: "plugin", hooks: [], dependsOn: [{ plugin: target, kind }] }],
@@ -617,6 +620,7 @@ realTest(
       const { connection, root } = session;
       const kitDir = join(root, "work", KIT);
       await connection.request("ext.scaffold", { kind: "single-plugin", name: KIT, dir: kitDir });
+      fillScaffoldTextsOf(kitDir);
       await connection.request("ext.members.edit", {
         dir: kitDir,
         ops: [

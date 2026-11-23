@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { TSchema } from "typebox";
 import { parse } from "../../src/base/index.ts";
 import {
+  BUILTIN_GROUP_NAMES,
+  BUILTIN_PLUGIN_NAMES,
+  builtinPluginTextKey,
   CARD_MCP_LAUNCH_LIMITS,
   CostFiguresSchema,
   EvidenceRefSchema,
@@ -11,6 +14,7 @@ import {
   internalPluginLayer,
   internalPluginTextKey,
   isInternalPluginName,
+  manifestTextGaps,
   PluginCardSchema,
   PluginSettingDefSchema,
   PluginUiDeclSchema,
@@ -381,5 +385,39 @@ describe("required by core and the not-passed names (AGE-33 enDep 10, 11)", () =
       envNotPassed: ["API_TOKEN"],
     };
     roundTrip(PluginCardSchema, withScriptLane([lint]));
+  });
+
+  test("builtin text keys: internal parts keep plugin.internal, the two builtin groups use plugin.builtin", () => {
+    expect(builtinPluginTextKey("cap-schedule", "description")).toBe(
+      "plugin.internal.capSchedule.description",
+    );
+    expect(builtinPluginTextKey("authoring", "purpose")).toBe("plugin.builtin.authoring.purpose");
+    expect(builtinPluginTextKey("guide", "description")).toBe("plugin.builtin.guide.description");
+    expect(builtinPluginTextKey("my-plugin", "purpose")).toBeUndefined();
+    expect([...BUILTIN_GROUP_NAMES]).toEqual(["authoring", "guide"]);
+    expect(BUILTIN_PLUGIN_NAMES).toHaveLength(23);
+    expect(new Set(BUILTIN_PLUGIN_NAMES).size).toBe(23);
+  });
+});
+
+describe("card description (AGE-31)", () => {
+  test("a card with a description round-trips and an old card without one still parses", () => {
+    roundTrip(PluginCardSchema, { ...PLUGIN_CARD, description: "Runs a prompt later." });
+    roundTrip(PluginCardSchema, PLUGIN_CARD);
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, description: "" }).ok).toBe(false);
+    expect(parse(PluginCardSchema, { ...PLUGIN_CARD, description: "x".repeat(1025) }).ok).toBe(
+      false,
+    );
+  });
+
+  test("manifestTextGaps names each empty or blank human field", () => {
+    expect(
+      manifestTextGaps({ purpose: "Saves notes.", description: "Saves notes to a file." }),
+    ).toEqual([]);
+    expect(manifestTextGaps({})).toEqual(["purpose", "description"]);
+    expect(manifestTextGaps({ purpose: "  ", description: "Does a thing." })).toEqual(["purpose"]);
+    expect(manifestTextGaps({ purpose: "Does a thing.", description: "\n" })).toEqual([
+      "description",
+    ]);
   });
 });

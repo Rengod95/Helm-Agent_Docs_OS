@@ -2,7 +2,7 @@
 
 Location: `<extension root>/.fresnel-plugin/plugin.json`. The format is `schemaVersion: 2`. Version 1 is not read.
 
-Sources: schema in `xeon/packages/contracts/src/extensions/manifest.ts`; checks in `xeon/packages/contracts/src/extensions/validate.ts` (`validateManifest`); authoring checks (AU-001 to AU-012) in `xeon/packages/plugin-builder/src/validate.ts`.
+Sources: schema in `xeon/packages/contracts/src/extensions/manifest.ts`; checks in `xeon/packages/contracts/src/extensions/validate.ts` (`validateManifest`); authoring checks (AU-001 to AU-013) in `xeon/packages/plugin-builder/src/validate.ts`.
 
 Unknown top-level keys are removed with a warning (`unknown_key`). Any error refuses the whole manifest.
 
@@ -15,8 +15,9 @@ Unknown top-level keys are removed with a warning (`unknown_key`). Any error ref
 | `version` | yes | strict SemVer, such as `0.1.0`. No ranges |
 | `entry` | yes | relative path inside the root, such as `./src/index.ts`. Install needs `.js` or `.mjs` |
 | `plugins` | yes | array of 1 to 16 plugin items (below) |
+| `purpose` | **yes** | one sentence in the user's words, saying what the plugin does for the user. Up to 200 characters |
+| `description` | **yes** | one plain sentence in the user's words, saying what the plugin does for the user. The user reads it on the plugin card. Up to 1024 characters |
 | `displayName` | no | up to 64 characters |
-| `description` | no | up to 1024 characters |
 | `author` | no | object: `name` (required, up to 128), `email?`, `url?` |
 | `homepage`, `repository` | no | up to 512 characters each |
 | `license` | no | up to 128 characters |
@@ -29,6 +30,8 @@ Unknown top-level keys are removed with a warning (`unknown_key`). Any error ref
 | `methods` | no | up to 64 `{ verb, params, result, readOnly, approval?, label? }`. `verb` matches `^[a-z][A-Za-z0-9]{0,47}$`. Wire name `ext.<name>.<verb>`. `readOnly` with `approval: true` fails (`method_invalid`) |
 | `isolation` | no | `"none"` or `"process"`. Not allowed for `builtin` |
 | `trust` | no | `{ "level", "reason"? }`. Authored code requests `user`, `project`, or `untrusted`, and a level above the install location's ceiling is refused. See install-and-flow.md |
+
+`purpose` and `description` are required for authoring and review. AU-013 rejects an empty one, and review approval refuses it (`pluginReview.purposeRequired`, `pluginReview.descriptionRequired`). The schema alone accepts a manifest without them, so an installed plugin with an empty one still loads.
 
 ## Plugin items (`plugins[]`)
 
@@ -74,6 +77,8 @@ Single plugin:
   "schemaVersion": 2,
   "name": "my-plugin",
   "version": "0.1.0",
+  "purpose": "Adds a short note after each turn.",
+  "description": "Adds a short note after each turn so you can see how the conversation went.",
   "entry": "./src/index.ts",
   "plugins": [{ "layer": "plugin", "hooks": ["boundary.settle.after"] }],
   "defaultEnabled": false,
@@ -88,6 +93,8 @@ Plugin group with a drive (the drive template shape):
   "schemaVersion": 2,
   "name": "my-group",
   "version": "0.1.0",
+  "purpose": "Runs a check after each turn.",
+  "description": "Runs a check after each turn and keeps the result with the conversation.",
   "entry": "./src/index.ts",
   "plugins": [{ "layer": "L3", "hooks": ["boundary.settle.after"], "drives": true }],
   "group": {},
@@ -103,6 +110,8 @@ Plugin group with a member and a record kind:
   "schemaVersion": 2,
   "name": "my-group",
   "version": "0.1.0",
+  "purpose": "Counts the turns in a conversation.",
+  "description": "Counts each turn of a conversation and keeps the count with it.",
   "entry": "./src/index.ts",
   "plugins": [
     {
@@ -134,3 +143,4 @@ Packaging copies the normalized manifest and changes only `entry` to `./dist/ind
 - `entry_invalid`: `entry` is absolute or climbs out of the root with `..`.
 - `name_reserved`: a reserved name (see Naming).
 - AU-002: `trust.level` is `builtin`. AU-009: a secret literal in source. AU-012: a drive breaks the replay rules.
+- AU-013: `purpose` or `description` is missing or empty. Review approval refuses it with `pluginReview.purposeRequired` or `pluginReview.descriptionRequired`.

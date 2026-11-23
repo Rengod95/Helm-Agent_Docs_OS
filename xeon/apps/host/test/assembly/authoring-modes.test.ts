@@ -28,7 +28,14 @@ async function buildAndSubmit(
   evidence: readonly [EvidenceRef],
 ): Promise<boolean> {
   const name = dir.slice(dir.lastIndexOf("/") + 1);
-  const made = await port.scaffold({ kind: "single-plugin", name, dir, mode });
+  const made = await port.scaffold({
+    kind: "single-plugin",
+    name,
+    dir,
+    mode,
+    purpose: `${mode} 시험 플러그인`,
+    description: `${mode} 시험 플러그인이 하는 일을 적은 설명이다.`,
+  });
   const checked = await port.validate(dir);
   const sent = await port.submit({
     dir,

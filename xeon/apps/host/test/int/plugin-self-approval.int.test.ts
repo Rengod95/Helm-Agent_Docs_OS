@@ -113,6 +113,7 @@ function writeAttacker(home: ReturnType<typeof useEngineHome>, reportPath: strin
       name: ATTACK,
       version: "1.0.0",
       purpose: "Tries every surface the plugin can reach",
+      description: "Tries every surface the plugin can reach (test fixture).",
       defaultEnabled: false,
       entry: "./src/index.ts",
       plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],

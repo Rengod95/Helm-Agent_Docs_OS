@@ -80,7 +80,7 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
 | `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다. `resident`는 일반 대화에서만 모델이 넘긴 값을 쓴다. 테스트 대화(craft 표지)에서는 호스트가 상주로 정한다(아래, [제안]) | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
-| `authoring_scaffold` | `{ sessionId, mode? }`(`mode`: `hook`, `inject`, `drive`) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
+| `authoring_scaffold` | `{ sessionId, mode?, description? }`(`mode`: `hook`, `inject`, `drive`. 목적은 대화의 목적 한 문장을, 설명은 입력을 매니페스트에 쓴다 [결정: 2026-11-23 사용자, AGE-31]) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
 | `authoring_trial` | `{ sessionId }` | Test run 대화 id | Test run 생성(설치 없음) |
 | `authoring_replay` | `{ sessionId, maxCommits? }` | `ReplayDriveReport`(개발 모드만) | 실행 |
@@ -140,7 +140,7 @@ interface DevkitService {
 - [결정: M4 T-AUTH] `pack` 출력은 기본 `<dir>/dist/package`(다시 만들면 비우고 씁니다)이고, 지정한 `out`은 없거나 비어 있어야 합니다(`exists`). 묶음 형식은 폴더 사본이고 `sha256`은 정렬한 `경로 NUL 파일해시` 줄들의 해시입니다(§10 4번은 그대로 미결). 묶음 최상위의 `src`, `test`, `node_modules`, `dist`, `package.json`, `tsconfig.json`과 시크릿 이름(`.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_*`, `credentials*`)은 넣지 않습니다.
 - [폐기: M5c §7.7] `link`(사용자 확장 위치에 복사), `remove`(폴더 지우기), `previewInstall`(설치 미리 보기, `install.ts`), `release.ts`의 설치 확인(`installConfirmation`)과 `LinkInput.expectedSha256`을 지웠다. 설치는 없다. 플러그인은 검토함에서 승인해야 쓸 수 있다(§4.6, M5c 검토 흐름). 제출 입력 검사는 `validateExtensionDir`가 맡는다(플러그인 파일이 없으면 `no_manifest`, 폴더가 없으면 `not_found`).
 - [폐기: M5c §7.7] 2026-11-04 Q9의 앱 안 설치 미리 보기와 그 사유 목록(`not_absolute`, `folder_missing`, `unknown_key` 등 설치 거절 사유)은 설치 경로와 함께 지웠다. 제출 경로의 검사 사유는 호스트 `PluginSubmitError`를 `DevkitError.reasons`로 옮긴다(`apps/host/src/assembly/m4/devkit-port.ts`).
-- [결정: M4 T-AUTH] `scaffold`의 플러그인 템플릿(drive, policy, observe)은 구성 초안으로 고릅니다: drive 블록이 있거나 초안이 없으면 drive, 모든 `on` 블록이 `tool.call.before`뿐이면 policy, 아니면 observe. 초안과 `ui`는 매니페스트에 패치하고, `orchestration.members`의 구성원은 `editMembers`의 add와 같은 계획으로 더하며 코드 파일과 생성 파일 `src/members.generated.ts`를 함께 씁니다(구성원이 없어도 엔트리가 있는 뼈대는 생성 파일을 씁니다). 루트 플러그인 `hooks`는 초안의 훅을 합치고 drive 블록이 있으면 `drives: true`로 맞춥니다. 패치할 것이 없으면 템플릿 글자 그대로 씁니다. 대상 폴더는 절대 경로이고 없거나 비어 있어야 하며 실패하면 파일을 쓰지 않습니다. 템플릿 위치는 `FRESNEL_GROUP_TEMPLATES_DIR`, 릴리즈 자원 폴더, 소스 저장소 순으로 찾습니다.
+- [결정: M4 T-AUTH] `scaffold`의 플러그인 템플릿(drive, policy, observe)은 구성 초안으로 고릅니다: drive 블록이 있거나 초안이 없으면 drive, 모든 `on` 블록이 `tool.call.before`뿐이면 policy, 아니면 observe. 초안과 `ui`는 매니페스트에 패치하고, `orchestration.members`의 구성원은 `editMembers`의 add와 같은 계획으로 더하며 코드 파일과 생성 파일 `src/members.generated.ts`를 함께 씁니다(구성원이 없어도 엔트리가 있는 뼈대는 생성 파일을 씁니다). 루트 플러그인 `hooks`는 초안의 훅을 합치고 drive 블록이 있으면 `drives: true`로 맞춥니다. 뼈대는 매니페스트에 `purpose`와 `description`을 씁니다(입력 `ScaffoldInput.purpose`, `.description`, 없으면 빈 문자열이고 AU-013이 채우라고 말합니다) [결정: 2026-11-23 사용자, AGE-31]. 대상 폴더는 절대 경로이고 없거나 비어 있어야 하며 실패하면 파일을 쓰지 않습니다. 템플릿 위치는 `FRESNEL_GROUP_TEMPLATES_DIR`, 릴리즈 자원 폴더, 소스 저장소 순으로 찾습니다.
 
 ### 3.4 종류 카탈로그
 
@@ -218,8 +218,9 @@ M4 첫 카탈로그 [제안]:
 | AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask`·`{ do: "ask" }` 명령 또는 `approval: true`가 없음 | 경고 |
 | AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
 | AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류(검사기를 넘긴 호출). 릴리즈 바이너리에는 파서가 없어(`@swc/core`는 바이너리에 들어가면 안 됨) 검사가 돌지 않았다는 경고 |
+| AU-013 | 목적(purpose)과 설명(description): 매니페스트에서 빈 칸(앞뒤 공백만 있어도 빈 것, contracts `manifestTextGaps`) | 오류. 칸마다 하나, 경로 /purpose, /description [결정: 2026-11-23 사용자, AGE-31] |
 
-- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). 릴리즈 바이너리에는 파서가 없다(`@swc/core`는 바이너리에 들어가면 안 된다). 그래서 그 바이너리는 검사기를 넘기지 않고, AU-012는 검사가 돌지 않았다는 경고 하나만 낸다. 검사기를 넘긴 호출만 오류 규칙을 받는다. AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`·`.delegate(`·`{ do: "spawn" }`이 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`·`{ do: "ask" }`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`나 `{ do: "commit" }`을 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
+- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`), AU-013(목적과 설명의 빈 칸, `manifestTextGaps`, 칸마다 하나). 릴리즈 바이너리에는 파서가 없다(`@swc/core`는 바이너리에 들어가면 안 된다). 그래서 그 바이너리는 검사기를 넘기지 않고, AU-012는 검사가 돌지 않았다는 경고 하나만 낸다. 검사기를 넘긴 호출만 오류 규칙을 받는다. AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`·`.delegate(`·`{ do: "spawn" }`이 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`·`{ do: "ask" }`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`나 `{ do: "commit" }`을 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
 
 ## 4. 동작 규칙
 
@@ -343,7 +344,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 ## 9. 수용 기준
 
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
-- A-2. `single-plugin` 뼈대는 템플릿 글자 그대로이고 자리만 채워집니다. 플러그인 템플릿(orchestration-sdk)은 종류 폐기 뒤 빌더가 아니라 `fresnel group new`가 씁니다. `core-diff-check`에서 보호 경로 변경 0줄입니다.
+- A-2. `single-plugin` 뼈대는 템플릿 글자에 자리를 채우고, 매니페스트에 `purpose`와 `description`을 더합니다(AGE-31). 플러그인 템플릿(orchestration-sdk)은 종류 폐기 뒤 빌더가 아니라 `fresnel group new`가 씁니다. `core-diff-check`에서 보호 경로 변경 0줄입니다.
 - A-3. 제작 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
 - A-4. `authoring_package`는 사람 확인 없이는 파일을 쓰지 않고, `authoring_submit`은 확인 없이 검토 항목만 만든다(실행하지 않는다). 확인을 기다리는 동안 그 대화의 drive 프레임은 `asking`으로 스택에 남습니다(drive 락을 반납하지 않는다, E3).
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.

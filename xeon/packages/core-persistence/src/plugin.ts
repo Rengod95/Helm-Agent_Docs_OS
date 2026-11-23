@@ -48,7 +48,9 @@ export function sessionManifest(): ExtensionManifest {
     name: SESSION_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Session persistence",
-    description: "Event log, projections, step checkpoints and recovery for threads (L1).",
+    purpose: "Saves conversations and opens them again.",
+    description:
+      "Saves each conversation as it goes so it comes back after a restart; without it, closing the app loses the conversation.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [{ layer: "L1", hooks: [] }],

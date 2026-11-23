@@ -583,6 +583,8 @@ test("editMembers: an entry that does not import the generated file gets entryWi
 test("scaffold with members loads without plugin_not_registered, and so does the folder after more edits", async () => {
   const dir = await scaffoldFolder("scaffold-members", {
     layer: "L3",
+    purpose: "Runs two members in order.",
+    description: "A group of two members that the scaffold creates together.",
     orchestration: { members: ["alpha", "beta"] },
   });
   expect(rawOf(dir)["orchestration"]).toEqual({ members: ["alpha", "beta"] });

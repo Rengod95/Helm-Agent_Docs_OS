@@ -13,6 +13,7 @@ import {
   driveOrchestrationFixture,
   readManifest,
   readRecord,
+  SAMPLE_TEXT,
   tempRoot,
   templateDirs,
 } from "./support.ts";
@@ -28,7 +29,10 @@ async function scaffolded(
   if (fixture === "drive-group") {
     await driveOrchestrationFixture(name, dir, templates);
   } else {
-    const made = await scaffoldExtension({ kind: "single-plugin", name, dir }, { templates });
+    const made = await scaffoldExtension(
+      { kind: "single-plugin", name, dir, ...SAMPLE_TEXT },
+      { templates },
+    );
     if (!made.ok) throw new Error(made.error.message);
   }
   return dir;

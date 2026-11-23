@@ -8,6 +8,7 @@ import { ReactFlow, useReactFlow, type Node, type NodeProps, type NodeTypes } fr
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMotionReduced } from "../../../../lib/motion-presets.tsx";
 import { useCraftTheme } from "../../craft-theme.ts";
+import { HIDE_ATTRIBUTION } from "./floor.ts";
 import { Icon, KIND_COLOR, KindTile, PartGlyph, type PartIcon } from "./glyphs.tsx";
 import { pluginOf, type Kind, type Plugin } from "./model.ts";
 import { purposeOf } from "../shared-meta.ts";
@@ -722,7 +723,7 @@ export function PluginInside(props: {
         zoomOnDoubleClick={false}
         minZoom={0.3}
         maxZoom={1.8}
-        attributionPosition="bottom-left"
+        proOptions={HIDE_ATTRIBUTION}
         aria-label={t("desktop.craft.canvas.cv3.inside.label", { name: p.name })}
       />
       <div className="cv6-chrome absolute top-3 left-3 z-10 flex h-11 items-center gap-2.5 ps-1.5 pe-3.5">

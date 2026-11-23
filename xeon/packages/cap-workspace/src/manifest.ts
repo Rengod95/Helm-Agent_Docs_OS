@@ -19,7 +19,9 @@ export function workspaceManifest(): ExtensionManifest {
     name: WORKSPACE_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Workspace tools",
-    description: "File, shell and (later) image tools over the execution environment (L2).",
+    purpose: "Gives the agent files and a shell in the workspace.",
+    description:
+      "Gives the agent tools to read and edit files and run commands in the workspace; without it, the agent cannot touch files or run commands.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

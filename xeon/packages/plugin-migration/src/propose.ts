@@ -65,6 +65,8 @@ const SKILL_NAME_MAX = 64;
 const SKILL_DESCRIPTION_MAX = 1024;
 const AGENT_DESCRIPTION_MAX = 1000;
 const PURPOSE_MAX = 200;
+/** 매니페스트 `description`의 상한(`PluginManifestSchema`) */
+const DESCRIPTION_MAX = 1024;
 const SECRET_NAME_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
 const USER_CONFIG_KEY_MAX = 64;
 
@@ -136,6 +138,8 @@ interface Unit {
   readonly rootLabel: string;
   readonly baseName: string;
   readonly purpose: string;
+  /** 카드 안쪽 면의 글(매니페스트 `description`). 승인에 필요하다 [결정: 2026-11-23 사용자, AGE-31] */
+  readonly description: string;
   readonly files: readonly UnitFile[];
   readonly userConfig: readonly UserConfigDraft[];
   /** Hook 항목이면 있다. 같은 설정 파일의 Hook은 한 플러그인이 된다 */
@@ -176,6 +180,7 @@ interface Group {
   readonly rootLabel: string;
   readonly baseName: string;
   readonly purpose: string;
+  readonly description: string;
   readonly members: Member[];
 }
 
@@ -480,6 +485,7 @@ function planSkill(item: SourceItem, ir: IrSkill, rs: Ruleset, ctx: Context): Pl
     rootLabel: item.rootLabel,
     baseName: base,
     purpose: purposeOfDescription(description),
+    description: headCodePoints(description.trim(), DESCRIPTION_MAX),
     files: ir.files.map((file): UnitFile => ({
       kind: "fixed",
       path: `skills/${ir.dirName}/${file.path}`,
@@ -533,6 +539,7 @@ function planInstruction(item: SourceItem, ir: IrInstruction, rs: Ruleset): Plan
     rootLabel: item.rootLabel,
     baseName: pluginBaseOf(item.harness, group, "instructions"),
     purpose: `${HARNESS_NAME[item.harness]} ${scopeWordOf(group)} 지침(가져옴)`,
+    description: `${HARNESS_NAME[item.harness]}의 ${scopeWordOf(group)} 지침 파일을 그대로 옮긴 플러그인이다. 턴마다 모델에게 지침으로 실린다.`,
     files,
     userConfig: [],
   };
@@ -563,6 +570,7 @@ function planCommand(item: SourceItem, ir: IrCommand, rs: Ruleset, ctx: Context)
     rootLabel: item.rootLabel,
     baseName: pluginBaseOf(item.harness, group, "commands"),
     purpose: `${HARNESS_NAME[item.harness]} ${scopeWordOf(group)} 명령(가져옴)`,
+    description: `${HARNESS_NAME[item.harness]}의 ${scopeWordOf(group)} 슬래시 명령을 옮긴 플러그인이다. 명령마다 같은 이름의 명령이 된다.`,
     files: [{ kind: "fixed", path, bytes: encodeText(ir.text) }],
     userConfig: [],
   };
@@ -726,6 +734,7 @@ function planAgent(item: SourceItem, ir: IrAgent, rs: Ruleset, ctx: Context): Pl
     rootLabel: item.rootLabel,
     baseName: pluginBaseOf(item.harness, group, "agents"),
     purpose: `${HARNESS_NAME[item.harness]} ${scopeWordOf(group)} 서브에이전트(가져옴)`,
+    description: `${HARNESS_NAME[item.harness]}의 ${scopeWordOf(group)} 서브에이전트 정의를 옮긴 플러그인이다. 에이전트가 이 서브에이전트에게 일을 맡길 수 있다.`,
     files: [{ kind: "fixed", path, bytes: encodeText(text) }],
     userConfig: [],
   };
@@ -849,6 +858,7 @@ function planMcp(item: SourceItem, ir: IrMcp, rs: Ruleset): Plan {
     rootLabel: item.rootLabel,
     baseName: base,
     purpose: `\`${ir.serverName}\` MCP 서버(${HARNESS_NAME[item.harness]}에서 가져옴)`,
+    description: `${HARNESS_NAME[item.harness]}에 설정된 \`${ir.serverName}\` MCP 서버를 옮긴 플러그인이다. 그 서버의 도구를 에이전트에게 준다.`,
     files: [{ kind: "fixed", path: "mcp.json", bytes: encodeText(content) }],
     userConfig,
   };
@@ -986,6 +996,7 @@ function planHook(item: SourceItem, ir: IrHook, rs: Ruleset): Plan {
     rootLabel: item.rootLabel,
     baseName: pluginBaseOf(item.harness, group, item.scope === "local" ? "local-hooks" : "hooks"),
     purpose: `${HARNESS_NAME[item.harness]} ${scopeWordOf(group)} 훅(가져옴)`,
+    description: `${HARNESS_NAME[item.harness]}의 ${scopeWordOf(group)} 설정에 있던 훅을 옮긴 플러그인이다. 원래 명령을 같은 때에 실행한다.`,
     files: [],
     userConfig: [],
     hook,
@@ -1165,6 +1176,7 @@ function groupsOf(entries: readonly Entry[]): Map<string, Group> {
       rootLabel: unit.rootLabel,
       baseName: unit.baseName,
       purpose: unit.purpose,
+      description: unit.description,
       members: [{ entry, unit }],
     });
   }
@@ -1384,6 +1396,7 @@ export function propose(
     return {
       name: plugin.name,
       purpose: group.purpose,
+      description: group.description,
       derivedFrom: [...new Set(group.members.map((member) => member.entry.item.itemId))],
       tree: plugin.tree,
       pendingBuilder: [],

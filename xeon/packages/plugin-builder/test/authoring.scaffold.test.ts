@@ -5,7 +5,7 @@ import { expect, test } from "bun:test";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type { KindEntry } from "@fresnel/contracts/services";
 import { KIND_CATALOG, scaffoldExtension } from "@fresnel/core-authoring";
-import { readManifest, tempRoot, templateDirs } from "./support.ts";
+import { readManifest, tempRoot, templateDirs, withTextFields } from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
@@ -18,7 +18,8 @@ function fillExpected(text: string, id: string): string {
 }
 
 test("authoring.scaffold-equals-template: the single plugin is the template files with the placeholders filled (A-2)", async () => {
-  // 초안 없이 만들면 매니페스트까지 템플릿 글자 그대로다
+  // 초안 없이 만들면 README와 진입점은 템플릿 글자 그대로다. 매니페스트는 자리를 채우고 목적과 설명을
+  // (입력이 없어 빈 칸으로) `displayName` 바로 뒤에 넣어 다시 적은 글이다(AGE-31)
   const dir = root.path("eq-single");
   const made = await scaffoldExtension(
     { kind: "single-plugin", name: "eq-single", dir },
@@ -28,10 +29,14 @@ test("authoring.scaffold-equals-template: the single plugin is the template file
   // 생성 파일(`src/members.generated.ts`)은 템플릿에 없다: 구성원이 없을 때의 빈 목록이다
   const listed = [".fresnel-plugin/plugin.json", "README.md", "src/index.ts"];
   expect(made.value.files).toEqual([...listed, "src/members.generated.ts"].toSorted());
-  for (const file of listed) {
+  for (const file of ["README.md", "src/index.ts"]) {
     const source = readFileSync(join(templates.single, file), "utf8");
     expect(readFileSync(join(dir, file), "utf8")).toBe(fillExpected(source, "eq-single"));
   }
+  const manifest = readFileSync(join(templates.single, ".fresnel-plugin", "plugin.json"), "utf8");
+  expect(readFileSync(join(dir, ".fresnel-plugin", "plugin.json"), "utf8")).toBe(
+    withTextFields(fillExpected(manifest, "eq-single"), { purpose: "", description: "" }),
+  );
   expect(readFileSync(join(dir, "src/members.generated.ts"), "utf8")).toContain(
     "export const memberSetups",
   );

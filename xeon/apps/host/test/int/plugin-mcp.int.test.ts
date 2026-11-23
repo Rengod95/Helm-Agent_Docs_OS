@@ -53,6 +53,7 @@ function writeKit(home: EngineHome): void {
       name: KIT,
       version: "1.0.0",
       purpose: "MCP integration",
+      description: "MCP integration (test fixture).",
       defaultEnabled: false,
     }),
   );

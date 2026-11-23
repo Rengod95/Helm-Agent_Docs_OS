@@ -168,6 +168,53 @@ test("authoring.modes.bad: a mode outside the three is refused by the schema and
   expect(scaffolds).toEqual([]);
 });
 
+test("authoring.scaffold.text: scaffold gets the session purpose and the description input", async () => {
+  const base = devkitProbe();
+  const scaffolds: ScaffoldInput[] = [];
+  const devkit: DevkitService = {
+    ...base.devkit,
+    scaffold: (input) => {
+      scaffolds.push(input);
+      return Promise.resolve(ok({ dir: input.dir, files: ["src/index.ts"] }));
+    },
+  };
+  const rig = await createOrchestrationRig({ devkit });
+  await confirmedNewSession(rig, { purpose: "로그를 정리한다" });
+  expect(
+    await rig.call("authoring_scaffold", {
+      sessionId: "auth-demo",
+      description: "Tidies the log folder.",
+    }),
+  ).toMatchObject({ ok: true });
+  expect(scaffolds).toStrictEqual([
+    {
+      kind: "single-plugin",
+      name: "demo",
+      dir: DIR,
+      purpose: "로그를 정리한다",
+      description: "Tidies the log folder.",
+    },
+  ]);
+});
+
+test("authoring.scaffold.text.none: without a purpose or a description, scaffold gets neither key", async () => {
+  const base = devkitProbe();
+  const scaffolds: ScaffoldInput[] = [];
+  const devkit: DevkitService = {
+    ...base.devkit,
+    scaffold: (input) => {
+      scaffolds.push(input);
+      return Promise.resolve(ok({ dir: input.dir, files: ["src/index.ts"] }));
+    },
+  };
+  const rig = await createOrchestrationRig({ devkit });
+  await confirmedNewSession(rig);
+  expect(await rig.call("authoring_scaffold", { sessionId: "auth-demo" })).toMatchObject({
+    ok: true,
+  });
+  expect(scaffolds).toStrictEqual([{ kind: "single-plugin", name: "demo", dir: DIR }]);
+});
+
 test("authoring.drafts.a: the drafts of a plugin come newest first with their parent, and the session's plugin is the default", async () => {
   const drafts: DraftSummary[] = [
     {

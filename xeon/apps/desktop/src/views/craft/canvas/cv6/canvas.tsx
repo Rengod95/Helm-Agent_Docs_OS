@@ -25,7 +25,8 @@ import { InfoTip } from "../../info-tip.tsx";
 import { useCraftTheme } from "../../craft-theme.ts";
 import { Icon, KIND_COLOR, KindTile } from "./glyphs.tsx";
 import { RAIL_HALF, layoutProfile, type ProfileLayout, type Rect } from "./layout.ts";
-import { dotGrid, dotShift, GLOW_REACH, openViewOf } from "./floor.ts";
+import { dotGrid, dotShift, GLOW_REACH, HIDE_ATTRIBUTION, openViewOf } from "./floor.ts";
+import { zoomInverse } from "./lod.ts";
 import {
   addPlugin,
   laneOf,
@@ -178,6 +179,12 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   const [paletteOpen, setPaletteOpen] = useState(() => window.innerWidth >= WIDE_ENOUGH);
   const wrapRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
+
+  // 확대의 역수를 판들이 보는 CSS 변수로 둔다(`cv6.css`의 `--cv6-inv`). 판의 글과 칸은 "100% 값"과 "화면 눈금 × 역수" 가운데 큰 것이라,
+  // 낮은 배율에서도 화면 크기가 눈금에 머문다(`lod.ts`의 `zoomInverse`)
+  useLayoutEffect(() => {
+    wrapRef.current?.style.setProperty("--cv6-inv", String(zoomInverse(zoom)));
+  }, [zoom]);
 
   const layout = useMemo(() => layoutProfile(profile, store.collapsed), [profile, store.collapsed]);
   const empty = profile.entries.length === 0;
@@ -841,7 +848,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
             onMoveStart={(e) => {
               if (e !== null) autoFit.current = false;
             }}
-            attributionPosition="bottom-left"
+            proOptions={HIDE_ATTRIBUTION}
             aria-label={t("desktop.craft.canvas.cv3.canvas")}
             onPaneClick={() => {
               setSelected(null);

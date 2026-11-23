@@ -345,6 +345,7 @@ realTest(
         name: "instr-wire",
         version: "0.0.0",
         purpose: text,
+        description: text,
         components: { instructions: ["instructions.md"] },
       });
 

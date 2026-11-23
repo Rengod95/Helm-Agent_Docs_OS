@@ -455,6 +455,23 @@ export const ExtensionManifestSchema: TObject<{
 );
 export type ExtensionManifest = Static<typeof ExtensionManifestSchema>;
 
+/** 사람이 읽는 두 칸: 목적 한 문장(`purpose`)과 설명(`description`) */
+export type ManifestTextField = "purpose" | "description";
+
+/**
+ * 매니페스트에서 비어 있는 사람용 칸(앞뒤 공백만 있으면 빈 것으로 본다). 스키마는 두 칸을 선택으로 두고(옛 매니페스트와 시험 픽스처를 깨지 않는다),
+ * 필수는 이 함수를 쓰는 곳이 강제한다: 제작 검사 AU-013(오류), 검토 승인(`pluginReview.purposeRequired`, `pluginReview.descriptionRequired`),
+ * 내장 플러그인 시험. 설치된 플러그인은 비어 있어도 불러온다(화면이 "설명이 없어요"를 보인다) [결정: 2026-11-23 사용자, AGE-31]
+ */
+export function manifestTextGaps(
+  manifest: Pick<ExtensionManifest, "purpose" | "description">,
+): readonly ManifestTextField[] {
+  const gaps: ManifestTextField[] = [];
+  if ((manifest.purpose ?? "").trim() === "") gaps.push("purpose");
+  if ((manifest.description ?? "").trim() === "") gaps.push("description");
+  return gaps;
+}
+
 /** 항등 함수. TS 모듈로 매니페스트를 쓰는 내장 패키지용. 검사는 validateManifest가 한다 */
 export function defineManifest<const M extends ExtensionManifest>(manifest: M): M {
   return manifest;

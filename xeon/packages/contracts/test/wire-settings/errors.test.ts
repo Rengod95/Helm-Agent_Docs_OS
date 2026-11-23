@@ -107,6 +107,7 @@ describe("WIRE_ERRORS", () => {
       "pluginReview.handEditNotAllowed": 3654,
       "pluginReview.purposeRequired": 3655,
       "pluginReview.profileInvalid": 3656,
+      "pluginReview.descriptionRequired": 3657,
       "migration.scanLimit": 3670,
       "migration.rootInvalid": 3671,
       "migration.questionsOpen": 3672,
@@ -218,6 +219,7 @@ describe("WIRE_ERRORS", () => {
       "pluginReview.handEditNotAllowed",
       "pluginReview.purposeRequired",
       "pluginReview.profileInvalid",
+      "pluginReview.descriptionRequired",
     ]);
     for (const spec of own) {
       const inRange = spec.kind.startsWith("pluginReview.")

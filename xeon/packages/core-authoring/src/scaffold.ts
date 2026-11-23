@@ -123,18 +123,32 @@ interface Patched {
   readonly stubs: readonly PlannedFile[];
 }
 
+/**
+ * 목적과 설명을 넣는다. `displayName` 바로 뒤에 놓고(없으면 끝에), 입력이 없으면 빈 문자열이라 AU-013이 채우라고 말한다 [결정: 2026-11-23 사용자, AGE-31]
+ */
+function withTextFields(
+  manifest: Record<string, unknown>,
+  input: ScaffoldInput,
+): Record<string, unknown> {
+  const entries = Object.entries(manifest).filter(
+    ([key]) => key !== "purpose" && key !== "description",
+  );
+  const shown = entries.findIndex(([key]) => key === "displayName");
+  const at = shown === -1 ? entries.length : shown + 1;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of entries.slice(0, at)) out[key] = value;
+  out["purpose"] = input.purpose ?? "";
+  out["description"] = input.description ?? "";
+  for (const [key, value] of entries.slice(at)) out[key] = value;
+  return out;
+}
+
 function patchManifest(text: string, input: ScaffoldInput): Result<Patched, DevkitError> {
   const members = input.orchestration?.members ?? [];
-  const wantsPatch =
-    input.orchestration?.composition !== undefined ||
-    members.length > 0 ||
-    input.ui !== undefined ||
-    input.layer !== undefined;
-  // 패치할 것이 없으면 템플릿 글자 그대로 둔다(`fresnel group new`와 같은 파일, spec §9 A-2)
-  if (!wantsPatch) return ok({ text, coded: [], stubs: [] });
   const json = parseJson(text);
   if (!json.ok || !isRecord(json.value)) return err(invalid("template manifest is not an object"));
-  const manifest: Record<string, unknown> = { ...json.value };
+  // 목적과 설명은 항상 쓰므로 매니페스트는 늘 다시 적는다(템플릿 글자 그대로는 두지 않는다)
+  const manifest = withTextFields(json.value, input);
   const plugins = arrayOf(manifest["plugins"]);
   const root = plugins[0];
   if (!isRecord(root)) return err(invalid("template manifest has no root plugin"));

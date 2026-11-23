@@ -20,6 +20,8 @@ import {
   type Plugin,
   type Relation,
 } from "./model.ts";
+import { t } from "@fresnel/client/i18n";
+import { descriptionTextOf, purposeTextOf } from "../shared-meta.ts";
 import { descriptionOf } from "./sample-ext.ts";
 
 /**
@@ -32,20 +34,28 @@ const PLATE_W = 316;
 export const PLATE_H = 289;
 
 /**
- * 적은 판: 카드에 목적이 없고 안쪽 글(설명)도 없는 플러그인. 설명 두 줄과 안쪽 면을 그리지 않고 붙는 자리 꼬리표만 둔다.
- * 가까이에서 12 + 머리 20 + 10 + 꼬리표 18 + 11 + 알약 24 + 12 + 푸터 16 + 12 = 135, 중간 단계의 큰 글을 넣어 144다
+ * 적은 판: 목적도 설명도 없는 플러그인(필수가 되기 전에 설치된 것). 목적 줄을 그리지 않고 안쪽 면에는 붙는 자리 꼬리표와
+ * "설명이 없어요" 경고 한 줄(구슬)만 둔다 [결정: 2026-11-23 사용자, AGE-31].
+ * 가까이에서 12 + 머리 20 + 10 + 안쪽 면(8 + 꼬리표 18 + 5 + 경고 20 + 8) 59 + 11 + 알약 24 + 12 + 푸터 16 + 12 = 196
  */
-export const PLATE_LEAN_H = 144;
+export const PLATE_LEAN_H = 196;
 
-/** 목적이 비었나. 표본은 목적이 카탈로그 키라(`purposeText`가 없다) 늘 있다 */
+/** 목적이 비었나. 표본은 목적이 카탈로그 키라 늘 있다 */
 export function purposeMissing(p: Plugin): boolean {
-  const text = p.meta.purposeText;
-  return text === null || (text !== undefined && text.trim() === "");
+  return purposeTextOf(p.meta) === null;
 }
 
-/** 판 높이: 목적도 안쪽 글도 없으면 적은 판, 아니면 PLATE_H. 묶음(받침판, 더미) 안의 판은 줄을 맞추려고 늘 PLATE_H다 */
+/** 판 안쪽 면의 글(설명): 내장은 카탈로그, 엔진 카드는 카드 `description`, 표본은 `sample-ext.ts`의 글. 없으면 null */
+export function cardDescription(p: Plugin): string | null {
+  const own = descriptionTextOf(p.meta);
+  if (own !== null) return own;
+  const sample = descriptionOf(p.name);
+  return sample === null ? null : t(sample);
+}
+
+/** 판 높이: 목적도 설명도 없으면 적은 판, 아니면 PLATE_H. 묶음(받침판, 더미) 안의 판은 줄을 맞추려고 늘 PLATE_H다 */
 export function plateHeightOf(p: Plugin): number {
-  return purposeMissing(p) && descriptionOf(p.name) === null ? PLATE_LEAN_H : PLATE_H;
+  return purposeMissing(p) && cardDescription(p) === null ? PLATE_LEAN_H : PLATE_H;
 }
 /** 탭이 카드 윗변 위로 솟는 높이의 상한(멀리 단계). 판 위에 늘 이만큼 비워 둔다 */
 export const TAB_ROOM = 36;
@@ -364,7 +374,7 @@ export function layoutProfile(
     const x = stopX[i] ?? 0;
     if (s.type === "boundary") boundaries.push({ id: s.id, x });
     if (s.type === "before") {
-      const after = STOPS.findIndex((t) => t.type === "after" && t.block === s.block);
+      const after = STOPS.findIndex((o) => o.type === "after" && o.block === s.block);
       stations.push({ id: s.block, x0: x - STATION_EAR, x1: (stopX[after] ?? x) + STATION_EAR });
     }
   });

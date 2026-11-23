@@ -25,7 +25,9 @@ export const manifest: ExtensionManifest = defineManifest({
   name: "core-context",
   version: "0.0.0",
   displayName: "Context",
-  description: "Context assembly, compaction and overflow recovery (fresnel.context)",
+  purpose: "Builds what the model sees each turn.",
+  description:
+    "Builds what the model sees each turn and shrinks or restores the conversation when it outgrows the model's limit; without it, long conversations fail.",
   entry: "./src/index.ts",
   plugins: [
     {

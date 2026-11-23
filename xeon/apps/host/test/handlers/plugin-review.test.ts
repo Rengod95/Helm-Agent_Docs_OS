@@ -44,6 +44,7 @@ test("decide answers the review refusals with their own codes", async () => {
     [{ kind: "not_pending", itemId: "rvw_a" }, 3652, "pluginReview.notPending"],
     [{ kind: "hand_edit", itemId: "rvw_a" }, 3654, "pluginReview.handEditNotAllowed"],
     [{ kind: "purpose_required", itemId: "rvw_a" }, 3655, "pluginReview.purposeRequired"],
+    [{ kind: "description_required", itemId: "rvw_a" }, 3657, "pluginReview.descriptionRequired"],
   ];
   await Promise.all(
     refusals.map(async ([failure, code, kind]) => {

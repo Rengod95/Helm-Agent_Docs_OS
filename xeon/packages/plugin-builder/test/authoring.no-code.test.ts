@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { packExtension, scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
-import { tempRoot, templateDirs } from "./support.ts";
+import { SAMPLE_TEXT, tempRoot, templateDirs } from "./support.ts";
 
 const root = tempRoot();
 const templates = templateDirs();
@@ -12,7 +12,7 @@ const templates = templateDirs();
 test("a plugin without entry validates and packs as a folder with no bundle", async () => {
   const dir = root.path("no-code");
   const made = await scaffoldExtension(
-    { kind: "single-plugin", name: "no-code", dir },
+    { kind: "single-plugin", name: "no-code", dir, ...SAMPLE_TEXT },
     { templates },
   );
   if (!made.ok) throw new Error(made.error.message);

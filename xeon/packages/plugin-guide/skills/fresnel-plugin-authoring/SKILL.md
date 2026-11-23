@@ -9,7 +9,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 
 ## Rules
 
-- Required top-level keys: `schemaVersion`, `name`, `version`, `entry`, `plugins`.
+- Required top-level keys: `schemaVersion`, `name`, `version`, `entry`, `plugins`, `purpose`, `description`. Authoring and review refuse an empty `purpose` or `description`.
 - `layer` and `hooks` belong inside each `plugins[]` item. A top-level `layer`, `hooks`, `views`, `phases`, or `composition` fails (`legacy_field`).
 - One extension has one `entry` file, and it registers all of its plugins. The root plugin omits `id`.
 - `name`: lowercase letters, digits, and hyphens, 2 to 32 characters, no underscore, not reserved.

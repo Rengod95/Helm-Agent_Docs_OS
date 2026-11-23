@@ -16,6 +16,7 @@ import { WireError } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
+import { fillScaffoldTextsOf } from "../fixtures/plugin-review.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
@@ -126,6 +127,8 @@ realTest(
         dir,
       });
       expect(scaffolded.dir).toBe(dir);
+      // 작성자가 목적과 설명을 채운 뒤의 골격을 기준으로 본다(아래의 원본 비교도 이 골격과 맞춘다)
+      fillScaffoldTextsOf(dir);
       // 응답의 파일 목록은 디스크에 실제로 있는 파일과 같다
       const onDisk = bytesOf(dir);
       expect(scaffolded.files.toSorted()).toEqual(Object.keys(onDisk).toSorted());
@@ -193,6 +196,7 @@ realTest(
     try {
       await connection.request("host.hello", HELLO_PARAMS);
       await connection.request("ext.scaffold", { kind: "single-plugin", name: NAME, dir });
+      fillScaffoldTextsOf(dir);
 
       const packed = await connection.request("ext.package", { dir, out });
       expect(packed.path).toBe(out);
@@ -296,6 +300,7 @@ realTest(
           name: "forged-kit",
           version: "1.0.0",
           purpose: "Asks for the builtin level",
+          description: "Asks for the builtin level (test fixture).",
           trust: { level: "builtin" },
         }),
       );

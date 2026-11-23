@@ -124,6 +124,8 @@ function writeKit(root: string, log: string): void {
         name: NAME,
         version: "1.0.0",
         purpose: "Members integration kit: two hooks, a drive and an instruction under one root.",
+        description:
+          "Members integration kit: two hooks, a drive and an instruction under one root. (test fixture).",
         defaultEnabled: false,
         entry: "./src/index.ts",
         orchestration: {},
@@ -498,6 +500,8 @@ function writeRollbackKit(root: string, log: string, flag: string, eager = false
         name: NAME,
         version: "1.0.0",
         purpose: "Members rollback kit: the last member's setup fails when enabled.",
+        description:
+          "Members rollback kit: the last member's setup fails when enabled. (test fixture).",
         defaultEnabled: false,
         entry: "./src/index.ts",
         orchestration: {},
@@ -530,6 +534,7 @@ function writeRollbackKit(root: string, log: string, flag: string, eager = false
       `  name: ${JSON.stringify(NAME)},`,
       '  version: "1.0.0",',
       '  purpose: "Members rollback kit: the last member\'s setup fails when enabled.",',
+      '  description: "Members rollback kit (test fixture).",',
       "  defaultEnabled: false,",
       '  entry: "./src/index.ts",',
       "  orchestration: {},",

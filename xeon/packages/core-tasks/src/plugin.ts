@@ -20,7 +20,9 @@ export const TASKS_MANIFEST: ExtensionManifest = defineManifest({
   name: "core-tasks",
   version: "0.1.0",
   displayName: "Task engine",
-  description: "Scope tree, cancellation, keyed queue and the durable input queue (fresnel.tasks).",
+  purpose: "Lets you stop work in progress.",
+  description:
+    "Tracks running work so it can be cancelled and queues input sent while the agent is busy; without it, stopping a turn and queued messages do not work.",
   defaultEnabled: true,
   entry: "./src/index.ts",
   plugins: [{ layer: "L1", hooks: [] }],

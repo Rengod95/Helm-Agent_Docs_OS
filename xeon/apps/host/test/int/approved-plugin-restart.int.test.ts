@@ -45,6 +45,7 @@ function writeCodePlugin(home: EngineHome, marker: string, defaultEnabled = fals
       name: CODE,
       version: "1.0.0",
       purpose: "Approved code plugin",
+      description: "Runs the approved code plugin after a restart.",
       defaultEnabled,
       entry: "./src/index.ts",
       plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
@@ -74,6 +75,7 @@ function writeFolderPlugin(home: EngineHome): void {
       name: FOLDER,
       version: "1.0.0",
       purpose: "Approved instruction-only plugin",
+      description: "Gives the approved instructions and skill to a turn.",
       defaultEnabled: false,
     }),
   );

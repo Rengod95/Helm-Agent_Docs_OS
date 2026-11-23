@@ -10,7 +10,9 @@ export function scheduleManifest(): ExtensionManifest {
     name: SCHEDULE_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Schedules",
-    description: "Run a prompt later in an unattended new session (L2).",
+    purpose: "Runs a prompt at a time you choose.",
+    description:
+      "Opens a new unattended conversation at the set time and runs the prompt; without it, scheduled runs do not happen.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

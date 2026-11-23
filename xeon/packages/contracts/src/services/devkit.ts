@@ -74,6 +74,10 @@ export interface ScaffoldInput {
   };
   /** Plugin UI 초안 */
   readonly ui?: UiDecl;
+  /** 목적 한 문장. 매니페스트 `purpose`에 쓴다. 생략하면 빈 칸으로 두고 검사(AU-013)가 채우라고 말한다 [결정: 2026-11-23 사용자, AGE-31] */
+  readonly purpose?: string;
+  /** 하는 일의 설명. 매니페스트 `description`에 쓴다. 생략하면 빈 칸으로 두고 검사(AU-013)가 채우라고 말한다 */
+  readonly description?: string;
 }
 export interface ScaffoldResult {
   readonly dir: string;

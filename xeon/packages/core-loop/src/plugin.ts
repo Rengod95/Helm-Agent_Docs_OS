@@ -41,8 +41,9 @@ export const LOOP_MANIFEST: ExtensionManifest = defineManifest({
   name: LOOP_EXTENSION_NAME,
   version: "0.1.0",
   displayName: "Agent loop",
+  purpose: "Runs each turn from start to finish.",
   description:
-    "L1 agent loop: runs the own agent loop (adr.0009), commits step boundaries, fires extension points.",
+    "Asks the model, runs the tools it calls and saves every step in order; without it, the agent cannot answer.",
   defaultEnabled: true,
   entry: "./src/index.ts",
   plugins: [{ layer: "L1", hooks: [] }],

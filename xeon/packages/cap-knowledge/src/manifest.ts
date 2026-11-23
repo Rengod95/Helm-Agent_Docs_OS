@@ -18,7 +18,9 @@ export function knowledgeManifest(): ExtensionManifest {
     name: KNOWLEDGE_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Knowledge and memory",
-    description: "Skills, memory, session search and the change ledger (L2).",
+    purpose: "Remembers across conversations with skills and memory.",
+    description:
+      "Stores skills and memory, searches past conversations and records changes to them; without it, the agent cannot remember beyond one conversation.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

@@ -177,6 +177,7 @@ export type WireErrorKind =
   | "pluginReview.pathInvalid"
   | "pluginReview.handEditNotAllowed"
   | "pluginReview.purposeRequired"
+  | "pluginReview.descriptionRequired"
   | "pluginReview.profileInvalid"
   | "migration.scanLimit"
   | "migration.rootInvalid"
@@ -951,6 +952,13 @@ export const WIRE_ERRORS: {
     kind: "pluginReview.profileInvalid",
     retryable: false,
     details: IssuesDetails,
+  },
+  /** 설명(매니페스트 `description`)이 없어 승인할 수 없다 [결정: 2026-11-23 사용자, AGE-31] */
+  "pluginReview.descriptionRequired": {
+    code: 3657,
+    kind: "pluginReview.descriptionRequired",
+    retryable: false,
+    details: IdDetails,
   },
   // 3670~3679: 가져오기(`migration.*`, migration.md §7.7 [제안]). 3676~3679는 예비다
   /** 훑기가 파일 수, 바이트, 깊이 상한을 넘었다(`migration.scan`). 일부만 훑은 결과는 내지 않는다 */

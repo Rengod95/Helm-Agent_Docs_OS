@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { INTERNAL_PLUGIN_NAMES } from "@fresnel/contracts/extensions";
+import { BUILTIN_PLUGIN_NAMES, INTERNAL_PLUGIN_NAMES } from "@fresnel/contracts/extensions";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
@@ -54,6 +54,17 @@ realTest(
           .toSorted(),
       ).toEqual(["authoring", "guide"]);
       expect(plugins.filter((card) => card.origin.kind !== "builtin")).toEqual([]);
+      // AGE-31: 내장 카드는 모두 목적과 설명을 싣는다. 빈 칸이면 승인할 수 없으므로 그 이름이 여기서 실패한다
+      expect(builtin.map((card) => card.name).toSorted()).toEqual(
+        [...BUILTIN_PLUGIN_NAMES].toSorted(),
+      );
+      expect(
+        builtin
+          .filter(
+            (card) => (card.purpose ?? "").trim() === "" || (card.description ?? "").trim() === "",
+          )
+          .map((card) => card.name),
+      ).toEqual([]);
     } finally {
       await host.close();
       home.dispose();
