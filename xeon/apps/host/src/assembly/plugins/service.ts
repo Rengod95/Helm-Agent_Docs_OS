@@ -519,7 +519,26 @@ function responseCardOf(
   nodes: readonly DependencyNode[],
   toolStatusOf: (name: string) => ExternalToolStatus | undefined,
 ): PluginCard {
-  return withToolStatus(withRequiredByCore(withInstalledDependencies(card, nodes)), toolStatusOf);
+  return withToolStatus(
+    withRequiredByCore(withManifestPurpose(withInstalledDependencies(card, nodes), nodes)),
+    toolStatusOf,
+  );
+}
+
+/**
+ * 이전에 승인한 카드의 목적이 그 플러그인의 도구 설명 가운데 하나와 글자가 같으면(승인 화면이 도구 설명으로 만든 기본 문장이 목적을 덮었던 것)
+ * 매니페스트의 목적이 있으면 그것을 보인다. 저장된 카드는 바꾸지 않는다(AGE-77 scnUi7)
+ */
+export function withManifestPurpose(
+  card: PluginCard,
+  nodes: readonly DependencyNode[],
+): PluginCard {
+  if (card.purpose === null) return card;
+  const manifest = nodes.find((node) => node.name === card.name)?.manifest;
+  const own = manifest?.purpose?.trim() ?? "";
+  if (manifest === undefined || own === "" || own === card.purpose) return card;
+  const overwritten = (manifest.tools ?? []).some((tool) => tool.description === card.purpose);
+  return overwritten ? { ...card, purpose: own } : card;
 }
 
 /** 필터: 프로필은 그 프로필에 든 것과 공통 묶음에 든 것을 보인다(§3.4) */
