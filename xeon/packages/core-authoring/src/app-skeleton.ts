@@ -236,10 +236,10 @@ const INDEX_HTML = `<!doctype html>
 <body>
   <main class="app">
     <h1 class="app-title">앱</h1>
-    <form class="app-form" id="add-form">
-      <input class="app-input" id="title-input" maxlength="200" required>
-      <button class="app-button" type="submit">추가</button>
-    </form>
+    <div class="app-form">
+      <input class="app-input" id="title-input" maxlength="200" aria-label="항목 이름">
+      <button class="app-button" id="add-button" type="button">추가</button>
+    </div>
     <ul class="app-list" id="items"></ul>
     <p class="app-status" id="status" role="status"></p>
   </main>
@@ -325,7 +325,7 @@ const BRIDGE_JS = `// Plugin App 다리. 셸과 준비 신호를 맞추고, 요�
 const APP_JS = `// 앱 화면 한 장. 목록을 읽어 그리고, 입력을 받아 add 메서드를 부른다. 상태는 엔진에 있고 화면은 그때마다 읽는다.
 (function () {
   const list = document.getElementById("items");
-  const form = document.getElementById("add-form");
+  const addButton = document.getElementById("add-button");
   const input = document.getElementById("title-input");
   const status = document.getElementById("status");
 
@@ -353,8 +353,8 @@ const APP_JS = `// 앱 화면 한 장. 목록을 읽어 그리고, 입력을 받
     }
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  // 프레임 sandbox에는 allow-forms가 없어 form 제출은 submit 이벤트도 없이 막힌다. form 대신 단추 클릭과 Enter 키로 받는다
+  async function addItem() {
     const title = input.value.trim();
     if (title === "") return;
     try {
@@ -364,6 +364,13 @@ const APP_JS = `// 앱 화면 한 장. 목록을 읽어 그리고, 입력을 받
       status.textContent = "";
     } catch (error) {
       status.textContent = "추가하지 못했어요(" + reasonOf(error) + ")";
+    }
+  }
+  addButton.addEventListener("click", addItem);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.isComposing) {
+      event.preventDefault();
+      addItem();
     }
   });
 

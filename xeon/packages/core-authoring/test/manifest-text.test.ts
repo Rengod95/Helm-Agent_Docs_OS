@@ -57,7 +57,7 @@ const PURPOSE_GAP: DevkitIssue = {
   code: "AU-013",
   path: "/purpose",
   message:
-    "purpose is empty: write one sentence in the user's words that says what the plugin does for them (up to 200 characters)",
+    "purpose is empty: write one sentence that says what the plugin does for the user (not the request sentence copied) (up to 200 characters)",
 };
 const DESCRIPTION_GAP: DevkitIssue = {
   severity: "error",

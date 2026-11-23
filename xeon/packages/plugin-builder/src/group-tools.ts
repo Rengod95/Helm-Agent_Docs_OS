@@ -311,7 +311,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence from the user's words. In a test chat (craft chat) the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true keeps it waiting the same way.",
+    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a test chat (craft chat) the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true keeps it waiting the same way.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -417,7 +417,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const scaffold = tool(
     "authoring_scaffold",
-    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module that watches or changes the conversation and cannot register tools; inject: an instructions file; drive: a drive step function in a group; app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function; native: a plain plugin with one declarative screen file (ui/native/main.view.json) and one read method. Omitted mode means hook: if the plugin needs a model tool or its own screen, choose app, native or drive instead) and the composition draft. The manifest needs purpose (one sentence, the user's words) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
+    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module that watches or changes the conversation and cannot register tools; inject: an instructions file; drive: a drive step function in a group; app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function; native: a plain plugin with one declarative screen file (ui/native/main.view.json) and one read method. Omitted mode means hook: if the plugin needs a model tool or its own screen, choose app, native or drive instead) and the composition draft. The manifest needs purpose (one sentence on what the plugin does) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
     Type.Object(
       {
         ...sessionShape,
@@ -525,7 +525,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const trial = tool(
     "authoring_trial",
-    "Open a Test run thread that carries this folder as a draft (nothing is installed). The user confirms before it starts (cost). The user then talks to the plugin in that thread (they can open it from the Test screen). authoring_submit picks the latest turn of that thread as evidence by itself, so do not ask the user for a turn id.",
+    "Open a Test run thread that carries this folder as a draft (nothing is installed). Calling it shows the user a confirmation card (cost): call it right away, do not ask in text first. The user then talks to the plugin in that thread (they can open it from the Test screen). authoring_submit picks the latest turn of that thread as evidence by itself, so do not ask the user for a turn id.",
     Type.Object({ ...sessionShape }, { additionalProperties: false }),
     "write",
     async (input) => {

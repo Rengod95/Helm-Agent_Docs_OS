@@ -15,7 +15,7 @@ Unknown top-level keys are removed with a warning (`unknown_key`). Any error ref
 | `version` | yes | strict SemVer, such as `0.1.0`. No ranges |
 | `entry` | yes | relative path inside the root, such as `./src/index.ts`. Install needs `.js` or `.mjs` |
 | `plugins` | yes | array of 1 to 16 plugin items (below) |
-| `purpose` | **yes** | one sentence in the user's words, saying what the plugin does for the user. Up to 200 characters |
+| `purpose` | **yes** | one sentence saying what the plugin does for the user, not the request sentence copied. Up to 200 characters |
 | `description` | **yes** | one plain sentence in the user's words, saying what the plugin does for the user. The user reads it on the plugin card. Up to 1024 characters |
 | `displayName` | no | up to 64 characters |
 | `author` | no | object: `name` (required, up to 128), `email?`, `url?` |

@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { AppDecl, ExtensionManifest } from "@fresnel/contracts/extensions";
 import type { DevkitIssue } from "@fresnel/contracts/services";
@@ -72,6 +72,48 @@ function methodIssues(
   return issues;
 }
 
+/** 앱 프레임은 `allow-scripts`뿐이라 form 제출이 막힌다. 화면 파일에서 form 제출을 쓰는 줄을 찾는다 */
+const FORM_SUBMIT =
+  /<form[\s>]|type\s*=\s*["']submit["']|\bonsubmit\b|addEventListener\(\s*["']submit["']/;
+const SCREEN_FILE = /\.(html?|m?js)$/;
+const SCREEN_FILE_LIMIT = 200;
+const SCREEN_FILE_MAX_BYTES = 512 * 1024;
+
+async function formSubmitIssues(
+  rootPath: string,
+  root: string,
+  base: string,
+): Promise<readonly DevkitIssue[]> {
+  const listed = await io(rootPath, () => readdir(rootPath, { recursive: true }));
+  if (!listed.ok) return [];
+  const names = listed.value
+    .filter((name) => SCREEN_FILE.test(name) && isSafeRelative(name))
+    .toSorted()
+    .slice(0, SCREEN_FILE_LIMIT);
+  const found = await Promise.all(
+    names.map(async (name): Promise<DevkitIssue | null> => {
+      const target = join(rootPath, name);
+      const info = await io(target, () => stat(target));
+      if (!info.ok || !info.value.isFile() || info.value.size > SCREEN_FILE_MAX_BYTES) return null;
+      const read = await io(target, () => readFile(target, "utf8"));
+      if (!read.ok) return null;
+      const lines = read.value.split("\n");
+      const at = lines.findIndex((line) => FORM_SUBMIT.test(line));
+      if (at < 0) return null;
+      return {
+        severity: "warning",
+        code: "app_form_submit",
+        path: `${base}/root`,
+        file: `${root}/${name}`,
+        line: at + 1,
+        message:
+          'form submit is blocked in the app frame (no allow-forms), so the form does nothing: use a button with type="button" and a click handler, plus an Enter keydown on the input, instead of <form> or submit',
+      };
+    }),
+  );
+  return found.filter((issue): issue is DevkitIssue => issue !== null);
+}
+
 /** 화면 항목 하나의 파일 검사. `app`이 없으면 할 일이 없다 */
 async function screenIssues(
   dir: string,
@@ -120,6 +162,7 @@ async function screenIssues(
       message:
         "app.reason still has the scaffold's text: write why a declarative view cannot draw this screen, in one line",
     });
+  found.push(...(await formSubmitIssues(rootPath, root, base)));
   return found;
 }
 
