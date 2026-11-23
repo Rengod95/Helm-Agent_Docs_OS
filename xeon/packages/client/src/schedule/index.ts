@@ -121,6 +121,8 @@ export type TriggerDraft = {
   readonly kind: ScheduleTriggerKind;
   /** 간격(초). 간격 트리거 */
   readonly intervalSeconds: string;
+  /** 매일 반복할 지역 시각(`HH:MM`). 채우면 간격 대신 "매일 그 시각"(86400초 간격과 첫 실행 시각)이 된다. 없거나 빈 글이면 간격 트리거다 */
+  readonly dailyTime?: string;
   /** 시각(epoch ms). 고르지 않았으면 null */
   readonly atMs: number | null;
   /** 감시 경로 */
@@ -138,6 +140,7 @@ export type TriggerDraft = {
 /** 검사 실패가 가리키는 입력란 */
 export type TriggerField =
   | "intervalSeconds"
+  | "dailyTime"
   | "atMs"
   | "paths"
   | "debounceMs"
@@ -166,6 +169,25 @@ function integerOf(text: string): number | null {
 
 function invalid(field: TriggerField): TriggerDraftResult {
   return { ok: false, field, code: "invalid_trigger" };
+}
+
+const DAY_SECONDS = 86_400;
+const DAILY_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** `HH:MM` 지역 시각의 다음 차례(지금 이후)의 epoch ms. 형식이 틀리면 null */
+function nextDailyAtMs(time: string, nowMs: number): number | null {
+  const found = DAILY_TIME.exec(time.trim());
+  if (found === null) return null;
+  const at = new Date(nowMs);
+  at.setHours(Number(found[1]), Number(found[2]), 0, 0);
+  if (at.getTime() <= nowMs) at.setDate(at.getDate() + 1);
+  return at.getTime();
+}
+
+function dailyOf(time: string, nowMs: number): TriggerDraftResult {
+  const firstAtMs = nextDailyAtMs(time, nowMs);
+  if (firstAtMs === null) return invalid("dailyTime");
+  return { ok: true, trigger: { kind: "interval", everySeconds: DAY_SECONDS, firstAtMs } };
 }
 
 function intervalOf(text: string): TriggerDraftResult {
@@ -234,7 +256,9 @@ function repeatOf(draft: TriggerDraft, nowMs: number): TriggerDraftResult {
 export function triggerOfDraft(draft: TriggerDraft, nowMs: number): TriggerDraftResult {
   switch (draft.kind) {
     case "interval":
-      return intervalOf(draft.intervalSeconds);
+      return draft.dailyTime !== undefined && draft.dailyTime.trim() !== ""
+        ? dailyOf(draft.dailyTime, nowMs)
+        : intervalOf(draft.intervalSeconds);
     case "at":
       return atOf(draft.atMs, nowMs);
     case "file_watch":

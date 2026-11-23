@@ -354,7 +354,8 @@ export type FailureKind =
   | "hookThrew"
   | "guard"
   | "sandbox"
-  | "badArgs";
+  | "badArgs"
+  | "pathBlocked";
 
 export type ToolOutcome =
   | { readonly kind: "done" }
@@ -374,7 +375,19 @@ export type ToolResultView = {
   readonly durationMs: number | null;
   /** MCP 서버 이름(`details.server`) */
   readonly server: string | null;
+  /** 작업 폴더 경계가 막은 이유(`details.detail.reason`). 그 밖의 결과는 null */
+  readonly pathDenial: PathDenial | null;
 };
+
+/** 작업 폴더 경계가 막은 이유. 모델에 가는 영어 문장은 그대로 두고 화면은 이 값으로 한 줄을 보인다 */
+export type PathDenial = "protected_path" | "outside_root";
+
+/** 엔진의 거부(`details.code`가 `denied`)가 싣는 이유(`details.detail.reason`). 모르는 이유는 null이다 */
+function pathDenialOf(details: JsonValue | undefined): PathDenial | null {
+  if (stringAt(details, "code") !== "denied" || !isObject(details)) return null;
+  const reason = stringAt(details["detail"], "reason");
+  return reason === "protected_path" || reason === "outside_root" ? reason : null;
+}
 
 function isObject(value: JsonValue | undefined): value is { readonly [key: string]: JsonValue } {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -427,6 +440,7 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
     exitCode: numberAt(details, "exitCode"),
     durationMs: numberAt(details, "durationMs"),
     server: stringAt(details, "server"),
+    pathDenial: pathDenialOf(details),
   };
   if (!item.message.isError && item.status === "completed") {
     return { ...base, outcome: { kind: "done" }, output: shown.text };
@@ -464,6 +478,14 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
         reason === null
           ? t("desktop.convo.guard.body")
           : t("desktop.convo.guard.bodyReason", { reason }),
+    };
+  }
+  if (base.pathDenial !== null) {
+    return {
+      ...base,
+      leading: null,
+      outcome: { kind: "failed", failure: "pathBlocked" },
+      output: body,
     };
   }
   const agentAborted = stringAt(details, "status") === "aborted";
@@ -522,6 +544,7 @@ const FAILURE_LABEL: Readonly<Record<FailureKind, MessageId>> = {
   guard: "desktop.convo.status.guard",
   sandbox: "desktop.tool.blocked.status",
   badArgs: "desktop.item.status.badArgs",
+  pathBlocked: "desktop.item.status.pathBlocked",
 };
 
 export function failureLabelOf(failure: FailureKind): string {
@@ -538,6 +561,7 @@ export function failureToneOf(failure: FailureKind): "danger" | "warning" | "neu
     case "badArgs":
       return "neutral";
     case "guard":
+    case "pathBlocked":
     case "hookBlocked":
     case "hookThrew":
     case "sandbox":
@@ -565,4 +589,11 @@ export function commandMetaOf(view: ToolResultView): readonly string[] {
   if (view.exitCode !== null) parts.push(t("desktop.convo.exitCode", { code: view.exitCode }));
   if (view.durationMs !== null) parts.push(durationText(view.durationMs));
   return parts;
+}
+
+/** 경로 거부의 한 줄(원문은 펼치면 나온다) */
+export function pathDenialLineOf(reason: PathDenial): string {
+  return reason === "protected_path"
+    ? t("desktop.item.pathBlocked.protected")
+    : t("desktop.item.pathBlocked.outside");
 }

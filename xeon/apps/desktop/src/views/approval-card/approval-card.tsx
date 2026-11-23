@@ -35,6 +35,7 @@ import {
   questionPrimaryOf,
   questionStepsOf,
 } from "./question-pages.ts";
+import { localizedPluginTitle } from "./plugin-name.ts";
 import { QuestionPager } from "./question-pager.tsx";
 import {
   approvalAgeOf,
@@ -248,7 +249,8 @@ function PendingCard(props: {
   };
 
   const titleView = cardTitleViewOf(request);
-  const cardTitle = titleView === null ? request.title : cardTitleTextOf(titleView);
+  const cardTitle =
+    titleView === null ? localizedPluginTitle(request.title) : cardTitleTextOf(titleView);
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const review = body.kind === "review" ? body.review : null;

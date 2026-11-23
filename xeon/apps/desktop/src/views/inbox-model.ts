@@ -15,7 +15,10 @@ export const INBOX_SORTS: readonly InboxSort[] = ["oldest", "newest"];
 /** 거울의 승인 한 장에서 거르기와 정렬에 쓰는 곳만 읽는 모양(PendingApproval의 부분) */
 export type InboxSource = {
   readonly threadId: ThreadId;
-  readonly request: { readonly requestedAt: number };
+  readonly request: {
+    readonly requestedAt: number;
+    readonly body?: { readonly kind: string };
+  };
 };
 
 /** 대기열 승인 한 장의 대화와 요청 시각. 대기열 순서(`ids`)를 지킨다 */
@@ -23,6 +26,8 @@ export type InboxRow = {
   readonly id: EventId;
   readonly threadId: ThreadId;
   readonly requestedAt: number;
+  /** 질문 카드면 참: 승인이 아니라 답변을 기다린다 */
+  readonly question?: boolean;
 };
 
 /** 대기열 id마다 대화와 요청 시각을 모은다. 거울에 기록이 없는 id는 건너뛴다 */
@@ -33,7 +38,14 @@ export function inboxRowsOf(
   return ids.flatMap((id) => {
     const source = byId[id];
     if (source === undefined) return [];
-    return [{ id, threadId: source.threadId, requestedAt: source.request.requestedAt }];
+    return [
+      {
+        id,
+        threadId: source.threadId,
+        requestedAt: source.request.requestedAt,
+        question: source.request.body?.kind === "question",
+      },
+    ];
   });
 }
 
@@ -92,4 +104,13 @@ export function arrangeInboxNotices(
       ? newestFirstOf(a.notice, b.notice)
       : newestFirstOf(b.notice, a.notice),
   );
+}
+
+/** 대기열 머리의 개수: 질문은 답변 대기, 나머지는 승인 대기로 따로 센다 */
+export function queueCountsOf(rows: readonly InboxRow[]): {
+  readonly approvals: number;
+  readonly questions: number;
+} {
+  const questions = rows.filter((row) => row.question === true).length;
+  return { approvals: rows.length - questions, questions };
 }

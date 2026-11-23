@@ -52,7 +52,12 @@ describe("contextLineOf", () => {
 
   test("a local folder thread shows the folder and this computer, and hides git and clients", () => {
     expect(contextLineOf(BASE)).toEqual({
-      folder: { name: "fresnel", path: "/Users/me/projects/fresnel", missing: false },
+      folder: {
+        name: "fresnel",
+        path: "/Users/me/projects/fresnel",
+        missing: false,
+        isDefault: false,
+      },
       git: null,
       host: { kind: "local", name: null, detail: null },
       clients: [],
@@ -122,5 +127,19 @@ describe("otherClientsOf", () => {
       { name: "cli", transport: "socket" },
       { name: null, transport: "stdio" },
     ]);
+  });
+});
+
+test("a default folder is flagged so the chip shows words instead of the thread id", () => {
+  const line = contextLineOf({
+    ...BASE,
+    workspace: "/d/default-project/thr_01ABC",
+    threadId: "thr_01ABC",
+  });
+  expect(line?.folder).toEqual({
+    name: "thr_01ABC",
+    path: "/d/default-project/thr_01ABC",
+    missing: false,
+    isDefault: true,
   });
 });

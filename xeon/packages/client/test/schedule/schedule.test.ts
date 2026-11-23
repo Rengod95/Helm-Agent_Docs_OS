@@ -226,6 +226,37 @@ describe("triggerOfDraft", () => {
     expiresAtMs: String(NOW + 1000),
   };
 
+  test("daily time: becomes a 86400 second interval whose first run is the next local occurrence", () => {
+    const morning = new Date(2026, 10, 24, 8, 0, 0).getTime();
+    expect(triggerOfDraft({ ...DRAFT, dailyTime: "09:00" }, morning)).toEqual({
+      ok: true,
+      trigger: {
+        kind: "interval",
+        everySeconds: 86_400,
+        firstAtMs: new Date(2026, 10, 24, 9, 0, 0).getTime(),
+      },
+    });
+    // 오늘 시각이 이미 지났으면 내일이다
+    expect(triggerOfDraft({ ...DRAFT, dailyTime: "07:30" }, morning)).toEqual({
+      ok: true,
+      trigger: {
+        kind: "interval",
+        everySeconds: 86_400,
+        firstAtMs: new Date(2026, 10, 25, 7, 30, 0).getTime(),
+      },
+    });
+    expect(triggerOfDraft({ ...DRAFT, dailyTime: "25:00" }, morning)).toEqual({
+      ok: false,
+      field: "dailyTime",
+      code: "invalid_trigger",
+    });
+    // 빈 시각은 평범한 간격이다
+    expect(triggerOfDraft({ ...DRAFT, dailyTime: "" }, NOW)).toEqual({
+      ok: true,
+      trigger: { kind: "interval", everySeconds: 600 },
+    });
+  });
+
   test("interval: 300 to 31536000 seconds is accepted, the bounds included", () => {
     expect(triggerOfDraft({ ...DRAFT, intervalSeconds: "600" }, NOW)).toEqual({
       ok: true,

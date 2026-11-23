@@ -37,7 +37,7 @@ describe("ThreadContextBarView", () => {
     const out = renderToString(
       <ThreadContextBarView
         line={{
-          folder: { name: "fresnel", path: "/w/fresnel", missing: false },
+          folder: { name: "fresnel", path: "/w/fresnel", missing: false, isDefault: false },
           git: null,
           host: { kind: "local", name: null, detail: null },
           clients: [],
@@ -54,7 +54,7 @@ describe("ThreadContextBarView", () => {
     const out = renderToString(
       <ThreadContextBarView
         line={{
-          folder: { name: "app", path: "/Users/me/moved/app", missing: true },
+          folder: { name: "app", path: "/Users/me/moved/app", missing: true, isDefault: false },
           git: { repo: "app", branch: "main" },
           host: { kind: "ssh", name: "devbox", detail: "ssh://me@devbox/run/fresnel.sock" },
           clients: [{ name: "cli", transport: "socket" }],

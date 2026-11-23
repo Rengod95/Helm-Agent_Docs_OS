@@ -8,6 +8,7 @@ import {
   type NoticeKind,
 } from "@fresnel/contracts/capabilities";
 import { approvalAgeOf } from "./approval-card/card-model.ts";
+import { localizedPluginTitle } from "./approval-card/plugin-name.ts";
 import { runReasonTextOf } from "./pages/schedules/schedule-text.ts";
 import {
   turnFailureOf,
@@ -99,7 +100,7 @@ export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
     case "approval_waiting": {
       const at = notice.title.indexOf(TOOL_SEPARATOR);
       if (at < 0) return null;
-      const tool = notice.title.slice(at + TOOL_SEPARATOR.length);
+      const tool = localizedPluginTitle(notice.title.slice(at + TOOL_SEPARATOR.length));
       return { id: "desktop.notices.title.approvalTool", params: { tool } };
     }
     case "background_completed":

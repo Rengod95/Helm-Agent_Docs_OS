@@ -52,6 +52,15 @@ export function triggerKindId(kind: ScheduleTriggerKind): MessageId {
   return TRIGGER_KIND_ID[kind];
 }
 
+/** 지역 시각의 시계 글(예: "09:00", 날짜 없이) */
+function clockTextOf(epochMs: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(epochMs));
+}
+
 /** 시각을 지역 시각의 짧은 문장으로 쓴다(`format.ts`의 포맷은 UTC 고정이라 쓰지 않는다) */
 export function timeTextOf(epochMs: number, locale: Locale): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
@@ -110,6 +119,12 @@ export function triggerSummaryOf(
 ): MessageRef {
   switch (trigger.kind) {
     case "interval":
+      // 첫 실행 시각이 있고 간격이 하루면 "매일 09:00"(지역 시각)이다
+      if (trigger.firstAtMs !== undefined && trigger.everySeconds === 86_400) {
+        return message("desktop.schedules.summary.daily", {
+          time: clockTextOf(trigger.firstAtMs, locale),
+        });
+      }
       return intervalSummaryOf(trigger.everySeconds);
     case "at":
       return message("desktop.schedules.summary.at", { time: timeTextOf(trigger.atMs, locale) });

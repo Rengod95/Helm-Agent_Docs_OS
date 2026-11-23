@@ -488,7 +488,7 @@ describe("approval_dismissed takes an approval out of the queue", () => {
     const before = waiting();
     expect(selectThreadApprovals(before, T)).toBe(1);
     expect(inboxRowsOf(before.approvals.ids, before.approvals.byId)).toEqual([
-      { id: evt(6), threadId: T, requestedAt: 0 },
+      { id: evt(6), threadId: T, requestedAt: 0, question: true },
     ]);
     const after = reduceMirror(before, dismiss(6));
     expect(after.note).toBe("applied");

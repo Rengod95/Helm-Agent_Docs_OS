@@ -15,6 +15,7 @@ import {
   arrangeInboxApprovals,
   inboxAllThreadIdsOf,
   inboxRowsOf,
+  queueCountsOf,
   type InboxSort,
   type InboxThread,
 } from "./inbox-model.ts";
@@ -96,9 +97,11 @@ export function ApprovalQueue(): ReactNode {
   const approvals = useApprovalMirror();
   const openThreadId = useOpenThreadId();
   // 열린 대화의 승인만 트랜스크립트 끝에 둔다. 다른 대화의 승인은 받은 요청과 사이드바 수가 맡는다
-  const ids = inboxRowsOf(approvals.ids, approvals.byId)
-    .filter((row) => row.threadId === openThreadId)
-    .map((row) => row.id);
+  const rows = inboxRowsOf(approvals.ids, approvals.byId).filter(
+    (row) => row.threadId === openThreadId,
+  );
+  const ids = rows.map((row) => row.id);
+  const counts = queueCountsOf(rows);
   const band = useRef<HTMLElement | null>(null);
   const idsKey = ids.join(",");
   // 새 카드가 오면 마지막 카드가 아래 가장자리(테두리)까지 보이게 띠 안에서 스크롤한다(rtE R-1, DP-225). 카드 하나의 높이는 띠 상한 안이라 다 들어간다
@@ -118,14 +121,28 @@ export function ApprovalQueue(): ReactNode {
       initial={false}
       className="flex min-h-0 flex-col"
     >
-      {ids.length === 0 ? null : <ApprovalBand band={band} ids={ids} within={openThreadId} />}
+      {ids.length === 0 ? null : (
+        <ApprovalBand band={band} ids={ids} counts={counts} within={openThreadId} />
+      )}
     </Presence>
   );
+}
+
+/** 묶음 제목: 승인은 "승인 대기", 질문은 "답변 대기", 둘이 섞이면 각각 센다 */
+function queueTitle(counts: { readonly approvals: number; readonly questions: number }): string {
+  if (counts.approvals > 0 && counts.questions > 0) {
+    return t("desktop.approvals.queue.titleMixed", counts);
+  }
+  if (counts.questions > 0) {
+    return t("desktop.approvals.queue.titleQuestions", { count: counts.questions });
+  }
+  return t("desktop.approvals.queue.title", { count: counts.approvals });
 }
 
 function ApprovalBand(props: {
   readonly band: RefObject<HTMLElement | null>;
   readonly ids: readonly EventId[];
+  readonly counts: { readonly approvals: number; readonly questions: number };
   readonly within: ThreadId | null;
 }): ReactNode {
   const { band, ids } = props;
@@ -140,9 +157,7 @@ function ApprovalBand(props: {
       className="flex max-h-[calc(var(--app-dvh)*0.5)] min-h-0 flex-col gap-2 [--approval-card-max:calc(var(--app-dvh)*0.5-1.625rem)]"
       aria-label={t("desktop.approvals.queue.label")}
     >
-      <h2 className="m-0 flex-none text-ui-strong text-text-primary">
-        {t("desktop.approvals.queue.title", { count: ids.length })}
-      </h2>
+      <h2 className="m-0 flex-none text-ui-strong text-text-primary">{queueTitle(props.counts)}</h2>
       {ids.length === 1 ? (
         <ApprovalCardList ids={ids} within={openThreadId} />
       ) : (
