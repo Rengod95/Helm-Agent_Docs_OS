@@ -2,7 +2,7 @@
 // 시험이 파일 목록과 내용을 값으로 비교하므로 파일을 읽거나 쓰지 않는다. 쓰기는 scaffold.ts가 한다.
 //
 // 뼈대의 짜임: 화면(`ui/app`, 셸의 다리로 메서드를 부른다)과 엔진 코드(`src/index.ts`, 상태 하나, 읽기 메서드 list,
-// 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구)가 같은 `addItem`으로 같은 상태를 고친다.
+// 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구(읽기 `list_items`, 쓰기 `add_item`))가 같은 `addItem`으로 같은 상태를 고친다.
 // 다리 프로토콜은 contracts `extensions/ui.ts`(BRIDGE_VERSION, BRIDGE_OPS, BRIDGE_PUSHES)와 `examples/viewdemo`를 따른다.
 
 export interface AppSkeletonValues {
@@ -30,9 +30,10 @@ const VIEW_ID = "main";
 const ITEM_MAX = 500;
 const TITLE_MAX = 200;
 
-/** 모델 도구 이름. 확장 이름의 `-`를 `_`로 바꾼 뒤 `_add_item`을 붙인다(도구 이름 패턴 `^[a-z][a-z0-9_]{0,63}$`) */
-function appToolName(id: string): string {
-  return `${id.replaceAll("-", "_")}_add_item`;
+/** 모델 도구 이름 둘. 확장 이름의 `-`를 `_`로 바꾼 뒤 읽기는 `_list_items`, 쓰기는 `_add_item`을 붙인다(도구 이름 패턴 `^[a-z][a-z0-9_]{0,63}$`) */
+function appToolNames(id: string): { readonly list: string; readonly add: string } {
+  const base = id.replaceAll("-", "_");
+  return { list: `${base}_list_items`, add: `${base}_add_item` };
 }
 
 const EMPTY_OBJECT = { type: "object", properties: {}, additionalProperties: false };
@@ -65,6 +66,7 @@ const ADD_PARAMS = {
 };
 
 function manifestText(values: AppSkeletonValues): string {
+  const tools = appToolNames(values.id);
   const manifest = {
     schemaVersion: 2,
     name: values.id,
@@ -77,10 +79,8 @@ function manifestText(values: AppSkeletonValues): string {
     defaultEnabled: false,
     trust: { level: "user" },
     tools: [
-      {
-        name: appToolName(values.id),
-        description: "앱 목록에 항목 하나를 더한다.",
-      },
+      { name: tools.list, description: "앱 목록의 항목을 모두 보여 준다." },
+      { name: tools.add, description: "앱 목록에 항목 하나를 더한다." },
     ],
     methods: [
       { verb: "list", params: EMPTY_OBJECT, result: RESULT_SHAPE, readOnly: true },
@@ -116,7 +116,9 @@ function manifestText(values: AppSkeletonValues): string {
 
 /** 엔진 코드. 생성 글에는 `${`와 역따옴표를 쓰지 않는다(도구 이름만 JSON 문자열로 넣는다) */
 function entryText(values: AppSkeletonValues): string {
-  const tool = JSON.stringify(appToolName(values.id));
+  const tools = appToolNames(values.id);
+  const listTool = JSON.stringify(tools.list);
+  const addTool = JSON.stringify(tools.add);
   return [
     'import { parse } from "@fresnel/contracts";',
     "import {",
@@ -128,7 +130,7 @@ function entryText(values: AppSkeletonValues): string {
     'import { Type } from "typebox";',
     'import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };',
     "",
-    "// 앱 플러그인 골격. 상태 하나(items), 읽기 메서드 list, 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구를 둔다.",
+    "// 앱 플러그인 골격. 상태 하나(items), 읽기 메서드 list, 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구(읽기 하나, 쓰기 하나)를 둔다.",
     "// 화면(ui/app)은 메서드를 부르고 모델은 도구를 부른다. 둘 다 addItem 하나로 상태를 고치므로 같은 목록을 본다.",
     '// 기록은 항상 플러그인 전용 저장소(g.pluginStore, 키 "items")에 둔다. 화면 메서드와 모델 도구가 어느 대화에서 불리든 같은 한 목록을 읽고 쓴다.',
     "// 대화마다 따로 가져야 하는 기록은 상태 문서(g.state, g.commit)에 둘 수 있다.",
@@ -161,6 +163,8 @@ function entryText(values: AppSkeletonValues): string {
     `  { title: Type.String({ minLength: 1, maxLength: ${TITLE_MAX} }) },`,
     "  { additionalProperties: false },",
     ");",
+    "",
+    "const listParams = Type.Object({}, { additionalProperties: false });",
     "",
     "type AppApi = OrchestrationApi<AppState>;",
     "",
@@ -213,7 +217,19 @@ function entryText(values: AppSkeletonValues): string {
     "      },",
     "    });",
     "    g.registerTool({",
-    `      name: ${tool},`,
+    `      name: ${listTool},`,
+    '      description: "앱 목록의 항목을 모두 보여 준다.",',
+    "      parameters: listParams,",
+    '      replay: "unsafe",',
+    "      // risk를 생략한다. 외부 확장이 read나 write를 선언하면 등록이 거부되고, 생략하면 exec가 기본이다",
+    "      execute: async (args) => {",
+    "        const checked = parse(listParams, args);",
+    '        if (!checked.ok) return { ok: false, reason: "invalid_input" };',
+    "        return readStored(g);",
+    "      },",
+    "    });",
+    "    g.registerTool({",
+    `      name: ${addTool},`,
     '      description: "앱 목록에 항목 하나를 더한다.",',
     "      parameters: addParams,",
     '      replay: "unsafe",',

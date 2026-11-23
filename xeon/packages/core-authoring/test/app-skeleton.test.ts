@@ -23,7 +23,18 @@ test("the app skeleton makes exactly the manifest, the engine entry, and the scr
   ]);
 });
 
-test("the manifest value: one app page, two methods (read and write), one model tool", () => {
+test("the app manifest's model tools are the read tool and the write tool, in that order", () => {
+  const manifest: unknown = JSON.parse(fileText(".fresnel-plugin/plugin.json"));
+  expect(manifest).toMatchObject({
+    tools: [{ name: "kanban_list_items" }, { name: "kanban_add_item" }],
+    methods: [
+      { verb: "list", readOnly: true },
+      { verb: "add", readOnly: false },
+    ],
+  });
+});
+
+test("the manifest value: one app page, two methods (read and write), two model tools (read and write)", () => {
   expect(JSON.parse(fileText(".fresnel-plugin/plugin.json"))).toEqual({
     schemaVersion: 2,
     name: "kanban",
@@ -36,10 +47,8 @@ test("the manifest value: one app page, two methods (read and write), one model 
     defaultEnabled: false,
     trust: { level: "user" },
     tools: [
-      {
-        name: "kanban_add_item",
-        description: "앱 목록에 항목 하나를 더한다.",
-      },
+      { name: "kanban_list_items", description: "앱 목록의 항목을 모두 보여 준다." },
+      { name: "kanban_add_item", description: "앱 목록에 항목 하나를 더한다." },
     ],
     methods: [
       {
@@ -124,7 +133,9 @@ test("the model tool and the screen's write method share one function in the ent
   const entry = fileText("src/index.ts");
   expect(entry).toContain('g.registerMethod("list", {');
   expect(entry).toContain('g.registerMethod("add", {');
+  expect(entry).toContain('name: "kanban_list_items",');
   expect(entry).toContain('name: "kanban_add_item",');
+  expect(entry).toContain("return readStored(g);");
   expect(entry).toContain("const put = await g.pluginStore.put(ITEMS_KEY, { items: next });");
   // 메서드 add와 모델 도구가 같은 addItem을 부른다(정의는 "addItem(g: "라서 셈에 들지 않는다)
   expect(entry.split("addItem(g, ")).toHaveLength(3);
