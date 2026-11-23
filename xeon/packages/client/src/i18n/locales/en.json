@@ -6360,6 +6360,7 @@
   "settings.ext.isolation.label": "{name} isolation",
   "settings.ext.isolation.option.none": "No isolation",
   "settings.ext.isolation.option.process": "Separate process",
+  "settings.ext.isolation.help": "none = allow running inside the engine. process = run in its own plugin process (default).",
   "ext.name.coreAgents": "Subagents",
   "ext.name.coreContext": "Context",
   "ext.name.coreLoop": "Agent loop",
