@@ -27,7 +27,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 2. `authoring_start` with `kind`, `name`, `dir`: the user must confirm kind and name.
 3. `authoring_compose` (plugin groups only): save the composition draft.
 4. `authoring_scaffold` with `mode` `hook`, `inject`, `drive`, `app`, or `native`: write the files into an empty or missing folder. `app` writes a plugin with its own screen (`ui/app/`), read and write methods, and a model tool. `native` writes a plugin with one declarative screen (`ui/native/main.view.json`) and one read method. Read `references/ui.md` before choosing one.
-5. Edit the files, then `authoring_validate`. Repeat until there are no errors.
+5. Edit the files, then `authoring_validate`. Repeat until there are no errors; warnings do not block.
 6. `authoring_trial`: calling it shows the user a confirmation card (it uses model calls), so call it right away and do not ask in text first. `authoring_replay`: development mode only.
 7. `authoring_submit` with the `turnId` of a turn in the Test run (the evidence): it sends the folder to the review inbox as a draft. Nothing is installed; the user approves it in the review inbox, and only then can the plugin be used. `authoring_package` (optional): packs one bundle file the user can keep; the user confirms.
 8. `authoring_stop`: close the session. Files stay.
