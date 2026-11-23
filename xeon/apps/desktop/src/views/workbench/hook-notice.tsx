@@ -211,7 +211,7 @@ function HookNoticeView(props: {
  * 훅 하나의 알림. 스토어에 질문이나 꺼짐이 있는 훅이면 그린다. 답을 보낼 곳이 없으면 아무것도 그리지 않는다.
  * 안전 모드(`useSafeMode()`가 켜짐)면 질문도 꺼짐도 그리지 않는다.
  */
-export function HookNoticeFor(props: {
+function HookNoticeFor(props: {
   readonly hook: string;
   readonly compact?: boolean | undefined;
 }): ReactNode {

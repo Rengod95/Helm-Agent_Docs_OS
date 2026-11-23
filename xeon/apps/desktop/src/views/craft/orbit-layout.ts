@@ -13,7 +13,7 @@ export const ORBIT_OUTER = 460;
 /** 층 고리의 반지름 비율(ORBIT_OUTER 기준). 바깥 고리는 호 안쪽에 머문다 */
 const RING_FRAC: Readonly<Record<LayerKey, number>> = { L1: 0.28, L2: 0.5, L3: 0.71, plugin: 0.89 };
 /** 고리 순서: 안쪽부터 */
-export const RING_ORDER: readonly LayerKey[] = ["L1", "L2", "L3", "plugin"];
+const RING_ORDER: readonly LayerKey[] = ["L1", "L2", "L3", "plugin"];
 /** 맨 위(0도) 양쪽의 빈 틈(도). 층 이름표가 점에 가리지 않게 한다 */
 export const GAP_DEG = 24;
 /** 그룹 호가 구성원 끝 각도보다 넓게 도는 여유(도) */
@@ -34,7 +34,7 @@ export interface OrbitDot {
   readonly y: number;
 }
 
-export interface OrbitArc {
+interface OrbitArc {
   readonly groupId: string;
   /** 시작·끝 각도(도). from < to, 0~360 안 */
   readonly from: number;
@@ -50,7 +50,7 @@ export interface OrbitLayout {
 const rad = (deg: number): number => (deg * Math.PI) / 180;
 
 /** 중심에서 반지름 r, 위에서 시계 방향 각도 deg인 세계 좌표 */
-export function pointAt(radius: number, deg: number): { readonly x: number; readonly y: number } {
+function pointAt(radius: number, deg: number): { readonly x: number; readonly y: number } {
   return {
     x: CENTER + radius * Math.sin(rad(deg)),
     y: CENTER - radius * Math.cos(rad(deg)),
