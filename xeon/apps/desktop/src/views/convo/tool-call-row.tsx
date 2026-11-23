@@ -308,9 +308,11 @@ export function CallRow(props: {
   const change = fileChangeViewOfArgs(name, args);
   const grouped = props.grouped === true;
   // 혼자 선 실패 줄은 펼친다(묶음 안 실패 줄은 접고 한 줄 요약). 파일 변경은 "모두 보기"에서 펼친다. 요약 설정에서는 실패만 펼친다
+  // 결과 없이 끊긴 줄(되살아난 호출)은 펼칠 것이 인자뿐이라 접힌 한 줄로 둔다(AGE-78)
+  const cutOff = view === null && status.kind === "failed" && status.failure === "interrupted";
   const want =
     mode === "default" &&
-    ((status.kind === "failed" && status.failure !== "badArgs" && !grouped) ||
+    ((status.kind === "failed" && status.failure !== "badArgs" && !grouped && !cutOff) ||
       (change !== null && status.kind === "done" && detailSetting === "full"));
   const [open, toggle] = useDisclosure(want);
   if (mode === "hidden") return null;

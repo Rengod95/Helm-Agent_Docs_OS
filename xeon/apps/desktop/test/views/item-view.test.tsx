@@ -354,6 +354,15 @@ describe("one row per tool call", () => {
     expect(chipLabels(call)).toEqual([t("desktop.item.status.interrupted")]);
     expect(call).not.toContain('data-status="done"');
   });
+
+  test("a restored ask_user call without a result stays one folded line, args not expanded", () => {
+    const h = openedHarness();
+    ingestRecords(h, [callItem(1, 9, "ask_user")]);
+    const call = render(<RecordedItem id={itm(1)} />, h);
+    expect(chipLabels(call)).toEqual([t("desktop.item.status.interrupted")]);
+    expect(call).toContain('aria-expanded="false"');
+    expect(call).not.toContain('aria-expanded="true"');
+  });
 });
 
 function editCallItem(n: number, resultN: number): ItemRecord {
