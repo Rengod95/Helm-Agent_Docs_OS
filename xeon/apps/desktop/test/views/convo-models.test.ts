@@ -189,6 +189,7 @@ describe("durationText", () => {
       exitCode: 2,
       durationMs: 1500,
       server: null,
+      pathDenial: null,
     };
     expect(commandMetaOf(view)).toEqual([
       t("desktop.convo.exitCode", { code: 2 }),

@@ -33,6 +33,7 @@ import { failureLineOf } from "./activity-model.ts";
 import {
   commandMetaOf,
   failureToneOf,
+  pathDenialLineOf,
   toolHeadOf,
   toolResultOf,
   type ToolOutcome,
@@ -312,7 +313,11 @@ export function CallRow(props: {
   const cutOff = view === null && status.kind === "failed" && status.failure === "interrupted";
   const want =
     mode === "default" &&
-    ((status.kind === "failed" && status.failure !== "badArgs" && !grouped && !cutOff) ||
+    ((status.kind === "failed" &&
+      status.failure !== "badArgs" &&
+      status.failure !== "pathBlocked" &&
+      !grouped &&
+      !cutOff) ||
       (change !== null && status.kind === "done" && detailSetting === "full"));
   const [open, toggle] = useDisclosure(want);
   if (mode === "hidden") return null;
@@ -372,13 +377,21 @@ export function CallRow(props: {
   // 도구 인자 검증 오류(`badArgs`)는 묶음 밖에서도 접고, 영어 원문 대신 한 줄을 보인다. 원문은 펼치면 나온다
   const badArgs =
     view !== null && view.outcome.kind === "failed" && view.outcome.failure === "badArgs";
+  // 작업 폴더 경계가 막은 줄(`pathBlocked`)도 같다: 한국어 한 줄이 먼저이고 원문은 펼치면 나온다
   const failLine = badArgs
     ? open
       ? null
       : t("desktop.item.badArgs.line")
-    : grouped && !open && view !== null && view.outcome.kind === "failed"
-      ? failureLineOf(view.output)
-      : null;
+    : view !== null &&
+        view.pathDenial !== null &&
+        view.outcome.kind === "failed" &&
+        view.outcome.failure === "pathBlocked"
+      ? open
+        ? null
+        : pathDenialLineOf(view.pathDenial)
+      : grouped && !open && view !== null && view.outcome.kind === "failed"
+        ? failureLineOf(view.output)
+        : null;
   return (
     <ToolLine
       compact={grouped}
