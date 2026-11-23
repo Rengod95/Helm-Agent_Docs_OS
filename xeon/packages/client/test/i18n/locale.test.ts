@@ -30,6 +30,15 @@ test("translator resolves ids per locale and falls back to the fallback text", (
   expect(createTranslator("en").has("no.such.id")).toBe(false);
 });
 
+test("the changes tab names untracked calls as commands and subagents, not as changes", () => {
+  expect(createTranslator("ko").t("desktop.changes.untracked.title")).toBe("명령과 하위 에이전트");
+  expect(createTranslator("en").t("desktop.changes.untracked.title")).toBe(
+    "Commands and subagents",
+  );
+  expect(createTranslator("ko").t("desktop.changes.turn.untracked", { count: 3 })).toBe("실행 3개");
+  expect(createTranslator("en").t("desktop.changes.turn.untracked", { count: 3 })).toBe("3 runs");
+});
+
 test("setActiveLocale switches the process translator", () => {
   const before = activeLocale();
   setActiveLocale("ko");

@@ -243,7 +243,10 @@ export function liveBundleOfCard(parent: Plugin, members: readonly string[]): Li
 export function profileInputOf(canvas: CanvasProfile, saved: Profile): ProfileInput {
   // 묶음은 프로필에 이름 하나로 든다(멤버 판 이름을 쓰지 않는다)
   const names = canvas.entries.map((e) => (e.type === "plugin" ? e.name : e.id));
-  const kept = saved.plugins.map((ref) => ref.name).filter((name) => !names.includes(name));
+  // 캔버스에서 뺀 이름이 저장 값에서 되살아나지 않게, 끝에 남기는 것은 공통 묶음과 겹쳐 안 보이던 이름뿐이다(AGE-77: 제안을 빼도 안 빠짐)
+  const kept = saved.plugins
+    .map((ref) => ref.name)
+    .filter((name) => !names.includes(name) && canvas.base.includes(name));
   return {
     id: saved.id,
     title: saved.title,
