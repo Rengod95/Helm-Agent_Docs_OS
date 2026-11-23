@@ -1,5 +1,6 @@
 import type { LiveApprovalRequest } from "../state/engine/input.ts";
 import type { MessageId } from "@fresnel/client/i18n";
+import { localizedPluginTitle } from "./approval-card/plugin-name.ts";
 import { cardTitleViewOf } from "./approval-card/card-model.ts";
 
 // 화면 낭독 안내(scD 1-2)의 순수 부분. 새 승인 요청과 턴 완료·실패를 짧은 문장으로 만든다.
@@ -34,7 +35,7 @@ export function approvalAnnouncement(request: LiveApprovalRequest): Announcement
       params: { name: view.params.name },
     };
   }
-  return { id: "desktop.announce.approval", params: { what: request.title } };
+  return { id: "desktop.announce.approval", params: { what: localizedPluginTitle(request.title) } };
 }
 
 /** 이전 목록에 없던 승인 id만 앞에서부터 돌려준다 */
