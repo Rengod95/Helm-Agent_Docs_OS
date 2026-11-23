@@ -24,6 +24,7 @@ import type { DraftInfo, ExtTestRunParams, ExtTestRunResult } from "@fresnel/con
 import type {
   CraftContextEntry,
   DevkitError,
+  DevkitIssue,
   DraftSummary,
   ReplayReport,
   SourceFacts,
@@ -266,12 +267,18 @@ function devkitErrorOfDraft(failure: PluginPortFailure): DevkitError {
   }
 }
 
+/** 초안을 싣지 못한 이유의 한 줄: 종류, 사유, 입구가 던진 오류의 첫 줄 */
+function loadRefusalText(refusal: Exclude<OverlayRefusal, { readonly kind: "plugin" }>): string {
+  if (refusal.kind !== "draft_unavailable") return refusal.kind;
+  return `${refusal.kind}: ${refusal.reason}${refusal.detail === undefined ? "" : `, ${refusal.detail}`}`;
+}
+
 /** Test run 초안을 싣지 못한 이유. 모두 이 폴더로는 대화를 열 수 없다는 뜻이라 `invalid_input`이고, 저장소 실패는 `io`다 */
 function devkitErrorOfOverlay(refusal: OverlayRefusal): DevkitError {
   if (refusal.kind === "plugin") return devkitErrorOfPlugin(refusal.failure);
   return {
     kind: "invalid_input",
-    message: `the draft could not be loaded for a Test run (${refusal.kind})`,
+    message: `the draft could not be loaded for a Test run (${loadRefusalText(refusal)})`,
   };
 }
 
@@ -595,6 +602,34 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     return ok({ testId, threadId });
   }
 
+  /**
+   * AU-014: 폴더를 초안으로 싣어 보고 바로 내린다. 입구가 로드 중 던지거나 매니페스트가 거부되면 그 까닭의 첫 줄을 오류로 돌려준다.
+   * 격리를 쓸 수 없거나(`isolation_unavailable`, `safe_mode`) 초안을 만들 수 없으면 이 검사는 건너뛴다(그 실패는 다른 길이 알린다)
+   */
+  async function entryLoadIssue(dir: string): Promise<DevkitIssue | undefined> {
+    const drafts = deps.testRunDrafts;
+    const draftCreate = deps.draftCreate;
+    if (drafts === undefined || draftCreate === undefined) return undefined;
+    const made = await draftCreate(dir, undefined);
+    if (!made.ok) return undefined;
+    const { info } = made.value;
+    const prepared = await drafts.prepare([{ plugin: info.name, draftId: info.draftId }]);
+    if (prepared.ok) {
+      prepared.value.unhold();
+      return undefined;
+    }
+    const refusal = prepared.error;
+    if (refusal.kind !== "draft_unavailable") return undefined;
+    if (refusal.reason === "isolation_unavailable" || refusal.reason === "safe_mode")
+      return undefined;
+    return {
+      severity: "error",
+      code: "AU-014",
+      path: "/entry",
+      message: `the plugin could not be loaded: ${loadRefusalText(refusal)}`,
+    };
+  }
+
   /** 기록을 남기지 못해 만든 대화를 지운다. 지우지 못하면 로그만 남긴다(호출자는 원래 실패를 돌려준다) */
   async function discardThread(threadId: ThreadId): Promise<void> {
     const removed = await deps.threads.remove(threadId);
@@ -611,7 +646,14 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
         return Promise.resolve(err({ kind: "io", message: "the extension templates are missing" }));
       return scaffoldExtension(input, { templates: found, installedNames: installedNames() });
     },
-    validate: (dir) => validateExtensionDir(dir),
+    validate: async (dir) => {
+      const checked = await validateExtensionDir(dir);
+      if (!checked.ok || !checked.value.ok) return checked;
+      // 오류가 없으면 입구를 실제로 싣어 본다(AU-014). Test run이 같은 길에서 `draft_unavailable`로 막히는 일을 미리 잡는다
+      const unloadable = await entryLoadIssue(dir);
+      if (unloadable === undefined) return checked;
+      return ok({ ok: false, issues: [...checked.value.issues, unloadable] });
+    },
     validateComposition: (params) => ({
       issues: validateCompositionReport(params.composition, params.plugins).issues.flatMap(
         (found) =>

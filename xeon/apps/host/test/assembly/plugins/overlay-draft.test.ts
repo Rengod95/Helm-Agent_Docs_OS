@@ -327,7 +327,10 @@ test("초안 싣기: 싣지 못한 이유마다 와이어 사유와 기록 한 �
   const report = (event: string, fields: object): void => {
     reports.push(JSON.stringify([event, fields]));
   };
-  const diagnostic = partial<LoadDiagnostic>({ code: "manifest_invalid" });
+  const diagnostic = partial<LoadDiagnostic>({
+    code: "entry_threw",
+    message: "entry of widget threw: boom\n    at stack",
+  });
   const failures: readonly LoadDraftFailure[] = [
     { kind: "not_active", state: "rejected", diagnostics: [diagnostic] },
     { kind: "name_taken", internalName: "ddrf1-widget" },
@@ -343,6 +346,10 @@ test("초안 싣기: 싣지 못한 이유마다 와이어 사유와 기록 한 �
     const refused = await load([DRAFT]);
     expect(refused.ok ? null : refused.error.reason).toBe(
       failure.kind === "not_active" ? "not_active" : "load_failed",
+    );
+    // 입구가 던진 오류의 첫 줄이 사유와 함께 간다(스택 줄은 빼고)
+    expect(refused.ok ? null : refused.error.detail).toBe(
+      failure.kind === "not_active" ? "entry of widget threw: boom" : undefined,
     );
   }
   // 같은 내부 이름에 다른 내용이 이미 실려 있다
@@ -377,7 +384,8 @@ test("초안 싣기: 싣지 못한 이유마다 와이어 사유와 기록 한 �
         kind: "not_active",
         reason: "not_active",
         state: "rejected",
-        code: "manifest_invalid",
+        code: "entry_threw",
+        message: "entry of widget threw: boom",
       },
     ]),
     JSON.stringify([

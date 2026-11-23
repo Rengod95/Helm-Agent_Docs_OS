@@ -272,13 +272,18 @@ function isCallable(value: unknown): value is UnknownCallable {
   return typeof value === "function";
 }
 
-/** 모듈의 `default` 또는 `extension` 중 함수인 쪽. `default`가 먼저다(X.loading-trust.spec §4.4.2) */
+/** 모듈의 `default` 또는 `extension` 중 함수인 쪽(함수 대신 `entry` 함수를 가진 그룹 모듈 객체도 받는다). `default`가 먼저다(X.loading-trust.spec §4.4.2) */
 function callableExportOf(loaded: unknown): UnknownCallable | undefined {
   if (typeof loaded !== "object" || loaded === null) return undefined;
   for (const key of ["default", "extension"] as const) {
     if (hasKey(loaded, key)) {
       const value = loaded[key];
       if (isCallable(value)) return value;
+      // 그룹 모듈(`export default defineOrchestration(...)`)은 `entry` 함수를 가진 객체다. 그 함수가 엔트리다
+      if (typeof value === "object" && value !== null && hasKey(value, "entry")) {
+        const grouped = value["entry"];
+        if (isCallable(grouped)) return grouped;
+      }
     }
   }
   return undefined;

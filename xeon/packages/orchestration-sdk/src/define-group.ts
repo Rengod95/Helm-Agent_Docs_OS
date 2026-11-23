@@ -328,20 +328,22 @@ export function defineOrchestration<
       `defineOrchestration(${def.manifest.name}): manifest is not an orchestration manifest`,
     );
   }
-  const entry: ExtensionEntry = ({ register }) => {
+  const entry: ExtensionEntry = ({ register, manifest: loaded }) => {
+    // 호스트가 준 이름으로 등록한다. 설치된 플러그인은 매니페스트 이름과 같고, 초안(Test run)은 내부 이름(`d<해시>-<이름>`)이다.
+    // 파일의 이름으로 등록하면 초안에서 `registration_unknown_plugin`으로 던진다(F-10, F-47)
+    const live = loaded.name === filled.name ? filled : { ...filled, name: loaded.name };
+    const liveDef = loaded.name === def.manifest.name ? def : { ...def, manifest: live };
     const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
-    register(def.manifest.name, registrationDef, (api) =>
-      def.setup(wrap(api, def, realHostAccess)),
-    );
+    register(loaded.name, registrationDef, (api) => def.setup(wrap(api, liveDef, realHostAccess)));
     // 구성원은 뿌리 뒤에 plugins[] 순서로 등록한다. 정의가 없는 구성원은 검사가 막았다
-    for (const member of membersOf(filled)) {
+    for (const member of membersOf(live)) {
       const defined = members[member.id];
       if (defined === undefined) {
         throw new Bug(
           `defineOrchestration(${def.manifest.name}): member ${member.id} has no definition`,
         );
       }
-      defined.mount(register, registrationIdOf(filled, member.id), filled, member.decl);
+      defined.mount(register, registrationIdOf(live, member.id), live, member.decl);
     }
   };
   const version = def.state?.version ?? 0;

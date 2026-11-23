@@ -15,6 +15,7 @@ import type { OverlayRefusal } from "../../src/assembly/plugins/overlay.ts";
 import type { PluginPortFailure } from "../../src/handlers/m5/plugins.ts";
 import type { ProfileTestRunPort } from "../../src/handlers/m4/profile-test-run.ts";
 import { openFileLock, type OpenedFileLock } from "../fixtures/file-lock.ts";
+import { locateTemplateDirs, scaffoldExtension } from "@fresnel/core-authoring";
 import { partial } from "../fixtures/unsafe.ts";
 
 // 설치하지 않은 폴더의 Test run(`trialRun`, L3.authoring.spec §4.3). 폴더를 초안으로 만들고 `testRun.start`와 같은 구성으로 Test run 대화에만 묶는다.
@@ -191,12 +192,18 @@ test("a folder that fails the draft check is refused with its reasons and opens 
 
 test("a draft that cannot be loaded opens no thread, and a thread that cannot be created releases the draft", async () => {
   const refused = await rig({
-    prepareFails: { kind: "draft_unavailable", name: "kanban-board", reason: "mixed_versions" },
+    prepareFails: {
+      kind: "draft_unavailable",
+      name: "kanban-board",
+      reason: "not_active",
+      detail: "entry of kanban-board threw: boom",
+    },
   });
   expect(await refused.port.trialRun({ dir: "/work/kanban-board" })).toEqual(
     err({
       kind: "invalid_input",
-      message: "the draft could not be loaded for a Test run (draft_unavailable)",
+      message:
+        "the draft could not be loaded for a Test run (draft_unavailable: not_active, entry of kanban-board threw: boom)",
     }),
   );
   expect(refused.created).toEqual([]);
@@ -213,4 +220,65 @@ test("an unknown profile is refused before any draft is made", async () => {
     err({ kind: "not_found", message: "profile p-9 is not found" }),
   );
   expect(session.drafted).toEqual([]);
+});
+
+/** 검사를 통과하는 뼈대 폴더(훅 방식)를 새로 만든다 */
+async function scaffoldedFolder(name: string): Promise<string> {
+  const templates = locateTemplateDirs({});
+  if (templates === null) throw new Error("templates are missing in the source tree");
+  const dir = join(root, `scaffold-${name}`);
+  const made = await scaffoldExtension(
+    { kind: "single-plugin", name, dir, purpose: "Greet", description: "Greets the user" },
+    { templates },
+  );
+  if (!made.ok) throw new Error(made.error.message);
+  return dir;
+}
+
+test("validate loads the entry as a draft too: a plugin that cannot be loaded fails with AU-014 and the first line of the cause", async () => {
+  const session = await rig({
+    prepareFails: {
+      kind: "draft_unavailable",
+      name: "kanban-board",
+      reason: "not_active",
+      detail: "entry of kanban-board threw: boom",
+    },
+  });
+  const checked = await session.port.validate(await scaffoldedFolder("kanban-board"));
+  expect(checked.ok ? checked.value.ok : null).toBe(false);
+  expect(
+    checked.ok ? checked.value.issues.filter((issue) => issue.code === "AU-014") : null,
+  ).toEqual([
+    {
+      severity: "error",
+      code: "AU-014",
+      path: "/entry",
+      message:
+        "the plugin could not be loaded: draft_unavailable: not_active, entry of kanban-board threw: boom",
+    },
+  ]);
+});
+
+test("validate releases the draft it loaded and stays ok when the entry loads", async () => {
+  const session = await rig();
+  const checked = await session.port.validate(await scaffoldedFolder("greeter-ok"));
+  expect(checked.ok ? checked.value.issues.map((issue) => issue.code) : null).not.toContain(
+    "AU-014",
+  );
+  expect(session.unheld).toEqual(["unhold"]);
+  expect(session.bound).toEqual([]);
+});
+
+test("validate skips the load check when isolation is not available", async () => {
+  const session = await rig({
+    prepareFails: {
+      kind: "draft_unavailable",
+      name: "kanban-board",
+      reason: "isolation_unavailable",
+    },
+  });
+  const checked = await session.port.validate(await scaffoldedFolder("greeter-iso"));
+  expect(checked.ok ? checked.value.issues.map((issue) => issue.code) : null).not.toContain(
+    "AU-014",
+  );
 });

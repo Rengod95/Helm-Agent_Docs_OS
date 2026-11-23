@@ -50,6 +50,8 @@ export interface DraftLoadRefusal {
   readonly kind: string;
   /** 와이어의 `overlay.draftUnavailable` 사유(`details.reason`). 싣기 실패는 로더가 준 종류에서 정한다 */
   readonly reason: DraftUnavailableReason;
+  /** 로더가 준 첫 진단 문장의 첫 줄(플러그인 입구가 던진 오류 등). 없으면 생략한다 */
+  readonly detail?: string;
 }
 
 /** 덧씌우기를 거절하는 이유 */
@@ -74,6 +76,8 @@ export type OverlayRefusal =
       readonly kind: "draft_unavailable";
       readonly name: string;
       readonly reason: DraftUnavailableReason;
+      /** 싣기 실패의 첫 진단 문장 첫 줄. 와이어에는 싣지 않고 Test run 도구 결과가 쓴다 */
+      readonly detail?: string;
     }
   /** 대상을 읽는 저장소나 프로필의 실패. 처리기가 그 실패의 와이어 오류로 옮긴다 */
   | { readonly kind: "plugin"; readonly failure: PluginPortFailure };
@@ -370,6 +374,7 @@ async function attachPlanned(
         kind: "draft_unavailable",
         name: loaded.error.name,
         reason: loaded.error.reason,
+        ...(loaded.error.detail === undefined ? {} : { detail: loaded.error.detail }),
       });
     }
   }

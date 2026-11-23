@@ -123,6 +123,7 @@ export function createTestRunDrafts(deps: TestRunDraftsDeps): TestRunDraftsPort 
           kind: "draft_unavailable",
           name: loaded.error.name,
           reason: loaded.error.reason,
+          ...(loaded.error.detail === undefined ? {} : { detail: loaded.error.detail }),
         });
       }
       // 시작 Drive를 가진 초안은 싣고 나서 등록을 본다(등록은 싣기로 생긴다). 없으면 대화를 만들지 않는다

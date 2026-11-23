@@ -1002,7 +1002,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.4.2 엔트리 모듈 형태
 
-- 외부 확장: 매니페스트 `entry`(확장 루트 상대 경로)를 import한다. export는 `default` 또는 named `extension` 중 하나가 `ExtensionEntry` 함수여야 한다. 둘 다 없으면 `entry_not_function`이다. `entry`가 없으면 코드가 없는 플러그인이다(M5c §4.5.4): import하지 않고, 선언한 플러그인마다 설정도 상태도 없는 Registration 하나만 만든다(훅과 Drive는 선언하지 않는다).
+- 외부 확장: 매니페스트 `entry`(확장 루트 상대 경로)를 import한다. export는 `default` 또는 named `extension` 중 하나가 `ExtensionEntry` 함수여야 한다. 함수 대신 `entry` 함수를 가진 객체(그룹 모듈, `export default defineOrchestration(...)`)도 그 `entry`를 엔트리로 받는다 [결정: 2026-11-23 bldFix, F-47: SDK 그룹 템플릿의 모양이 초안 로드에서 거부되던 일]. 등록은 호스트가 준 `manifest.name`으로 한다(초안은 내부 이름이다). 둘 다 없으면 `entry_not_function`이다. `entry`가 없으면 코드가 없는 플러그인이다(M5c §4.5.4): import하지 않고, 선언한 플러그인마다 설정도 상태도 없는 Registration 하나만 만든다(훅과 Drive는 선언하지 않는다).
 - 내장 확장: `BuiltinExtensionModule.extension`을 그대로 쓴다. import는 조립 루트가 이미 했다. Fresnel 코드의 lint는 default export를 막으므로 내장 패키지는 named export만 쓴다(`xeon/AGENTS.md` 코드 규칙). F.extensions.spec §3.2의 "default export 형식" 주석과의 조정은 §10 미결 2다.
 - `entry`가 확장 루트 밖을 가리키는 경우는 `validateManifest`의 `entry_invalid`가 막는다. 로더는 import 직전에 `realpath` 결과가 확장 루트 안인지 다시 확인한다.
 

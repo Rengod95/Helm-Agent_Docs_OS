@@ -78,11 +78,27 @@ async function loadAll(
       await unwind(deps, loader, fresh);
       const failure = attempted.value.error;
       // `not_active`는 어느 상태로 왜 켜지지 않았는지(첫 진단 코드)를 같이 남긴다
+      const firstDiag = failure.kind === "not_active" ? failure.diagnostics[0] : undefined;
       const extra =
         failure.kind === "not_active"
-          ? { state: failure.state, code: failure.diagnostics[0]?.code ?? "none" }
+          ? { state: failure.state, code: firstDiag?.code ?? "none" }
           : {};
-      return refused(deps, draft.name, failure.kind, extra);
+      const issue = firstDiag?.issues?.find((candidate) => candidate.severity === "error");
+      const detail =
+        firstDiag === undefined
+          ? undefined
+          : firstLineOf(
+              issue === undefined
+                ? firstDiag.message
+                : `${firstDiag.message}: ${issue.path === "" ? "" : `${issue.path} `}${issue.message}`,
+            );
+      return refused(
+        deps,
+        draft.name,
+        failure.kind,
+        detail === undefined ? extra : { ...extra, message: detail },
+        detail,
+      );
     }
     fresh.push(internalName);
   }
@@ -113,13 +129,21 @@ async function unwind(
   }
 }
 
+/** 진단 문장의 첫 줄. 길면 자른다. 비면 없다 */
+function firstLineOf(message: string): string | undefined {
+  const line = (message.split("\n")[0] ?? "").trim();
+  if (line === "") return undefined;
+  return line.length > 300 ? `${line.slice(0, 300)}...` : line;
+}
+
 function refused(
   deps: DraftLoaderDeps,
   name: string,
   kind: string,
   extra: LogFields = {},
+  detail?: string,
 ): Result<never, DraftLoadRefusal> {
   const reason = reasonOfLoadKind(kind);
   deps.report("plugin.overlay.draft_load_failed", { name, kind, reason, ...extra });
-  return err({ name, kind, reason });
+  return err({ name, kind, reason, ...(detail === undefined ? {} : { detail }) });
 }
