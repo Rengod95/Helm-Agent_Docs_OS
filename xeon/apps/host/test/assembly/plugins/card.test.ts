@@ -213,6 +213,70 @@ test("매니페스트 목적이 스킬 설명보다 우선한다. 둘 다 없으
   expect(bare.purpose).toBeNull();
 });
 
+test("카드 설명: 매니페스트 설명을 앞뒤 공백을 뗀 값으로 싣고, 비어 있으면 키를 싣지 않는다", () => {
+  const described = cardOf(
+    folderOf("described", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "described",
+        version: "1.0.0",
+        purpose: "Declared purpose",
+        description: "  Explains the thing.  ",
+      }),
+      "instructions.md": "Plain.",
+    }),
+  );
+  expect(described.description).toBe("Explains the thing.");
+  expect(parse(PluginCardSchema, described).ok).toBe(true);
+
+  const blank = cardOf(
+    folderOf("blank-description", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "blank-description",
+        version: "1.0.0",
+        purpose: "Declared purpose",
+        description: "   ",
+      }),
+      "instructions.md": "Plain.",
+    }),
+  );
+  expect(Object.hasOwn(blank, "description")).toBe(false);
+  expect(parse(PluginCardSchema, blank).ok).toBe(true);
+});
+
+test("카드 설명: 목적이 스킬 설명에서 왔을 때만 설명도 그 스킬 설명을 받고, 1024자를 넘으면 자른다", () => {
+  const fromSkill = cardOf(folderOf("skill-described", { "SKILL.md": SKILL }));
+  expect([fromSkill.purpose, fromSkill.description]).toEqual([
+    "Say hello politely",
+    "Say hello politely",
+  ]);
+
+  const longSkill = cardOf(
+    folderOf("long-skill", {
+      "SKILL.md": `---\nname: long\ndescription: "${"a".repeat(1100)}"\n---\nBody\n`,
+    }),
+  );
+  expect(longSkill.purpose).toBe("a".repeat(200));
+  expect(longSkill.description).toBe(`${"a".repeat(1023)}…`);
+  expect(parse(PluginCardSchema, longSkill).ok).toBe(true);
+
+  // 매니페스트가 목적을 줬으면 스킬 설명은 카드 설명으로 가지 않는다
+  const purposeOnly = cardOf(
+    folderOf("purpose-only", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "purpose-only",
+        version: "1.0.0",
+        purpose: "Declared purpose",
+      }),
+      "SKILL.md": SKILL,
+    }),
+  );
+  expect(purposeOnly.purpose).toBe("Declared purpose");
+  expect(Object.hasOwn(purposeOnly, "description")).toBe(false);
+});
+
 test("코드와 드라이브 선언이 있으면 칸, 강제력, 격리 값이 선언에서 정해진다", () => {
   const files = {
     ".fresnel-plugin/plugin.json": JSON.stringify({

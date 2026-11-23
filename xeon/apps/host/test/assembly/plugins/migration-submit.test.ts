@@ -23,6 +23,9 @@ afterEach(() => {
 
 const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
 
+/** 계획의 설명. 설명이 없으면 승인이 거절된다(`description_required`, AGE-31) */
+const PLAN_DESCRIPTION = "Claude Code 지침 파일을 옮긴 플러그인이다.";
+
 /** 계획 하나. 지침 파일 하나가 든 트리다 */
 function planOf(
   name: string,
@@ -32,6 +35,7 @@ function planOf(
   return {
     name,
     purpose,
+    description: PLAN_DESCRIPTION,
     derivedFrom: ["~/.claude/CLAUDE.md"],
     tree: new Map(Object.entries(files).map(([path, text]) => [path, enc(text)] as const)),
     pendingBuilder: [],
@@ -67,7 +71,7 @@ test("the submit writes the emitted bytes to <userDir>/<name>/ and opens a migra
   }
   expect(readFileSync(join(folder, "instructions/01-note.md"), "utf8")).toBe("요약한다\n");
   expect(readFileSync(join(folder, ".fresnel-plugin/plugin.json"), "utf8")).toBe(
-    `${JSON.stringify({ schemaVersion: 2, name: "brief", version: "0.0.0", purpose: "요약 보고서를 쓴다" }, null, 2)}\n`,
+    `${JSON.stringify({ schemaVersion: 2, name: "brief", version: "0.0.0", purpose: "요약 보고서를 쓴다", description: PLAN_DESCRIPTION }, null, 2)}\n`,
   );
 
   const item = valueOf(await rig.review.get(made[0]?.itemId ?? "")).item;
@@ -77,6 +81,7 @@ test("the submit writes the emitted bytes to <userDir>/<name>/ and opens a migra
   expect(item.originThreadId).toBeNull();
   expect(item.evidence).toEqual([]);
   expect(item.card.purpose).toBe("요약 보고서를 쓴다");
+  expect(item.card.description).toBe(PLAN_DESCRIPTION);
   expect(item.files.map((file) => file.path)).toEqual([
     ".fresnel-plugin/migration.json",
     ".fresnel-plugin/plugin.json",

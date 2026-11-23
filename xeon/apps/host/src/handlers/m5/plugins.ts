@@ -69,6 +69,8 @@ export type PluginPortFailure =
   /** 손으로 고친 변경은 승인할 수 없다 */
   | { readonly kind: "hand_edit"; readonly itemId: string }
   | { readonly kind: "purpose_required"; readonly itemId: string }
+  /** 카드의 설명이 비었다(`pluginReview.descriptionRequired`, 승인 때 채우는 입력은 없다) */
+  | { readonly kind: "description_required"; readonly itemId: string }
   /** 대상 프로필 검증에 실패해 아무것도 바뀌지 않았다. 이슈는 프로필마다의 검증 결과다(§4.7.3, §5) */
   | { readonly kind: "profile_invalid"; readonly issues: readonly PluginEditIssue[] }
   /** 의존 거절(AGE-33). `unmet`은 설치·승인, `required_by`는 끄기·삭제, `breaks_range`는 업데이트다 */
@@ -181,6 +183,8 @@ export function wireErrorOfPluginFailure(failure: PluginPortFailure): WireError 
       return wireError("pluginReview.handEditNotAllowed", { details: { id: failure.itemId } });
     case "purpose_required":
       return wireError("pluginReview.purposeRequired", { details: { id: failure.itemId } });
+    case "description_required":
+      return wireError("pluginReview.descriptionRequired", { details: { id: failure.itemId } });
     case "profile_invalid":
       return wireError("pluginReview.profileInvalid", {
         details: { issues: [...failure.issues] },

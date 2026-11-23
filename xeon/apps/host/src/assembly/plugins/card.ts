@@ -39,7 +39,7 @@ import {
 import { REQUIRED_BY_CORE_USERS } from "../m4/profile-defaults.ts";
 import { compareUtf8 } from "./content-hash.ts";
 import { declaredCostOf } from "./declared-cost.ts";
-import { singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
+import { singleSkillDescription, singleSkillPurpose, type PluginFolder } from "./folder-reader.ts";
 
 // 플러그인 카드(M5c §3.1, §4.5.5, §4.5.9). 읽은 폴더와 매니페스트에서 정적으로 계산한다.
 // 코드는 실행하지 않는다. 호스트가 채우는 값(출처, 검토 상태, 사용처, 건강 상태)은 입력으로 받는다.
@@ -113,6 +113,22 @@ function clipText(text: string, max: number): string {
     out += char;
   }
   return `${out}${ELLIPSIS}`;
+}
+
+/** 카드 설명의 글자 상한(`PluginCardSchema`의 `description`과 같다) */
+const CARD_DESCRIPTION_MAX = 1024;
+
+/**
+ * 카드의 설명. 매니페스트 `description`을 앞뒤 공백을 뗀 값으로 싣고, 비어 있으면 목적을 스킬에서 받은 경우에 한해 그 스킬의 설명을 싣는다.
+ * 둘 다 없으면 undefined다(키를 싣지 않는다). 넘치면 `clipText`로 상한 안에 자른다
+ */
+function cardDescriptionOf(
+  declared: string | undefined,
+  fromSkill: string | null,
+): string | undefined {
+  const own = (declared ?? "").trim();
+  const text = own !== "" ? own : (fromSkill ?? "").trim();
+  return text === "" ? undefined : clipText(text, CARD_DESCRIPTION_MAX);
 }
 
 /** 항목 목록을 상한까지만 싣는다. 넘으면 마지막 자리에 남은 수를 적어 잘렸다는 것을 보인다 */
@@ -532,7 +548,14 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
   const enforcement: PluginEnforcement = enforced ? "enforced" : "advisory";
   const code = manifest.entry !== undefined;
   const displayName = manifest.displayName?.trim() ?? "";
-  const purpose = manifest.purpose ?? singleSkillPurpose(materials.skills);
+  const skillPurpose = singleSkillPurpose(materials.skills);
+  const purpose = manifest.purpose ?? skillPurpose;
+  // 목적이 스킬에서 왔으면 설명도 그 스킬에서 받는다. 매니페스트가 목적을 안 주었거나, 파일 없이 추론한 매니페스트(목적이 스킬 설명 그대로다)인 경우
+  const purposeFromSkill = manifest.purpose === undefined || manifest.purpose === skillPurpose;
+  const description = cardDescriptionOf(
+    manifest.description,
+    purposeFromSkill ? singleSkillDescription(materials.skills) : null,
+  );
   const projectId = input.origin.projectId;
   const internal = isInternalCard(input.origin.kind, manifest);
   const internalLayer = internal ? internalPluginLayer(manifest.name) : undefined;
@@ -544,6 +567,7 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
     displayName: displayName === "" ? folder.name : displayName,
     version: manifest.version,
     purpose,
+    ...(description === undefined ? {} : { description }),
     does: { inject, hook, drive },
     enforcement,
     runs: {

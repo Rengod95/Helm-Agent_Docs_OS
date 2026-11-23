@@ -101,8 +101,10 @@ test("a project plugin folder without a manifest is named by its folder, for a n
   const root = tempRoot("plugin-folder-name-project-");
   roots.push(root);
   const project = join(root, "project");
+  // 설명은 스킬 머리말이 채운다(매니페스트가 없어도 카드 설명이 있어 승인할 수 있다)
   writeFiles(join(project, ".fresnel", "plugins", "notes-kit"), {
     "instructions.md": "Project notes rule.",
+    "SKILL.md": "---\nname: notes-kit\ndescription: Keeps project notes.\n---\nBody\n",
   });
   const rig = openRig(root, [{ root: project, projectId: "prj_alpha" }]);
 
@@ -120,7 +122,10 @@ test("a user plugin folder without a manifest keeps its folder name on the updat
   const root = tempRoot("plugin-folder-name-user-");
   roots.push(root);
   const rig = openRig(root, []);
-  writeFiles(join(rig.pluginsDir, "plain-folder"), { "instructions.md": "First rule." });
+  writeFiles(join(rig.pluginsDir, "plain-folder"), {
+    "instructions.md": "First rule.",
+    "SKILL.md": "---\nname: plain-folder\ndescription: Keeps plain rules.\n---\nBody\n",
+  });
 
   const first = valueOf(
     await rig.review.get(firstOf(valueOf(await rig.review.scan()).queued)),

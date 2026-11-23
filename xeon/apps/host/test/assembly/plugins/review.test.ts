@@ -142,12 +142,18 @@ function firstOf<T>(items: readonly T[]): T {
   return first;
 }
 
-function manifestOf(name: string, purpose?: string): string {
+/** 매니페스트 한 줄. 설명은 기본으로 채워 승인 경로가 설명 때문에 막히지 않게 한다. 설명이 없는 경우를 시험하려면 `""`를 준다 */
+function manifestOf(
+  name: string,
+  purpose?: string,
+  description = `Does what ${name} says.`,
+): string {
   return JSON.stringify({
     schemaVersion: 2,
     name,
     version: "1.0.0",
     ...(purpose === undefined ? {} : { purpose }),
+    description,
   });
 }
 
@@ -167,7 +173,7 @@ const BUILDER_THREAD = valueOf(parse(ThreadIdSchema, "thr_01ARZ3NDEKTSV4RRFFQ69G
 /** 사용자 폴더에 플러그인 `kit`을 만들고 scan으로 새 항목을 만든 뒤 승인한다 */
 async function approvedKit(rig: Rig): Promise<ReviewItem> {
   writeFiles(join(rig.pluginsDir, "kit"), {
-    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit", "Keeps the kit working."),
     "instructions.md": "Use kit.",
   });
   const itemId = firstOf(valueOf(await rig.review.scan()).queued);
@@ -285,7 +291,7 @@ test("a project folder that is not a registered root is not scanned", async () =
 test("a new plugin folder is queued as a new item, and approving it makes the reviewed copy current", async () => {
   const rig = rigOf();
   writeFiles(join(rig.pluginsDir, "kit"), {
-    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit", "Keeps the kit working."),
     "instructions.md": "Use kit.",
   });
   const queued = valueOf(await rig.review.scan()).queued;
@@ -377,6 +383,32 @@ test("approval without a purpose is refused, and a purpose in the decision is re
   const current = valueOf(await rig.store.current("bare"));
   expect(current?.meta.card.purpose).toBe("A bare plugin.");
   expect(current?.contentHash ?? null).toBe(item.candidateHash);
+});
+
+test("approval without a description is refused with description_required; a purpose does not stand in for it", async () => {
+  const rig = rigOf();
+  writeFiles(join(rig.pluginsDir, "no-text"), {
+    ".fresnel-plugin/plugin.json": manifestOf("no-text", "Has a purpose.", ""),
+  });
+  const itemId = firstOf(valueOf(await rig.review.scan()).queued);
+  const item = valueOf(await rig.review.get(itemId)).item;
+  expect(item.card.purpose).toBe("Has a purpose.");
+  expect(item.card.description).toBeUndefined();
+  expect(errorOf(await rig.review.decide(itemId, APPROVE))).toEqual({
+    kind: "description_required",
+    itemId,
+  });
+  // 실패한 승인은 아무것도 바꾸지 않는다
+  expect(valueOf(await rig.review.get(itemId)).item.state).toBe("pending");
+
+  // 설명을 고쳐 다시 올리면 승인되고, 카드가 그 설명을 싣는다
+  writeFiles(join(rig.pluginsDir, "no-text"), {
+    ".fresnel-plugin/plugin.json": manifestOf("no-text", "Has a purpose.", "Says what it does."),
+  });
+  const fixed = firstOf(valueOf(await rig.review.scan()).queued);
+  const approved = valueOf(await rig.review.decide(fixed, APPROVE));
+  expect(approved.item.state).toBe("approved");
+  expect(approved.item.card.description).toBe("Says what it does.");
 });
 
 test("pending items and the reviewed copies survive a restart of the services", async () => {
@@ -565,7 +597,7 @@ test("the submit port makes a draft and an assistant item with the given evidenc
 test("file reads stay inside the reviewed snapshot", async () => {
   const rig = rigOf();
   writeFiles(join(rig.pluginsDir, "kit"), {
-    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit", "Keeps the kit working."),
     "instructions.md": "Use kit.",
   });
   const itemId = firstOf(valueOf(await rig.review.scan()).queued);
@@ -655,7 +687,7 @@ async function pendingUpdateFrom(rig: Rig, first: ReviewItem): Promise<ReviewIte
 test("a new plugin item has no base files and refuses the base side", async () => {
   const rig = rigOf();
   writeFiles(join(rig.pluginsDir, "kit"), {
-    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit", "Keeps the kit working."),
     "instructions.md": "Use kit.",
   });
   const item = valueOf(await rig.review.get(firstOf(valueOf(await rig.review.scan()).queued))).item;
@@ -819,7 +851,7 @@ function hookedRigOf(hooks: ApprovalHooks): Rig {
 /** 사용자 폴더에 `kit`을 만들고 scan으로 새 항목 하나를 받는다. 항목 id를 돌려준다 */
 async function queuedKit(rig: Rig): Promise<string> {
   writeFiles(join(rig.pluginsDir, "kit"), {
-    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit"),
+    ".fresnel-plugin/plugin.json": manifestOf("kit", "Keeps the kit", "Keeps the kit working."),
     "instructions.md": "Use kit.",
   });
   return firstOf(valueOf(await rig.review.scan()).queued);
@@ -1066,6 +1098,7 @@ test("get and list answer the card's dependency cell from the installed facts, a
       name: "app",
       version: "1.0.0",
       purpose: "Uses kit",
+      description: "Uses the kit in a profile.",
       plugins: [
         {
           layer: "plugin",

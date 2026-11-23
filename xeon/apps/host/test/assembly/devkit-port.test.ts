@@ -91,7 +91,13 @@ test("devkit port: kinds are the catalog, and scaffold, validate and package run
   const port = createDevkitPort(state.deps, { templates });
   expect(await port.kinds()).toEqual(KIND_CATALOG);
   const dir = join(root, "flow-src");
-  const scaffolded = await port.scaffold({ kind: "single-plugin", name: "flow-demo", dir });
+  const scaffolded = await port.scaffold({
+    kind: "single-plugin",
+    name: "flow-demo",
+    dir,
+    purpose: "Runs the demo flow.",
+    description: "Runs the demo flow so a user can see a plugin from scaffold to pack.",
+  });
   if (!scaffolded.ok) throw new Error(scaffolded.error.message);
   // 엔트리가 있는 뼈대는 구성원 생성 파일(`src/members.generated.ts`)을 함께 만든다
   expect(scaffolded.value.files).toEqual([
@@ -385,7 +391,13 @@ test("devkit port: draft check, review submit and test run work with the builder
   };
   const port = createDevkitPort(state.deps, { templates, submit: () => submitPort });
   const dir = join(root, "builder-off-src");
-  const made = await port.scaffold({ kind: "single-plugin", name: "builder-off", dir });
+  const made = await port.scaffold({
+    kind: "single-plugin",
+    name: "builder-off",
+    dir,
+    purpose: "Checks a draft without the builder.",
+    description: "Checks a draft and runs a test without the builder plugin switched on.",
+  });
   expect(made.ok).toBe(true);
   // 드래프트 검사
   expect(await port.validate(dir)).toEqual({ ok: true, value: { ok: true, issues: [] } });

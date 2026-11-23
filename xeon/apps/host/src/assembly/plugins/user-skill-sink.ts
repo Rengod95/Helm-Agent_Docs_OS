@@ -211,6 +211,8 @@ function failureOfPlugin(error: PluginPortFailure): KnowledgeFailure {
       );
     case "purpose_required":
       return failure("invalid_input", `plugin review item ${error.itemId} has no purpose`);
+    case "description_required":
+      return failure("invalid_input", `plugin review item ${error.itemId} has no description`);
     case "profile_invalid":
       return failure("invalid_input", "the common profile does not accept the skill plugin");
     case "dependency":

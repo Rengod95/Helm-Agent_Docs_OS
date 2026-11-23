@@ -42,6 +42,7 @@ export function writeMarkerPluginAt(
       name,
       version: "1.0.0",
       purpose: `Writes ${tag} on each settled turn`,
+      description: `Writes ${tag} on each settled turn, as the card shows it.`,
       defaultEnabled: false,
       entry: "./src/index.ts",
       plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
@@ -77,4 +78,23 @@ export function storedProfilesOf(home: EngineHome): ProfilesFile {
   const checked = parse(ProfilesFileSchema, parsed.value);
   if (!checked.ok) throw new Error("profiles.json does not match the v2 schema");
   return checked.value;
+}
+
+/**
+ * `ext.scaffold`(와이어와 제작 포트)는 매니페스트에 목적과 설명을 빈 값으로 쓴다. 작성자가 채운 것으로 두고(AU-013),
+ * 검사, 묶기, 제출 시험을 이어 간다. 빈 키를 바꿔 쓰므로 키가 두 번 생기지 않는다
+ */
+export function fillScaffoldTextsOf(dir: string): void {
+  const path = join(dir, ".fresnel-plugin", "plugin.json");
+  const text = readFileSync(path, "utf8");
+  const filled = text
+    .replace('"purpose": ""', '"purpose": "Scaffolded for a test."')
+    .replace(
+      '"description": ""',
+      '"description": "Scaffolded for a test; a user reads this on the card."',
+    );
+  if (filled === text || !filled.includes('"description": "Scaffolded')) {
+    throw new Error("the scaffold manifest has no empty purpose or description to fill");
+  }
+  writeFileSync(path, filled);
 }

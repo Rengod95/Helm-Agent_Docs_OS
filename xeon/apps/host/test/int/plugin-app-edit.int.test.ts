@@ -6,6 +6,7 @@ import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
+import { fillScaffoldTextsOf } from "../fixtures/plugin-review.ts";
 import { recordingModels } from "../fixtures/recording-tape.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
@@ -86,6 +87,7 @@ function writePlugin(dir: string, spec: PluginSpec, calls: CallLog): void {
         name: spec.name,
         version: spec.version,
         purpose: `Dependency fixture ${spec.name}`,
+        description: `Dependency fixture ${spec.name} (test fixture).`,
         defaultEnabled: false,
         entry: "./src/index.ts",
         plugins: [decl],
@@ -191,6 +193,7 @@ realTest(
       const { connection } = session;
       const dir = userPluginDir(session, KIT);
       await connection.request("ext.scaffold", { kind: "single-plugin", name: KIT, dir });
+      fillScaffoldTextsOf(dir);
       await connection.request("ext.members.edit", {
         dir,
         ops: [{ kind: "add", id: "tap", mode: "hook" }],
@@ -224,6 +227,7 @@ realTest(
       const { connection } = session;
       const dir = userPluginDir(session, KIT);
       await connection.request("ext.scaffold", { kind: "single-plugin", name: KIT, dir });
+      fillScaffoldTextsOf(dir);
       await approveInLibrary(connection, await submit(connection, dir));
 
       writeFileSync(join(dir, "README.md"), "edited by hand\n");
@@ -271,6 +275,7 @@ realTest(
 
       const kit = userPluginDir(session, KIT);
       await connection.request("ext.scaffold", { kind: "single-plugin", name: KIT, dir: kit });
+      fillScaffoldTextsOf(kit);
       await connection.request("ext.members.edit", {
         dir: kit,
         ops: [{ kind: "add", id: "tap", mode: "hook" }],

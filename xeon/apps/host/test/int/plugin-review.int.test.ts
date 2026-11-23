@@ -52,6 +52,7 @@ realTest(
           name: "int-kit",
           version: "1.0.0",
           purpose: "Integration",
+          description: "Integration (test fixture).",
         }),
       );
       const scanned = await connection.request("plugin.scan", {});

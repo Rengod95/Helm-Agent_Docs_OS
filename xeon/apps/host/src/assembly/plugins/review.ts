@@ -48,6 +48,7 @@ import { buildPluginCard, withInstalledDependencies, withRequiredByCore } from "
 import { compareUtf8, hashPluginTree, type TreeError } from "./content-hash.ts";
 import { diffCards } from "./diff.ts";
 import {
+  descriptionOf,
   generatedNameOf,
   instructionIssuesOf,
   isInstructionFolder,
@@ -979,6 +980,10 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     if (!removing && (purpose === null || purpose.trim() === "")) {
       return err({ kind: "purpose_required", itemId: item.itemId });
     }
+    // 설명은 승인 때 채우는 입력이 없다(목적과 달리). 카드의 설명이 비면 플러그인 빌더에서 고친다 [결정: 2026-11-23 사용자, AGE-31]
+    if (!removing && (item.card.description ?? "").trim() === "") {
+      return err({ kind: "description_required", itemId: item.itemId });
+    }
     const approvedAt = deps.now();
     // 검토본 키: 사용자·번들은 이름, 프로젝트는 `<projectId>/<이름>`. 내장·관리는 검토본이 없어 null이다
     const keyed = keyOfOrigin(item.card.origin, item.name);
@@ -1340,6 +1345,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const dir = join(deps.userDir, name);
     const profileId = request.profileId ?? DEFAULT_PROFILE_ID;
     const purpose = purposeOf(request.text);
+    const description = descriptionOf(request.text);
     const made = await intake.submit({
       dir,
       provenance: "user_instruction",
@@ -1357,7 +1363,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         if (!known.ok) return err(known.error);
         const written = await writeInstructionFolder(
           dir,
-          manifestTextOf(name, purpose),
+          manifestTextOf(name, purpose, description),
           request.text,
         );
         return written.ok ? ok(undefined) : err({ kind: "store", code: "io" });

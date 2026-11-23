@@ -358,10 +358,15 @@ function capPurpose(text: string): string {
   return Array.from(text).slice(0, PURPOSE_MAX_CHARS).join("");
 }
 
+/** 스킬이 정확히 하나일 때만 그 설명을 준다(글자 상한 없음, 머리말에서 읽을 때 이미 앞뒤 공백을 뗐다). 여럿이면 null */
+export function singleSkillDescription(skills: readonly SkillMaterial[]): string | null {
+  const only = skills.length === 1 ? skills[0] : undefined;
+  return only?.description ?? null;
+}
+
 /** 스킬이 정확히 하나일 때만 그 설명을 목적으로 쓴다(§4.5.4). 여럿이면 null */
 export function singleSkillPurpose(skills: readonly SkillMaterial[]): string | null {
-  const only = skills.length === 1 ? skills[0] : undefined;
-  const description = only?.description ?? null;
+  const description = singleSkillDescription(skills);
   return description === null ? null : capPurpose(description);
 }
 

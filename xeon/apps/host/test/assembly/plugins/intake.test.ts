@@ -142,7 +142,7 @@ test("a migration item is approvable without a hand-edit refusal, and a missing 
   const rig = pluginRigOf();
   // 목적 칸이 없는 매니페스트다. 승인 전에는 목적이 없어 승인할 수 없다
   writeFiles(rig.root, {
-    "gap/.fresnel-plugin/plugin.json": `${JSON.stringify({ schemaVersion: 2, name: "gap", version: "0.0.0" }, null, 2)}\n`,
+    "gap/.fresnel-plugin/plugin.json": `${JSON.stringify({ schemaVersion: 2, name: "gap", version: "0.0.0", description: "Keeps a note." }, null, 2)}\n`,
     "gap/instructions/01-note.md": "메모\n",
   });
   const made = valueOf(
@@ -176,7 +176,7 @@ test("a migration item is approvable without a hand-edit refusal, and a missing 
 test("a migrated plugin is pending and invisible to the model until approval; one approval puts it in the profile", async () => {
   const rig = pluginRigOf();
   writeFiles(rig.root, {
-    "moved/.fresnel-plugin/plugin.json": `${JSON.stringify({ schemaVersion: 2, name: "moved", version: "0.0.0", purpose: "옮긴 메모" }, null, 2)}\n`,
+    "moved/.fresnel-plugin/plugin.json": `${JSON.stringify({ schemaVersion: 2, name: "moved", version: "0.0.0", purpose: "옮긴 메모", description: "옮긴 메모를 되살려 둔다." }, null, 2)}\n`,
     "moved/instructions/01-note.md": "옮긴 메모\n",
   });
   const made = valueOf(

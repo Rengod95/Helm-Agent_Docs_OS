@@ -174,8 +174,9 @@ export function proposalsBridgePlugin(
     name: BRIDGE_NAME,
     version: "0.1.0",
     displayName: "Proposal Service Bridge",
+    purpose: "Brings knowledge proposals to you for a decision.",
     description:
-      "Hands the knowledge proposal queue adapter to the proposal.list and proposal.decide handlers (host assembly).",
+      "Sends knowledge proposals waiting for a decision to the app and returns your answer; without it, proposals cannot be accepted or rejected.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

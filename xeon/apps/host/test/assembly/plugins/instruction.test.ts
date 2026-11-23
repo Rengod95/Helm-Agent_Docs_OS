@@ -201,6 +201,7 @@ test("a new instruction writes the text unchanged and a minimal manifest, and op
     name,
     version: "0.0.0",
     purpose: "Answer in Korean.   한 줄 더",
+    description: "Answer in Korean.  \n한 줄 더",
     components: { instructions: ["instructions.md"] },
   });
 
@@ -333,6 +334,7 @@ test("a same-name folder that is not an instruction plugin is never overwritten,
       name: "kit",
       version: "1.0.0",
       purpose: "Keeps the kit",
+      description: "Keeps the kit working.",
     }),
     "instructions.md": "Use kit.",
   });

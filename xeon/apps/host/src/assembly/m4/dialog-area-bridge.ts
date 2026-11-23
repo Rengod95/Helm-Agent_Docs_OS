@@ -90,6 +90,7 @@ function isMemoryApi(value: unknown): value is MemoryApi {
 interface ServiceBridgeSpec<Api> {
   readonly name: string;
   readonly displayName: string;
+  readonly purpose: string;
   readonly description: string;
   readonly capability: { readonly id: string; readonly version: string };
   readonly key: ServiceKey<Api>;
@@ -110,6 +111,7 @@ function serviceBridgePlugin<Api>(spec: ServiceBridgeSpec<Api>, loadIndex: numbe
     name: spec.name,
     version: "0.1.0",
     displayName: spec.displayName,
+    purpose: spec.purpose,
     description: spec.description,
     defaultEnabled: true,
     entry: "./src/index.ts",
@@ -142,7 +144,9 @@ export function goalBridgePlugin(holder: DialogAreaHolder, loadIndex: number): E
     {
       name: "host-goal-bridge",
       displayName: "Goal Service Bridge",
-      description: "Hands the work goal service to the host's goal.status wire method.",
+      purpose: "Shows goals beside the conversation.",
+      description:
+        "Connects the goal service to the app so goals show beside the conversation; without it, the goals panel looks empty.",
       capability: WorkGoals,
       key: WorkGoalsKey,
       isApi: isGoalsApi,
@@ -165,7 +169,9 @@ export function taskBridgePlugin(holder: DialogAreaHolder, loadIndex: number): E
     {
       name: "host-task-bridge",
       displayName: "Task Service Bridge",
-      description: "Hands the work task service to the host's work.tasks.list wire method.",
+      purpose: "Shows tasks beside the conversation.",
+      description:
+        "Connects the task list service to the app so tasks show beside the conversation; without it, the task list looks empty.",
       capability: WorkTasks,
       key: WorkTasksKey,
       isApi: isTasksApi,
@@ -188,8 +194,9 @@ export function skillBridgePlugin(holder: DialogAreaHolder, loadIndex: number): 
     {
       name: "host-skill-bridge",
       displayName: "Skill Service Bridge",
+      purpose: "Shows skills in the Skills screen.",
       description:
-        "Hands the knowledge skill service to the host's knowledge.skills.view wire method.",
+        "Connects the skill service to the app so the Skills screen can list them; without it, skills cannot be used from the app.",
       capability: KnowledgeSkills,
       key: KnowledgeSkillsKey,
       isApi: isSkillsApi,
@@ -212,8 +219,9 @@ export function memoryBridgePlugin(holder: DialogAreaHolder, loadIndex: number):
     {
       name: "host-memory-bridge",
       displayName: "Memory Service Bridge",
+      purpose: "Lets you read and edit memory in the app.",
       description:
-        "Hands the knowledge memory service to the host's knowledge.memory.* wire methods.",
+        "Connects the memory service to the app so memory can be read and edited; without it, memory cannot be used from the app.",
       capability: KnowledgeMemory,
       key: KnowledgeMemoryKey,
       isApi: isMemoryApi,

@@ -104,7 +104,9 @@ function manifestOf(): ReturnType<typeof defineManifest> {
     name: "cap-mcp",
     version: "0.1.0",
     displayName: "MCP client",
-    description: "Connects MCP servers and exposes their tools, prompts and resources (L2).",
+    purpose: "Lets the agent use tools from MCP servers.",
+    description:
+      "Connects to MCP servers and offers their tools, prompts and resources to the agent; without it, MCP servers cannot be used.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

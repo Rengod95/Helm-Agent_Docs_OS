@@ -46,6 +46,7 @@ function writePluginFolder(root: string, tag: string, marker: string): void {
       name: PLUGIN,
       version: "1.0.0",
       purpose: `Tool that writes ${tag}`,
+      description: `Tool that writes ${tag} (test fixture).`,
       defaultEnabled: false,
       entry: "./src/index.ts",
       orchestration: {},
