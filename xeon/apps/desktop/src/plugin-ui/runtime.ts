@@ -110,10 +110,14 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
     for (const listener of listeners) listener();
   }
 
+  // 안전 모드로 빠진 확장. 어느 프로필에도 없을 뿐인 설치된 앱은 열리므로 `inactive`로 막지 않는다(AGE-78). 꺼짐은 항목 상태가 알려 준다
+  let safeOff: ReadonlySet<string> = NO_NAMES;
+
   function framesAllowed(entry: ExtUiEntry): boolean {
     return (
       deps.framesSupported &&
-      !state.inactive.has(entry.extension) &&
+      entry.state !== "disabled" &&
+      !safeOff.has(entry.extension) &&
       appsAllowed(entry.trust, state.settings)
     );
   }
@@ -143,12 +147,18 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
         .filter((item) => item.status !== "enabled" || item.safeModeExcluded !== null)
         .map((item) => item.name),
     );
+    safeOff = new Set(
+      read.value.extensions
+        .filter((item) => item.safeModeExcluded !== null)
+        .map((item) => item.name),
+    );
     set(stateOf("ready", read.value.items, settings, inactive));
     if (deps.appRootsInvoke !== undefined && deps.framesSupported) {
-      // 꺼진 확장의 앱 root는 셸에 두지 않는다. 거부 이유는 화면이 앱 root 없이 그리는 것으로 드러난다(프레임 주소가 404). 여기서는 던지지 않는다
+      // 꺼진 확장(항목 상태 `disabled`)과 안전 모드로 빠진 확장의 앱 root는 셸에 두지 않는다. 어느 프로필에도 없을 뿐인 설치된 앱은 둔다(AGE-78).
+      // 거부 이유는 화면이 앱 root 없이 그리는 것으로 드러난다(프레임 주소가 404). 여기서는 던지지 않는다
       const synced = await syncAppRoots(
         deps.appRootsInvoke,
-        read.value.items.filter((item) => !inactive.has(item.extension)),
+        read.value.items.filter((item) => !safeOff.has(item.extension)),
       );
       if (synced.ok && synced.value.length > 0) {
         set(stateOf("ready", read.value.items, settings, inactive, synced.value));

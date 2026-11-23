@@ -8,7 +8,7 @@
     no_thread: "대화가 열려 있지 않아요",
     invalid_params: "자리 값이 올바르지 않아요",
   };
-  const form = document.getElementById("add-form");
+  const addButton = document.getElementById("add-button");
   const input = document.getElementById("title-input");
   const status = document.getElementById("status");
   const columns = [...document.querySelectorAll(".column")];
@@ -119,8 +119,8 @@
     });
   }
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  // 프레임 sandbox에는 allow-forms가 없어 폼 제출은 submit 이벤트도 없이 막힌다. 단추 클릭과 Enter 키로 보낸다
+  async function addCard() {
     const title = input.value.trim();
     if (title === "") return;
     try {
@@ -134,6 +134,13 @@
       }
     } catch (error) {
       status.textContent = "추가하지 못했어요(" + reasonOf(error) + ")";
+    }
+  }
+  addButton.addEventListener("click", addCard);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.isComposing) {
+      event.preventDefault();
+      addCard();
     }
   });
 

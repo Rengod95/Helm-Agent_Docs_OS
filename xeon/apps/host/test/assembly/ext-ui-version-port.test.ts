@@ -155,8 +155,17 @@ function scope(
   id: string,
   extension: string,
   status: RegistrationInfo["status"],
+  explicitOff: boolean = false,
 ): RegistrationInfo {
-  return { id, extension, status, generation: 1, waiting: [], drive: "none" };
+  return {
+    id,
+    extension,
+    status,
+    generation: 1,
+    waiting: [],
+    drive: "none",
+    ...(explicitOff ? { explicitOff } : {}),
+  };
 }
 
 type HostView = ExtUiVersionSource["host"];
@@ -406,12 +415,14 @@ describe("ext-ui-version port: ui list", () => {
         loaded("helm", "active", "user", "0.2.0"),
         loaded("account-rotation", "disabled", "user", "0.2.0"),
         loaded("tools-kit", "active", "user", "0.2.0"),
+        loaded("closed", "active", "user", "0.2.0"),
         loaded("core-tools", "active", "builtin", "1.0.0"),
       ],
       scopes: [
         scope("helm/main", "helm", "enabled"),
         scope("account-rotation/main", "account-rotation", "enabled"),
-        scope("tools-kit/main", "tools-kit", "disabled"),
+        scope("tools-kit/main", "tools-kit", "disabled", true),
+        scope("closed/main", "closed", "disabled"),
       ],
       entries: [
         entryOfUi("helm", "panel", "ok", [], "Helm"),
@@ -452,6 +463,7 @@ describe("ext-ui-version port: ui list", () => {
           ],
         },
         entryOfUi("tools-kit", "home", "ok", [], "Tools", "page"),
+        entryOfUi("closed", "board", "ok", [], "Closed", "page"),
       ],
     });
 
@@ -467,6 +479,17 @@ describe("ext-ui-version port: ui list", () => {
           title: "Rotation",
           state: "disabled",
           issues: [{ severity: "warning", code: "ui_mode_not_allowed", message: "apps are off" }],
+        },
+        {
+          extension: "closed",
+          version: "0.2.0",
+          trust: "user",
+          id: "board",
+          placement: "page",
+          mode: "native",
+          title: "Closed",
+          state: "ok",
+          issues: [],
         },
         {
           extension: "helm",

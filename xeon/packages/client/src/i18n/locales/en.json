@@ -2829,6 +2829,7 @@
   "desktop.plugin.state.empty": "This plugin does not provide an app",
   "desktop.plugin.state.frameBlocked": "This app needs its own code. Allow it in settings to show it",
   "desktop.plugin.state.invalid": "This app cannot be opened: {reason}",
+  "desktop.plugin.state.rootBlocked": "This app's screen files are not in the approved install location, so it can't open. Approve or install the plugin again.",
   "desktop.plugin.state.loading": "Loading…",
   "desktop.plugin.state.offline": "Shown once the engine is connected",
   "desktop.plugin.state.queryFailed": "Could not read the values for this app",

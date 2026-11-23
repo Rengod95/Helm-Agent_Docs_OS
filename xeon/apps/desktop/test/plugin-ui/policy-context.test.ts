@@ -32,6 +32,21 @@ describe("policyContextOf", () => {
     expect(context.value.methods.has("missing")).toBe(false);
   });
 
+  test("an app screen stays enabled while its scope is closed, and is off only when the engine marks the entry disabled", () => {
+    const closed = extGetOf(HELM_MANIFEST, { status: "disabled" });
+    const enabledOf = (
+      entry: ReturnType<typeof uiEntryOf>,
+      get: typeof closed,
+    ): boolean | undefined => {
+      const built = policyContextOf({ get, entry, openThreadId: undefined, commands });
+      return built.ok ? built.value.enabled : undefined;
+    };
+    expect(enabledOf(uiEntryOf({ mode: "app" }), closed)).toBe(true);
+    expect(enabledOf(uiEntryOf({ mode: "app", state: "disabled" }), closed)).toBe(false);
+    expect(enabledOf(uiEntryOf({ mode: "native" }), closed)).toBe(false);
+    expect(enabledOf(uiEntryOf({ mode: "native" }), extGetOf())).toBe(true);
+  });
+
   test("a manifest label reaches the method grant", () => {
     const manifest = {
       ...HELM_MANIFEST,
