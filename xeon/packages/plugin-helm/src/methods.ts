@@ -1,4 +1,4 @@
-import { Bug, parse, type SchemaProof } from "@fresnel/contracts";
+import { parse, type SchemaProof } from "@fresnel/contracts";
 import type { ExtMethodDecl } from "@fresnel/contracts/extensions";
 import type { OrchestrationApi } from "@fresnel/orchestration-sdk";
 import { Type, type TUnsafe } from "typebox";
@@ -45,13 +45,14 @@ interface InquiriesView {
   readonly inquiries: readonly InquirySummary[];
 }
 
-/** findings 입력. 탐구 id 하나 */
+/** findings 입력. 탐구 id 하나이고, 생략하면 가장 최근 탐구다(`latestInquiryIdOf`) */
 interface FindingsParams {
-  readonly inquiryId: string;
+  readonly inquiryId?: string;
 }
 
+/** 탐구가 하나도 없으면 id는 null이고 발견은 빈 목록이다 */
 interface FindingsView {
-  readonly inquiryId: string;
+  readonly inquiryId: string | null;
   readonly findings: readonly HelmFinding[];
 }
 
@@ -60,7 +61,7 @@ interface FindingsView {
 const emptyParamsShape = Type.Object({}, { additionalProperties: false });
 
 const findingsParamsShape = Type.Object(
-  { inquiryId: Type.String({ pattern: INQUIRY_ID_PATTERN }) },
+  { inquiryId: Type.Optional(Type.String({ pattern: INQUIRY_ID_PATTERN })) },
   { additionalProperties: false },
 );
 const FindingsParamsSchema: TUnsafe<FindingsParams> = Type.Unsafe<FindingsParams>(
@@ -152,7 +153,7 @@ const FindingSchema: TUnsafe<HelmFinding> = Type.Unsafe<HelmFinding>(
 
 const findingsViewShape = Type.Object(
   {
-    inquiryId: Type.String({ pattern: INQUIRY_ID_PATTERN }),
+    inquiryId: Type.Union([Type.String({ pattern: INQUIRY_ID_PATTERN }), Type.Null()]),
     findings: Type.Array(FindingSchema, { maxItems: 24 }),
   },
   { additionalProperties: false },
@@ -272,9 +273,24 @@ async function findingsOf(
   return { inquiryId, findings: dedupeFindings(found) };
 }
 
+/**
+ * 입력의 탐구 id. 생략이면 undefined다. 형식이 맞지 않는 입력은 X가 처리기 앞에서 `params_invalid`로 막으므로 처리기에 닿지 않는다
+ */
 function inquiryIdOf(params: unknown): string | undefined {
   const checked = parse(FindingsParamsSchema, params);
   return checked.ok ? checked.value.inquiryId : undefined;
+}
+
+/**
+ * 가장 최근 탐구의 id. 상태가 가리키는 탐구(진행 중이거나 시작을 기다리는 것, 상태 보기의 `inquiryId`와 같다)가 있으면 그것이고,
+ * 없으면 끝난 탐구 가운데 최신이다. 탐구가 하나도 없으면 null이다.
+ * 선언형 화면은 데이터를 인자 없이 읽으므로(`native-run.ts`의 `readDoc`은 `{ verb }`만 보낸다) 이 기본값이 발견 목록을 채운다
+ */
+async function latestInquiryIdOf(g: ReadApi, state: Readonly<HelmState>): Promise<string | null> {
+  const current = viewOf(state).inquiryId;
+  if (current !== null) return current;
+  const [latest] = await finishedInquiries(g);
+  return latest?.inquiryId ?? null;
 }
 
 // ── 등록 ────────────────────────────────────────────────────────────────────
@@ -291,7 +307,7 @@ type ExtMethodCallContext = Parameters<
 
 /**
  * 처리기 세 개를 등록한다(setup 안에서). 스레드가 없는 호출은 상태에 닿을 수 없으므로 빈 값을 준다:
- * status는 대기 상태 보기, inquiries는 빈 목록, findings는 빈 발견 목록이다.
+ * status는 대기 상태 보기, inquiries는 빈 목록, findings는 빈 발견 목록이다(인자가 있으면 그 탐구 id를 준다).
  * 재시작 뒤 아직 열지 않은 대화(`ctx.threadOpen === false`)는 상태 문서가 없으므로 상태는 초기값으로 보고 기록만 읽는다:
  * 끝난 탐구와 발견은 기록에 있어 앱을 다시 켠 뒤에도 읽힌다.
  * 입력은 호스트가 선언 스키마로 이미 검사했으므로 findings의 형식 실패는 호스트 결함이다
@@ -308,14 +324,13 @@ export function registerHelmMethods(g: HelmMethodsApi): void {
       ctx.threadId === null ? Promise.resolve({ inquiries: [] }) : inquiriesOf(g, stateOf(ctx)),
   });
   g.registerMethod("findings", {
-    handler: (params, ctx) => {
-      const inquiryId = inquiryIdOf(params);
-      if (inquiryId === undefined) {
-        throw new Bug("helm.findings: the host passed params outside the declared schema");
-      }
-      return ctx.threadId === null
-        ? Promise.resolve({ inquiryId, findings: [] })
-        : findingsOf(g, stateOf(ctx), inquiryId);
+    handler: async (params, ctx) => {
+      const requested = inquiryIdOf(params);
+      if (ctx.threadId === null) return { inquiryId: requested ?? null, findings: [] };
+      const state = stateOf(ctx);
+      const inquiryId = requested ?? (await latestInquiryIdOf(g, state));
+      if (inquiryId === null) return { inquiryId: null, findings: [] };
+      return findingsOf(g, state, inquiryId);
     },
   });
 }

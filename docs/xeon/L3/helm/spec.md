@@ -777,7 +777,7 @@ export function helmCommand(g: Pick<OrchestrationApi<HelmState>, "state" | "comm
 |---|---|---|---|---|
 | `status` (`ext.helm.status`) | `{}`, 추가 속성 없음 | `HelmStatusView`(§3.9) | 대기 상태 보기 | 커밋된 상태(`viewOf`) |
 | `inquiries` (`ext.helm.inquiries`) | `{}`, 추가 속성 없음 | `{ inquiries: InquirySummary[] }`, 최대 50개 | `{ inquiries: [] }` | 커밋된 상태와 `grp.helm.inquiry.finished` 기록 |
-| `findings` (`ext.helm.findings`) | `{ inquiryId }`, `INQUIRY_ID_PATTERN` | `{ inquiryId, findings: HelmFinding[] }` | `{ inquiryId, findings: [] }` | 현재 탐구는 상태, 끝난 탐구는 `grp.helm.discovery.recorded` 기록 |
+| `findings` (`ext.helm.findings`) | `{ inquiryId? }`, `INQUIRY_ID_PATTERN`, 생략하면 가장 최근 탐구 [결정: 2026-11-23, 탐구 화면 발견 목록이 인자 없이 읽어 빈 목록이던 결함] | `{ inquiryId: string \| null, findings: HelmFinding[] }` | `{ inquiryId, findings: [] }`, 탐구가 없으면 `{ inquiryId: null, findings: [] }` | 현재 탐구는 상태, 끝난 탐구는 `grp.helm.discovery.recorded` 기록 |
 
 ```ts
 // src/methods.ts
@@ -790,7 +790,7 @@ export interface InquirySummary {
 }
 export interface InquiriesView { readonly inquiries: readonly InquirySummary[]; }
 export interface FindingsParams { readonly inquiryId: string; }
-export interface FindingsView { readonly inquiryId: string; readonly findings: readonly HelmFinding[]; }
+export interface FindingsView { readonly inquiryId: string | null; readonly findings: readonly HelmFinding[]; }
 
 /** setup 안에서 부른다. 처리기 세 개를 등록한다 */
 export function registerHelmMethods(g: Pick<OrchestrationApi<HelmState>, "state" | "readRecords" | "registerMethod">): void;
@@ -801,7 +801,7 @@ export function registerHelmMethods(g: Pick<OrchestrationApi<HelmState>, "state"
 - 결과 검사: 호스트가 `result` 스키마로 검사해 어긋나면 `result_invalid`다. 스키마는 `SchemaProof`로 결과 타입과 맞는지 컴파일 때 본다.
 - `status`: `viewOf`를 그대로 쓴다. `lease`는 `/helm status`와 같다(탐구 중이면 `held`, 시작을 기다리면 `waiting`, 그 밖은 `none`). drive lock의 수치 상한은 이 결과에 없다(§10 미결 15).
 - `inquiries`: 현재 탐구가 맨 앞이다. 진행 중이면 `running`, 시작을 기다리면 `pending`이다. 끝난 탐구는 `grp.helm.inquiry.finished` 기록에서 읽는다. 기록에는 시각이 없어 `finishedAt`은 두지 않는다. 기록은 쓴 순서(오래된 것부터)로 읽히므로 `dedupeInquiryFinished`로 중복을 지운 뒤 뒤집어 최신 순으로 낸다. 50개에서 자른다.
-- `findings`: 탐구 id가 상태의 `inquiryId`와 같으면 상태의 발견을 그대로 준다(`followUp` 포함). 그 밖이면 `grp.helm.discovery.recorded` 기록에서 그 탐구의 발견을 모은다. 종료 기록은 발견 수(`findingCount`)만 싣고 발견 내용은 싣지 않으므로 발견 목록의 원천으로 쓰지 않는다. 발견 기록에는 `followUp`이 없다. 같은 claim은 한 번만 내고(`dedupeFindings`), 24개에서 자른다. 모르는 탐구 id는 빈 목록이다(오류가 아니다).
+- `findings`: 인자가 없으면 가장 최근 탐구를 고른다(상태가 가리키는 탐구, 없으면 끝난 탐구 가운데 최신, 탐구가 없으면 `inquiryId: null`). 선언형 화면은 데이터를 인자 없이 읽으므로(`readDoc`이 `{ verb }`만 보낸다) 이 기본값이 발견 목록을 채운다. 탐구 id가 상태의 `inquiryId`와 같으면 상태의 발견을 그대로 준다(`followUp` 포함). 그 밖이면 `grp.helm.discovery.recorded` 기록에서 그 탐구의 발견을 모은다. 종료 기록은 발견 수(`findingCount`)만 싣고 발견 내용은 싣지 않으므로 발견 목록의 원천으로 쓰지 않는다. 발견 기록에는 `followUp`이 없다. 같은 claim은 한 번만 내고(`dedupeFindings`), 24개에서 자른다. 모르는 탐구 id는 빈 목록이다(오류가 아니다).
 - 소비자: 데스크톱 대화 옆 Helm 패널의 "탐구 결과" 구역(`L4.desktop-ux` §6.9)이 `inquiries`와 `findings`를 읽는다. 앱은 열린 대화가 있고 연결이 살아 있을 때만 부른다. 결과는 `unknown`으로 받아 모양을 검사하고, 맞지 않으면 "결과를 읽지 못했어요"로 보인다. 이 구역은 메서드 결과를 그대로 보일 뿐이라 메서드와 기록을 바꾸지 않는다. Markdown 복사는 앱만 하는 일이라 확장의 기여로 두지 않는다.
 - 발견 기록은 apply 단계가 끝날 때 쓴다(완료, 실패, 예산 소진 모두). 적용 turn까지 가지 못하고 끝난 탐구(탐색 중 멈춤, 수렴 실패, 발견 없음으로 끝남)는 발견 기록이 없어 `findings`가 빈 목록이다. 그 발견은 종료 기록에 남지 않는다(§10 미결 18).
 

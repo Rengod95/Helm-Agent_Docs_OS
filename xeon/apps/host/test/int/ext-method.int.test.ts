@@ -120,9 +120,14 @@ realTest(
       inquiries: [],
     });
 
-    // 틀린 params는 확장 선언 검사에서 invalidParams로 돌아온다
-    const bad = await call(raw, "ext.helm.findings", { threadId });
+    // 틀린 params는 확장 선언 검사에서 invalidParams로 돌아온다(형식이 맞지 않는 탐구 id)
+    const bad = await call(raw, "ext.helm.findings", { threadId, inquiryId: "not-an-id" });
     expect(bad["error"]).toMatchObject({ code: -32602, data: { kind: "jsonrpc.invalidParams" } });
+    // 탐구 id를 생략하면 가장 최근 탐구를 고른다. 탐구가 없으면 id는 null이다(선언형 화면은 인자 없이 읽는다)
+    expect(resultOf(await call(raw, "ext.helm.findings", { threadId }))).toEqual({
+      inquiryId: null,
+      findings: [],
+    });
     // 선언하지 않은 동사와 없는 확장은 methodNotFound다
     expect(await call(raw, "ext.helm.nothing", { threadId })).toMatchObject({
       error: { code: -32601 },
@@ -172,6 +177,9 @@ realTest(
     expect(
       findings.map((item) => (isRecord(item) ? String(item["claim"]) : "")).toSorted(),
     ).toEqual(["관점 둘", "관점 셋", "관점 하나"].toSorted());
+
+    // 인자 없이 읽으면 가장 최근(끝난) 탐구의 발견과 같다
+    expect(resultOf(await call(raw, "ext.helm.findings", { threadId }))).toEqual(found);
 
     // 모르는 탐구의 발견은 빈 목록이다
     expect(

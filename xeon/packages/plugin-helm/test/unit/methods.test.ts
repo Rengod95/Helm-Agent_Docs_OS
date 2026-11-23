@@ -235,6 +235,7 @@ test("findings: a finished inquiry lists its discovery records in recorded order
 
 test("findings: the current inquiry at the apply turn comes from the committed state, with followUp", async () => {
   const seen: unknown[] = [];
+  const defaults: unknown[] = [];
   const holder: { rig?: Rig } = {};
   const rig = await createRig({
     onTurn: async (request) => {
@@ -243,11 +244,14 @@ test("findings: the current inquiry at the apply turn comes from the committed s
       const inquiryId = committedOf(target).inquiryId;
       if (inquiryId === null) throw new Error("the apply turn runs without an inquiry id");
       seen.push(await call(target, "findings", { inquiryId }));
+      // 인자 없는 읽기(선언형 화면)는 상태가 가리키는 현재 탐구를 준다
+      defaults.push(await call(target, "findings", {}));
     },
   });
   holder.rig = rig;
   await rig.runInquiry("캐시 무효화");
   const inquiryId = finishedOf(rig).inquiryId;
+  expect(defaults).toEqual(seen);
   expect(seen).toEqual([
     {
       kind: "ok",
@@ -298,6 +302,33 @@ test("findings: the current inquiry at the apply turn comes from the committed s
   ]);
 });
 
+test("findings: without an inquiry id the most recent inquiry answers (the finished one here)", async () => {
+  const rig = await createRig();
+  await rig.runInquiry("캐시 무효화");
+  const inquiryId = finishedOf(rig).inquiryId;
+  const latest = await call(rig, "findings", {});
+  expect(latest).toEqual(await call(rig, "findings", { inquiryId }));
+  expect(latest).toMatchObject({
+    kind: "ok",
+    value: {
+      inquiryId,
+      findings: [{ id: "analogy-1" }, { id: "prior-art-1" }, { id: "first-principles-1" }],
+    },
+  });
+});
+
+test("findings: without an inquiry id and with no inquiry at all, the id is null and the list empty", async () => {
+  const rig = await createRig();
+  expect(await call(rig, "findings", {})).toEqual({
+    kind: "ok",
+    value: { inquiryId: null, findings: [] },
+  });
+  expect(await call(rig, "findings", {}, null)).toEqual({
+    kind: "ok",
+    value: { inquiryId: null, findings: [] },
+  });
+});
+
 test("findings: an unknown inquiry id gives an empty list, not an error", async () => {
   const rig = await createRig();
   await rig.runInquiry("캐시 무효화");
@@ -314,7 +345,7 @@ test("params: a shape the schema refuses is params_invalid and the handler does 
   const outcomes = [
     await call(rig, "status", { extra: 1 }),
     await call(rig, "inquiries", { limit: 5 }),
-    await call(rig, "findings", {}),
+    await call(rig, "findings", { inquiryId: null }),
     await call(rig, "findings", { inquiryId: "not-an-id" }),
     await call(rig, "findings", { inquiryId: "haaaaaaaaaaaaa", extra: true }),
   ];
