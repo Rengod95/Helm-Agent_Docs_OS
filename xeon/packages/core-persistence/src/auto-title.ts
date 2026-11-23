@@ -60,7 +60,20 @@ const SYSTEM_PROMPT = [
 /** 첫 사용자 말이 없는 대화(명령이나 플러그인이 시작함)의 자리표시 */
 const NO_USER_MESSAGE = "(none: started by a command or plugin)";
 
+/** `/helm plugin <설명>`으로 연 대화: 사용자가 쓴 설명 글이다. 설명이 없으면 null이다 */
+const PLUGIN_REQUEST = /^\/helm\s+plugin\s+(\S[\s\S]*)$/u;
+
+function pluginRequestOf(user: string | null): string | null {
+  if (user === null) return null;
+  const matched = PLUGIN_REQUEST.exec(user.trim());
+  return matched?.[1]?.trim() ?? null;
+}
+
 function userPromptOf(user: string | null, assistant: string): string {
+  // 플러그인을 만들어 달라고 연 대화의 첫 답은 도구 오류와 다시 부르기 같은 내부 사정을 담기 쉽다.
+  // 제목은 사용자가 쓴 설명에서만 짓고, 어시스턴트 글은 모델에 보내지 않는다(보내는 글은 늘지 않는다)
+  const request = pluginRequestOf(user);
+  if (request !== null) return ["First user message:", request].join("\n");
   return [
     "First user message:",
     user ?? NO_USER_MESSAGE,
