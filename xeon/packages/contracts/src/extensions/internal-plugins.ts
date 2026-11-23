@@ -24,6 +24,15 @@ export const INTERNAL_PLUGIN_NAMES = [
   "host-memory-bridge",
   "host-proposals-bridge",
   "cap-schedule",
+  // 도구 종류 플러그인(AGE-76 질문 2): 외부 도구 하나씩. 그 OS에서 쓰는 것만 엔진이 싣는다
+  "tool-rg",
+  "tool-sops",
+  "tool-age",
+  "tool-git",
+  "tool-security",
+  "tool-bwrap",
+  "tool-socat",
+  "tool-secret-tool",
 ] as const;
 export type InternalPluginName = (typeof INTERNAL_PLUGIN_NAMES)[number];
 
@@ -63,6 +72,15 @@ const INTERNAL_LAYER_OF: Readonly<Record<InternalPluginName, InternalPluginLayer
   "host-memory-bridge": "bridge",
   "host-proposals-bridge": "bridge",
   "cap-schedule": "capability",
+  // 엔진이 꼭 필요로 하는 도구는 앱 핵심, 없어도 되는 도구(git, secret-tool)는 기본 제공(기능)이다
+  "tool-rg": "core",
+  "tool-sops": "core",
+  "tool-age": "core",
+  "tool-git": "capability",
+  "tool-security": "core",
+  "tool-bwrap": "core",
+  "tool-socat": "core",
+  "tool-secret-tool": "capability",
 };
 
 /** 내부 부품 이름의 층 값. 내부 부품이 아닌 이름은 `undefined`다 */

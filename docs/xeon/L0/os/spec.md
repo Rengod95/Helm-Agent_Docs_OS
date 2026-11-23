@@ -430,6 +430,7 @@ export type BinaryError =
 - 점검: `checkExternalBinaries({ platform, resolveBinary }, signal)`가 쓰지 않는 행을 빼고 나머지를 병렬로 `resolveBinary`에 묻는다. 서비스는 `OsServiceHandle.checkBinaries(signal)`로 같은 점검을 낸다. 결과는 `BinaryCheckReport`다: `items`(이름, 필수/선택, 쓰는 곳, 영향, 상태 `ok`·`missing`(안내 문구)·`too_old`·`unusable`), `ready`(쓸 수 없는 필수 바이너리가 없음), `blocking`(쓸 수 없는 필수 이름), `degraded`(쓸 수 없는 선택 이름). 중단되면 `cancelled`다.
 - 점검 실패는 코드를 고칠 대상이 아니라 사용자 환경 문제다. 호출자는 `ready: false`이면 환경 문제로 보고한다(CLI doctor는 종료코드 2 계열, 데스크톱 첫 실행 화면은 `hint`를 보여 준다). 두 곳을 잇는 일은 L4 작업이다.
 - 설치 안내 문구(`hint`)는 `BinaryError.not_found.hint`를 그대로 쓴다(3.6절 3번).
+- 도구 종류 플러그인 [결정: 2026-11-23 사용자, AGE-76 질문 2]: 표의 도구마다 내장 도구 플러그인(`tool-rg`, `tool-sops`, `tool-age`, `tool-git`, `tool-security`, `tool-bwrap`, `tool-socat`, `tool-secret-tool`)이 있고 그 OS에서 쓰는 것만 실린다(F.extensions.spec §3.1.5). 플러그인 카드의 `externalTool.status`는 이 절의 점검 보고서 하나에서 나온다(호스트가 시작 때와 `host.status`의 `includeBinaries` 때마다 복사). 첫 실행 화면과 카드가 같은 점검을 본다. 표와 플러그인의 선언(실행 파일 이름, 최소 버전, OS)은 host 시험이 맞춘다. 앱이 대신 설치하지 않는다.
 
 ### 3.7 사용자 알림 (1차, M3)
 

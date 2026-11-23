@@ -154,6 +154,7 @@ import {
   pluginDeclsOf,
   pluginsOf,
   registrationIdOf,
+  type ExternalToolStatus,
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
@@ -247,6 +248,8 @@ export interface PortsDeps {
   readonly extRead: ExtReadAssembly;
   /** 기본 플러그인 번들 뿌리(`defaultPluginsDir()` 또는 옵션). 플러그인 읽기 서비스가 번들 폴더로 본다 */
   readonly defaultPluginsDir: string;
+  /** 도구 종류 플러그인의 마지막 점검 상태(AGE-76 질문 2). 플러그인 읽기 서비스가 응답 카드에 싣는다 */
+  readonly toolStatusOf?: (name: string) => ExternalToolStatus | undefined;
   /** 검토본 저장소 읽기(플러그인 읽기 서비스가 검토 칸, 무결성, 보관 목록을 읽는다) */
   /** 검토본 저장소(M5c §4.6). 읽기 면과 검토 쓰기를 모두 쓴다 */
   readonly pluginStore: PluginStore;
@@ -1417,6 +1420,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     records: () => deps.extRead.extensions(),
     profiles: { list: () => ports.m4.profileTestRun.list() },
     store: deps.pluginStore,
+    ...(deps.toolStatusOf === undefined ? {} : { toolStatusOf: deps.toolStatusOf }),
     // 느슨한 스킬 폴더는 옮긴 뒤에도 원본으로 남는다(제거 항목을 만들지 않게 이름만 본다)
     looseSkillsDir: userSkillsDir(deps.dataDir),
     log,

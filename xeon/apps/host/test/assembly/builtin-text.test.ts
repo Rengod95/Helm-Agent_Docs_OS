@@ -26,9 +26,10 @@ import {
   taskBridgePlugin,
   type DialogAreaHolder,
 } from "../../src/assembly/m4/dialog-area-bridge.ts";
+import { TOOL_PLUGIN_ROWS, toolPluginManifest } from "../../src/assembly/tool-plugins.ts";
 import { proposalsBridgePlugin, type KnowledgeWireHolder } from "../../src/assembly/proposals.ts";
 
-// AGE-31 (2026-11-23 사용자 결정): 내장 플러그인 23개는 목적(purpose)과 설명(description)을 매니페스트에 싣는다.
+// AGE-31 (2026-11-23 사용자 결정): 내장 플러그인 31개는 목적(purpose)과 설명(description)을 매니페스트에 싣는다.
 // 아래 표가 en 글의 정본이다. 내장 이름이 늘거나 글이 바뀌면 이 표를 함께 고친다.
 
 /** 이름, 목적, 설명(en). 순서는 계약의 내장 이름 목록과 무관하다 */
@@ -148,6 +149,46 @@ const TEXTS = [
     "Lets the agent explain how to use Fresnel.",
     "Gives the agent skills about how Fresnel works, such as plugins, settings, assets, data and diagnostics, and it reads only the part that fits your question.",
   ],
+  [
+    "tool-rg",
+    "Checks that ripgrep (rg) is installed.",
+    "Checks that the ripgrep tool (rg) is on this computer. Workspace file search and sandbox start use it; without it, they do not work.",
+  ],
+  [
+    "tool-sops",
+    "Checks that sops is installed.",
+    "Checks that sops is on this computer at the needed version. Secrets are read and written with it; without it, secrets cannot be read or written.",
+  ],
+  [
+    "tool-age",
+    "Checks that age is installed.",
+    "Checks that age is on this computer. New secret keys are made with it; without it, new secret keys cannot be created.",
+  ],
+  [
+    "tool-git",
+    "Checks that git is installed.",
+    "Checks that git is on this computer. Workspace git status and work trees use it; without it, only those are missing.",
+  ],
+  [
+    "tool-security",
+    "Checks the macOS security tool for the Keychain.",
+    "Checks that the macOS security tool is available. Secret keys are kept in the Keychain with it; without it, keys cannot be stored there.",
+  ],
+  [
+    "tool-bwrap",
+    "Checks that bubblewrap (bwrap) is installed.",
+    "Checks that bubblewrap (bwrap) is on this Linux computer at the needed version. The sandbox uses it; without it, the sandbox cannot run.",
+  ],
+  [
+    "tool-socat",
+    "Checks that socat is installed.",
+    "Checks that socat is on this Linux computer. The sandbox network relay uses it; without it, the sandbox cannot run.",
+  ],
+  [
+    "tool-secret-tool",
+    "Checks that secret-tool is installed.",
+    "Checks that secret-tool is on this Linux computer. Secret keys can be kept in the Secret Service with it; without it, keys are kept in a protected file instead.",
+  ],
 ] as const;
 
 /** 호스트가 조립하지 않고 패키지가 내는 매니페스트와, 호스트 조립 함수가 내는 매니페스트를 모은다. 실행 엔진 없이 만든다 */
@@ -174,12 +215,13 @@ function builtinManifests(): readonly ExtensionManifest[] {
     memoryBridgePlugin(partial<DialogAreaHolder>({}), 0).manifest,
     proposalsBridgePlugin(partial<KnowledgeWireHolder>({}), 0).manifest,
     scheduleManifest(),
+    ...TOOL_PLUGIN_ROWS.map((row) => toolPluginManifest(row)),
     authoringManifest,
     guideManifest,
   ];
 }
 
-test("the 23 built-in plugins are the contract's names and each carries its purpose and description", () => {
+test("the 31 built-in plugins are the contract's names and each carries its purpose and description", () => {
   const manifests = builtinManifests();
   const actual = Object.fromEntries(
     manifests.map(
@@ -193,7 +235,7 @@ test("the 23 built-in plugins are the contract's names and each carries its purp
   const expected = Object.fromEntries(
     TEXTS.map(([name, purpose, description]) => [name, { purpose, description }] as const),
   );
-  // 읽은 매니페스트의 이름, 표의 이름, 계약의 내장 이름 목록이 같은 23개여야 한다. 새 내장이 목록에 들어오면 여기서 실패한다
+  // 읽은 매니페스트의 이름, 표의 이름, 계약의 내장 이름 목록이 같은 31개여야 한다. 새 내장이 목록에 들어오면 여기서 실패한다
   expect(manifests).toHaveLength(BUILTIN_PLUGIN_NAMES.length);
   expect(Object.keys(actual).toSorted()).toEqual([...BUILTIN_PLUGIN_NAMES].toSorted());
   expect(Object.keys(expected).toSorted()).toEqual([...BUILTIN_PLUGIN_NAMES].toSorted());

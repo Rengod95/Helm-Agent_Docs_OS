@@ -56,7 +56,12 @@ import { workspacePlugin } from "@fresnel/cap-workspace";
 import { protectPathsStoreOf } from "./protect-paths.ts";
 import { workspaceCore } from "@fresnel/core-workspace";
 import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
-import type { AgentDefinition, DraftMark, ToolOutputFiles } from "@fresnel/contracts/services";
+import type {
+  AgentDefinition,
+  DraftMark,
+  OsPlatform,
+  ToolOutputFiles,
+} from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
 import {
   contextSettingsOf,
@@ -84,6 +89,7 @@ import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
 import type { ContributedServer, McpProcessPort } from "@fresnel/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
 import { proposalsBridgePlugin, type KnowledgeWireHolder } from "./proposals.ts";
+import { toolPluginRowsOn, toolPluginUnit } from "./tool-plugins.ts";
 import { authoringLoaded, authoringUnit, type AuthoringWiring } from "./authoring.ts";
 import { guideLoaded, guideSkillRoots, guideUnit, type GuideWiring } from "./guide.ts";
 import { hostWebPlugin } from "./cap-web.ts";
@@ -120,6 +126,8 @@ import {
 
 export interface ExtensionDeps {
   readonly mode: HostMode;
+  /** 이 컴퓨터의 OS. 그 OS에서 쓰는 도구 종류 플러그인만 싣는다. 생략하면 이 프로세스의 OS다 */
+  readonly platform?: OsPlatform;
   /** 조립이 더한 추가 기능 정의(시험용). 플러그인 기능 호출이 찾는 정의에 더한다(core-tools `pluginCapabilities`) */
   readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
   /** 잘린 도구 출력의 파일 사본. core-tools가 쓰고 cap-workspace가 읽기 루트에 더한다 */
@@ -335,6 +343,12 @@ function pluginMcpServersOf(
   return materials()?.mcpServers(threadId) ?? [];
 }
 
+/** 이 컴퓨터의 OS. 주입이 없으면 이 프로세스의 OS이고, 모르는 값은 linux로 본다 */
+function platformOf(deps: ExtensionDeps): OsPlatform {
+  if (deps.platform !== undefined) return deps.platform;
+  return process.platform === "darwin" || process.platform === "win32" ? process.platform : "linux";
+}
+
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
@@ -478,6 +492,10 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
+    // 도구 종류 플러그인(AGE-76 질문 2). 도구에 기대는 플러그인(cap-workspace)보다 앞에 올라야 의존 대상이 먼저 있다
+    ...toolPluginRowsOn(platformOf(deps)).map(
+      (row) => [row.name, (loadIndex: number) => toolPluginUnit(row, loadIndex)] as const,
+    ),
     [
       "cap-workspace",
       (loadIndex) =>

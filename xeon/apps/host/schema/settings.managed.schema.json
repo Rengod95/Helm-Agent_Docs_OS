@@ -892,6 +892,190 @@
         }
       }
     },
+    "ext.tool-age.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable age",
+          "labelArgs": {
+            "name": "age"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-bwrap.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable bubblewrap",
+          "labelArgs": {
+            "name": "bubblewrap"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-git.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable Git",
+          "labelArgs": {
+            "name": "Git"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-rg.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable ripgrep",
+          "labelArgs": {
+            "name": "ripgrep"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-secret-tool.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable secret-tool",
+          "labelArgs": {
+            "name": "secret-tool"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-security.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable macOS security",
+          "labelArgs": {
+            "name": "macOS security"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-socat.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable socat",
+          "labelArgs": {
+            "name": "socat"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.tool-sops.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Enable sops",
+          "labelArgs": {
+            "name": "sops"
+          },
+          "labelKey": "settings.ext.enabled.label",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.exec.defaultTimeoutMs": {
       "default": 0,
       "maximum": 2147483647,

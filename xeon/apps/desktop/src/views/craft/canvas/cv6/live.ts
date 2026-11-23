@@ -36,8 +36,9 @@ function isHookName(name: string): name is HookName {
   return HOOK_SET.has(name);
 }
 
-/** 카드의 종류: Drive 칸이 있으면 Drive, Hook이 있으면 Hook, 도구나 MCP 서버를 주면 도구, 나머지는 Inject */
+/** 카드의 종류: 도구 종류 선언(`externalTool`)이 있으면 도구, Drive 칸이 있으면 Drive, Hook이 있으면 Hook, 도구나 MCP 서버를 주면 도구, 나머지는 Inject */
 export function kindOfCard(card: PluginCard): Kind {
+  if (card.externalTool !== undefined) return "tool";
   if (card.does.drive !== null) return "drive";
   if (card.does.hook !== null && card.does.hook.hooks.length > 0) return "hook";
   const inject = card.does.inject;

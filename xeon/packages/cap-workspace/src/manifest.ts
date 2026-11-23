@@ -28,6 +28,11 @@ export function workspaceManifest(): ExtensionManifest {
       {
         layer: "L2",
         hooks: [],
+        // 작업 폴더 도구가 쓰는 외부 도구(AGE-76 질문 2). rg는 필수(강한 의존), git은 선택(약한 의존)
+        dependsOn: [
+          { plugin: "tool-rg", kind: "hard" },
+          { plugin: "tool-git", kind: "soft" },
+        ],
         provides: [
           { id: WorkspaceFiles.id, version: WorkspaceFiles.version },
           { id: WorkspaceShell.id, version: WorkspaceShell.version },

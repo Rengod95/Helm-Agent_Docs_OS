@@ -310,13 +310,16 @@ describe("internal plugin marker (AGE-33)", () => {
     expect(parse(PluginCardSchema, { ...PLUGIN_CARD, internalLayer: "plugin" }).ok).toBe(false);
   });
 
-  test("every internal name has a layer: core-* is core, cap-* is capability, host-* is bridge", () => {
+  test("every internal name has a layer: core-* is core, cap-* is capability, host-* is bridge, tool-* by need", () => {
+    // 도구 종류 플러그인(AGE-76 질문 2): 엔진이 꼭 필요로 하는 도구는 앱 핵심, 없어도 되는 도구(git, secret-tool)는 기본 제공(기능)
+    const optionalTools = new Set(["tool-git", "tool-secret-tool"]);
     for (const name of INTERNAL_PLUGIN_NAMES) {
-      const expected = name.startsWith("core-")
-        ? "core"
-        : name.startsWith("cap-")
-          ? "capability"
-          : "bridge";
+      const expected =
+        name.startsWith("core-") || (name.startsWith("tool-") && !optionalTools.has(name))
+          ? "core"
+          : name.startsWith("cap-") || optionalTools.has(name)
+            ? "capability"
+            : "bridge";
       expect(internalPluginLayer(name)).toBe(expected);
     }
     expect(internalPluginLayer("authoring")).toBeUndefined();
@@ -328,7 +331,7 @@ describe("internal plugin marker (AGE-33)", () => {
     expect(internalPluginTextKey("host-goal-bridge", "purpose")).toBe(
       "plugin.internal.hostGoalBridge.purpose",
     );
-    expect(INTERNAL_PLUGIN_NAMES).toHaveLength(21);
+    expect(INTERNAL_PLUGIN_NAMES).toHaveLength(29);
     expect(INTERNAL_PLUGIN_NAMES).not.toContain("host-dialog-area-bridge");
     expect(new Set(INTERNAL_PLUGIN_NAMES).size).toBe(INTERNAL_PLUGIN_NAMES.length);
     expect(isInternalPluginName("core-loop")).toBe(true);
@@ -420,8 +423,8 @@ describe("required by core and the not-passed names (AGE-33 enDep 10, 11)", () =
     expect(builtinPluginTextKey("guide", "description")).toBe("plugin.builtin.guide.description");
     expect(builtinPluginTextKey("my-plugin", "purpose")).toBeUndefined();
     expect([...BUILTIN_GROUP_NAMES]).toEqual(["authoring", "guide"]);
-    expect(BUILTIN_PLUGIN_NAMES).toHaveLength(23);
-    expect(new Set(BUILTIN_PLUGIN_NAMES).size).toBe(23);
+    expect(BUILTIN_PLUGIN_NAMES).toHaveLength(31);
+    expect(new Set(BUILTIN_PLUGIN_NAMES).size).toBe(31);
   });
 });
 

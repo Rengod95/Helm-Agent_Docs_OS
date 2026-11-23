@@ -27,6 +27,8 @@ export interface ProfileLibraryEntry {
   readonly dependencies: readonly PluginDependency[];
   /** 이 매니페스트에서 `id`가 있는 플러그인의 id(구성원). 의존이 가리키는 구성원이 여기 있어야 한다 */
   readonly members: readonly string[];
+  /** 프로필과 무관하게 늘 켜지는 내장 플러그인(도구 종류 플러그인, AGE-76 질문 2)인가. 이 플러그인을 가리키는 의존은 목록에 없어도 `dependency_disabled`가 아니다 */
+  readonly alwaysOn?: boolean;
 }
 
 /** 설치된 플러그인 조회. 없는 이름은 `undefined`다 */
@@ -287,7 +289,7 @@ export function validateProfile(
             other: dependency.target,
           });
         }
-        if (!resolved.has(dependency.targetExtension)) {
+        if (target.alwaysOn !== true && !resolved.has(dependency.targetExtension)) {
           issues.push({
             code: "dependency_disabled",
             severity,
