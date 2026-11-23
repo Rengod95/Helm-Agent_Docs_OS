@@ -11,15 +11,17 @@ Default to `native` (declarative). Use `app` only when a row in the second table
 | Question | Native | App |
 |---|---|---|
 | Can the widget catalog draw it: lists, tables, status, steps, forms, activity trees | yes: native | |
-| Free layout, graph or node editing, canvas, custom charts, continuous animation, drag and drop | | yes: app |
+| Free layout, graph or node editing, canvas, custom charts, continuous animation, free-form drag and drop | | yes: app |
 | Must the same screen also work in the CLI or a later web client | yes: native, same tree rendered as text | app, plus a `fallback` native tree |
 | Card, status cell, or settings section | native only | not allowed |
 | A library that must draw (graph, map, editor) | | app; bundle the library in the folder, no network |
 | Trust level `project` | native | banned by default |
 
+Boards and reorderable lists are native too: `Board` (bind `columns`, `cards`; props `move`, `add`) and `SortableList` (bind `items`; prop `move`) call the write method named in the prop with `{ id, column, index }`, `{ column, title }` or `{ id, index }` (example `xeon/examples/kanban-native`).
+
 Choose per item. One plugin may have a native `card` and an app `page`.
 
-Scaffold modes: `native` (`authoring_scaffold` mode `native`) makes a plain plugin with one declarative page, for lists, tables, forms, and status that are small and stable. `app` (mode `app`) makes a page with its own HTML and JS, for drag and drop, a canvas, or custom drawing; it needs a reason in `app.reason`.
+Scaffold modes: `native` (`authoring_scaffold` mode `native`) makes a plain plugin with one declarative page, for lists, tables, forms, and status that are small and stable. `app` (mode `app`) makes a page with its own HTML and JS, for free-form dragging, a canvas, or custom drawing; it needs a reason in `app.reason`.
 
 ## Slots
 
