@@ -1,15 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type { DevkitIssue } from "@fresnel/contracts/services";
+import type { DevkitIssue, MemberInfo } from "@fresnel/contracts/services";
 import type { CommandError } from "../../../src/views/commands.ts";
 import {
   childDirOf,
   defaultDetachName,
+  detachPlanOf,
+  extensionNameOf,
   mergeCandidatesOf,
   newNameProblemOf,
   purposeProblemOf,
   siblingDirOf,
   splitFailureText,
   splitNotesOf,
+  swapOutOf,
 } from "../../../src/views/craft/members/split-model.ts";
 import { entry } from "../workbench/support.tsx";
 
@@ -21,6 +24,22 @@ function issue(severity: DevkitIssue["severity"], code: string): DevkitIssue {
 
 function reasonOf(code: string): CommandError {
   return { kind: "rejected", code: -32602, reasons: [{ code }] };
+}
+
+function member(id: string, over: Partial<MemberInfo> = {}): MemberInfo {
+  return {
+    id,
+    registrationId: `group/${id}`,
+    title: null,
+    layer: "plugin",
+    hooks: [],
+    drives: false,
+    defaultEnabled: true,
+    blockIds: [],
+    injects: [],
+    tools: [],
+    ...over,
+  };
 }
 
 describe("newNameProblemOf: 새 플러그인 이름", () => {
@@ -195,5 +214,36 @@ describe("mergeCandidatesOf: 합칠 수 있는 후보", () => {
       entry("driver", { layer: "plugin", isOrchestration: true }),
     ]);
     expect(candidates.map((e) => e.name)).toEqual(["solo"]);
+  });
+});
+
+describe("프로필 계획의 값(AGE-72)", () => {
+  test("확장 이름은 `/` 앞이고, 합치기가 뺄 이름은 중복 없이 선언 순서다", () => {
+    expect(extensionNameOf("alpha/guard")).toBe("alpha");
+    expect(extensionNameOf("alpha")).toBe("alpha");
+    expect(
+      swapOutOf([
+        { from: "beta" },
+        { from: "alpha/guard" },
+        { from: "beta/lead" },
+        { from: "alpha" },
+      ]),
+    ).toEqual(["beta", "alpha"]);
+  });
+
+  test("떼기에서 남는 구성원이 있으면 묶음 바로 뒤에 들고 묶음은 남는다. 떼는 구성원이 혼자 Drive면 Drive를 옮긴다", () => {
+    const members = [member("guard"), member("lead", { drives: true }), member("notes")];
+    expect(detachPlanOf(members, "lead", "group")).toEqual({
+      profilePlan: { swapOut: [], placeAfter: "group", driveFrom: "group" },
+      bundleStays: true,
+    });
+    expect(detachPlanOf(members, "guard", "group").profilePlan.driveFrom).toBe(null);
+  });
+
+  test("떼고 나면 구성원이 없으면 묶음이 프로필에서 빠지고(swapOut) 묶음 폴더는 다시 내지 않는다", () => {
+    expect(detachPlanOf([member("lead")], "lead", "group")).toEqual({
+      profilePlan: { swapOut: ["group"], placeAfter: null, driveFrom: null },
+      bundleStays: false,
+    });
   });
 });

@@ -2942,6 +2942,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 거절 사유(`reasons[].code`)의 한 문장: `out_dir_not_empty`, `out_dir_inside_source`, `name_invalid`, `name_conflict`, `member_not_found`, `capability_duplicate`, `replace_conflict`, `member_id_conflict`, `source_has_members`, `source_duplicate_name`, `tool_duplicate`, `layer_mixed_external`, 그리고 `denied` [근거: `apps/desktop/src/views/craft/members/split-model.ts`].
 
 - 프로필 캔버스(C3)에서도 같은 두 길을 연다: 판을 합칠 수 있는 판 위에 끌어 놓으면 합치기 상자가 두 이름과 기본 이름으로 채워져 열리고, 멤버 판을 묶음 밖으로 끌면 떼기를 기본값으로 확인 한 번에 낸다 [구현: cvMerge, 2026-11-23, AGE-72]. 동작은 `review/m6/craft-flows.md` §6.10의 구현 메모다.
+- 프로필 계획(AGE-72): 승인하면 그 프로필에서 원래 플러그인이 빠지고 새 플러그인이 그 자리에 듭니다. 떼기는 원래 묶음 바로 뒤에 들고, 구성원이 하나도 안 남으면 묶음이 프로필에서 빠집니다. 남는 구성원이 있으면 원래 묶음의 새 판도 리뷰에 내며, 그 판은 이어진 항목이라 새 플러그인 승인은 기다리지 않습니다. 뺄 플러그인에 다른 플러그인이 hard로 기대면 엔진이 승인을 거절하고, 합치기는 그런 의존을 새 묶음으로 옮기지 못합니다. 떼기와 합치기 상자 맨 위 줄(`desktop.craft.split.detach.keepsSource`, `desktop.craft.split.merge.keepsSource`)은 이 규칙을 그대로 말합니다. [근거: AGE-72 구현(`split-source.ts`)]
 
 #### 6.24.5 의존 때문에 거절될 때 (m6Mb, AGE-33)
 

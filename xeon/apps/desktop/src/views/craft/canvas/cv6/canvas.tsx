@@ -233,8 +233,10 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   const [drag, setDrag] = useState<Drag | null>(null);
   const [say, setSay] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(() => window.innerWidth >= WIDE_ENOUGH);
-  // 끌어서 합치기·잇기·떼기(cvMerge, AGE-72)
-  const merge = useCanvasMerge();
+  // 끌어서 합치기·잇기·떼기(cvMerge, AGE-72). 열린 프로필이 합치기·떼기 리뷰 항목의 기본 프로필이다(표본과 불러오는 중에는 없다)
+  const merge = useCanvasMerge(
+    store.status === "ready" && store.current !== "" ? store.current : null,
+  );
   const facts = store.live?.facts ?? NO_FACTS;
   const [drop, setDrop] = useState<Drop | null>(null);
   const [menu, setMenu] = useState<PlateMenuAt | null>(null);
@@ -982,8 +984,14 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
           return undefined;
         }
         setDetaching(null);
-        const text = t(done.sendFailed ?? "desktop.craft.split.sent");
-        setNotice({ text, tone: done.sendFailed === null ? "ok" : "warn", itemId: done.itemId });
+        const lines = [t(done.sendFailed ?? "desktop.craft.split.sent")];
+        if (done.bundleFailed !== null) lines.push(t(done.bundleFailed));
+        const text = lines.join(" ");
+        setNotice({
+          text,
+          tone: done.sendFailed === null && done.bundleFailed === null ? "ok" : "warn",
+          itemId: done.itemId,
+        });
         setSay(text);
         return undefined;
       }),

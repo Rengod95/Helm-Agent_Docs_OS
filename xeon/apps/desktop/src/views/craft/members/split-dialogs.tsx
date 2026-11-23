@@ -149,11 +149,17 @@ function SplitResult(props: { readonly done: Done }): ReactNode {
   const { done } = props;
   return (
     <div className="grid gap-3" data-split-result="">
-      <div role="status">
+      <div role="status" className="grid gap-1">
         {done.sendFailed === null ? (
           <NoticeLine tone="success">{t("desktop.craft.split.sent")}</NoticeLine>
         ) : (
           <NoticeLine tone="danger">{t(done.sendFailed)}</NoticeLine>
+        )}
+        {done.bundleItemId !== null && (
+          <NoticeLine tone="success">{t("desktop.craft.split.bundle.sent")}</NoticeLine>
+        )}
+        {done.bundleFailed !== null && (
+          <NoticeLine tone="danger">{t(done.bundleFailed)}</NoticeLine>
         )}
       </div>
       <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-ui-sm">

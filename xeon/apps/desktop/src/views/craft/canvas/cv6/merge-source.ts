@@ -2,6 +2,7 @@
 // 합치기와 떼기는 플러그인 목록과 상세가 쓰는 길(`useSplitActions`: `ext.members.merge`·`ext.members.detach` → 드래프트 → 리뷰) 그대로이고,
 // 의존은 의존 탭과 같은 길(`ext.dependencies.edit` → 드래프트 → 리뷰)이다. 리뷰를 건너뛰는 설치 길은 없다.
 // 리뷰에 낸 합치기·떼기 결과의 항목 id를 기억해 두면 캔버스가 그 결과를 반투명 판으로 그린다(`store.ts`의 `readPending`).
+// 캔버스에서 낸 합치기·떼기는 열린 프로필을 맥락으로 싣는다(승인 때 그 프로필에서 원래 것을 빼고 새 것을 넣는다, AGE-72).
 import type { MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { HostConnection } from "@fresnel/contracts/wire";
@@ -35,7 +36,8 @@ export interface CanvasMergeActions {
   readonly create: () => void;
 }
 
-export function useCanvasMerge(): CanvasMergeActions {
+/** `profileId`는 지금 캔버스에 열린 프로필이다(표본이나 불러오는 중이면 null). 합치기와 떼기의 리뷰 항목이 이 프로필을 기본 대상으로 싣는다 */
+export function useCanvasMerge(profileId: string | null): CanvasMergeActions {
   const commands = useCanvasEngine();
   const profileCommands = useProfileCommands();
   const base = useSplitActions();
@@ -69,10 +71,10 @@ export function useCanvasMerge(): CanvasMergeActions {
   const split = useMemo(
     (): SplitActions => ({
       ...base,
-      merge: async (input) => remember(await base.merge(input)),
-      detach: async (input) => remember(await base.detach(input)),
+      merge: async (input) => remember(await base.merge(input, { profileId })),
+      detach: async (input) => remember(await base.detach(input, { profileId })),
     }),
-    [base, remember],
+    [base, profileId, remember],
   );
 
   const link = useCallback(
