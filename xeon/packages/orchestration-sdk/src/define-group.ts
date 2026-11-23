@@ -30,6 +30,8 @@ import type {
   OrchestrationSettingDefs,
   OrchestrationSettingNamespace,
   NoSettings,
+  PluginDef,
+  PluginModule,
 } from "./types.ts";
 import { realHostAccess, wrap, type WrapDef } from "./wrap.ts";
 
@@ -46,6 +48,8 @@ export type {
   OrchestrationModule,
   OrchestrationModuleSettings,
   OrchestrationStartDriveResult,
+  PluginDef,
+  PluginModule,
   OrchestrationSettingDefs,
   OrchestrationSettingNamespace,
   OrchestrationSettingValues,
@@ -360,4 +364,116 @@ function settingsOf<D extends OrchestrationSettingDefs>(
   group: SettingGroup<OrchestrationSettingNamespace, D>,
 ): OrchestrationModuleSettings {
   return { namespace: group.namespace, defs: Object.values<SettingDef>(group.defs) };
+}
+
+/**
+ * 매니페스트 값을 검증해 `ExtensionManifest`로 돌려준다. 구성원이 없는 보통 플러그인(`definePlugin`)의 `.fresnel-plugin/plugin.json`을 읽을 때 쓴다.
+ * 매니페스트 오류, `orchestration` 선언, id 없는 L3 루트 플러그인 없음이면 Bug를 던진다. 순수 함수
+ */
+export function pluginManifest(value: unknown): ExtensionManifest {
+  const result = validateManifest(value);
+  const errors = result.issues.filter((found) => found.severity === "error");
+  if (result.manifest === undefined || errors.length > 0) {
+    throw new Bug(
+      `pluginManifest: invalid manifest: ${errors.map((found) => `${found.code} ${found.path}`).join(", ")}`,
+    );
+  }
+  const shape = pluginShapeIssues(result.manifest);
+  if (shape.length > 0) {
+    throw new Bug(
+      `pluginManifest: ${result.manifest.name}: ${shape.map((found) => found.code).join(", ")}`,
+    );
+  }
+  return result.manifest;
+}
+
+function pluginShapeIssues(manifest: ExtensionManifest): OrchestrationDefIssue[] {
+  const found: OrchestrationDefIssue[] = [];
+  if (isOrchestrationExtension(manifest)) {
+    found.push(
+      issue(
+        "plugin_orchestration_declared",
+        "/manifest/orchestration",
+        "a plain plugin has no orchestration declaration; use defineOrchestration for a plugin with members",
+      ),
+    );
+  }
+  if (orchestrationOf(manifest) === undefined) {
+    found.push(
+      issue(
+        "plugin_root_missing",
+        "/manifest/plugins",
+        'a plain plugin needs a root plugin (no id) with layer "L3"',
+      ),
+    );
+  }
+  return found;
+}
+
+/** 순수 함수. `definePlugin` 정의의 검사 결과다 */
+export function validatePluginDef(
+  def: Pick<PluginDef<unknown>, "manifest" | "state" | "migrations"> & {
+    readonly settings?: { readonly namespace: string };
+  },
+): readonly (OrchestrationDefIssue | ManifestIssue)[] {
+  const found: (OrchestrationDefIssue | ManifestIssue)[] = [
+    ...validateManifest(def.manifest).issues,
+  ];
+  found.push(...pluginShapeIssues(def.manifest));
+  if (!checkOrchestrationName(def.manifest.name).ok) {
+    found.push(
+      issue(
+        "orchestration_name",
+        "/manifest/name",
+        `plugin name "${def.manifest.name}" must match ${ORCHESTRATION_NAME_PATTERN} and cannot be a reserved name`,
+      ),
+    );
+  }
+  if (def.settings !== undefined) {
+    const expected =
+      def.manifest.trust?.level === "builtin"
+        ? `l3.${def.manifest.name}`
+        : `ext.${def.manifest.name}`;
+    if (def.settings.namespace !== expected) {
+      found.push(
+        issue(
+          "settings_namespace",
+          "/settings/namespace",
+          `settings namespace must be ${expected} but is ${def.settings.namespace}`,
+        ),
+      );
+    }
+  }
+  found.push(...stateIssuesOf("", def.state, def.migrations));
+  return found;
+}
+
+/**
+ * 구성원이 없는 보통 플러그인을 정의한다(화면용 메서드와 모델 도구를 함께 내는 앱 플러그인 등). 매니페스트에 `orchestration` 선언이 없으므로
+ * 캔버스와 목록에서 Drive나 구성원 플러그인으로 분류되지 않는다. 등록 API(`registerMethod`, `registerTool`, `registerCommand`)는 `defineOrchestration`과 같다.
+ * 오류가 있으면 Bug를 던진다. setup은 실행하지 않는다
+ */
+export function definePlugin<S = never, const D extends OrchestrationSettingDefs = NoSettings>(
+  def: PluginDef<S, D>,
+): PluginModule {
+  const errors = validatePluginDef(def).filter((found) => found.severity === "error");
+  if (errors.length > 0) {
+    throw new Bug(
+      `definePlugin(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
+    );
+  }
+  const entry: ExtensionEntry = ({ register }) => {
+    const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
+    register(def.manifest.name, registrationDef, (api) =>
+      def.setup(wrap(api, def, realHostAccess)),
+    );
+  };
+  const version = def.state?.version ?? 0;
+  return {
+    manifest: def.manifest,
+    entry,
+    ...(def.settings === undefined ? {} : { settings: settingsOf(def.settings) }),
+    stateUpcasters: stateUpcasters(version, def.migrations),
+    stateVersion: version,
+  };
 }

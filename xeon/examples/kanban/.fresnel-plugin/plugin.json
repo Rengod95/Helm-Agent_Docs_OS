@@ -7,7 +7,6 @@
   "purpose": "카드를 칸 사이로 옮기며 보드를 한눈에 본다. 화면과 모델이 같은 함수로 같은 상태를 고친다",
   "entry": "./src/index.ts",
   "plugins": [{ "layer": "L3", "hooks": [] }],
-  "orchestration": {},
   "defaultEnabled": false,
   "trust": { "level": "user" },
   "tools": [

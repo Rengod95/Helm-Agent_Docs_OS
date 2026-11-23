@@ -1,9 +1,9 @@
 import { parse } from "@fresnel/contracts";
 import {
-  defineOrchestration,
-  orchestrationManifest,
+  definePlugin,
+  pluginManifest,
   type OrchestrationApi,
-  type OrchestrationModule,
+  type PluginModule,
 } from "@fresnel/orchestration-sdk";
 import { Type, type Static } from "typebox";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
@@ -122,8 +122,8 @@ async function addCard(g: BoardApi, input: AddInput): Promise<CardOutcome> {
   return { ok: true, cards: committed.cards };
 }
 
-const board: OrchestrationModule = defineOrchestration<BoardState>({
-  manifest: orchestrationManifest(manifestJson),
+const board: PluginModule = definePlugin<BoardState>({
+  manifest: pluginManifest(manifestJson),
   state: { schema: stateSchema, initial: initialState, version: 1 },
   setup(g) {
     g.registerMethod("board", {
@@ -176,4 +176,4 @@ const board: OrchestrationModule = defineOrchestration<BoardState>({
   },
 });
 
-export const extension: OrchestrationModule["entry"] = board.entry;
+export const extension: PluginModule["entry"] = board.entry;
