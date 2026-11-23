@@ -15,7 +15,9 @@ import {
   checkProfileTitle,
   newProfileInput,
   profileIdFrom,
+  profileModeOf,
   renamedInput,
+  withModeInput,
 } from "../../../src/views/craft/canvas/cv6/live.ts";
 import { profileWriteErrorText } from "../../../src/views/craft/canvas/cv6/profile-menu.tsx";
 import {
@@ -23,6 +25,7 @@ import {
   createProfile,
   deleteProfile,
   renameProfile,
+  setProfileMode,
   startLive,
   updateStore,
   type CanvasStore,
@@ -213,6 +216,7 @@ function fakeCommands(engine: FakeEngine): ProfileCanvasCommands {
       engine.profiles = [...engine.profiles, copy];
       return Promise.resolve(ok({ profile: copy }));
     },
+    bypassAllowed: () => Promise.resolve(ok(true)),
     remove: (id) => {
       engine.calls.push(`delete:${id}`);
       if (id === "default" || id === "craft")
@@ -342,5 +346,93 @@ describe("메뉴의 쓰기", () => {
     );
     expect(snapshot().order).toEqual(["default", "work"]);
     expect(snapshot().current).toBe("work");
+  });
+});
+
+// 실행 방식(pfMode): 대화의 실행 방식은 프로필이 정하고, 값이 없으면 "모두 허용"이다 [결정: 2026-11-23 사용자, AGE-71 질문 3]
+describe("프로필의 실행 방식", () => {
+  const MODE = "l1.tools.permissionMode";
+
+  test("값이 없으면 모두 허용, 프로필 값이 공통 묶음 값을 이기고, 엔진이 모르는 값은 null이다", () => {
+    expect(profileModeOf(profile("work"), COMMON)).toBe("bypass");
+    const shared: CommonSet = { ...COMMON, settings: [{ key: MODE, value: "acceptEdits" }] };
+    expect(profileModeOf(profile("work"), shared)).toBe("acceptEdits");
+    expect(
+      profileModeOf(profile("work", { settings: [{ key: MODE, value: "default" }] }), shared),
+    ).toBe("default");
+    expect(
+      profileModeOf(
+        profile("work", {
+          settings: [
+            { key: MODE, value: "acceptEdits" },
+            { key: MODE, value: "default" },
+          ],
+        }),
+        COMMON,
+      ),
+    ).toBe("default");
+    expect(
+      profileModeOf(profile("work", { settings: [{ key: MODE, value: "plan" }] }), COMMON),
+    ).toBeNull();
+  });
+
+  test("저장 값은 실행 방식 줄만 바꾸고 다른 설정과 이름, 플러그인, 시작 Drive는 그대로다", () => {
+    const saved = profile("work", {
+      title: "일",
+      plugins: [{ name: "helm" }],
+      settings: [
+        { key: MODE, value: "bypass" },
+        { key: "l1.loop.maxSteps", value: 5 },
+      ],
+      startDrive: "helm",
+    });
+    expect(withModeInput(saved, "default")).toEqual({
+      id: "work",
+      title: "일",
+      plugins: [{ name: "helm" }],
+      settings: [
+        { key: "l1.loop.maxSteps", value: 5 },
+        { key: MODE, value: "default" },
+      ],
+      startDrive: "helm",
+    });
+  });
+
+  test("고르면 저장된 rev로 profile.put을 쓰고 새 값을 보이며, 기본 프로필도 바꿀 수 있다", async () => {
+    expect(await setProfileMode(commands, "work", "acceptEdits")).toEqual(ok(null));
+    expect(engine.puts.at(-1)).toEqual({
+      input: {
+        id: "work",
+        title: "일",
+        plugins: [{ name: "cap-workspace" }, { name: "helm" }],
+        settings: [{ key: MODE, value: "acceptEdits" }],
+        startDrive: "helm",
+      },
+      baseRev: 3,
+    });
+    const work = snapshot().live?.saved["work"];
+    expect(work === undefined ? null : profileModeOf(work, COMMON)).toBe("acceptEdits");
+
+    expect(await setProfileMode(commands, "default", "default")).toEqual(ok(null));
+    expect(engine.puts.at(-1)?.input.settings).toEqual([{ key: MODE, value: "default" }]);
+    expect(engine.puts.at(-1)?.baseRev).toBe(1);
+  });
+
+  test("거절되면 오류를 돌려주고 목록을 다시 읽어 저장된 값으로 돌아간다", async () => {
+    // 그사이 다른 곳에서 고쳐 저장된 rev가 9다(실행 방식은 정하지 않았다)
+    engine.profiles = [
+      ...engine.profiles.filter((p) => p.id !== "work"),
+      profile("work", {
+        title: "일",
+        plugins: [{ name: "cap-workspace" }, { name: "helm" }],
+        startDrive: "helm",
+        rev: 9,
+      }),
+    ];
+    const done = await setProfileMode(commands, "work", "default");
+    expect(done).toEqual(err({ kind: "rejected", code: WIRE_ERRORS["profile.conflict"].code }));
+    const work = snapshot().live?.saved["work"];
+    expect(work?.rev).toBe(9);
+    expect(work === undefined ? null : profileModeOf(work, COMMON)).toBe("bypass");
   });
 });

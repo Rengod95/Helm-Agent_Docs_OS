@@ -5,10 +5,12 @@
 // 표본(`shared-sample.ts`)은 개발 빌드의 표본 보기(`fresnel.craft.canvasSample` = "1")에서만 쓰고 저장하지 않는다.
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { HookPositionRow } from "@fresnel/contracts/extensions";
+import type { PermissionMode } from "@fresnel/contracts/services";
 import type {
   BlocksAppliedResult,
   CommonSet,
   Profile,
+  ProfileInput,
   ProfileIssue,
 } from "@fresnel/contracts/wire";
 import { useSyncExternalStore } from "react";
@@ -25,6 +27,7 @@ import {
   profileInputOf,
   referencedNames,
   renamedInput,
+  withModeInput,
 } from "./live.ts";
 import {
   attachProfile,
@@ -309,14 +312,35 @@ export async function cloneProfile(
 }
 
 /** 이름만 바꾼다(`profile.put`, `baseRev`는 저장된 `rev`). 플러그인, 설정, 시작 Drive는 그대로다. `rev`가 달라 거절되면 목록을 다시 읽는다 */
-export async function renameProfile(
+export function renameProfile(
   commands: ProfileCanvasCommands,
   id: string,
   title: string,
 ): Promise<Result<null, CommandError>> {
+  return rewriteSaved(commands, id, (saved) => renamedInput(saved, title));
+}
+
+/**
+ * 프로필의 실행 방식(권한 모드)을 바꾼다(pfMode, AGE-71 질문 3). 설정 줄만 바꾸고 나머지는 저장된 그대로 `profile.put`으로 쓴다.
+ * 기본 프로필도 바꿀 수 있다(처음 쓰면 공장 값이 저장된 행이 된다)
+ */
+export function setProfileMode(
+  commands: ProfileCanvasCommands,
+  id: string,
+  mode: PermissionMode,
+): Promise<Result<null, CommandError>> {
+  return rewriteSaved(commands, id, (saved) => withModeInput(saved, mode));
+}
+
+/** 저장된 프로필 하나를 고친 값으로 쓴다(저장된 `rev`가 기준). 거절되면 목록을 다시 읽고 그 까닭을 돌려준다 */
+async function rewriteSaved(
+  commands: ProfileCanvasCommands,
+  id: string,
+  edit: (saved: Profile) => ProfileInput,
+): Promise<Result<null, CommandError>> {
   const saved = state.live?.saved[id];
   if (saved === undefined) return ok(null);
-  const put = await commands.put(renamedInput(saved, title), saved.rev);
+  const put = await commands.put(edit(saved), saved.rev);
   if (!put.ok) {
     if (put.error.kind === "rejected") await startLive(commands);
     return err(put.error);

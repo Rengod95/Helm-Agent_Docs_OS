@@ -13,6 +13,7 @@ import type {
 } from "react";
 import { InfoTip } from "../../info-tip.tsx";
 import { ProfileHead, type ProfileChoice } from "./profile-menu.tsx";
+import { ProfileModeRow } from "./profile-mode.tsx";
 import { Icon, KIND_COLOR, KindTile, PartGlyph } from "./glyphs.tsx";
 import {
   inProfile,
@@ -184,6 +185,7 @@ export function Palette(props: PaletteProps): ReactElement {
           </IconButton>
         </div>
         <ProfileHead current={props.current} choices={props.choices} onProfile={props.onProfile} />
+        <ProfileModeRow profileId={props.current} />
       </div>
       <div className="mx-3 h-px bg-border-subtle" />
       <div className="flex items-center gap-1 ps-4 pe-3 pt-3 pb-1">

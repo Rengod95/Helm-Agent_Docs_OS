@@ -955,6 +955,11 @@ export interface ProfileCanvasCommands {
    * 결과의 `reassignedThreads`는 이 프로필을 쓰던 열린 대화 수다(다음 읽기에서 `default`로 읽는다)
    */
   remove(id: string): Promise<Result<WireResult<"profile.delete">, CommandError>>;
+  /**
+   * `settings.get { keys: [l1.tools.bypassAllowed] }`(대화 없이): "모두 허용"을 고를 수 있는가. 관리 설정만 정하는 값이라 대화와 무관하다.
+   * 실행 방식 줄(pfMode)이 메뉴에서 모두 허용을 보일지 정한다. 값은 단언하지 않고 그대로 돌려준다
+   */
+  bypassAllowed(): Promise<Result<unknown, CommandError>>;
 }
 
 export interface CraftMetricsCommands {

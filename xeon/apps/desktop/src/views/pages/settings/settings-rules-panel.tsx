@@ -1,12 +1,13 @@
-import { Badge, Input, Switch } from "@caustic/react";
-import { Lock, LockOpen, MessageCircleQuestion, SquarePen } from "@caustic/react/icons";
+import { Badge, Button, Input, Switch } from "@caustic/react";
+import { Lock } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { FieldVM, SettingsView } from "@fresnel/client/settings";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import type { PolicyEffect, PolicyRule } from "@fresnel/contracts/services";
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useShellActions } from "../../../state/shell/index.ts";
+import { useCommands } from "../../commands.ts";
 import { isCommitEnter } from "../../ime-enter.ts";
-import { RadioCardGroup, RadioCardItem } from "../shared/radio-card.tsx";
 import {
   VerdictTable,
   type Verdict,
@@ -20,7 +21,6 @@ import {
   type DedicatedEditors,
   type FieldHandlers,
 } from "./settings-field.tsx";
-import { optionHelpOf, optionLabelOf, optionOf, optionTextOf } from "./settings-model.ts";
 import {
   conflictsOf,
   partnersOf,
@@ -47,8 +47,8 @@ import { RowNote, SettingSection } from "./settings-section.tsx";
 import { shownFieldsOf } from "./settings-sections.ts";
 
 // 설정 "권한" 구역의 패널(DP-109 [결정: 2026-11-11 사용자]). 구역 표(`settings-sections.ts`)의 패널 자리마다 하나씩 들어간다.
-//   권한 모드    선택 카드 2×2(연결의 실행 방식과 같은 `RadioCardGroup`). "모두 허용"의 허락(관리 설정 `bypassAllowed`)은 그 카드에
-//               딸린 조건 줄로 격자 아래 오른쪽 열에 붙는다.
+//   권한 모드    실행 방식은 프로필이 정한다(2026-11-23 사용자): "실행 방식은 프로필에서 정해요" 한 줄과 프로필 화면 단추.
+//               "모두 허용"의 허락(관리 설정 `bypassAllowed`)은 그 아래 조건 줄로 남는다.
 //   권한 규칙    판정 표(`VerdictTable`): 도구·패턴 · 판정 · 메모. 추가 줄과 빈 상태 예시 칩. 판정·메모·추가·지우기는 바로 저장한다.
 //   승인        무인 실행·계획 두 작은 카드를 두 열로(넓은 화면에서 이름표와 조작부가 멀어지지 않게).
 //   웹 접근      판정 표(도메인 · 판정) + 이어지는 카드에 사설망 허용·대화에 없던 URL.
@@ -121,26 +121,21 @@ const VERDICT_ID: Readonly<Record<Verdict, MessageId>> = {
 const MODE_KEY: SettingKey = "l1.tools.permissionMode";
 const BYPASS_KEY: SettingKey = "l1.tools.bypassAllowed";
 
-const MODE_ICON: Readonly<Record<string, ComponentType>> = {
-  default: MessageCircleQuestion,
-  acceptEdits: SquarePen,
-  bypass: LockOpen,
-};
-
-function ModeIcon(props: { readonly mode: string }): ReactNode {
-  const Icon = MODE_ICON[props.mode];
-  return Icon === undefined ? null : <Icon />;
-}
-
+/**
+ * "실행 방식" 구역. 실행 방식은 프로필이 정한다 [결정: 2026-11-23 사용자, AGE-71 질문 3, AGE-74 모순 4]: 이 화면에서는 고르지 않고,
+ * 한 줄 안내와 프로필 화면으로 가는 단추를 둔다. "모두 허용"의 허락(관리 설정 `bypassAllowed`)은 프로필과 무관한 안전 설정이라 여기 남는다.
+ * 전역 키 `l1.tools.permissionMode`는 엔진에 그대로 있고(파일로 고칠 수 있다) 구역 표에도 남아 찾기가 이 안내로 온다
+ */
 export function PermissionModePanel(props: PermissionPanelProps): ReactNode {
-  const field = fieldOf(props.view, MODE_KEY);
-  if (field === undefined || field.widget.kind !== "select") return null;
-  const options = field.widget.options;
+  const shell = useShellActions();
+  const commands = useCommands();
   const bypass = fieldOf(props.view, BYPASS_KEY);
-  // 허락 항목이 없거나(옛 엔진) 참이면 "모두 허용"을 고를 수 있다. 지금 값이 이미 우회면 막지 않는다(그 카드가 고른 채로 보인다)
-  const bypassAllowed = bypass === undefined || bypass.value !== false;
-  const current = typeof field.value === "string" ? field.value : "";
-  const editable = editableOf(field, props.live);
+  const openProfiles = (): void => {
+    // 내비 항목을 누르는 것과 같은 순서다: 영역을 바꾸고, 설정 화면을 닫고, 프로필 화면을 연다
+    shell.switchArea("workbench");
+    commands.showScreen("chat");
+    shell.updatePlace({ screen: "profile", scroll: 0 });
+  };
   return (
     <SettingSection
       title={t("desktop.settings.perm.mode.title")}
@@ -148,47 +143,28 @@ export function PermissionModePanel(props: PermissionPanelProps): ReactNode {
       end={savedEndOf(props.saved, [MODE_KEY, BYPASS_KEY])}
     >
       <div data-slot="permission-mode" className="grid gap-2">
-        <RadioCardGroup
-          columns={2}
-          label={field.label}
-          value={current}
-          disabled={!editable}
-          onValueChange={(next) => {
-            const option = optionOf(options, next);
-            if (option !== null) props.handlers.change(field.key, option);
-          }}
+        <div
+          data-slot="permission-mode-profile"
+          className="flex min-h-7 items-center justify-between gap-2"
         >
-          {options.map((option) => {
-            const text = optionTextOf(option);
-            const blocked = text === "bypass" && !bypassAllowed && current !== "bypass";
-            return (
-              <RadioCardItem
-                key={text}
-                value={text}
-                icon={<ModeIcon mode={text} />}
-                title={optionLabelOf(field.key, option)}
-                description={
-                  blocked
-                    ? t("desktop.settings.perm.mode.bypassBlocked")
-                    : (optionHelpOf(field.key, option) ?? "")
-                }
-                disabled={blocked}
-              />
-            );
-          })}
-        </RadioCardGroup>
+          <span className="min-w-0 text-ui-sm text-text-secondary">
+            {t("desktop.settings.perm.mode.inProfile")}
+          </span>
+          <Button size="sm" variant="outline" onClick={openProfiles}>
+            {t("desktop.settings.perm.mode.openProfile")}
+          </Button>
+        </div>
         {bypass === undefined ? null : (
           <BypassCondition field={bypass} live={props.live} handlers={props.handlers} />
         )}
-        <FieldNotes fields={[field]} />
       </div>
     </SettingSection>
   );
 }
 
 /**
- * "모두 허용"의 허락 조건. 격자의 오른쪽 열(넓을 때 "모두 허용" 카드 아래)에 붙는 한 줄이다. 관리 설정에서만 바뀌는 값이라 보통
- * 잠금 아이콘과 상태 글뿐이고, 사용자가 고칠 수 있는 환경이면 같은 자리에 스위치가 선다.
+ * "모두 허용"의 허락 조건 한 줄. 관리 설정에서만 바뀌는 값이라 보통 잠금 아이콘과 상태 글뿐이고, 사용자가 고칠 수 있는 환경이면 같은 자리에
+ * 스위치가 선다.
  */
 function BypassCondition(props: {
   readonly field: FieldVM;
@@ -199,35 +175,27 @@ function BypassCondition(props: {
   const on = field.value !== false;
   const editable = editableOf(field, props.live);
   return (
-    <div className="@container">
-      <div className="grid grid-cols-1 gap-2.5 @[32rem]:grid-cols-2">
-        <div
-          data-slot="bypass-condition"
-          className="flex min-h-7 items-center gap-1.5 text-ui-sm text-text-tertiary @[32rem]:col-start-2"
-        >
-          {editable ? (
-            <Switch
-              size="sm"
-              aria-label={t("desktop.settings.perm.mode.bypassAllowed")}
-              checked={on}
-              onCheckedChange={(next) => {
-                props.handlers.change(field.key, next);
-              }}
-            />
-          ) : (
-            <Lock aria-hidden className="size-icon-xs flex-none" />
-          )}
-          <span className="min-w-0">
-            {editable
-              ? t("desktop.settings.perm.mode.bypassAllowed")
-              : t(
-                  on
-                    ? "desktop.settings.perm.mode.bypassOn"
-                    : "desktop.settings.perm.mode.bypassOff",
-                )}
-          </span>
-        </div>
-      </div>
+    <div
+      data-slot="bypass-condition"
+      className="flex min-h-7 items-center gap-1.5 text-ui-sm text-text-tertiary"
+    >
+      {editable ? (
+        <Switch
+          size="sm"
+          aria-label={t("desktop.settings.perm.mode.bypassAllowed")}
+          checked={on}
+          onCheckedChange={(next) => {
+            props.handlers.change(field.key, next);
+          }}
+        />
+      ) : (
+        <Lock aria-hidden className="size-icon-xs flex-none" />
+      )}
+      <span className="min-w-0">
+        {editable
+          ? t("desktop.settings.perm.mode.bypassAllowed")
+          : t(on ? "desktop.settings.perm.mode.bypassOn" : "desktop.settings.perm.mode.bypassOff")}
+      </span>
     </div>
   );
 }
