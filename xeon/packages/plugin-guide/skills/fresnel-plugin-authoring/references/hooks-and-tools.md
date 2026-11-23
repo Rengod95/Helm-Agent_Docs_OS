@@ -95,7 +95,7 @@ Group kinds in the templates: `policy` blocks tool calls from a `tool.call.befor
 
 ## Tools (`ToolResourceDef`)
 
-Register with `g.registerTool(def)` in a plugin group's `setup`.
+Register with `g.registerTool(def)` in `setup`, in a plugin group or in a `definePlugin` plugin.
 
 | Field | Rule |
 |---|---|

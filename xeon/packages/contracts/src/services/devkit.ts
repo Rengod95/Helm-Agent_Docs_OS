@@ -37,8 +37,11 @@ export type ExtensionKind = (typeof EXTENSION_KINDS)[number];
 export const PLUGIN_MODES = ["hook", "inject", "drive"] as const;
 export type PluginMode = (typeof PLUGIN_MODES)[number];
 
-/** 뿌리 뼈대(`authoring_scaffold`)의 방식. 구성원 방식 셋에 앱 플러그인 뼈대 `app`이 더해진다 */
-export const SCAFFOLD_MODES = ["hook", "inject", "drive", "app"] as const;
+/**
+ * 뿌리 뼈대(`authoring_scaffold`)의 방식. 구성원 방식 셋에 화면 뼈대 둘이 더해진다: `app`(자체 HTML/JS 화면과 메서드)과
+ * `native`(선언형 화면 트리 하나와 읽기 메서드 하나, 코드 없는 화면)
+ */
+export const SCAFFOLD_MODES = ["hook", "inject", "drive", "app", "native"] as const;
 export type ScaffoldMode = (typeof SCAFFOLD_MODES)[number];
 
 /** 종류 카탈로그 항목 하나(`catalog/kinds/<id>.json`) */
