@@ -49,13 +49,21 @@ export interface NewThreadDeps {
   readonly createThread: (workspace: string | undefined) => Promise<Result<null, CommandError>>;
 }
 
-/** `explicit`: `undefined`는 보던 폴더에서(없으면 고르기), 글은 그 폴더, `null`은 대화 상자의 "폴더 없이 만들기"다 */
+/**
+ * "다른 폴더 열기…" 요청. 보던 폴더와 상관없이 폴더 고르기 창을 연다(폴더가 있어도). 고르면 그 폴더에 연다, 취소하면 아무 일도 하지 않는다
+ */
+export const PICK_FOLDER: unique symbol = Symbol("pickFolder");
+
+/**
+ * `explicit`: `undefined`는 보던 폴더에서(없으면 `whenUnknown`), 글은 그 폴더, `null`은 대화 상자의 "폴더 없이 만들기", `PICK_FOLDER`는 폴더 고르기 창을 바로 연다
+ */
 export async function runNewThread(
   deps: NewThreadDeps,
-  explicit: string | null | undefined,
+  explicit: string | null | undefined | typeof PICK_FOLDER,
 ): Promise<NewThreadResult> {
   const { threads } = deps;
   const goTo = (threadId: ThreadSummary["threadId"]): NewThreadResult => {
+    deps.showChat();
     deps.selectThread(threadId);
     deps.requestComposer();
     return { kind: "opened" };
@@ -63,10 +71,11 @@ export async function runNewThread(
   const plan: NewThreadPlan =
     explicit === undefined
       ? planNewThread(threads, deps.selected, deps.whenUnknown ?? "pick")
-      : explicit === null
-        ? { kind: "createNoFolder" }
-        : { kind: "create", workspace: explicit };
-  deps.showChat();
+      : explicit === PICK_FOLDER
+        ? { kind: "pickFolder" }
+        : explicit === null
+          ? { kind: "createNoFolder" }
+          : { kind: "create", workspace: explicit };
   if (plan.kind === "open") return goTo(plan.threadId);
   let workspace: string | undefined;
   if (plan.kind === "create") workspace = plan.workspace;
@@ -83,6 +92,7 @@ export async function runNewThread(
   // 고른 폴더(폴더 선택 창이 없는 환경이면 폴더 없음)에 빈 새 대화가 이미 있으면 새로 만들지 않는다
   const blank = blankThreadIn(threads, workspace ?? null);
   if (blank !== null) return goTo(blank);
+  deps.showChat();
   const created = await deps.createThread(workspace);
   if (!created.ok) return { kind: "failed", error: created.error };
   deps.requestComposer();
@@ -92,7 +102,7 @@ export async function runNewThread(
 export function useStartNewThread(
   folderPick: FolderPickInvoke | undefined,
   whenUnknown: WhenFolderUnknown = "pick",
-): (workspace?: string | null) => Promise<NewThreadResult> {
+): (workspace?: string | null | typeof PICK_FOLDER) => Promise<NewThreadResult> {
   const commands = useCommands();
   const shell = useShellActions();
   const threads = useThreadSummaries();

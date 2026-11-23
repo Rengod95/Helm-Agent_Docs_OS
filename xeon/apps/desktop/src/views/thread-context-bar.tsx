@@ -26,7 +26,7 @@ import { useEngineTarget } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { useDesktopShell } from "./desktop-shell-context.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
-import { useStartNewThread } from "./new-thread-flow.ts";
+import { PICK_FOLDER, useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf } from "./new-thread-model.ts";
 import { transportMessageOf } from "./pages/connection/connection-text.ts";
 import { readShellCapabilities } from "./shell-capabilities.ts";
@@ -217,9 +217,9 @@ function FolderMenu(props: {
   const folderPick = useFolderPick();
   const startThread = useStartNewThread(folderPick ?? undefined);
   const recent = recentWorkspacesOf(useThreadSummaries());
-  const start = (path: string | null | undefined): void => {
+  const start = (request: string | null | typeof PICK_FOLDER): void => {
     detach(
-      startThread(path).then(() => undefined),
+      startThread(request).then(() => undefined),
       rethrow,
     );
   };
@@ -264,7 +264,7 @@ function FolderMenu(props: {
           <MenuItem
             icon={<FolderOpen />}
             onSelect={() => {
-              start(undefined);
+              start(PICK_FOLDER);
             }}
           >
             {t("desktop.threadContext.folder.openOther")}
