@@ -1,15 +1,13 @@
-// 크래프트 화면 묶음(프로필·리뷰·플러그인·테스트·메트릭, 목적 화면 트레이스, 내비 없는 측정·구성). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
+// 크래프트 화면 묶음(프로필·리뷰·플러그인·테스트·메트릭, 목적 화면 트레이스, 내비 없는 구성). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
 import { lazy, Suspense, useMemo, type ReactNode } from "react";
 import {
   useWorkbench,
   WorkbenchStoreContext,
   type WorkbenchStore,
 } from "../../state/workbench/index.ts";
-import { ComposeScreen } from "../compose/compose-screen.tsx";
 import { ExtensionsScreen } from "./extensions-screen.tsx";
 import type { EndTabDef, ShellRegistry, TabBadge } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
-import { MetricsScreen } from "../measure/metrics-screen.tsx";
 import { CraftMetricsScreen } from "../craft/metrics/metrics-screen.tsx";
 import { CraftTraceScreen } from "../craft/trace/trace-screen.tsx";
 import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
@@ -33,8 +31,6 @@ import {
   Plug,
   Rows3,
   Spline,
-  SquareStack,
-  Target,
 } from "@caustic/react/icons";
 
 const ProfileScreen = lazy(() =>
@@ -90,21 +86,6 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     label: "desktop.shell.nav.craftMetrics",
     icon: <Spline />,
     render: () => <CraftMetricsScreen />,
-  });
-  // 내비 줄이 없는 화면 둘: 옮길 기능이 남아 있어 아직 둔다(AGE-69)
-  registry.registerScreen({
-    id: "metrics",
-    area: "workbench",
-    label: "desktop.shell.nav.metrics",
-    icon: <Target />,
-    render: () => <MetricsScreen />,
-  });
-  registry.registerScreen({
-    id: "compose",
-    area: "workbench",
-    label: "desktop.shell.nav.compose",
-    icon: <SquareStack />,
-    render: () => scoped(store, <ComposeScreen />),
   });
   // 트레이스(C8)는 목적 화면이다. 내비 줄 없이 메트릭의 근거 줄과 대화의 "이 턴 기록"이 연다(`craft/trace/target.ts`)
   registry.registerScreen({

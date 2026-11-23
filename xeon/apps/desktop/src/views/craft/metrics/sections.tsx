@@ -1,6 +1,7 @@
 // 메트릭 화면의 그림 섹션: 컨텍스트 분해, 블록별 시간, 플러그인 표, 날별 흐름, 버전 전후, 표본 줄. 머리 숫자는 `kpi.tsx`다.
 // 모든 그림은 같은 내용의 표로 바꿔 볼 수 있다. 값이 없는 칸은 0이 아니라 "아직 기록되지 않음"·"표본 부족"이다.
 import { activeLocale, t, type MessageId } from "@fresnel/client/i18n";
+import { costText, type CurvePointVM } from "@fresnel/client/workbench";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { MetricsQueryResult } from "@fresnel/contracts/wire";
 import { Button, Select, SelectOption } from "@caustic/react";
@@ -25,6 +26,7 @@ import {
   CONTEXT_PARTS,
   CONTEXT_TOP,
   COMPARE_METRICS,
+  CURVE_TURNS_MAX,
   blockTimeOf,
   cellOf,
   contextOf,
@@ -831,6 +833,123 @@ export function DailySection(props: {
                     {t("desktop.craft.metrics.daily.fromTurnsNote")}
                   </p>
                 ) : null}
+              </div>
+            </div>
+          );
+        }}
+      </Gate>
+    </Section>
+  );
+}
+
+// ───────── 턴 번호 곡선 ─────────
+// 기간에 턴이 가장 많은 대화의 최근 턴을 시작 순서로 잇는다(번호는 읽은 턴 안의 차례). 위는 턴의 토큰, 아래는 턴의 호출 시간이다.
+// 점(기둥)을 누르면 그 턴의 트레이스가 열린다. 표로 바꾸면 같은 값을 표로 본다.
+
+export function TurnCurveSection(props: { readonly data: MetricsData }): ReactNode {
+  const [table, setTable] = useState(false);
+  const d = props.data;
+  return (
+    <Section
+      id="cm-curve"
+      title={t("desktop.craft.metrics.curve.title")}
+      info={t("desktop.craft.metrics.curve.info", { n: String(CURVE_TURNS_MAX) })}
+      actions={
+        <FigureToggle
+          table={table}
+          onToggle={() => {
+            setTable(!table);
+          }}
+        />
+      }
+    >
+      <Gate
+        load={d.curve}
+        height={240}
+        label={t("desktop.craft.metrics.curve.title")}
+        onRetry={d.actions.reload}
+      >
+        {(curve) => {
+          if (curve.kind === "off") {
+            return (
+              <p className="text-ui-sm text-text-tertiary">
+                {t("desktop.craft.metrics.curve.off")}
+              </p>
+            );
+          }
+          if (curve.kind === "none" || curve.points.length < 2) {
+            return (
+              <div className="flex min-h-12 items-center rounded-2xl border border-dashed border-border-default px-4 text-ui text-text-secondary">
+                {t("desktop.craft.metrics.curve.few")}
+              </div>
+            );
+          }
+          const { threadId, points } = curve;
+          const title = curve.title ?? t("desktop.craft.metrics.recent.untitled");
+          const onPick = (turnId: string): void => {
+            d.actions.openTurn({ kind: "turn", threadId, turnId });
+          };
+          if (table) {
+            return (
+              <ChartTable
+                caption={t("desktop.craft.metrics.curve.title")}
+                columns={[
+                  { id: "turn", label: t("desktop.craft.metrics.curve.col.turn"), numeric: true },
+                  {
+                    id: "tokens",
+                    label: t("desktop.craft.metrics.curve.col.tokens"),
+                    numeric: true,
+                  },
+                  { id: "cost", label: t("desktop.craft.metrics.curve.col.cost"), numeric: true },
+                  { id: "time", label: t("desktop.craft.metrics.curve.col.time"), numeric: true },
+                ]}
+                rows={points.map((p) => ({
+                  id: p.turnId,
+                  cells: [
+                    String(p.number),
+                    tokensText(p.totalTokens),
+                    costText(p.usd),
+                    msText(p.durationMs),
+                  ],
+                }))}
+              />
+            );
+          }
+          const tokensLabel = t("desktop.craft.metrics.curve.tokens");
+          const timeLabel = t("desktop.craft.metrics.curve.time");
+          const pointsOf = (series: string, value: (p: CurvePointVM) => number): ColumnPoint[] =>
+            points.map((p) => ({
+              id: p.turnId,
+              tick: String(p.number),
+              title: t("desktop.craft.metrics.curve.turn", { n: String(p.number) }),
+              parts: [{ series, value: value(p) }],
+            }));
+          return (
+            <div className="grid grid-cols-1 gap-5">
+              <div className="truncate text-ui-sm text-text-tertiary">{title}</div>
+              <div className="grid grid-cols-1 gap-1.5">
+                <div className="text-ui-sm text-text-tertiary">{tokensLabel}</div>
+                <Columns
+                  series={[{ id: "tokens", label: tokensLabel, color: "var(--viz-ink-2)" }]}
+                  points={pointsOf("tokens", (p) => p.totalTokens)}
+                  height={120}
+                  label={tokensLabel}
+                  format={tokensText}
+                  onPick={onPick}
+                  pickLabel={t("desktop.craft.metrics.curve.pick")}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-1.5">
+                <div className="text-ui-sm text-text-tertiary">{timeLabel}</div>
+                <Columns
+                  series={[{ id: "time", label: timeLabel, color: KIND_COLOR.tool }]}
+                  points={pointsOf("time", (p) => p.durationMs)}
+                  height={120}
+                  label={timeLabel}
+                  format={msText}
+                  onPick={onPick}
+                  pickLabel={t("desktop.craft.metrics.curve.pick")}
+                />
               </div>
             </div>
           );

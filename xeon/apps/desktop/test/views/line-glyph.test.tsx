@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { MeasureRow } from "@fresnel/contracts/wire";
 import { CallChip, CallMark } from "../../src/views/call-chip.tsx";
 import { ProfileGlyph } from "../../src/views/convo/profile-glyph.tsx";
 import { KIND_PATHS } from "../../src/views/craft/kind-paths.ts";
@@ -17,7 +16,6 @@ import { InboxArt } from "../../src/views/illustrations/index.tsx";
 import { LensArt } from "../../src/views/illustrations/lens-art.tsx";
 import { octagonPath } from "../../src/views/illustrations/line-glyph.ts";
 import { RequestArt } from "../../src/views/illustrations/request-art.tsx";
-import { PerfView } from "../../src/views/measure/perf-view.tsx";
 import { read, SRC } from "../styles/source-scan.ts";
 
 // 직접 그린 아이콘의 바탕 선(m6R7, AGE-34): 알림 그림·도구 줄 실패 그림·종류 그림은 한 벌(`line-glyph`)에서 선을 받고,
@@ -203,40 +201,6 @@ test("the metrics trend line is 1px in the shared line, one color step up, with 
     /stroke-width=/.test(line),
     /<circle[^>]* r="3"[^>]* fill="var\(--viz-ink-3\)"/.test(html),
   ]).toEqual([true, true, false, true]);
-});
-
-const turnRows = (tokens: number, ms: number): readonly MeasureRow[] => [
-  { at: 1, kind: "turn", metrics: { steps: 1, totalTokens: tokens, usd: 0 }, tags: {} },
-  {
-    at: 1,
-    kind: "call",
-    metrics: { durationMs: ms, totalTokens: tokens, startedAt: 0 },
-    tags: { role: "main" },
-  },
-];
-
-test("the measure curve is 1px in the shared line; the visible point shrinks to 2 and the press target stays 6", () => {
-  const turns = [100, 300, 200].map((tokens, i) => ({
-    turnId: `t${String(i)}`,
-    result: { enabled: true, rows: turnRows(tokens, tokens * 10) },
-  }));
-  const html = renderToStaticMarkup(
-    <PerfView
-      read={{
-        kind: "ready",
-        value: { series: [], turns, capped: false, failing: [] },
-        stale: false,
-      }}
-      onOpenTurn={() => {}}
-    />,
-  );
-  const curve = /<svg[^>]*role="img"[^>]*>[\s\S]*?<\/svg>/.exec(html)?.[0] ?? "";
-  expect([
-    rootClass(curve)?.split(" ").includes("line-glyph"),
-    (curve.match(/stroke-width=/g) ?? []).length,
-    (curve.match(/ r="2"/g) ?? []).length,
-    (curve.match(/ r="6"/g) ?? []).length,
-  ]).toEqual([true, 0, 3, 3]);
 });
 
 /** 그림 뿌리 svg의 stroke-width 속성 */

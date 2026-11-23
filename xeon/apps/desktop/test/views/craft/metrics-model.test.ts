@@ -6,10 +6,12 @@ import type {
   TurnSummary,
 } from "@fresnel/contracts/wire";
 import {
+  CURVE_TURNS_MAX,
   cellOf,
   contextOf,
   countCellOf,
   coveredDays,
+  curveThreadOf,
   dailyOf,
   dayKeyOf,
   changeOf,
@@ -24,12 +26,14 @@ import {
   periodTotalsOf,
   pluginRowsOf,
   previousWindowOf,
+  promotionCandidatesOf,
   rawDecisionsOf,
   recentParamsOf,
   sampleStatusOf,
   shareOf,
   sortPluginRows,
   sumCells,
+  sharingCountOf,
 } from "../../../src/views/craft/metrics/model.ts";
 
 const exact = (value: number, n: number, denom?: number): MetricValue => ({
@@ -467,5 +471,76 @@ describe("sample", () => {
       { turns: 25, min: 20, short: 0 },
       { turns: 6, min: null, short: null },
     ]);
+  });
+});
+
+/** 곡선 시험의 최근 턴 하나(시작은 `minute`분 뒤) */
+function at(threadId: string, turnId: string, minute: number, title: string | null = null) {
+  return { turn: summary(threadId, turnId, T0 + minute * 60_000), title };
+}
+
+describe("turn curve", () => {
+  test("no turns means no conversation to draw", () => {
+    expect([curveThreadOf([], CURVE_TURNS_MAX), CURVE_TURNS_MAX]).toEqual([null, 20]);
+  });
+
+  test("the conversation with the most turns is drawn, with its title", () => {
+    const turns = [
+      at("a", "a1", 1, "A"),
+      at("b", "b1", 2, "B"),
+      at("b", "b2", 3, "B"),
+      at("a", "a2", 4, "A"),
+      at("b", "b3", 5, "B"),
+    ];
+    expect(curveThreadOf(turns, 20)).toEqual({
+      threadId: "b",
+      title: "B",
+      turnIds: ["b1", "b2", "b3"],
+      capped: false,
+    });
+  });
+
+  test("on a tie the conversation whose newest turn started last wins", () => {
+    const turns = [at("a", "a1", 5), at("a", "a2", 6), at("b", "b1", 1), at("b", "b2", 7)];
+    expect(curveThreadOf(turns, 20)).toEqual({
+      threadId: "b",
+      title: null,
+      turnIds: ["b1", "b2"],
+      capped: false,
+    });
+  });
+
+  test("turn ids run oldest first, and only the latest max are kept", () => {
+    const turns = [at("a", "a3", 30), at("a", "a1", 10), at("a", "a4", 40), at("a", "a2", 20)];
+    expect([curveThreadOf(turns, 3), curveThreadOf(turns, 4)]).toEqual([
+      { threadId: "a", title: null, turnIds: ["a2", "a3", "a4"], capped: true },
+      { threadId: "a", title: null, turnIds: ["a1", "a2", "a3", "a4"], capped: false },
+    ]);
+  });
+});
+
+describe("shared tools", () => {
+  const candidates = [
+    { tool: "search", owner: "docs", consumers: ["review", "notes"], userCalls: 4 },
+    { tool: "lint", owner: "style", consumers: ["notes"], userCalls: 1 },
+  ];
+
+  test("the plugin focus keeps a candidate whose owner or a consumer is that plugin", () => {
+    expect([
+      promotionCandidatesOf(candidates, null).map((c) => c.tool),
+      promotionCandidatesOf(candidates, "notes").map((c) => c.tool),
+      promotionCandidatesOf(candidates, "docs").map((c) => c.tool),
+      promotionCandidatesOf(candidates, "other"),
+    ]).toEqual([["search", "lint"], ["search", "lint"], ["search"], []]);
+  });
+});
+
+describe("sharingCountOf", () => {
+  test("counts the owner and the consumers once each", () => {
+    expect([
+      sharingCountOf({ tool: "t", owner: "a", consumers: ["b", "c"], userCalls: 0 }),
+      sharingCountOf({ tool: "t", owner: "a", consumers: ["a", "b"], userCalls: 0 }),
+      sharingCountOf({ tool: "t", owner: "a", consumers: [], userCalls: 0 }),
+    ]).toEqual([3, 2, 1]);
   });
 });

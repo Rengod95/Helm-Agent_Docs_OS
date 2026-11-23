@@ -4,7 +4,6 @@ import type { MemberInfo } from "@fresnel/contracts/services";
 import { renderToString } from "react-dom/server";
 import type { MembersData, MembersLoad } from "../../../src/views/craft/members/members-source.ts";
 import { MembersView, type MembersLayout } from "../../../src/views/craft/members/members-view.tsx";
-import { CodeBlocks } from "../../../src/views/compose/compose-code.tsx";
 
 // 구성원 탭(m6Mb)의 정적 마크업. 두 배치에서 순서 번호, 손잡이와 메뉴의 낭독 이름, 잠긴 플러그인의 읽기 전용 표시,
 // 바뀐 원본의 "리뷰로 보내기" 알림, 가운뎃점이 없는 것을 값으로 본다. 효과는 돌지 않는다.
@@ -129,28 +128,5 @@ describe("상태", () => {
     expect(render({ status: "loading" })).toContain('aria-busy="true"');
     expect(render({ status: "failed" })).toContain(t("desktop.craft.members.load.failed"));
     expect(render({ status: "offline" })).toContain(t("desktop.craft.members.load.offline"));
-  });
-});
-
-describe("구성기의 블록 줄에 구성원 이름(m6Mb)", () => {
-  test("구성원의 블록은 구성원 제목이, 제목이 없으면 id가, 뿌리 블록은 아무것도 서지 않는다", () => {
-    const html = renderToString(
-      <CodeBlocks
-        composition={{
-          blocks: [
-            { id: "plan", stage: "plan", op: "post", plugin: "lead" },
-            { id: "watch", stage: "plan", op: "post", plugin: "tap" },
-            { id: "root-step", stage: "plan", op: "post" },
-          ],
-        }}
-        members={[
-          { id: "lead", title: "Plan lead" },
-          { id: "tap", title: null },
-        ]}
-      />,
-    );
-    expect(attrs(html, "data-block-member")).toEqual(["lead", "tap"]);
-    expect(html).toContain(t("desktop.compose.block.member", { name: "Plan lead" }));
-    expect(html).toContain(t("desktop.compose.block.member", { name: "tap" }));
   });
 });

@@ -14,19 +14,24 @@ import { useLinkPhase, useThreadSummaries } from "../../../state/engine/index.ts
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useOpenTestChat } from "../test-chat/use-test-chat.ts";
 import { useCommands, type CommandError } from "../../commands.ts";
+import { perfViewOf, type PerfTurnInput } from "@fresnel/client/workbench";
 import { tabLinkOf } from "../../workbench/tab-read.ts";
 import { openTrace } from "../trace/target.ts";
 import {
   BLOCK_TIME_METRICS,
   COMPARE_METRICS,
+  CURVE_TURNS_MAX,
   DAILY_CONTEXT_METRICS,
   DAILY_METRICS,
   DEFAULT_FILTER,
+  EMPTY_PROMOTION,
   PLUGIN_METRICS,
   PREVIOUS_TURN_METRIC,
+  PROMOTION_THREADS_MAX,
   RECENT_FIRST_PAGE,
   RECENT_PAGE,
   briefOfRecord,
+  curveThreadOf,
   metricFilterOf,
   metricIdsOf,
   periodTotalsOf,
@@ -34,8 +39,10 @@ import {
   recentParamsOf,
   type MetricsFilter,
   type PeriodTotals,
+  type PromotionReport,
   type RecentTurn,
   type TurnBrief,
+  type TurnCurve,
 } from "./model.ts";
 
 export type Link = ReturnType<typeof tabLinkOf>;
@@ -125,6 +132,10 @@ export interface MetricsData {
   readonly findings: Load<FindingsListResult>;
   readonly dismissed: Load<FindingsListResult>;
   readonly recent: Load<RecentTurns>;
+  /** 턴 번호 곡선: 기간에 턴이 가장 많은 대화의 최근 턴(`CURVE_TURNS_MAX`개)을 `measure.turn`으로 읽는다 */
+  readonly curve: Load<TurnCurve>;
+  /** 같이 쓰는 도구 후보(승격 보고). 최근 턴이 든 대화들로 읽는다 */
+  readonly promotion: Load<PromotionReport>;
   /** 날 × 플러그인의 컨텍스트(`groupBy day, plugin`). 머리 숫자의 컨텍스트 흐름이 쓴다 */
   readonly dailyContext: Load<MetricsQueryResult>;
   /** 지난 기간(지금 기간 바로 앞의 같은 길이)의 머리 숫자. 보존 기간 밖이면 값이 null이다 */
@@ -259,6 +270,60 @@ export function useMetricsSource(): MetricsData {
     return got.ok ? ok({ turns: got.value.items, next: got.value.next }) : got;
   });
 
+  // 턴 번호 곡선: 최근 첫 쪽에서 고른 대화의 턴 목록이 키다. 목록이 바뀔 때만 턴을 다시 읽는다.
+  // 최근 턴을 아직 못 읽었으면(로딩·실패) 곡선도 같은 상태다
+  const pick = recent.kind === "ready" ? curveThreadOf(recent.value.turns, CURVE_TURNS_MAX) : null;
+  const curveKey =
+    pick === null ? "curve:none" : `curve:${pick.threadId}:${pick.turnIds.join(",")}`;
+  const curveRead = useRead(
+    curveKey,
+    link,
+    nonce,
+    async (): Promise<Result<TurnCurve, CommandError>> => {
+      if (pick === null) return ok({ kind: "none" });
+      const got = await Promise.all(
+        pick.turnIds.map((turnId) => commands.measure.turn(pick.threadId, turnId)),
+      );
+      // 번호는 읽은 턴 안의 차례다(`perfViewOf`가 주는 그대로). 읽지 못한 턴은 빼고 잇는다
+      const read: PerfTurnInput[] = [];
+      got.forEach((result, index) => {
+        const turnId = pick.turnIds[index];
+        if (result.ok && turnId !== undefined) read.push({ turnId, result: result.value });
+      });
+      const failed = got.flatMap((result) => (result.ok ? [] : [result.error]));
+      const firstError = failed[0];
+      if (read.length === 0 && firstError !== undefined) return err(firstError);
+      const state = perfViewOf([], read);
+      if (state.kind === "off") return ok({ kind: "off" });
+      if (state.kind === "empty") return ok({ kind: "none" });
+      return ok({
+        kind: "ready",
+        threadId: pick.threadId,
+        title: pick.title,
+        capped: pick.capped,
+        points: state.view.curve,
+      });
+    },
+  );
+  const curve: Load<TurnCurve> = recent.kind === "ready" ? curveRead : recent;
+
+  // 같이 쓰는 도구: 최근 첫 쪽의 대화 id(중복 없이, 상한까지)로 승격 보고를 읽는다. 대화가 없으면 엔진을 부르지 않는다
+  const threadIds =
+    recent.kind === "ready"
+      ? [...new Set(recent.value.turns.map((r) => r.turn.threadId))].slice(0, PROMOTION_THREADS_MAX)
+      : null;
+  const promotionKey = threadIds === null ? "promotion:none" : `promotion:${threadIds.join(",")}`;
+  const promotionRead = useRead(
+    promotionKey,
+    link,
+    nonce,
+    async (): Promise<Result<PromotionReport, CommandError>> => {
+      if (threadIds === null || threadIds.length === 0) return ok(EMPTY_PROMOTION);
+      return commands.measure.promotion(threadIds);
+    },
+  );
+  const promotion: Load<PromotionReport> = recent.kind === "ready" ? promotionRead : recent;
+
   const findingParams = {
     period: { days: filter.days },
     ...(filter.profileId === null ? {} : { profileId: filter.profileId }),
@@ -342,6 +407,8 @@ export function useMetricsSource(): MetricsData {
     findings,
     dismissed,
     recent,
+    curve,
+    promotion,
     dailyContext,
     previous,
     threadTitle: (threadId) => titles.get(threadId) ?? null,

@@ -6,16 +6,14 @@ import { Button, Dialog, DialogClose, toast } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
-import { AUTHORING_EXT, builderOf, forwardStateOf } from "../compose/compose-code.tsx";
+import { AUTHORING_EXT, builderOf, forwardStateOf, type ForwardState } from "./builder-state.ts";
 import { useFolderPick } from "../folder-pick-context.ts";
 import { useStartNewThread } from "../new-thread-flow.ts";
 import { tabLinkOf } from "./tab-read.ts";
 import { lockText } from "./ext-row.tsx";
 import type { WorkbenchController } from "./controller.ts";
 
-type Forward = ReturnType<typeof forwardStateOf>;
-
-export function builderSentenceOf(state: Forward): string {
+export function builderSentenceOf(state: ForwardState): string {
   switch (state.kind) {
     case "make":
       return t("desktop.craft.builder.ready");
@@ -43,7 +41,7 @@ export function BuilderEntry(props: { readonly controller: WorkbenchController }
   const enabling = entry?.status === "enabling";
   const base = forwardStateOf(link, builderOf(entry));
   // 켜기가 다음 단계 경계를 기다리는 중이면 새 대화가 그 경계를 만든다. 켜기에서 멈추지 않고 대화 열기로 간다(rtC R-3)
-  const state: Forward = enabling && base.kind === "enable" ? { kind: "make" } : base;
+  const state: ForwardState = enabling && base.kind === "enable" ? { kind: "make" } : base;
 
   // 새 대화를 여는 길은 하나다(R5). 보던 대화에 작업 폴더가 있으면 그 폴더에서, 없으면 폴더 고르기 창을 먼저 연다.
   // 제작 대화가 폴더 없이 열려 상대 경로로 막히지 않게 한다(취소하면 아무것도 만들지 않고 상자는 그대로 둔다)

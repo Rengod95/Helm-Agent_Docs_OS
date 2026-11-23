@@ -35,7 +35,7 @@
 - 켬/끔 비교: 작업 폴더 격리(T-TEST-ISO)가 없어 잠겨 있고 "작업 폴더를 격리하는 기능이 아직 없어요"를 보입니다.
 - replay 실행 취소: 취소 wire가 없어 두지 않습니다(W-29).
 - 시험 시트의 프로필 고르기: 프로필 목록 읽기(`profile.list`)를 이 화면에 붙이지 않았습니다. `thread.create`에 `profileId`를 보내지 않습니다.
-- 제작 화면의 "새 Test run으로"(`compose-profile.tsx`, 프로필 적용)와 구성기 시험 실행(`compose-trial.tsx`)은 `thread.create { testRun: true }`로 대화만 만듭니다. 이 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결].
+- 프로필 패널의 "새 Test run으로"(`compose-profile.tsx`, 프로필 적용)는 `thread.create { testRun: true }`로 대화만 만듭니다. 구성기 시험 실행(`compose-trial.tsx`)은 AGE-69에서 화면과 함께 지웠고, 프로필 패널은 지금 그리는 곳이 없습니다. 이 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결].
 - 화면을 다시 연 뒤의 멈춘 표지: `thread.list`의 `testRun.paused`를 앱이 아직 받지 않아 명령 결과로만 알고 있습니다.
 - 트레이스 막대(§6.22.5): 목록 행에 `turnId`가 없어 턴을 고를 수 없습니다.
 - 비용 확인 대화: 예상 실행 수와 비용 범위를 wire가 주지 않아 글로만 묻습니다. 지금 시작할 수 있는 종류 가운데 비용이 드는 것은 없어 열리지 않습니다.

@@ -18,15 +18,19 @@ import {
   BLOCK_TIME_METRICS,
   DAILY_CONTEXT_METRICS,
   DAILY_METRICS,
+  EMPTY_PROMOTION,
   PLUGIN_METRICS,
   RECENT_FIRST_PAGE,
   RECENT_PAGE,
   dayWindowOf,
   type MetricsFilter,
   type PeriodTotals,
+  type PromotionReport,
   type RecentTurn,
   type TurnBrief,
+  type TurnCurve,
 } from "./model.ts";
+import type { CurvePointVM } from "@fresnel/client/workbench";
 import type { Load, MetricsActions, MetricsData, RecentTurns } from "./source.ts";
 
 export const SCENES = [
@@ -512,6 +516,50 @@ function evidence(n: number): EvidenceRef[] {
   }));
 }
 
+/** 턴 번호 곡선(표본): 표본 대화 하나(`thr_sample_0`)의 턴 열두 개. 턴 id는 최근 턴 표본의 모양을 따른다 */
+function curveSample(): TurnCurve {
+  const threadId = sampleThreadOf(0);
+  const points: CurvePointVM[] = Array.from({ length: 12 }, (_, k) => {
+    const totalTokens = 2400 + k * 1350 + (k % 3) * 310;
+    return {
+      turnId: `trn_sample_${String(k * SAMPLE_THREADS + 1)}`,
+      number: k + 1,
+      totalTokens,
+      usd: totalTokens * 0.000003,
+      durationMs: 4200 + k * 1150 + (k % 4) * 640,
+    };
+  });
+  return {
+    kind: "ready",
+    threadId,
+    title: sampleTitleOf(threadId),
+    capped: false,
+    points,
+  };
+}
+
+/** 같이 쓰는 도구 후보(표본). 플러그인 이름은 표본 장면의 것을 쓴다 */
+function promotionSample(): PromotionReport {
+  return {
+    throughSeq: 412,
+    threads: SAMPLE_THREADS,
+    candidates: [
+      {
+        tool: "search_docs",
+        owner: "docs-voice",
+        consumers: ["review-flow", "release-notes", "web-research"],
+        userCalls: 14,
+      },
+      {
+        tool: "run_tests",
+        owner: "test-runner",
+        consumers: ["repo-guard", "review-flow"],
+        userCalls: 6,
+      },
+    ],
+  };
+}
+
 /** 날 × 플러그인의 컨텍스트(표본). 행 수가 엔진 상한(1000) 안에 들게 앞의 여섯 플러그인만, 날마다 조금씩 오르내린다 */
 function dailyContextResult(days: number, daily: MetricsQueryResult): MetricsQueryResult {
   const rows: MetricRow[] = [];
@@ -798,10 +846,16 @@ export function sampleData(
     daily: MetricsQueryResult,
     list: readonly Finding[],
     few = false,
-  ): Pick<MetricsData, "recent" | "dailyContext" | "previous" | "actions"> => {
+  ): Pick<
+    MetricsData,
+    "recent" | "curve" | "promotion" | "dailyContext" | "previous" | "actions"
+  > => {
     const pages = recentPagesOf(turns);
     return {
       recent: ready(pages.first),
+      // 턴이 하나도 없으면 곡선은 "없음", 같이 쓰는 도구는 빈 보고다(엔진을 부르지 않는 경우와 같다)
+      curve: ready(turns.length === 0 ? { kind: "none" } : curveSample()),
+      promotion: ready(turns.length === 0 ? EMPTY_PROMOTION : promotionSample()),
       dailyContext: ready(
         few ? { window: window(days), rows: [], notes: [] } : dailyContextResult(days, daily),
       ),
@@ -830,6 +884,8 @@ export function sampleData(
     findings: load,
     dismissed: load,
     recent: load,
+    curve: load,
+    promotion: load,
     dailyContext: load,
     previous: load,
   });

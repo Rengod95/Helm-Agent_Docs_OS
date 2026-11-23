@@ -1,39 +1,10 @@
-// 구성기 화면의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다).
+// 프로필 패널과 프로필 오류의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다).
 import type { MessageId } from "@fresnel/client/i18n";
-import type { ProfileDraftProblem, ProductText } from "@fresnel/client/workbench";
-import type { PhaseNodeKind } from "@fresnel/contracts/extensions";
+import type { ProfileDraftProblem } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
 import { isRequiredByCore } from "../craft/core-required.ts";
-
-/** 화면 머리의 보기 넷. "새 그룹"은 보기가 아니라 머리의 동작이라 이 묶음에 없다 */
-export type ComposeViewId = "group" | "flow" | "profile" | "code";
-export const COMPOSE_VIEWS: readonly ComposeViewId[] = ["group", "flow", "profile", "code"];
-
-export const VIEW_TEXT: Readonly<Record<ComposeViewId, MessageId>> = {
-  group: "desktop.compose.view.group",
-  flow: "desktop.compose.view.flow",
-  profile: "desktop.compose.view.profile",
-  code: "desktop.compose.view.code",
-};
-
-export const PRODUCT_TEXT: Readonly<Record<ProductText, MessageId>> = {
-  record: "desktop.compose.product.record",
-  post: "desktop.compose.product.post",
-  state: "desktop.compose.product.state",
-};
-
-export const NODE_TEXT: Readonly<Record<PhaseNodeKind, MessageId>> = {
-  phase: "desktop.compose.node.phase",
-  turn: "desktop.compose.node.turn",
-  spawn: "desktop.compose.node.spawn",
-  gather: "desktop.compose.node.gather",
-  capability: "desktop.compose.node.capability",
-  human: "desktop.compose.node.human",
-  record: "desktop.compose.node.record",
-  end: "desktop.compose.node.end",
-};
 
 /** 플러그인의 프로필 목록 칸 글: 목록에 넣었나(on)·뺐나(off) */
 export const CHOICE_TEXT: Readonly<Record<"on" | "off", MessageId>> = {

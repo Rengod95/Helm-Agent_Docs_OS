@@ -1,7 +1,7 @@
 // 메트릭 화면(C9)의 그리기. 질문 둘: "규칙을 넣었는데 지키는지", "컨텍스트가 어디에 쓰이는지".
 // 짜임(사용자 2026-11-20): 그림이 먼저인 판 나를 바탕으로 콘텐츠 영역 전체를 쓴다. 왼쪽은 그림 칸(따로 스크롤),
 // 오른쪽은 인사이트 고정 열(열 안에서 따로 스크롤). 콘텐츠 폭이 `NARROW`보다 좁으면 열 대신 위 요약 줄과 서랍이다.
-// 왼쪽 차례: 머리 숫자 → 표본 줄 → 컨텍스트 분해 → 블록별 시간 │ 날별 흐름 → 최근 턴 → 플러그인 표 → 버전 전후.
+// 왼쪽 차례: 머리 숫자 → 표본 줄 → 컨텍스트 분해 → 블록별 시간 │ 날별 흐름 → 최근 턴 → 턴 번호 곡선 → 플러그인 표 → 버전 전후.
 // 셋째 판(m6X3): 머리는 `flush`다. 셸이 flush가 아닌 머리 뒤 첫 요소에 주던 오른쪽 60px(세로 단추 띠 48 + 12)과 위 24px이
 // 인사이트 열 오른쪽에 남던 큰 여백의 원인이었다. 이제 두 열은 머리 선 바로 아래에서 시작하고 인사이트 열은 창 오른쪽 끝까지 간다.
 // 위 여백은 두 열이 같은 24px을 스스로 갖고, 인사이트 열은 세로 단추 띠와 겹치는 줄만 비킨다(다섯째 판: 리뷰와 같은 `shell/rail-avoid.ts`).
@@ -37,6 +37,7 @@ import {
   PluginTableSection,
   SampleBand,
   TimeSection,
+  TurnCurveSection,
 } from "./sections.tsx";
 import type { Finding } from "@fresnel/contracts/wire";
 import type { MetricsData } from "./source.ts";
@@ -328,6 +329,7 @@ function ChartsColumn(props: {
           }}
         />
       </div>
+      <TurnCurveSection data={d} />
       <PluginTableSection data={d} />
       <CompareSection data={d} />
     </div>

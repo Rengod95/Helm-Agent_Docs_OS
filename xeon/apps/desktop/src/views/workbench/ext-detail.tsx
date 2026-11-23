@@ -1,4 +1,4 @@
-// P-17 확장 상세("자세히 보기"). 탭: 개요(위치·등급·기능 연결·진단), 훅(`ext.get`·`ext.timings`, wb-opus 훅 표), 설정(`settings.list`·`settings.get`, 읽기 전용, 확장이 그린 부분은 설정 탭 안),
+// P-17 확장 상세("자세히 보기"). 탭: 개요(위치·등급·기능 연결·진단), 구성원(구성원이 있을 때), 의존, 구성(Drive 플러그인만, 설치본 구성을 읽기 전용으로), 훅(`ext.get`·`ext.timings`, wb-opus 훅 표), 설정(`settings.list`·`settings.get`, 읽기 전용, 확장이 그린 부분은 설정 탭 안),
 // 측정(`group.metrics`, 그룹만), 기록(`scope.handler_failed`), 버전(§6.24.1), 화면(`ext.ui.list`).
 // 머리 줄: 이름(표시 이름 + 회색 mono id), 층 mono · 종류 · 설치 위치 · 버전, 상태 점과 범위 글(ADR-0022 §3.3, 배지는 두지 않는다).
 import { t, type MessageId } from "@fresnel/client/i18n";
@@ -49,6 +49,7 @@ import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
 import { hasMembers } from "../craft/members/members-model.ts";
 import { MembersTab } from "../craft/members/members-tab.tsx";
 import { DepsTab } from "../craft/deps/deps-tab.tsx";
+import { CompositionTab } from "../craft/composition/composition-tab.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
@@ -410,6 +411,14 @@ function RecordTab(props: { readonly name: string }): ReactNode {
   return <FailureRecords rows={failureRowsOf(records, props.name)} failed={failed} />;
 }
 
+/**
+ * 고른 탭을 이 확장에서 보일 탭으로 바꾼다. 구성 탭은 Drive 플러그인(`isOrchestration`)에만 있으므로,
+ * 다른 확장에 남은 구성 탭 값이면 개요로 돌린다
+ */
+export function visibleTabOf(tab: DetailTab, entry: ExtListEntry): DetailTab {
+  return tab === "composition" && !entry.isOrchestration ? "overview" : tab;
+}
+
 export function ExtDetail(props: {
   readonly state: WorkbenchState;
   readonly entry: ExtListEntry;
@@ -429,6 +438,8 @@ export function ExtDetail(props: {
   const row = rowOf(entry, props.state.pending);
   const scope = enabledScopeOf(entry.enabledSource);
   const withMembers = hasMembers(entry);
+  // 구성 탭은 Drive 플러그인에만 있다(`isOrchestration`). 읽기 전용이라 편집 단추는 없다
+  const withComposition = entry.isOrchestration;
   const [get, setGet] = useState<Load>({ kind: "loading" });
   const [timings, setTimings] = useState<TimingsLoad>({ kind: "loading" });
   useEffect(() => {
@@ -513,7 +524,7 @@ export function ExtDetail(props: {
       <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
       <PluginScreensLink name={entry.name} />
       <Tabs
-        value={props.tab}
+        value={visibleTabOf(props.tab, entry)}
         onValueChange={(value) => {
           if (isDetailTab(value)) props.onTab(value);
         }}
@@ -527,6 +538,9 @@ export function ExtDetail(props: {
             <TabsTrigger value="members">{t("desktop.craft.members.tab")}</TabsTrigger>
           )}
           <TabsTrigger value="dependencies">{t("desktop.craft.deps.tab")}</TabsTrigger>
+          {withComposition && (
+            <TabsTrigger value="composition">{t("desktop.craft.composition.tab")}</TabsTrigger>
+          )}
           <TabsTrigger value="hooks" count={entry.hookCount}>
             {t("desktop.workbench.detail.tab.hooks")}
           </TabsTrigger>
@@ -550,6 +564,15 @@ export function ExtDetail(props: {
         <TabsContent value="dependencies">
           <DepsTab entry={entry} />
         </TabsContent>
+        {withComposition && (
+          <TabsContent value="composition">
+            <CompositionTab
+              name={entry.name}
+              manifest={get.kind === "ready" ? get.result.manifest : null}
+              failed={get.kind === "error"}
+            />
+          </TabsContent>
+        )}
         <TabsContent value="hooks">
           <HooksTab get={get} timings={timings} />
         </TabsContent>

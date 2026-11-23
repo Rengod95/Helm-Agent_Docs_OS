@@ -1,4 +1,4 @@
-// 흐름 캔버스를 담는 틀(시안 wb-compose `parts/canvas.tsx`의 CanvasHost): 점 격자 바탕 위에 그래프 좌표(width×height)를 폭에 맞춰 줄이고,
+// 구성 탭 캔버스를 담는 틀(시안 wb-compose `parts/canvas.tsx`의 CanvasHost): 점 격자 바탕 위에 그래프 좌표(width×height)를 폭에 맞춰 줄이고,
 // 확대 버튼으로 바꾸면 넘친 만큼 스크롤한다. 줌 캡슐은 caustic ZoomControl을 캔버스 왼쪽 아래에 띄운다.
 import { t } from "@fresnel/client/i18n";
 import { ZoomControl } from "@caustic/react";
@@ -61,9 +61,9 @@ export function CanvasHost(props: {
           className="pointer-events-auto"
           size="sm"
           value={`${Math.round(scale * 100)}%`}
-          label={t("desktop.compose.flow.zoom.label")}
-          zoomOutLabel={t("desktop.compose.flow.zoom.out")}
-          zoomInLabel={t("desktop.compose.flow.zoom.in")}
+          label={t("desktop.craft.composition.zoom.label")}
+          zoomOutLabel={t("desktop.craft.composition.zoom.out")}
+          zoomInLabel={t("desktop.craft.composition.zoom.in")}
           onZoomOut={() => {
             setZoom(Math.max(0.4, scale - 0.1));
           }}

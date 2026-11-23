@@ -1,7 +1,7 @@
-// 그룹 보기의 블록 캔버스(시안 wb-compose `screens/group.tsx`의 GroupCanvas, `parts/blocks.tsx`). 왼쪽 열에 블록, 오른쪽 열에 블록이 내는 것
+// 구성 탭의 블록 캔버스(시안 wb-compose `screens/group.tsx`의 GroupCanvas, `parts/blocks.tsx`). 왼쪽 열에 블록, 오른쪽 열에 블록이 내는 것
 // (공개 기록, 입력 큐, 상태 문서)을 caustic NodeGraph 위에 둔다. 선은 고른 블록의 것만 그린다. 시안의 왼쪽 "이 맥락의 기능" 열은
 // 선언에 제공자 정보가 없어 두지 않고, 블록이 읽는 기능은 블록 안의 입력 포트 글로 보인다.
-// 노드에는 이름과 포트, 검사 문장만 둔다. 훅·연산·단계 이름은 시안에 없어 그리지 않는다.
+// 노드에는 이름과 포트, 검사 문장만 둔다. 훅, 연산, 단계 이름은 시안에 없어 그리지 않는다.
 import { t } from "@fresnel/client/i18n";
 import type { BlockRow, ProductText } from "@fresnel/client/workbench";
 import type { WireManifestIssue } from "@fresnel/contracts/wire";
@@ -13,9 +13,8 @@ import {
   type GraphEdge,
 } from "@caustic/react";
 import { useState, type ReactNode } from "react";
-import { CanvasHost } from "./compose-canvas-host.tsx";
-import { PRODUCT_TEXT } from "./compose-text.ts";
-import { issueTextOf } from "./compose-wire-text.ts";
+import { CanvasHost } from "./canvas-host.tsx";
+import { PRODUCT_TEXT, issueTextOf } from "./composition-text.ts";
 
 const BLOCK_X = 0;
 const BLOCK_WIDTH = 330;
@@ -26,7 +25,7 @@ const GAP = 12;
 const NODE_CLASS =
   "relative top-0 left-0 gap-1.5 px-3 py-2.5 [&_[data-slot=node-graph-node-title]]:text-title-3";
 
-/** 블록이 내는 것의 포트 키. 같은 종류·기록 종류는 오른쪽 열의 한 포트로 모인다 */
+/** 블록이 내는 것의 포트 키. 같은 종류, 기록 종류는 오른쪽 열의 한 포트로 모인다 */
 function productKeyOf(product: BlockRow["produces"][number]): string {
   return `${product.kind}:${product.recordKind ?? ""}`;
 }
@@ -35,7 +34,7 @@ function productLabelOf(product: BlockRow["produces"][number]): string {
   return `${t(PRODUCT_TEXT[product.kind])}${product.recordKind === null ? "" : ` ${product.recordKind}`}`;
 }
 
-/** 오른쪽 열의 노드: 종류(기록·입력 큐·상태 문서)마다 하나, 포트는 기록 종류마다 하나. 종류 순서는 기록, 입력 큐, 상태 문서다 */
+/** 오른쪽 열의 노드: 종류(기록, 입력 큐, 상태 문서)마다 하나, 포트는 기록 종류마다 하나. 종류 순서는 기록, 입력 큐, 상태 문서다 */
 export interface OutputGroup {
   readonly kind: ProductText;
   readonly ports: readonly { readonly key: string; readonly label: string }[];
@@ -103,7 +102,7 @@ function BlockNode(props: {
     >
       {row.plugin === null ? null : (
         <p data-block-member={row.plugin} className="m-0 text-ui-sm text-text-tertiary">
-          {t("desktop.compose.block.member", { name: row.memberTitle ?? row.plugin })}
+          {t("desktop.craft.composition.block.member", { name: row.memberTitle ?? row.plugin })}
         </p>
       )}
       {row.consumes.length === 0 && row.produces.length === 0 ? null : (
@@ -183,13 +182,13 @@ export function GroupCanvas(props: {
   return (
     <CanvasHost width={width} height={height}>
       <NodeGraph
-        aria-label={t("desktop.compose.blocks")}
+        aria-label={t("desktop.craft.composition.blocks")}
         width={width}
         height={height}
         edges={groupEdgesOf(rows, selected)}
       >
         <div className="absolute grid gap-4" style={{ left: BLOCK_X, top: 0, width: BLOCK_WIDTH }}>
-          <SectionHeader size="sm" headingLevel={3} title={t("desktop.compose.blocks")} />
+          <SectionHeader size="sm" headingLevel={3} title={t("desktop.craft.composition.blocks")} />
           <div className="grid gap-3">
             {rows.map((row) => (
               <BlockNode
@@ -205,7 +204,11 @@ export function GroupCanvas(props: {
           </div>
         </div>
         <div className="absolute grid gap-4" style={{ left: OUT_X, top: 0, width: OUT_WIDTH }}>
-          <SectionHeader size="sm" headingLevel={3} title={t("desktop.compose.group.outputs")} />
+          <SectionHeader
+            size="sm"
+            headingLevel={3}
+            title={t("desktop.craft.composition.outputs")}
+          />
           <div className="grid gap-3">
             {groups.map((group) => (
               <OutputNode key={group.kind} group={group} />

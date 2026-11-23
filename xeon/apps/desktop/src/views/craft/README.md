@@ -10,7 +10,7 @@
 - `trace/`: 트레이스(C8, 목적 화면 `trace`).
 - `test-chat/`: 테스트 챗 창(C7). Craft 어디서나 떠 있습니다.
 - `members/`, `deps/`, `composition/`: 플러그인 상세(`views/workbench/ext-detail.tsx`)의 멤버, 의존, 구성 탭.
-- 낱 파일: `info-tip.tsx`(정보 아이콘), `installed-entries.ts`(설치 목록 읽기), `kind-paths.ts`(종류 그림의 획), `core-required.ts`, `craft-scope.ts`, `craft-theme.ts`(그림의 어두움과 밝음), `craft-context.tsx`, `turn-flow.ts`, `detail-flow.tsx`(플러그인 상세가 쓰는 최근 실행과 흐름).
+- 낱 파일: `info-tip.tsx`(정보 아이콘), `installed-entries.ts`(설치 목록 읽기), `kind-paths.ts`(종류 그림의 획), `core-required.ts`, `craft-scope.ts`, `craft-theme.ts`(그림의 어두움과 밝음), `hook-labels.ts`(멤버 탭이 쓰는 훅 이름).
 
 ## 지운 것
 
