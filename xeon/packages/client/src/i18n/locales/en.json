@@ -5043,6 +5043,7 @@
   "desktop.projects.notice.sameFolder.title": "{count, plural, one{# other conversation running in this folder} other{# other conversations running in this folder}}",
   "desktop.projects.notice.sameFolder.body": "They can all change files in this folder.",
   "desktop.projects.notice.sameFolder.info": "Nothing is blocked. Folder: {path}",
+  "desktop.projects.notice.sameFolder.infoNoPath": "Nothing is blocked.",
   "desktop.projects.notice.pending.title": "{count, plural, one{# plugin from this project waiting for review} other{# plugins from this project waiting for review}}",
   "desktop.projects.notice.pending.body": "They won't run until you approve them.",
   "desktop.projects.notice.pending.info": "These plugins are in the {name} folder. In Review you can read them, then approve or discard them.",

@@ -203,9 +203,12 @@ export function capRows<T extends SidebarRow>(
   return { shown, hidden: tops - kept };
 }
 
-/** 같은 작업 폴더에서 지금 도는 다른 대화(T7, U6). 알리기만 하고 막지 않는다. 테스트 런과 내부 대화는 부르는 쪽이 먼저 뺀다 */
+/**
+ * 같은 작업 폴더에서 지금 도는 다른 대화(T7, U6). 알리기만 하고 막지 않는다. 테스트 런과 내부 대화는 부르는 쪽이 먼저 뺀다.
+ * 이 대화가 띄운 하위 대화(`spawnedBy`가 이 대화)는 부모와 같은 폴더를 쓰는 것이 정상이라 뺀다(rerun3 T-07)
+ */
 export function sameFolderRunningOf<
-  T extends Pick<ThreadSummary, "threadId" | "workspace" | "status">,
+  T extends Pick<ThreadSummary, "threadId" | "workspace" | "status" | "spawnedBy">,
 >(
   selected: Pick<ThreadSummary, "threadId" | "workspace"> | undefined,
   threads: readonly T[],
@@ -215,6 +218,7 @@ export function sameFolderRunningOf<
   return threads.filter(
     (thread) =>
       thread.threadId !== selected.threadId &&
+      thread.spawnedBy?.threadId !== selected.threadId &&
       thread.status === "running" &&
       thread.workspace !== null &&
       trimEnd(thread.workspace) === folder,

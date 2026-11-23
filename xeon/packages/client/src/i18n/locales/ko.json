@@ -5043,6 +5043,7 @@
   "desktop.projects.notice.sameFolder.title": "같은 폴더에서 도는 다른 대화 {count}개",
   "desktop.projects.notice.sameFolder.body": "이 대화들 모두 이 폴더의 파일을 고칠 수 있어요.",
   "desktop.projects.notice.sameFolder.info": "막지는 않아요. 폴더: {path}",
+  "desktop.projects.notice.sameFolder.infoNoPath": "막지는 않아요.",
   "desktop.projects.notice.pending.title": "승인을 기다리는 이 프로젝트의 플러그인 {count}개",
   "desktop.projects.notice.pending.body": "승인하기 전에는 실행되지 않아요.",
   "desktop.projects.notice.pending.info": "{name} 폴더에 든 플러그인이에요. 리뷰에서 내용을 보고 승인하거나 버릴 수 있어요.",
