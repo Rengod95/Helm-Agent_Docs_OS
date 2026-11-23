@@ -277,8 +277,12 @@ export interface ValidationReport {
   readonly issues: readonly DevkitIssue[];
 }
 
+/**
+ * 설치하지 않은 폴더의 Test run(L3.authoring.spec §4.3). `dir`은 제작 대화의 대상 폴더(절대 경로)다.
+ * 폴더를 초안으로 만들어 Test run 대화에만 고정해 시작한다. 사용자 확장 폴더에 설치하지 않는다
+ */
 export interface TestRunInput {
-  readonly target: string;
+  readonly dir: string;
   readonly profileId?: string;
   readonly workspace?: string;
 }

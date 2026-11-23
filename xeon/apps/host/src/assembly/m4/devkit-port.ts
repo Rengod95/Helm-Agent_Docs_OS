@@ -51,6 +51,8 @@ import {
   type ProfilePortFailure,
   type ProfileTestRunPort,
 } from "../../handlers/m4/profile-test-run.ts";
+import { draftRecordOf, encodeTestRunDrafts } from "../measure/test-run-marks.ts";
+import type { OverlayRefusal } from "../plugins/overlay.ts";
 import { hostResourceDir } from "../../state-paths.ts";
 import { hashPluginTree } from "../plugins/content-hash.ts";
 import { messageOf } from "../../util.ts";
@@ -216,6 +218,60 @@ function devkitErrorOfPlugin(failure: PluginPortFailure): DevkitError {
   return failure.kind === "unknown_plugin"
     ? { kind: "not_found", message: `${failure.name} is not known` }
     : { kind: "io", message: `the plugin could not be read (${failure.kind})` };
+}
+
+/** 폴더를 초안으로 만들지 못한 이유. 검사 이슈는 사유 목록으로 싣는다 */
+function devkitErrorOfDraft(failure: PluginPortFailure): DevkitError {
+  switch (failure.kind) {
+    case "draft_invalid":
+      return {
+        kind: "invalid_input",
+        message: "the plugin folder is not valid",
+        reasons: failure.issues.map((issue) => ({
+          code: issue.code,
+          ...(issue.path === "" ? {} : { field: issue.path.replace(/^\//, "") }),
+          message: issue.message,
+        })),
+      };
+    case "too_large":
+      return {
+        kind: "invalid_input",
+        message: "the plugin folder is too large",
+        reasons: [{ code: "too_large" }],
+      };
+    case "symlink_refused":
+      return {
+        kind: "invalid_input",
+        message: "the plugin folder has a symbolic link",
+        reasons: [{ code: "symlink_refused" }],
+      };
+    case "unknown_plugin":
+    case "thread_not_found":
+    case "no_reviewed_copy":
+    case "profiles":
+    case "store":
+    case "draft_not_found":
+    case "exists":
+    case "review_not_found":
+    case "not_pending":
+    case "path_invalid":
+    case "hand_edit":
+    case "purpose_required":
+    case "profile_invalid":
+    case "dependency":
+      return devkitErrorOfPlugin(failure);
+    default:
+      return assertNever(failure, "PluginPortFailure");
+  }
+}
+
+/** Test run 초안을 싣지 못한 이유. 모두 이 폴더로는 대화를 열 수 없다는 뜻이라 `invalid_input`이고, 저장소 실패는 `io`다 */
+function devkitErrorOfOverlay(refusal: OverlayRefusal): DevkitError {
+  if (refusal.kind === "plugin") return devkitErrorOfPlugin(refusal.failure);
+  return {
+    kind: "invalid_input",
+    message: `the draft could not be loaded for a Test run (${refusal.kind})`,
+  };
 }
 
 /** 초안 기록에서 빌더가 쓰는 칸만 옮긴다 */
@@ -468,6 +524,76 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
     return ok({ testId, threadId: created.threadId });
   }
 
+  /**
+   * 설치하지 않은 폴더의 Test run(L3.authoring.spec §4.3). 폴더를 초안으로 만들고(`plugin.draft.create`와 같은 길: 검사, 크기, 링크),
+   * 그 초안을 `testRun.start`와 같은 구성(`testRunDrafts`)으로 싣어 새 Test run 대화에만 고정한다. 사용자 확장 폴더에 복사하지 않고,
+   * 검토 승인도 건너뛰지 않는다(초안은 검토본이 아니다). 대화를 만들지 못하면 붙잡음을 풀어 초안을 내린다
+   */
+  async function trialRunThread(input: {
+    readonly dir: string;
+    readonly profileId?: string;
+    readonly workspace?: string;
+  }): Promise<Result<{ readonly testId: string; readonly threadId: string }, DevkitError>> {
+    const profiles = options.profiles;
+    const drafts = deps.testRunDrafts;
+    const draftCreate = deps.draftCreate;
+    if (profiles === undefined || draftCreate === undefined || drafts === undefined) {
+      return err({ kind: "io", message: "test runs are not connected in this host build" });
+    }
+    const profileId = input.profileId;
+    if (profileId !== undefined) {
+      const found = await profiles.get(profileId);
+      if (!found.ok) return err(devkitErrorOfProfile(found.error));
+    }
+    const made = await draftCreate(input.dir, undefined);
+    if (!made.ok) return err(devkitErrorOfDraft(made.error));
+    const { info } = made.value;
+    const prepared = await drafts.prepare([{ plugin: info.name, draftId: info.draftId }]);
+    if (!prepared.ok) return err(devkitErrorOfOverlay(prepared.error));
+    const { marks, unhold } = prepared.value;
+    const runGroupId = `trg-${randomUUID()}`;
+    const created = await attemptAsync(() =>
+      deps.threads.create({
+        ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+        title: info.name,
+        testRun: true,
+        ...(profileId === undefined ? {} : { profileId }),
+      }),
+    );
+    if (!created.ok) {
+      unhold();
+      return err({
+        kind: "io",
+        message: `the Test run thread could not be created: ${messageOf(created.error.cause)}`,
+      });
+    }
+    const { threadId } = created.value;
+    await drafts.bind(threadId, [prepared.value]);
+    markTestRun(
+      profiles,
+      threadId,
+      profileId,
+      runGroupId,
+      encodeTestRunDrafts(marks.map(draftRecordOf)),
+    );
+    const testId = newTestId();
+    const begun = await recordStore().begin({
+      testId,
+      kind: "testRun",
+      target: info.name,
+      state: "running",
+      startedAt: isoNow(),
+      durationMs: null,
+      threadId,
+      replay: null,
+    });
+    if (!begun.ok) {
+      await discardThread(threadId);
+      return err(storeFailureOf(begun.error));
+    }
+    return ok({ testId, threadId });
+  }
+
   /** 기록을 남기지 못해 만든 대화를 지운다. 지우지 못하면 로그만 남긴다(호출자는 원래 실패를 돌려준다) */
   async function discardThread(threadId: ThreadId): Promise<void> {
     const removed = await deps.threads.remove(threadId);
@@ -501,6 +627,7 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       ),
     }),
     pack: (input) => packExtension(input),
+    trialRun: (input) => trialRunThread(input),
     testRun: (params) => (params.kind === "replay" ? replay(params) : testRunThread(params)),
     submit: async (
       input: PluginSubmitRequest,

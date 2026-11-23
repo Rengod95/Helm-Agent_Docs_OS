@@ -423,7 +423,7 @@ test("authoring.submit: after a Test run, the turn of that run is the evidence a
   await confirmedSession(rig);
   await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
-  await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "demo" });
+  await rig.call("authoring_trial", { sessionId: "auth-demo" });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
   await rig.answer("yes");
@@ -460,4 +460,75 @@ test("authoring.submit: after a Test run, the turn of that run is the evidence a
   // 다시 검사하면 제출 기록은 지운다(검토함의 항목은 그대로다). 고친 뒤에는 새 초안으로 다시 보낸다
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
   expect(rig.state()).toMatchObject({ submitted: null });
+});
+
+test("authoring.A-3: bash runs in the target folder while the session is open (the host pins it), and the pin is lifted once it ends", async () => {
+  const pins = new Map<string, string>();
+  const rig = await createOrchestrationRig({
+    shellPins: {
+      pin: (threadId, folder) => {
+        if (folder === null) pins.delete(threadId);
+        else pins.set(threadId, folder);
+      },
+    },
+  });
+  const bash = { command: "ls" } as const;
+  // 세션이 없으면 가드도 고정도 없다
+  expect(await rig.guard("bash", "exec", bash)).toBeUndefined();
+  expect(pins.size).toBe(0);
+  await confirmedSession(rig);
+  expect(await rig.guard("bash", "exec", bash)).toBeUndefined();
+  expect(pins.get(rig.thread)).toBe(DIR);
+  // 작업 폴더를 밖으로 적은 호출은 고정이 있어도 막힌다
+  expect(await rig.guard("bash", "exec", { command: "ls", cwd: "/work" })).toEqual({
+    block: true,
+    reason: "authoring: bash would write outside the target folder (/work)",
+  });
+  await rig.call("authoring_stop", { sessionId: "auth-demo" });
+  expect(await rig.guard("bash", "exec", bash)).toBeUndefined();
+  expect(pins.size).toBe(0);
+});
+
+test("authoring.A-3: without a shell pin port, bash in an open session stays blocked", async () => {
+  const rig = await createOrchestrationRig();
+  await confirmedSession(rig);
+  expect(await rig.guard("bash", "exec", { command: "ls" })).toEqual({
+    block: true,
+    reason: "authoring: cannot tell the working folder of bash",
+  });
+});
+
+test("authoring.flow: start, scaffold, validate, bash, trial on the folder, submit with the turn of the Test run, in one session", async () => {
+  const pins = new Map<string, string>();
+  const rig = await createOrchestrationRig({
+    shellPins: {
+      pin: (threadId, folder) => {
+        if (folder === null) pins.delete(threadId);
+        else pins.set(threadId, folder);
+      },
+    },
+  });
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  expect(await rig.guard("bash", "exec", { command: "bun test" })).toBeUndefined();
+  expect(pins.get(rig.thread)).toBe(DIR);
+  await rig.call("authoring_trial", { sessionId: "auth-demo" });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.answer("yes");
+  // 시험은 설치 이름이 아니라 대상 폴더로 시작한다
+  expect(rig.probe.calls).toEqual([`scaffold:${DIR}`, `validate:${DIR}`, `testRun:${DIR}`]);
+  expect(rig.state().trial).toEqual({ threadId: "thr_trial" });
+  const sent = await rig.call("authoring_submit", { sessionId: "auth-demo", turnId: "turn_1" });
+  expect(sent).toMatchObject({ ok: true, draftId: "draft_demo", itemId: "rvw_demo" });
+});
+
+test("authoring.trial: the tool takes only the session; prompt and profile are not accepted", async () => {
+  const rig = await createOrchestrationRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  const refused = await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "hi" });
+  expect(refused).toMatchObject({ ok: false });
 });

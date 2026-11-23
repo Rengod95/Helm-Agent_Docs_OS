@@ -107,6 +107,7 @@ import {
   type StoreOpenError,
   type StoreWarning,
 } from "@fresnel/platform-store";
+import { createShellFolderPins } from "./assembly/authoring.ts";
 import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import {
@@ -1119,6 +1120,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
+    // 제작 대화가 열려 있는 동안 셸이 대상 폴더에서 돌게 하는 고정(제작 그룹이 걸고 cap-workspace가 읽는다)
+    const shellPins = createShellFolderPins();
     // 대화의 프로젝트 루트(M5c §4.4.7): 작업 폴더를 포함하는 가장 깊은 루트다. 기본 폴더 대화는 기본 폴더가 루트다. 포트가 아직 없으면 없다
     const projectRootOfThread = (threadId: ThreadId): string | undefined => {
       const workspace = workspaceOf(threadId);
@@ -1338,6 +1341,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           devMode: () => settings.value("l3.authoring.devMode") === true,
           guide: guideWiring.reader,
           workspaceOf,
+          shellPins,
         },
         guide: guideWiring,
         materials: () => materialSlot.port,

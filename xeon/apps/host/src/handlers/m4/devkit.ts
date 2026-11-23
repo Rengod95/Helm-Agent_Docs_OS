@@ -54,6 +54,15 @@ export interface DevkitPort {
    * `testRun`은 Test run 대화를 열고 그 대화를 돌려준다. 끝내는 것은 사용자가 한다.
    */
   testRun(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, DevkitError>>;
+  /**
+   * 설치하지 않은 폴더의 Test run(L3.authoring.spec §4.3). 폴더를 초안으로 만들고 그 초안을 Test run 대화에 고정해 대화를 연다.
+   * 설치도 승인도 하지 않는다(설치는 검토 승인 뒤에만 된다). 끝내는 것은 사용자다
+   */
+  trialRun(input: {
+    readonly dir: string;
+    readonly profileId?: string;
+    readonly workspace?: string;
+  }): Promise<Result<{ readonly testId: string; readonly threadId: string }, DevkitError>>;
   /** `ext.test.list`. 저장된 시험 기록을 시작 순서대로 돌려준다 */
   testList(): Promise<Result<ExtTestListResult, DevkitError>>;
   /**

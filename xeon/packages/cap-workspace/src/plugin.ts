@@ -26,6 +26,7 @@ import {
   type SandboxService,
   type RgResolver,
   type RootsDeps,
+  type ShellFolderPins,
   type ThreadWorkspaces,
   type ToolRegistration,
   type ToolService,
@@ -79,6 +80,8 @@ export interface WorkspacePluginOptions {
    * 구현해 넘긴다. 이 패키지는 설정 파일을 직접 쓰지 않는다. 없으면 더하기는 unavailable이다
    */
   readonly protectPaths?: ProtectPathsStore;
+  /** 제작 그룹이 고정한 셸 작업 폴더(L3.authoring.spec §4.2). 조립 루트가 그룹과 같은 인스턴스를 넘긴다 */
+  readonly shellPins?: ShellFolderPins;
   readonly loadIndex?: number;
 }
 
@@ -101,8 +104,10 @@ function threadWorkspaces(
   session: Pick<SessionService, "query">,
   exec: Pick<ExecService, "withCwd" | "truncateHeadOf">,
   configDir: string,
+  pins: ShellFolderPins | undefined,
 ): ThreadWorkspaces {
   return {
+    ...(pins === undefined ? {} : { pinnedFolderOf: (threadId) => pins.folderOf(threadId) }),
     workspaceOf: (threadId) => {
       const row = session.query.thread(threadId);
       return row.ok ? (row.value?.workspace ?? null) : null;
@@ -173,7 +178,15 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         ...(store === undefined ? {} : { blobs: store }),
         ...(session === undefined
           ? {}
-          : { threads: threadWorkspaces(options.core, session, exec, os.dirs.config) }),
+          : {
+              threads: threadWorkspaces(
+                options.core,
+                session,
+                exec,
+                os.dirs.config,
+                options.shellPins,
+              ),
+            }),
         rg: rgResolver(os),
         core: options.core,
         ...(options.unattendedTimeoutMs === undefined

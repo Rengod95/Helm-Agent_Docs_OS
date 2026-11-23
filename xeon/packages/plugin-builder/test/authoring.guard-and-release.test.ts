@@ -61,6 +61,31 @@ test("authoring.guard-blocks-outside-dir: writes inside the target folder pass, 
     block: true,
     reason: "authoring: cannot tell the working folder of shell",
   });
+  // bash는 입력에 작업 폴더가 없다. 호스트가 셸을 대상 폴더로 고정했을 때만 통과하고, 고정이 없으면 막힌다
+  const bash = { toolName: "bash", risk: "exec", input: { command: "ls" } } as const;
+  expect(authoringWriteGuard(DIR, bash)).toEqual({
+    block: true,
+    reason: "authoring: cannot tell the working folder of bash",
+  });
+  expect(authoringWriteGuard(DIR, bash, { shellPinned: true })).toBeUndefined();
+  // 고정이 있어도 작업 폴더를 밖으로 적은 호출과, bash가 아닌 셸 도구의 작업 폴더 없는 호출은 막힌다
+  expect(
+    authoringWriteGuard(
+      DIR,
+      { toolName: "bash", risk: "exec", input: { command: "ls", cwd: "/work" } },
+      { shellPinned: true },
+    ),
+  ).toEqual({
+    block: true,
+    reason: "authoring: bash would write outside the target folder (/work)",
+  });
+  expect(
+    authoringWriteGuard(
+      DIR,
+      { toolName: "shell", risk: "exec", input: { command: "ls" } },
+      { shellPinned: true },
+    ),
+  ).toEqual({ block: true, reason: "authoring: cannot tell the working folder of shell" });
   // 읽기와 위험 등급이 없는 호출은 보지 않는다. 대상 폴더 이름이 접두로 겹치는 옆 폴더는 밖이다
   expect(
     authoringWriteGuard(DIR, { toolName: "read", risk: "read", input: { path: "/etc/hosts" } }),

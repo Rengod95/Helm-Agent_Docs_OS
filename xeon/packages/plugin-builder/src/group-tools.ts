@@ -511,15 +511,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const trial = tool(
     "authoring_trial",
-    "Start a Test run of the extension. The user confirms before it starts (cost).",
-    Type.Object(
-      {
-        ...sessionShape,
-        profile: Type.Optional(Type.String()),
-        prompt: Type.String({ maxLength: 4000 }),
-      },
-      { additionalProperties: false },
-    ),
+    "Open a Test run thread that carries this folder as a draft (nothing is installed). The user confirms before it starts (cost). The user then talks to the plugin in that thread; authoring_submit needs the turnId of one of its turns.",
+    Type.Object({ ...sessionShape }, { additionalProperties: false }),
     "write",
     async (input) => {
       const refused = checkSession(env, str(input, "sessionId")) ?? awaitingIntent(env.g.state());

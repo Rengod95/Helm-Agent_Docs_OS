@@ -190,7 +190,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       return commitThen(next);
     }
     if (state.dir === null) return { do: "yield" };
-    const started = await devkit.testRun({ target: state.dir });
+    const started = await devkit.testRun({ dir: state.dir });
     if (started.ok) {
       const next: AuthoringState = {
         ...state,

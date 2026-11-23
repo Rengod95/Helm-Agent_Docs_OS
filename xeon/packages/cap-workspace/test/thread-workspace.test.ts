@@ -98,6 +98,25 @@ describe("thread workspace roots", () => {
     expect(policy?.writeRoots).not.toContain("/engine");
   });
 
+  test("a pinned folder wins over the thread workspace: bash starts there and the sandbox may write only there", async () => {
+    const { deps, env, threads } = fixture(MAP);
+    env.mkdir("/projects/alpha/kanban-board");
+    const pinned: ThreadWorkspaces = {
+      ...threads,
+      pinnedFolderOf: (id) => (id === ALPHA ? "/projects/alpha/kanban-board" : undefined),
+    };
+    const service = createWorkspaceService({ ...deps, threads: pinned });
+    env.reply({ chunks: [{ text: "ok\n" }], exitCode: 0 });
+    await service.shell.run({ command: "pwd" }, callOptions(ALPHA));
+    expect(env.calls.at(-1)?.options?.cwd).toBe("/projects/alpha/kanban-board");
+    // 고정이 없는 대화는 그대로 자기 작업 폴더다
+    env.reply({ chunks: [{ text: "ok\n" }], exitCode: 0 });
+    await service.shell.run({ command: "pwd" }, callOptions(BETA));
+    expect(env.calls.at(-1)?.options?.cwd).toBe("/projects/beta");
+    const scoped = scopedDeps({ ...deps, threads: pinned }, ALPHA);
+    expect(scoped.env.cwd).toBe("/projects/alpha/kanban-board");
+  });
+
   test("images load relative to the thread workspace", async () => {
     const { deps, env } = fixture(MAP);
     env.put("/projects/alpha/pic.png", pngBytes(4, 3, 64));

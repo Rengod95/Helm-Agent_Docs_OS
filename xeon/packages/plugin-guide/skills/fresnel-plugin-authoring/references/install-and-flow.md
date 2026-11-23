@@ -56,7 +56,7 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 | `authoring_compose` | `sessionId`, `composition` | checks and saves the composition draft (plugin groups) | kind and name not yet confirmed | no |
 | `authoring_scaffold` | `sessionId` | writes the files into `dir` | folder not empty; files already exist | no |
 | `authoring_validate` | `sessionId` | runs manifest, composition, drive replay, and AU checks. A pass moves on to trial | no files yet (`not_scaffolded`) | no. After 3 runs in a row with the same error codes and paths, it asks whether to keep fixing; "no" ends the session |
-| `authoring_trial` | `sessionId`, `prompt`, `profile?` | starts a Test run on the folder | validation has not passed | yes (it uses model calls). Denied runs ask again on the next call |
+| `authoring_trial` | `sessionId` | opens a Test run thread that carries the folder as a draft (nothing is installed). Tell the user to try the plugin in that thread; `authoring_submit` needs a `turnId` from it | validation has not passed | yes (it uses model calls). Denied runs ask again on the next call |
 | `authoring_replay` | `sessionId`, `maxCommits?` | replays the drive | not in development mode (`l3.authoring.devMode`, default off): `dev_mode_required` | no |
 | `authoring_package` | `sessionId`, `out?` | builds the bundle | validation has not passed | yes, before anything is written |
 | `authoring_submit` | `sessionId`, `purpose?`, `turnId?` | sends the folder to the review inbox as a draft (nothing is installed; the user approves it there) | validation has not passed; no Test run yet (`no_evidence`: start `authoring_trial` first); no `turnId` (`no_evidence`: pass a turn of that Test run) | no. The review inbox is the approval step |
@@ -64,11 +64,11 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 
 Notes:
 
-- `authoring_trial` accepts `prompt` and `profile`, but the current code starts the Test run on the folder only and does not pass them on.
+- `authoring_trial` takes only `sessionId`. It does not take a prompt or a profile: the user sends the first message in the Test run thread.
 - `authoring_scaffold` only writes into an empty or missing folder. To work on an existing extension, edit its files directly.
 - Plugin group templates: `scaffold` picks `drive` when the composition has a drive block or no composition is given; `policy` when every `on` block hooks only `tool.call.before`; `observe` otherwise. Single plugins use `xeon/packages/core-authoring/templates/single-plugin/`.
 - Placeholders `__ID__`, `__TITLE__`, `__VERSION__` are filled in. The version starts at `0.1.0`.
-- Write guard: while a session is open, a write or exec tool call must stay inside `dir`. Shell command strings are not inspected for paths; only the working folder is checked.
+- Write guard: while a session is open, a write or exec tool call must stay inside `dir`. `bash` runs in `dir` (the host pins the shell to it), even when the conversation's work folder is somewhere else; a relative path in a file tool also starts from `dir`. Shell command strings are not inspected for paths; only the working folder is checked.
 - An open session survives restarts; the session posts a status notice when a conversation resumes.
 
 ## Packaging (`packExtension`)

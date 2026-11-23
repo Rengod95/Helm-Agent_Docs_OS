@@ -1,6 +1,6 @@
 import { defineManifest } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { DevkitService } from "@fresnel/contracts/services";
+import type { DevkitService, ShellFolderPins } from "@fresnel/contracts/services";
 import {
   defineOrchestration,
   type OrchestrationManifest,
@@ -55,6 +55,11 @@ export interface AuthoringDeps {
   readonly fixLoopLimit?: () => number;
   /** 대화의 작업 폴더(절대 경로). 상대 `dir`을 푸는 기준이고 없으면 상대 경로로 세션을 열지 않는다 */
   readonly workspaceOf?: (threadId: ThreadId) => string | undefined;
+  /**
+   * 대화의 셸 작업 폴더를 고정하는 포트(`ShellFolderPins`). 제작 대화가 열려 있는 동안 `bash`가 대상 폴더에서 돌게 한다(§4.2).
+   * 없으면 입력에 작업 폴더가 없는 `bash`는 막힌다
+   */
+  readonly shellPins?: Pick<ShellFolderPins, "pin">;
 }
 
 const DEFAULT_FIX_LOOP_LIMIT = 3;
@@ -81,9 +86,15 @@ export function createAuthoringOrchestration(deps: AuthoringDeps): Orchestration
       // 쓰기 범위 가드(§4.2). 대화가 열려 있는 동안만 켜지고, 이 그룹이 꺼지면 핸들러도 풀린다
       g.on("tool.call.before", (call, ctx) => {
         const { state } = ctx;
-        if (!sessionOpen(state) || state.dir === null) return undefined;
+        const threadId = ctx.threadId;
+        const open = sessionOpen(state) && state.dir !== null ? state.dir : null;
+        // 셸 작업 폴더 고정은 호출마다 다시 건다: 열려 있으면 대상 폴더로, 닫혔으면 푼다(다음 호출 앞에서 풀리므로 낡은 고정이 남지 않는다)
+        deps.shellPins?.pin(threadId, open);
+        if (open === null) return undefined;
         if (AUTHORING_TOOL_NAMES.some((name) => name === call.toolName)) return undefined;
-        return authoringWriteGuard(state.dir, call);
+        return authoringWriteGuard(open, call, {
+          shellPinned: deps.shellPins !== undefined,
+        });
       });
       // 대화 복원: 상태 문서는 엔진 재시작 뒤에도 남아 있으므로 열린 대화를 알린다
       g.on("thread.start", async (_payload, ctx) => {

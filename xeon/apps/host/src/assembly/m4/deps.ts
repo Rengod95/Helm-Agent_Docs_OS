@@ -14,6 +14,7 @@ import type { TestRunMarks } from "../measure/test-run-marks.ts";
 import type { DialogAreaHolder } from "./dialog-area-bridge.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import type { PluginLifecycle } from "./plugin-set.ts";
+import type { TestRunDraftsPort } from "../plugins/test-run-drafts.ts";
 
 // M4 포트 구현이 받는 의존. 계측 읽기와 Test run 제어는 계약의 포트 타입이라 소유 트랙이 ext-host를 기다리지 않는다.
 // T-F 시점에는 빈 구현을 넘기고, T-XD의 마지막 커밋이 `index.ts`에서 ext-host 구현으로 바꾼다(`spec-deltas/t-f.md` §5 4번).
@@ -50,6 +51,13 @@ export interface M4EngineDeps {
    * 조립 루트가 `ports.ts`의 플러그인 서비스와 검토 서비스에서 넘긴다. 없으면 두 메서드는 `io`다
    */
   readonly plugins?: DevkitPluginFacts;
+  /**
+   * Test run 초안 구성(`testRun.start`와 같은 포트, M5c §4.8.1). 설치하지 않은 폴더의 Test run(`trialRun`)이 초안을 싣고 대화에 묶는 데 쓴다.
+   * 없으면 `trialRun`은 `io`다
+   */
+  readonly testRunDrafts?: Pick<TestRunDraftsPort, "prepare" | "bind">;
+  /** 폴더를 초안으로 만든다(`plugin.draft.create`와 같은 길). `trialRun`이 쓴다. 없으면 `trialRun`은 `io`다 */
+  readonly draftCreate?: PluginPort["draftCreate"];
   /**
    * 발견의 근거 묶음(`findings.bundle`과 같은 값, 턴 기록 읽기 포트). 빌더의 `authoring_context`가 발견 참조에 싣는다.
    * 없으면 발견 참조의 `bundle`은 null이다

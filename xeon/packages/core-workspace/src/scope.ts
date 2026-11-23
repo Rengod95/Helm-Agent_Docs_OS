@@ -18,6 +18,9 @@ export function scopedDeps<S extends WorkspaceShellSettings>(
 ): WorkspaceDeps<S> {
   const { threads } = deps;
   if (threads === undefined || threadId === undefined) return deps;
+  // 그룹이 고정한 셸 작업 폴더(제작 대화의 대상 폴더)는 대화의 작업 폴더와 테스트 대화 규칙보다 먼저다
+  const pinned = threads.pinnedFolderOf?.(threadId);
+  if (pinned !== undefined) return pinnedDeps(deps, threads, pinned);
   // 테스트 대화는 쓰기 범위가 작업 폴더 규칙과 다르다(M5c §4.8.7). 표지가 있으면 그 규칙을 쓴다
   const craft = threads.craftScopeOf?.(threadId);
   if (craft !== undefined) return craftScopedDeps(deps, threads, craft.folder);
@@ -51,6 +54,24 @@ function craftScopedDeps<S extends WorkspaceShellSettings>(
       ...deps.roots,
       env,
       roots: (context) => craftRoots(env, context, folder, deps.roots.outputs),
+    },
+  };
+}
+
+/** 고정한 폴더가 cwd이고 읽기·쓰기 root 하나다(일반 대화의 작업 폴더와 같은 규칙) */
+function pinnedDeps<S extends WorkspaceShellSettings>(
+  deps: WorkspaceDeps<S>,
+  threads: ThreadWorkspaces,
+  folder: string,
+): WorkspaceDeps<S> {
+  const env = threads.envAt(folder);
+  return {
+    ...deps,
+    env,
+    roots: {
+      ...deps.roots,
+      env,
+      roots: (context) => defaultRoots(env, context, deps.roots.outputs),
     },
   };
 }

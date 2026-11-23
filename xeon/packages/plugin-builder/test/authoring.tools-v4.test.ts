@@ -36,7 +36,7 @@ async function confirmedNewSession(
 /** 검사를 지나 시험 대화의 턴을 증거로 제출하기 직전까지 간다 */
 async function trialed(rig: OrchestrationRig): Promise<void> {
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
-  await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "demo" });
+  await rig.call("authoring_trial", { sessionId: "auth-demo" });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
   await rig.answer("yes");

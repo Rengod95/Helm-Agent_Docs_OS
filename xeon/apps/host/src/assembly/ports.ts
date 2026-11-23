@@ -1776,6 +1776,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           get: (name) => pluginService.get(name),
           draftList: (name) => pluginReview.draftList(name),
         },
+        draftCreate: (dir, originThreadId) => pluginReview.draftCreate(dir, originThreadId),
+        testRunDrafts,
         // 발견의 근거 묶음(`findings.bundle`과 같은 턴 기록 읽기, M5c §4.8.8)
         findingsBundle: (findingId) => measurePort.turnRecord.findingsBundle(findingId),
       },

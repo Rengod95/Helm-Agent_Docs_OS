@@ -54,6 +54,22 @@ export interface ThreadWorkspaces {
    * 묶이지 않았으면 null이다. 있으면 허용 root는 `craftRoots`가 정하고 작업 폴더 규칙(`workspaceOf`)은 쓰지 않는다
    */
   craftScopeOf?(threadId: ThreadId): { readonly folder: string | null } | undefined;
+  /**
+   * 그룹이 고정한 셸 작업 폴더(L3.authoring.spec §4.2). 있으면 대화의 작업 폴더나 테스트 대화 규칙보다 먼저 쓰고,
+   * 그 폴더가 상대 경로의 기준(cwd)이자 쓰기 root 하나가 된다. 없으면 undefined다
+   */
+  pinnedFolderOf?(threadId: ThreadId): string | undefined;
+}
+
+/**
+ * 대화의 셸 작업 폴더를 고정하는 포트. 제작 그룹이 제작 대화가 열려 있는 동안 대상 폴더로 고정하고, 닫히면 푼다.
+ * 조립 루트가 한 인스턴스를 만들어 쓰는 쪽(그룹)과 읽는 쪽(cap-workspace)에 같이 넘긴다. 상태는 메모리뿐이고 그룹이 호출마다 다시 건다
+ */
+export interface ShellFolderPins {
+  /** 고정한 폴더(절대 경로). 없으면 undefined */
+  folderOf(threadId: ThreadId): string | undefined;
+  /** `folder`를 고정한다. null이면 푼다 */
+  pin(threadId: ThreadId, folder: string | null): void;
 }
 
 /** 허용 root. 정규 경로(심볼릭 링크를 푼 절대 경로) 목록 */

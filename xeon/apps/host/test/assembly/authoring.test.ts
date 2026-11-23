@@ -113,7 +113,7 @@ test("a missing port is an io error for replay, test runs and the other calls", 
   const service = devkitServiceOf(wiringOf(undefined));
   const notReady: DevkitError = { kind: "io", message: "the devkit is not ready yet" };
   expect(await service.replay({ target: "/w/demo" })).toEqual(err(notReady));
-  expect(await service.testRun({ target: "/w/demo" })).toEqual(err(notReady));
+  expect(await service.testRun({ dir: "/w/demo" })).toEqual(err(notReady));
   expect(await service.validate("/w/demo")).toEqual(err(notReady));
   expect(await service.kinds()).toEqual([]);
   expect(
@@ -139,13 +139,11 @@ test("replay runs ext.test.run of kind replay and returns the report its record 
   const port = partial<DevkitPort>({
     testRun: (params) => {
       seen.push(params);
-      return Promise.resolve(
-        ok(
-          params.kind === "replay"
-            ? { testId: "t-9", threadId: null }
-            : { testId: "t-10", threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" },
-        ),
-      );
+      return Promise.resolve(ok({ testId: "t-9", threadId: null }));
+    },
+    trialRun: (input) => {
+      seen.push({ trial: input });
+      return Promise.resolve(ok({ testId: "t-10", threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }));
     },
     testList: () =>
       Promise.resolve(
@@ -168,31 +166,31 @@ test("replay runs ext.test.run of kind replay and returns the report its record 
   const service = devkitServiceOf(wiringOf(port));
   expect(await service.replay({ target: "demo", maxCommits: 20 })).toEqual(ok(report));
   expect(await service.replay({ target: "demo" })).toEqual(ok(report));
-  expect(await service.testRun({ target: "demo", profileId: "p-1", workspace: "/w" })).toEqual(
+  expect(await service.testRun({ dir: "/w/demo", profileId: "p-1", workspace: "/w" })).toEqual(
     ok({ threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }),
   );
   expect(seen).toEqual([
     { kind: "replay", target: "demo", options: { maxCommits: 20 } },
     { kind: "replay", target: "demo" },
-    { kind: "testRun", target: "demo", options: { profileId: "p-1", workspace: "/w" } },
+    { trial: { dir: "/w/demo", profileId: "p-1", workspace: "/w" } },
   ]);
 });
 
-test("the port's refusals reach the service unchanged: dev_mode_required for replay, and a test run that opened no thread is io", async () => {
+test("the port's refusals reach the service unchanged: dev_mode_required for replay, and a folder test run refusal is returned as it is", async () => {
   const port = partial<DevkitPort>({
-    testRun: (params) =>
+    testRun: () =>
       Promise.resolve(
-        params.kind === "replay"
-          ? err({ kind: "dev_mode_required", message: "replay runs only in development mode" })
-          : ok({ testId: "t-11", threadId: null }),
+        err({ kind: "dev_mode_required", message: "replay runs only in development mode" }),
       ),
+    trialRun: () =>
+      Promise.resolve(err({ kind: "invalid_input", message: "the plugin folder is not valid" })),
   });
   const service = devkitServiceOf(wiringOf(port));
   expect(await service.replay({ target: "demo" })).toEqual(
     err({ kind: "dev_mode_required", message: "replay runs only in development mode" }),
   );
-  expect(await service.testRun({ target: "demo" })).toEqual(
-    err({ kind: "io", message: "the test run did not open a thread" }),
+  expect(await service.testRun({ dir: "/w/demo" })).toEqual(
+    err({ kind: "invalid_input", message: "the plugin folder is not valid" }),
   );
 });
 
@@ -202,18 +200,18 @@ test("the port's refusals reach the service unchanged: dev_mode_required for rep
 test("the devkit's test run never carries a draft approval: a draftApproval the caller adds is dropped before the port, so the run is ask", async () => {
   const seen: unknown[] = [];
   const port = partial<DevkitPort>({
-    testRun: (params) => {
-      seen.push(params);
+    trialRun: (input) => {
+      seen.push(input);
       return Promise.resolve(ok({ testId: "t-12", threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }));
     },
   });
   const service = devkitServiceOf(wiringOf(port));
-  // 타입은 `draftApproval`을 받지 않는다. 값으로 실어 보내도 포트의 `testRun`에는 가지 않는다
-  const attempt = { target: "demo", draftApproval: "auto" };
+  // 타입은 `draftApproval`을 받지 않는다. 값으로 실어 보내도 포트의 `trialRun`에는 가지 않는다
+  const attempt = { dir: "/w/demo", draftApproval: "auto" };
   expect(await service.testRun(attempt)).toEqual(
     ok({ threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }),
   );
-  expect(seen).toEqual([{ kind: "testRun", target: "demo", options: {} }]);
+  expect(seen).toEqual([{ dir: "/w/demo" }]);
 });
 
 test("the wire test-run params refuse a draftApproval field: only the screen's test-run call can name one, and it does so on testRun.start", () => {

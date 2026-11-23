@@ -1,7 +1,7 @@
 import { err, ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionUnit } from "@fresnel/ext-host";
-import type { DevkitService } from "@fresnel/contracts/services";
+import type { DevkitService, ShellFolderPins } from "@fresnel/contracts/services";
 import {
   createAuthoringOrchestration,
   type AuthoringDeps,
@@ -30,6 +30,20 @@ export interface AuthoringWiring {
   readonly guide?: AuthoringGuide | undefined;
   /** 대화의 작업 폴더. 상대 `dir`을 푸는 기준이다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
+  /** 대화의 셸 작업 폴더 고정(제작 대화의 `bash`가 대상 폴더에서 돈다, L3.authoring.spec §4.2). `cap-workspace`와 같은 인스턴스다 */
+  readonly shellPins?: ShellFolderPins;
+}
+
+/** 대화별 셸 작업 폴더 고정(메모리). 제작 그룹이 호출 앞에서 걸고 `cap-workspace`가 셸을 돌릴 때 읽는다 */
+export function createShellFolderPins(): ShellFolderPins {
+  const pins = new Map<ThreadId, string>();
+  return {
+    folderOf: (threadId) => pins.get(threadId),
+    pin(threadId, folder) {
+      if (folder === null) pins.delete(threadId);
+      else pins.set(threadId, folder);
+    },
+  };
 }
 
 const NOT_READY = { kind: "io", message: "the devkit is not ready yet" } as const;
@@ -52,18 +66,12 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
     testRun: async (input) => {
       const found = port();
       if (found === undefined) return err(NOT_READY);
-      const run = await found.testRun({
-        kind: "testRun",
-        target: input.target,
-        options: {
-          ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
-          ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
-        },
+      const run = await found.trialRun({
+        dir: input.dir,
+        ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
+        ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
       });
       if (!run.ok) return run;
-      if (run.value.threadId === null) {
-        return err({ kind: "io", message: "the test run did not open a thread" });
-      }
       return ok({ threadId: run.value.threadId });
     },
     replay: async (input) => {
@@ -99,6 +107,7 @@ export function authoringDepsOf(wiring: AuthoringWiring): AuthoringDeps {
     ...(wiring.guide === undefined ? {} : { guide: wiring.guide }),
     devMode: wiring.devMode,
     workspaceOf: wiring.workspaceOf,
+    ...(wiring.shellPins === undefined ? {} : { shellPins: wiring.shellPins }),
   };
 }
 

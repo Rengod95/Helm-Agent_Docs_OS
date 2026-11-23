@@ -47,7 +47,7 @@ function drive(): {
     },
     validateComposition: () => OK_REPORT,
     testRun: (input) => {
-      calls.push(`testRun:${input.target}`);
+      calls.push(`testRun:${input.dir}`);
       return Promise.resolve(ok({ threadId: "thr_trial" }));
     },
     replay: () => Promise.resolve(err({ kind: "dev_mode_required", message: "not in dev" })),

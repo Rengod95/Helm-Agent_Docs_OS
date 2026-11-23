@@ -167,7 +167,7 @@ export function devkitProbe(): DevkitProbe {
       },
       validateComposition: () => OK_REPORT,
       testRun: async (input) => {
-        calls.push(`testRun:${input.target}`);
+        calls.push(`testRun:${input.dir}`);
         return ok({ threadId: "thr_trial" });
       },
       replay: async (input) => {

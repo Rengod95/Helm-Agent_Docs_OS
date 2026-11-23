@@ -489,6 +489,10 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           protectPaths: protectPathsStoreOf(settings, deps.groups.store),
           // 편집 도구의 원본 저장과 파일 되감기 이벤트 id(L1.persistence.spec §4.13.2). 없으면 원본을 저장하지 않는다
           ids: deps.ids,
+          // 제작 대화의 셸 작업 폴더 고정(L3.authoring.spec §4.2). 제작 그룹과 같은 인스턴스다
+          ...(deps.authoring.shellPins === undefined
+            ? {}
+            : { shellPins: deps.authoring.shellPins }),
           loadIndex,
         }),
     ],
