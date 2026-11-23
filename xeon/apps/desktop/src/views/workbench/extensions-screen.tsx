@@ -12,6 +12,7 @@ import { firstNoticeOf, ListStatusBand, noticeTotalOf, SearchField } from "./cra
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { BuilderEntry } from "./builder-entry.tsx";
 import { ExtDetail } from "./ext-detail.tsx";
+import { DETAIL_RAIL_INSET } from "./detail-rail.ts";
 import { InstallDialog } from "./install-dialog.tsx";
 import { PluginList } from "./plugin-list.tsx";
 import { DEFAULT_LIST_VIEW, listViewOf, type ListView } from "./list-view.ts";
@@ -166,7 +167,8 @@ export function ExtensionsScreen(): ReactNode {
           </Alert>
         )}
         {ready && detailEntry !== null && (
-          <div className="min-h-0 flex-1 overflow-auto">
+          // 머리가 감춰진 상세는 셸의 머리 뒤 여백을 받지 못하므로 이 칸이 막대 자리를 비운다(`detail-rail.ts`)
+          <div className={`min-h-0 flex-1 overflow-auto ${DETAIL_RAIL_INSET}`}>
             <ExtDetail
               key={detailEntry.name}
               entry={detailEntry}
