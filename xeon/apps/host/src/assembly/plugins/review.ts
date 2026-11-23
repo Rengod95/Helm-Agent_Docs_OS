@@ -17,6 +17,7 @@ import type {
   ImportedHookOrigin,
   PluginCard,
   PluginOriginKind,
+  PluginStorePort,
   PluginSubmitPort,
   PluginSubmitRequest,
   PluginSubmitResult,
@@ -155,6 +156,8 @@ export interface PluginReviewDeps {
    * 생략하면 장부가 비어 있는 것과 같다
    */
   readonly appEdits?: Pick<AppEditLedger, "has">;
+  /** 플러그인 전용 저장소의 사용량. 제거 미리 보기가 "저장한 상태도 같이 지워져요"를 띄울지(`removes.state`) 정한다. 생략하면 거짓 */
+  readonly pluginData?: Pick<PluginStorePort, "usage">;
   /** 설치된 플러그인 사실. 제거 요청이 hard로 기대는 플러그인이 있는지 본다(AGE-33). 생략하면 검사하지 않는다 */
   readonly facts?: () => readonly PluginFact[];
 }
@@ -471,12 +474,15 @@ function draftStoreFailure(error: PluginStoreError): PluginPortFailure {
   return storeFailure(error);
 }
 
-/** 제거 미리 보기: 이름을 든 프로필과 공통 묶음. 같이 지워지는 상태와 기록 수는 알 수 없어 `removes`에 적지 않는다 */
-function removalOf(
+/** 제거 미리 보기: 이름을 든 프로필과 공통 묶음. 전용 저장소에 값이 있으면 `removes.state`가 참이다(제거 승인이 그 이름 공간을 지운다). 기록 수는 알 수 없어 null이다 */
+async function removalOf(
   profiles: ProfileListResult,
   name: string,
   baseCard: PluginCard,
-): ReviewItemRemoval {
+  data: Pick<PluginStorePort, "usage"> | undefined,
+): Promise<ReviewItemRemoval> {
+  const usage = data === undefined ? null : await data.usage(name);
+  const state = usage !== null && usage.ok && usage.value.keys > 0;
   const affected = profiles.profiles
     .filter((profile) => profile.plugins.some((ref) => ref.name === name))
     .map((profile) => ({ profileId: profile.id, title: profile.title.slice(0, 128) }));
@@ -484,7 +490,7 @@ function removalOf(
     // 표시 이름은 화면이 `common` id로 정한다. 호스트는 사람이 읽는 문구를 두지 않는다
     affected.push({ profileId: "common", title: "common" });
   }
-  return { affectedProfiles: affected, removes: { state: false, records: null }, baseCard };
+  return { affectedProfiles: affected, removes: { state, records: null }, baseCard };
 }
 
 /**
@@ -955,7 +961,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
           diff: diffCards(current.meta.card, null),
           evidence: [],
           files: [],
-          removal: removalOf(profiles.value, name, current.meta.card),
+          removal: await removalOf(profiles.value, name, current.meta.card, deps.pluginData),
         },
         deps.now(),
       ),
@@ -1520,7 +1526,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
               diff: diffCards(reviewed.value?.meta.card ?? null, null),
               evidence: [],
               files: [],
-              removal: removalOf(profiles.value, name, got.value.card),
+              removal: await removalOf(profiles.value, name, got.value.card, deps.pluginData),
             },
             deps.now(),
           ),
