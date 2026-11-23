@@ -108,6 +108,8 @@ function ownerOf(key: string): string | null {
 
 /** 관리 범위가 이 플러그인의 켜짐(`ext.<name>.enabled`)을 거짓으로 잠갔는가(M5c §4.1.10) */
 function managedOff(env: M4HostEnv, plugin: string): boolean {
+  // 엔진이 필요로 하는 플러그인은 관리 잠금이 거짓이어도 켜 둔다(AGE-74)
+  if (REQUIRED_BY_CORE.has(plugin)) return false;
   const managed = env.settings.layers(undefined).find((layer) => layer.scope === "managed");
   return managed?.values.get(`ext.${plugin}.enabled`) === false;
 }

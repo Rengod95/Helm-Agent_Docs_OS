@@ -1228,7 +1228,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3623 | `plugin.symlinkRefused` | false | 후보 폴더에 심볼릭 링크가 있다 | - |
 | 3624 | `plugin.exists` | false | 같은 이름의 플러그인 폴더가 이미 있다 | `name` |
 | 3625 | `plugin.noReviewedCopy` | false | 현재 검토본이 남아 있지 않다 | `name` |
-| 3626 | `plugin.requiredByCore` | false | 코어 분할 전까지 뺄 수 없는 내장 플러그인이다. 프로필 편집(`profile.put`, `profile.common.put`, `profile.removePlugin`)이 이전 목록에서 `cap-workspace`·`cap-dialog`를 빼면 낸다(M5c §4.1.17, 2026-11-18 구현) | `plugin` |
+| 3626 | `plugin.requiredByCore` | false | 코어 분할 전까지 뺄 수 없는 내장 플러그인이다. 프로필 편집(`profile.put`, `profile.common.put`, `profile.removePlugin`)이 이전 목록에서 `cap-workspace`·`cap-dialog`를 빼면 낸다(M5c §4.1.17, 2026-11-18 구현). `settings.set`이 `ext.<이름>.enabled`를 `false`로 쓸 때도 어느 범위든 이 이름이면 낸다(AGE-74, 범위 검사보다 먼저) | `plugin` |
 | 3627 | `plugin.dependency` | false | 플러그인 의존(`dependsOn`)이 맞지 않아 거절했다. `reason`이 `unmet`이면 설치·승인 때 hard 대상이 없다, `required_by`이면 끄기·삭제가 hard로 기대는 곳을 깬다, `breaks_range`이면 새 판이 기대는 쪽의 `range`를 깬다(AGE-33) | `reason`, `plugin`, `items`(`from`, `target`, `kind`, `range`, `problem`, `found`) |
 | 3651 | `pluginReview.notFound` | false | 그 id의 검토 항목이 남아 있지 않다 | `id` |
 | 3652 | `pluginReview.notPending` | false | 대기 상태가 아닌 항목이다 | `id` |

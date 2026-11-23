@@ -1,6 +1,7 @@
 import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
 import type { LoaderSettingsSource } from "@fresnel/ext-host";
 import type { SettingsEngine } from "./settings-engine.ts";
+import { REQUIRED_BY_CORE } from "./m4/profile-defaults.ts";
 
 // 로더의 설정 읽기(X.loading-trust §4.5, §4.9.0)를 엔진 설정으로 채운다. 로더는 확장을 싣는 동안 예약 키(`ext.<이름>.enabled`,
 // `ext.<이름>.isolation`)와 사용자 정의 키를 카탈로그에 아직 넣지 않았을 수 있다(`registerExtensionKeys`는 적재 뒤에 부른다).
@@ -19,6 +20,8 @@ export function extSettingsOf(
     // 잠금 값만 준다: 관리 범위가 거짓으로 잠근 경우만 `false`다. 매니페스트 기본(`defaultEnabled: false`)과 사용자 값은
     // 잠금이 아니다. 켜짐은 대화별 E(T)가 정한다(M5c §4.1.10). 키가 카탈로그에 아직 없으면 사용자 파일 값을 본다(예전 동작)
     enabled: (name) => {
+      // 엔진이 필요로 하는 플러그인은 꺼짐 값이 저장돼 있어도 무시하고 싣는다(AGE-74)
+      if (REQUIRED_BY_CORE.has(name)) return undefined;
       const key = `ext.${name}.enabled`;
       const def = catalog.get(key);
       if (def === undefined) {

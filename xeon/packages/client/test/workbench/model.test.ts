@@ -162,6 +162,14 @@ describe("workbench model", () => {
     expect(byName["acme"]).toMatchObject({ state: "safe_excluded", lock: "safe_mode" });
   });
 
+  test("엔진이 필요로 하는 플러그인(켜짐 출처 core)은 required로 잠기고 끄기 요청을 거절한다", () => {
+    const state = listLoaded(INITIAL_WORKBENCH, [
+      entry("cap-workspace", { enabledSource: "core" }),
+    ]);
+    expect(visibleRows(state)[0]).toMatchObject({ name: "cap-workspace", lock: "required" });
+    expect(toggleRequestOf(state, "cap-workspace", false)).toEqual({ ok: false, reason: "locked" });
+  });
+
   test("찾기는 이름과 표시 이름을 대소문자 없이 거른다", () => {
     expect(visibleRows(setQuery(base, "웹")).map((r) => r.name)).toEqual(["web"]);
     expect(visibleRows(setQuery(base, "HEL")).map((r) => r.name)).toEqual(["helm"]);
