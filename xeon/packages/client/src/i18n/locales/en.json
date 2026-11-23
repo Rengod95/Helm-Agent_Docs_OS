@@ -275,6 +275,8 @@
   "cli.errors.engineStart.catalogConflict.messageWithKeys": "Setting key definitions conflict ({keys})",
   "cli.errors.engineStart.dataDirPermission.fix": "Check the directory permissions and the file system type",
   "cli.errors.engineStart.dataDirPermission.message": "Cannot write to the data directory",
+  "cli.errors.engineStart.dataDirTooOpen.fix": "Run: chmod 700 {path}",
+  "cli.errors.engineStart.dataDirTooOpen.message": "The folder {path} is open to other users, so the engine will not start",
   "cli.errors.engineStart.dataDirUnwritable.fix": "Check the owner and write permission of the data folder and fresnel.db",
   "cli.errors.engineStart.dataDirUnwritable.message": "Cannot write to the data folder or the database file",
   "cli.errors.engineStart.fts5Missing.fix": "Install SQLite with FTS5 (macOS: brew install sqlite)",
