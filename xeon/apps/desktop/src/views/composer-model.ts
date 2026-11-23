@@ -143,12 +143,17 @@ export type WithdrawState =
   | { readonly status: "placed" }
   | { readonly status: "failed"; readonly message: string };
 
-/** 칩에 보이는 대기 입력: 사용자와 확장의 입력만 칩이 되고, 화면에 그리지 않는 내부 지시(`display: false`)는 칩이 되지 않는다. 위임 완료 보고와 예약 입력은 칩으로 보이지 않는다 */
+/**
+ * 칩에 보이는 대기 입력: 사용자와 확장의 입력만 칩이 되고, 화면에 그리지 않는 내부 지시(`display: false`)는 칩이 되지 않는다. 위임 완료 보고와 예약 입력은 칩으로 보이지 않는다.
+ * Helm 안내(`grp.helm.*` 맥락 알림, `when: "next"`)도 칩이 아니다: 다음 턴에 저절로 붙고 사용자가 할 일이 없어서, 탐구가 끝난 뒤에도
+ * "대기 중인 메시지"로 남아 보이던 것을 없앤다(AGE-77 F-42)
+ */
 export function chipInputs(list: readonly QueuedInput[]): readonly QueuedInput[] {
   return list.filter(
     (input) =>
       (input.sourceType === "user" || input.sourceType === "extension") &&
-      !(input.preview.kind === "label" && input.preview.internal === true),
+      !(input.preview.kind === "label" && input.preview.internal === true) &&
+      !(input.preview.kind === "label" && input.preview.labelKey === "helm"),
   );
 }
 
