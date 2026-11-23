@@ -118,10 +118,11 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel db restore <폴더> [--json] [--check]` | `db export`가 만든 폴더를 데이터 디렉터리의 `fresnel.db`로 되돌린다. 엔진을 띄우지 않고, 엔진이 떠 있으면 거절한다(§4.13.1). 종료코드: 성공 0, 폴더 인자 누락과 백업 폴더가 아님 2, 사본 검증 실패·더 새 버전의 사본·엔진 실행 중·저장소·디스크 오류와 데이터 디렉터리 위치 실패 3 | 없음. `deps.restoreDatabase`(`L0.store.spec` §4.10.1)와 `deps.resolveDataDir`를 부른다 | M4 [결정: 2026-11-04 사용자] |
 | `fresnel db usage [--json]` | 데이터 디렉터리와 상태 디렉터리가 쓰는 저장 공간을 엔진을 띄우지 않고 센다. 아무것도 쓰지 않는다(§4.13.2). 종료코드: 성공 0, 데이터 디렉터리 위치 실패와 입출력 오류 3 | 없음. `deps.resolveDataDir`와 `deps.resolveStateDir`(`resolveOsDirs`)를 부른다 | 구현됨(§4.13.2) |
 | `fresnel db previous-rm <이름> [--yes] [--json]` | 복원 전 사본 `restore-previous/<이름>` 하나를 재귀로 지운다. 확인은 `--yes` 또는 터미널의 `[y/N]`이다(§4.13.2). 종료코드: 성공 0, 확인 거절 1, 이름·사본·터미널 사용법 오류 2, 위치와 입출력 오류 3 | 없음. `deps.resolveDataDir`를 부른다 | 구현됨(§4.13.2) |
-| `fresnel group new <이름> [--drive\|--policy] [--dir <폴더>] [--json]` | 플러그인 골격을 만든다. 기본은 observe 템플릿, `--drive`는 drive, `--policy`는 policy 템플릿이다. 두 플래그를 함께 주면 사용법 오류(2)다. 대상 폴더는 비어 있어야 하고 기본은 작업 폴더의 `<이름>`이다. 엔진에 연결하지 않고 템플릿 파일만 읽는다(§3.8) | 없음. 파일 작업(`CliDeps.groupTemplates`) | M3b(구현됨, M3b B4-GRP) |
 | `fresnel author scaffold <이름> --dir <폴더> [--group] [--json]`, `author validate <폴더> [--json]`, `author pack <폴더> [--out <폴더>] [--json]`, `author install <묶음 폴더> [--yes] [--json]`, `author remove <이름> [--drop-data] [--yes] [--json]`, `author ls [--json]` | 모델 없이 도는 제작 명령이다. 엔진의 `ext.scaffold`, `ext.validate`, `ext.package`, `plugin.draft.create`와 `pluginReview.submitDraft`(`author install`은 폴더를 검토함에 올린다. 설치하지 않으며 승인은 검토함에서 한다, M5c §4.9), `plugin.requestRemove`(`author remove`는 지우기 검토 항목을 만든다. `--drop-data`는 `not_available`), `ext.list`를 부르고 `@fresnel/plugin-builder`를 직접 읽지 않는다(DR-10). `validate`는 검사 결과를 줄마다 `<심각도> <코드> <경로>: <메시지>`로 stderr에 쓰고 오류가 있으면 1이다. `pack`은 먼저 검사해 오류가 있으면 같은 줄들을 쓰고 1로 끝낸다. `install`은 미리 보기(이름, 버전, 내용 해시, 훅, 네트워크·파일·명령 실행 접근)를 stderr에 쓴 뒤 `--yes`가 있거나 터미널에서 y를 받아야 설치한다. 터미널이 아니고 `--yes`도 없으면 2다. `remove`도 같다. `ls`는 사용자 확장 위치에 설치돼 로더가 읽은 확장(기본 플러그인 포함)을 보인다. [결정: 오케스트레이터 기본값, scI] 이름은 L3.authoring.spec §4.5의 `fresnel author <명령>` [제안]을 따랐다 | `ext.*`(M4) | M4 |
 | `fresnel usage [--thread <id>] [--json]` | 모델 사용량. `usage.get { threadId? }`를 한 번 보내고, session 창 게이지를 provider별로 모아 한 줄씩(토큰, 비용 $, 호출 수, 캐시 읽기·쓰기), provider가 둘 이상이면 합계 줄, `--thread`면 컨텍스트 줄(`context`)을 stdout에 쓴다. `--thread`가 없으면 모든 대화의 합이다. 기록이 비면 안내 한 줄만 쓴다. `--json`은 `usage.get` 결과를 그대로 쓴다. 기간(`--since`)은 `usage.get`이 시간 창을 만들지 않아(`L4.host-service.spec` §10 46번) 받지 않는다 [기본값: CLI 스펙에 사용량 명령이 없어 `fresnel usage [--thread <id>] [--json]`로 정했다] | `usage.get` | M4 |
 | `fresnel version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
+
+[제거: 2026-11-23 사용자, AGE-33] `fresnel group new`(플러그인 뼈대 만들기) 명령을 지웠다. 플러그인은 데스크톱의 플러그인 빌더로 만든다.
 
 - `service start`에 `--listen-tcp`를 주었는데 서비스가 이미 떠 있고 그 주소로 열려 있지 않으면, TCP는 열지 않고 stderr에 "the service was already running, so --listen-tcp was not applied; ..." 경고를 쓴다. 종료 코드는 0이다 [결정: 오케스트레이터 기본값, fxRM]. `service status`는 TCP가 열려 있으면 `tcp <호스트>:<포트>` 줄을 보인다(접속 토큰은 보이지 않는다). `idle shutdown`은 유휴 종료 시각이 있으면 `at <ISO>`, 없으면 `none (clients are connected)`로 보인다. `--json` 출력은 그대로다 [결정: 오케스트레이터 기본값, fxRM].
 
@@ -372,7 +373,6 @@ export declare function runCli(argv: readonly string[], io: CliIo, deps: CliDeps
   - `EngineHandle.secretOutOfBand`: in-process 접속에서 값 입력·열람 수단을 wire 밖으로 맡기는 통로(`SecretOutOfBandPort`, `InProcessHost.secretOutOfBand`). 서비스 접속은 null이다.
   - `EngineHandle.supports(feature)`: `host.hello`의 `features`(active, experimental)에 그 이름이 있는지. 호스트가 아직 구현하지 않은 메서드(`turn.interrupt`, `thread.open`, `approval.list`, `events.unsubscribe`)를 쓰기 전에 거른다.
 - M3b B3-DATA에서 더한 필드: `CliDeps.exportDatabase`(`@fresnel/platform-store`의 `exportDatabase`를 감싼 비동기 함수. 부를 때 모듈을 읽는다)와 `CliDeps.resolveDataDir`(`@fresnel/platform-os`의 `resolveOsDirs`가 정한 데이터 디렉터리의 절대 경로, 정할 수 없으면 null). 둘 다 엔진을 띄우지 않는다. 시험은 가짜를 넣는다.
-  - M3b에서 더한 필드: `CliDeps.groupTemplates`(`GroupTemplatesPort`, §3.8). 실제 값은 `src/group/fs-port.ts`의 `createGroupTemplatesFs`이고 `runtime.ts`가 조립한다.
 - `main.ts`의 최상위 코드는 `process.argv.slice(2)`, 실제 `CliIo`, `CliDeps`(`connectEngine`과 `@fresnel/host`의 `runHostCommand`)로 `runCli`를 부르고 `process.exit(code)`만 한다. 최상위 await를 쓰지 않는다(`bun build --compile --bytecode`). 실제 `CliIo`·`CliDeps`를 만드는 코드는 `runtime.ts`에 있고 `main.ts`가 필요할 때 읽는다.
 
 ### 3.5 렌더러
@@ -478,7 +478,6 @@ export const EXIT: {
 - 129, 143은 pi print 모드의 신호 종료 값을 따라 더한 것이다 [제안](`print-mode.ts:60`).
 - `runHostCommand`를 부르는 명령(`host --stdio`, `service *`, `config schema`)은 반환값 0·1·2를 그대로 종료 코드로 쓴다. 이 경로의 시작 거부(SV-05 권한 검사, `AssembleError`)는 3이 아닌 1이다(`L4.host-service.spec` §3.3.5).
 - `author *`의 종료 코드 [결정: 오케스트레이터 기본값, scI]: 1은 검사 오류(`validate`, `pack`)와 확인 거절, 2는 인자 오류와 터미널이 아닌데 `--yes`가 없는 `install`·`remove`, wire가 입력을 거절한 경우(`jsonrpc.invalidParams`: 이미 설치된 폴더가 묶음이 아님, 폴더 없음 등)다. 엔진을 세우지 못하면 §4.1 표를 따른다.
-- `group new`(§3.8)의 종료 코드: 2는 플래그 충돌, 이름 형식이나 예약 이름, 설치된 확장과 이름 겹침, 대상 폴더가 비어 있지 않음, 생성한 매니페스트의 검사 실패다. 3은 템플릿 위치나 색인 문제, 파일 읽기와 쓰기 실패다.
 
 ### 3.7 CLI 상태 파일
 
@@ -504,36 +503,6 @@ export type CliState = Static<typeof CliStateSchema>;
 - 위치는 `EngineHandle.paths.cliStateFile`이다. 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
 - 쓰기는 임시 파일에 쓴 뒤 이름 바꾸기로 한다. 권한은 0600 [제안].
 - 이 파일은 캐시다. 깨졌거나 스키마가 맞지 않으면 버리고 `--continue`는 "이어 열 대화이 없다"로 처리한다. M2부터 `--continue`는 `thread.list`를 정본으로 쓰고 이 파일은 위치(`position`)만 제공한다. [근거: `xeon/packages/client/src/i18n/locales/ko.json`의 `cli.errors.chat.noThread.message`]
-
-### 3.8 플러그인 생성 명령 `fresnel group new` [M3b]
-
-명령의 요구(R1~R6)는 `L3.slots.spec` §3.3.6이 정한다. 이 절은 구현 계약이다.
-
-```ts
-// src/io.ts (CliDeps의 필드)
-export interface GroupTemplatesPort {
-  readIndex(): Promise<Result<string, GroupIoError>>;                  // templates/index.json 텍스트
-  readTemplateFile(rel: string): Promise<Result<Uint8Array, GroupIoError>>;
-  installedExtensionNames(workspace: string): Promise<Result<readonly string[], GroupIoError>>;
-  targetState(path: string): Promise<Result<"absent" | "empty" | "occupied", GroupIoError>>;
-  makeDir(path: string): Promise<Result<void, GroupIoError>>;
-  writeFile(path: string, bytes: Uint8Array): Promise<Result<void, GroupIoError>>;
-  removeDir(path: string, options: { readonly keepRoot: boolean }): Promise<Result<void, GroupIoError>>;
-}
-```
-
-- [spec에 더한 형식] 실패할 수 있는 호출은 `Result`를 돌려준다(`eng.typescript.guide` TY-11). 시험 가짜는 `test/support/group-fs.ts`다. `targetState`는 `isEmptyDir` 대신 세 상태를 준다. 그래야 실패할 때 처음부터 없던 폴더만 지우고 빈 폴더는 남긴다.
-- [결정: 오케스트레이터 기본값] 이름 규칙은 `src/group/rules.ts`가 가진다. `ORCHESTRATION_NAME_PATTERN`, `RESERVED_ORCHESTRATION_NAMES`, 색인 스키마는 `orchestration-sdk`의 값을 옮겨 적은 복사본이다(DR-14). `test/group-rules.test.ts`가 `orchestration-sdk/src/define-group.ts` 텍스트와 비교해 목록이 갈라지면 실패한다.
-- 검사 순서. 파서가 플래그 충돌(R1)과 이름 형식, 예약 이름(R2 앞부분)을 본다. 명령은 색인을 읽고 설치된 확장 이름과 겹치는지 본다(R2). 대상 폴더가 비어 있는지 본다(R3). 템플릿을 메모리에서 읽고 치환한 뒤에 쓴다. 쓴 뒤 `.fresnel-plugin/plugin.json`을 F `validateManifest`로 검사한다(R4). 오류가 있으면 쓴 것을 지운다. 처음부터 있던 빈 폴더는 지우지 않는다.
-- [결정: 오케스트레이터 기본값] R4 실패는 사용법 오류(2)다. 실패의 원인은 템플릿 결함이지만 명령이 생성 결과를 거부한 것이라 환경 문제(3)로 두지 않았다. 템플릿 위치와 색인, 파일 읽기와 쓰기 실패는 3이다.
-- 치환 자리. `__ID__`는 이름, `__TITLE__`은 이름(표시 이름 옵션은 두지 않는다), `__VERSION__`은 `0.1.0`이다. 파일 내용과 경로에 모두 적용한다. 치환 뒤 경로는 템플릿 묶음 이름(`common`, 종류 이름) 한 마디를 뗀 상대 경로다.
-- 대상 폴더. `--dir`이 없으면 작업 폴더 아래 `<이름>`이다. `--dir`이 상대 경로면 작업 폴더 기준이다. 빈 값은 사용법 오류다.
-- 설치된 확장 이름. 사용자 설정 폴더(`<OsDirs.config>/extensions/*`)와 작업 폴더(`.fresnel/extensions/*`)의 `.fresnel-plugin/plugin.json` `name`을 모은다. 작업 폴더의 확장은 신뢰 여부와 관계없이 센다(보수적). 폴더 없이 설치된 기본 플러그인 `helm`, `learning`, `account-rotation`은 `runtime.ts`에 옮겨 적었다([미결] §10 28번). `<OsDirs.config>`는 `@fresnel/platform-os`의 `resolveOsDirs`로 구한다. 같은 함수를 호스트가 쓴다. 매니페스트가 없는 폴더는 건너뛴다. 있는데 읽지 못하면 환경 문제다.
-- 템플릿 위치. 환경 변수 `FRESNEL_GROUP_TEMPLATES_DIR`가 있으면 그 폴더를 쓴다. 없으면 자원 디렉터리(실행 파일이 든 폴더)의 `orchestration-sdk/templates/`를 본다. 릴리즈 아카이브가 여기에 템플릿을 싣는다(`L4.release.spec` §3.1). 그다음 실행 파일의 소스 위치에서 위로 올라가며 `packages/orchestration-sdk/templates`를 찾는다([결정: 오케스트레이터 기본값]). 셋 모두 없으면 3으로 끝난다.
-- R5. 템플릿 코드는 실행하지 않는다. 명령은 파일을 읽고 치환해 쓸 뿐이다. 의존은 설치하지 않고 `bun install`과 `bun test`를 안내한다. 생성 `package.json`에는 생성 코드가 import하는 의존만 적는다(§10 30번, 닫힘).
-- 옵션을 더하지 않는다. 저장소 안 플러그인의 `src/manifest.ts` 형식(`L3.slots.spec` §3.3.2)은 만들지 않고 외부 형식 `.fresnel-plugin/plugin.json`만 쓴다.
-- 출력. 텍스트는 만든 파일 목록과 다음 단계를 쓴다. `--json`은 `{ name, template, dir, files }` 한 개를 쓴다.
-- 시험. `test/group-new.test.ts`는 메모리 가짜로 플래그, 이름, 치환, 정확한 매니페스트 텍스트, 충돌, 비어 있지 않은 폴더, R4 되돌리기, 쓰기 실패 되돌리기, 색인 없음을 본다. `test/group-new-core-diff.test.ts`(`group-new.output-passes-core-diff-check-with-zero-lines`)는 실제 파일 시스템과 실제 `templates/`로 만든 세 플러그인을 임시 저장소에 커밋하고, `scripts/core-diff-check.ts`가 보호 경로를 0줄로 보고하는지 본다. 같은 시험에서 `ext-host` README를 바꾸면 그 경로를 보고하는지도 본다.
 
 ## 4. 동작 규칙
 
@@ -849,7 +818,7 @@ export interface GroupTemplatesPort {
 
 ### 4.10 오류 문구
 
-모든 오류 출력은 두 줄이다: `fresnel: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. 실패한 turn(`turn.completed`가 `failed`)은 이 표가 아니라 `packages/client`의 `classifyTurnFailure`로 종류를 나눠 같은 두 줄로 보인다(print와 대화형, stderr). 원문 JSON은 `--json` 출력에만 남는다. 종류별 이유와 해결은 `render/turn-failure.ts`가 고른다: 키가 없음은 `fresnel secret set <이름>`으로 등록하라고, 키가 있는데 제공자가 거절함(401)과 키를 쓸 수 없음은 같은 명령으로 다시 등록하라고, 권한 없음(403)과 모델 없음은 `fresnel config set l1.models.default <제공자/모델>`, 한도·결제는 제공자 콘솔, 문맥 넘침은 대화형의 `/compact` 또는 더 큰 문맥의 모델, 429는 서버가 알린 초(`[retry-after=N]`) 뒤 다시, 제공자가 바쁨은 잠시 뒤 다시, 시간 초과·끊김·연결은 연결을 확인하고 다시, 모르는 오류는 서버 사유 문장(시크릿 모양은 가린 것)을 한 줄로 줄여 이유에 싣고 `fresnel chat --json`으로 원문을 보라고 한다 [결정: 2026-11-11 사용자] [결정: 오케스트레이터 기본값, fxMR]. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·대화 목록(`sessions`)·플러그인 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.threads.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
+모든 오류 출력은 두 줄이다: `fresnel: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. 실패한 turn(`turn.completed`가 `failed`)은 이 표가 아니라 `packages/client`의 `classifyTurnFailure`로 종류를 나눠 같은 두 줄로 보인다(print와 대화형, stderr). 원문 JSON은 `--json` 출력에만 남는다. 종류별 이유와 해결은 `render/turn-failure.ts`가 고른다: 키가 없음은 `fresnel secret set <이름>`으로 등록하라고, 키가 있는데 제공자가 거절함(401)과 키를 쓸 수 없음은 같은 명령으로 다시 등록하라고, 권한 없음(403)과 모델 없음은 `fresnel config set l1.models.default <제공자/모델>`, 한도·결제는 제공자 콘솔, 문맥 넘침은 대화형의 `/compact` 또는 더 큰 문맥의 모델, 429는 서버가 알린 초(`[retry-after=N]`) 뒤 다시, 제공자가 바쁨은 잠시 뒤 다시, 시간 초과·끊김·연결은 연결을 확인하고 다시, 모르는 오류는 서버 사유 문장(시크릿 모양은 가린 것)을 한 줄로 줄여 이유에 싣고 `fresnel chat --json`으로 원문을 보라고 한다 [결정: 2026-11-11 사용자] [결정: 오케스트레이터 기본값, fxMR]. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·대화 목록(`sessions`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.threads.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
 
 | kind | 문구 요지 | 해결 한 줄 | 종료 코드 |
 |---|---|---|---|
@@ -1238,8 +1207,8 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 25. [미결] `db export`의 저장소 파일 이름(`fresnel.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@fresnel/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
 26. [미결] `apps/cli` → `@fresnel/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.
 27. [결정: 오케스트레이터 기본값, M3b B1-SCH2] `schedule add`의 기본값과 상한: `--workspace`를 빼면 host의 기본 작업 폴더를 쓴다(`L2.schedule.spec` §4.4.1). `--every`와 `--expires-in`은 1년(31536000초) 이하, `--loop`는 0 이상 1년 이하, `--max-iterations`는 1~10000, `--debounce`는 기본 1000 ms이고 0~3600000 ms, `--watch` 경로는 16개 이하다. 사용자 확인은 남아 있다.
-28. [미결] 기본 플러그인 이름 목록의 출처(M3b B4-GRP). `runtime.ts`의 `BUILTIN_ORCHESTRATION_NAMES`(`helm`, `learning`, `account-rotation`)는 `apps/host/src/assembly/catalog.ts`가 올리는 기본 플러그인을 옮겨 적은 값이다. CLI가 host 조립 코드를 import하지 않으려고 둔다(DR-10은 엔진 조립 코드만 허용한다). host가 이름 목록을 내면 그쪽으로 옮기고 이 상수를 없앤다. 그 전까지 기본 플러그인을 추가하면 이 목록도 같이 고친다.
-29. 닫음: 템플릿 패키징(B5-REL). 릴리즈 아카이브는 템플릿을 `orchestration-sdk/templates/`에 싣고, `locateGroupTemplates`가 실행 파일 옆 그 자리를 찾는다. 배치와 탐색 순서는 `L4.release.spec` §3.1과 §3.2이고, 시험은 `test/group-templates-locate.test.ts`와 X11의 `group new`(환경 변수 없이)다.
+28. [제거: 2026-11-23 사용자, AGE-33] 기본 플러그인 이름 목록(`BUILTIN_ORCHESTRATION_NAMES`, M3b B4-GRP)은 `fresnel group new`의 이름 겹침 검사에만 쓰여서 명령과 함께 지웠다.
+29. 닫음: 템플릿 패키징(B5-REL). 릴리즈 아카이브는 템플릿을 `orchestration-sdk/templates/`에 싣고, `core-authoring`의 `locateTemplateDirs`가 실행 파일 옆 그 자리를 찾는다. 배치와 탐색 순서는 `L4.release.spec` §3.1과 §3.2다. [제거: 2026-11-23 사용자, AGE-33] 이 탐색을 시험하던 `test/group-templates-locate.test.ts`와 X11의 `group new` 단계는 명령과 함께 지웠다.
 30. (닫힘 M4 T-RT2) 생성 패키지의 의존 선언. 생성한 `package.json`은 `@fresnel/contracts`, `@fresnel/orchestration-sdk`(`workspace:*`), `typebox`(`catalog:`)를 적고 drive·policy는 `@fresnel/ext-host`를 개발 의존으로 더한다. 적은 의존은 생성된 코드의 import와 시험이 대조한다.
 31. [미결] `apps/cli/package.json`의 `@fresnel/orchestration-sdk` 워크스페이스 의존은 소스가 쓰지 않는다. knip은 잡지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 작업 범위 밖이다. 다음 정리 때 지운다.
 32. [미결] 플러그인 이름 풀이와 `/profile remove`의 이름과 문법(§4.12, [제안]). 구현(`apps/cli/src/overlay-slash.ts`, `packages/client/src/slash/resolve.ts`)은 `review/m5/profile-project-loader.md` §4.3.9의 [제안, 기본값]을 따랐다. 한정 접두 `plugin`, 한정 문법 `/<플러그인>:<항목>`, 내장 명령 `/profile remove`는 C0에서 확정한다. [근거: review/m5/profile-project-loader.md §4.3.9]

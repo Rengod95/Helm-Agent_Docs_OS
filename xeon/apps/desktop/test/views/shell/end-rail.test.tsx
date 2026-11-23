@@ -9,7 +9,7 @@ import { harness } from "../../state/helpers.ts";
 
 // 오른쪽 막대(DP-192~194)의 서버 렌더: 고정 칸, 구분선 뒤 "플러그인" 단추, well 머리의 제목·요약.
 
-function registry(withPlugin: boolean): ShellRegistry {
+function registry(withPlugin: boolean, pluginNotices = 0): ShellRegistry {
   const r = createShellRegistry();
   r.registerEndTab({
     id: "inbox",
@@ -36,6 +36,16 @@ function registry(withPlugin: boolean): ShellRegistry {
       description: "desktop.plugin.tab.helmDescription",
       icon: <span>h</span>,
       render: () => <p>헬름 패널 내용</p>,
+    });
+    r.registerPluginEndTab({
+      id: "plugin-pages",
+      area: "chat",
+      source: "host",
+      label: "desktop.plugin.tab.pages",
+      description: "desktop.shell.end.pagesDescription",
+      icon: <span>p</span>,
+      badge: { read: () => pluginNotices, subscribe: () => () => undefined },
+      render: () => <p>플러그인 탭 내용</p>,
     });
   }
   return r;
@@ -88,5 +98,15 @@ describe("end rail", () => {
     expect(out).toContain("헬름 패널 내용");
     const button = /<button[^>]*data-end-plugin[^>]*>/.exec(out)?.[0] ?? "";
     expect(button).toContain('data-active="true"');
+  });
+
+  test("notices inside the plugin menu show one orb on the plugin button, not a count pill", () => {
+    const quiet = /<button[^>]*data-end-plugin[^>]*>/.exec(render(registry(true), null))?.[0] ?? "";
+    expect(quiet).not.toContain("data-attention");
+    const out = render(registry(true, 3), null);
+    const button = /<button[^>]*data-end-plugin[^>]*>.*?<\/button>/.exec(out)?.[0] ?? "";
+    expect(button).toContain('data-attention=""');
+    expect(button).toContain(`aria-label="${t("desktop.shell.end.pluginsAttention")}"`);
+    expect(button).not.toContain('data-slot="floating-bar-badge"');
   });
 });

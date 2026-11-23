@@ -171,9 +171,6 @@ Commands
                             Shared service mode. start and ensure start the service, or attach to it if it is running.
                             status and stop check it and stop it. Safe mode and TCP apply only when a new service starts
                             Schedules run while the app or the service is running. See fresnel help schedule
-  group new <name> [--drive|--policy] [--dir <folder>] [--json]
-                            Create a plugin skeleton. The default is an observe plugin, --drive makes a drive plugin,
-                            and --policy makes a policy plugin. The target folder must be empty, and dependencies are not installed
   author scaffold|validate|pack|install|remove|ls
                             Create, check, pack, install and remove extensions without a model. ls lists installed extensions. install and remove ask for confirmation; without a terminal they need --yes
   doctor [--json]           Diagnose the engine, storage, secret store, terminal, and search providers

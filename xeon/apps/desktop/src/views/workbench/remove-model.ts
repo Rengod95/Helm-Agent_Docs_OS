@@ -5,20 +5,21 @@ import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";
 import type { ExtListEntry, ExtUiEntry, Profile } from "@fresnel/contracts/wire";
 import type { CommandError, DependencyRefusalView } from "../commands.ts";
+import { profileTitleOf } from "../convo/profile-chip-model.ts";
 import { stripUnsafeText } from "@fresnel/client/views/app";
 import { extMessageOf } from "@fresnel/client/views/native";
 
 /**
- * 이 확장을 쓰는 프로필의 제목. 프로필의 `plugins` 목록에 이름이 있는 것만 센다(목록에 없으면 그 프로필은 이 확장을 쓰지 않는다).
- * 목록 순서(`profile.list`의 순서)를 따른다
+ * 이 확장을 쓰는 프로필의 화면 이름. 프로필의 `plugins` 목록에 이름이 있는 것만 센다(목록에 없으면 그 프로필은 이 확장을 쓰지 않는다).
+ * 목록 순서(`profile.list`의 순서)를 따른다. 기본 프로필은 "기본"으로 센다(profileTitleOf)
  */
 export function profilesUsingOf(
-  profiles: readonly Pick<Profile, "title" | "plugins">[],
+  profiles: readonly Pick<Profile, "id" | "title" | "plugins">[],
   name: string,
 ): readonly string[] {
   return profiles
     .filter((profile) => profile.plugins.some((plugin) => plugin.name === name))
-    .map((profile) => profile.title);
+    .map((profile) => profileTitleOf(profile.id, profile.title));
 }
 
 /** 확장이 낸 화면 항목 한 줄(지우면 빠지는 플러그인 뷰). 제목이 비면 화면 id를 쓴다 */

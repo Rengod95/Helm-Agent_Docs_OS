@@ -7,9 +7,11 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type {
+  BridgeCapability,
   CardScriptEnv,
   HookKind,
   HookPower,
+  Placement,
   PluginCard,
   ScriptUse,
 } from "@fresnel/contracts/extensions";
@@ -25,11 +27,13 @@ import {
 } from "../deps/deps-model.ts";
 import {
   changeWhatOf,
+  placementOf,
   workFactsOf,
   type ChangePart,
   type ChangesFact,
   type GivesFact,
   type ReadsFact,
+  type ScreenFact,
   type WhenFact,
 } from "./review-facts.ts";
 import { FilesSection, type FileHandle } from "./review-files.tsx";
@@ -272,6 +276,40 @@ function changesChip(fact: ChangesFact): FactChip {
   }
 }
 
+/** 출력 줄의 화면 칩 글: 자리마다 글 하나에 수(`{count}`)를 넣는다 */
+const GIVES_UI_WORD: Readonly<Record<Placement, MessageId>> = {
+  page: "desktop.craft.review.fact.gives.ui.page",
+  panel: "desktop.craft.review.fact.gives.ui.panel",
+  card: "desktop.craft.review.fact.gives.ui.card",
+  status: "desktop.craft.review.fact.gives.ui.status",
+  command: "desktop.craft.review.fact.gives.ui.command",
+  settings: "desktop.craft.review.fact.gives.ui.settings",
+};
+
+/** 화면 줄의 자리 이름. page와 panel은 설정의 화면 자리 말을 그대로 쓴다 */
+const SCREEN_PLACE_WORD: Readonly<Record<Placement, MessageId>> = {
+  page: "desktop.addons.where.page",
+  panel: "desktop.addons.where.panel",
+  card: "desktop.craft.review.screen.place.card",
+  status: "desktop.craft.review.screen.place.status",
+  command: "desktop.craft.review.screen.place.command",
+  settings: "desktop.craft.review.screen.place.settings",
+};
+
+/** 화면 줄의 자리 말. 계약에 없는 자리 이름은 카드가 든 그대로 보인다 */
+function placeWordOf(name: string): string {
+  const placement = placementOf(name);
+  return placement === null ? name : t(SCREEN_PLACE_WORD[placement]);
+}
+
+/** 브릿지 권한의 이름. 설정의 권한 제목 말을 그대로 쓴다 */
+const CAPABILITY_WORD: Readonly<Record<BridgeCapability, MessageId>> = {
+  files: "desktop.addons.cap.files.title",
+  notify: "desktop.addons.cap.notify.title",
+  settingsWrite: "desktop.addons.cap.settingsWrite.title",
+  secrets: "desktop.addons.cap.secrets.title",
+};
+
 function givesChip(fact: GivesFact): FactChip {
   switch (fact.kind) {
     case "tool":
@@ -311,8 +349,8 @@ function givesChip(fact: GivesFact): FactChip {
       };
     case "ui":
       return {
-        key: "ui",
-        word: t("desktop.craft.review.fact.gives.ui", { count: fact.count }),
+        key: `ui:${fact.placement}`,
+        word: t(GIVES_UI_WORD[fact.placement], { count: fact.count }),
         value: null,
         warn: false,
       };
@@ -439,6 +477,63 @@ function ChangeLine(props: {
   );
 }
 
+/**
+ * 자체 코드로 그리는 화면(앱 모드) 목록. 화면마다 자리와 id·"플러그인 앱", 까닭, 브릿지 권한을 세 줄로 보인다.
+ * 앱 화면이 없으면 아무것도 그리지 않는다. 목록 머리는 "이전 버전과 달라진 일" 머리와 같은 모양이다.
+ */
+function ScreensBlock(props: { readonly screens: readonly ScreenFact[] }): ReactNode {
+  const apps = props.screens.filter((screen) => screen.mode === "app");
+  if (apps.length === 0) return null;
+  return (
+    <div className="grid gap-1.5 pt-1">
+      <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.craft.review.screen.title")}</p>
+      <ul className="m-0 grid gap-1 p-0">
+        {apps.map((screen) => (
+          <li key={`${screen.placement}:${screen.id}`} className="grid min-w-0 gap-0.5 text-ui">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <span className="shrink-0 text-ui-sm text-text-tertiary">
+                {placeWordOf(screen.placement)}
+              </span>
+              <span className="min-w-0 truncate font-mono text-ui-sm text-text-primary">
+                {screen.id}
+              </span>
+              <span className="shrink-0 text-ui-sm text-text-tertiary">
+                {t("desktop.craft.review.screen.app")}
+              </span>
+            </div>
+            {screen.reason === null ? null : (
+              <div className="flex min-w-0 items-baseline gap-2">
+                <span className="shrink-0 text-ui-sm text-text-tertiary">
+                  {t("desktop.craft.review.screen.reason")}
+                </span>
+                <span className="min-w-0 text-ui-sm text-text-secondary">{screen.reason}</span>
+              </div>
+            )}
+            <div className="flex min-w-0 items-baseline gap-2">
+              {screen.capabilities.length === 0 ? (
+                <span className="text-ui-sm text-text-tertiary">
+                  {t("desktop.craft.review.screen.bridgeNone")}
+                </span>
+              ) : (
+                <>
+                  <span className="shrink-0 text-ui-sm text-text-tertiary">
+                    {t("desktop.craft.review.screen.bridge")}
+                  </span>
+                  <span className="min-w-0 text-ui-sm text-text-secondary">
+                    {screen.capabilities
+                      .map((capability) => t(CAPABILITY_WORD[capability]))
+                      .join(", ")}
+                  </span>
+                </>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCard }): ReactNode {
   const { item } = props;
   const facts = workFactsOf(props.card);
@@ -484,6 +579,7 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
           <FactRow label="desktop.craft.review.fact.depends" chips={dependChips} />
         </dl>
       )}
+      <ScreensBlock screens={facts.screens} />
       {item.kind === "update" && changes.length > 0 ? (
         <div className="grid gap-1.5 pt-1">
           <p className="m-0 text-ui-sm text-text-tertiary">

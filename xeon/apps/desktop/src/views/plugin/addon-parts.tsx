@@ -184,6 +184,10 @@ export function ScreenRow(props: {
   readonly screen: AddonScreen;
   readonly pluginOff: boolean;
   readonly ops: SurfaceOps;
+  /** 사용자가 숨긴 화면이면 참: "열기"가 꺼진다(숨긴 화면은 앱 어디에도 열리지 않는다, AGE-73) */
+  readonly hidden?: boolean;
+  /** 줄 끝 칸(크래프트 "화면과 설정" 탭의 순서 메뉴와 보이기 스위치). 플레이그라운드는 비운다 */
+  readonly end?: ReactNode;
 }): ReactNode {
   const { screen, ops } = props;
   return (
@@ -216,7 +220,7 @@ export function ScreenRow(props: {
         <Button
           size="sm"
           variant="ghost"
-          disabled={screen.state !== "ready"}
+          disabled={screen.state !== "ready" || props.hidden === true}
           onClick={() => {
             ops.onOpenScreen(screen);
           }}
@@ -224,6 +228,7 @@ export function ScreenRow(props: {
           {t("desktop.addons.detail.open")}
         </Button>
       )}
+      {props.end}
     </li>
   );
 }
@@ -232,6 +237,10 @@ export function FeatureRow(props: {
   readonly feature: AddonFeature;
   readonly pluginOff: boolean;
   readonly ops: SurfaceOps;
+  /** 사용자가 숨긴 기능이면 참: 명령의 "실행"이 꺼진다 */
+  readonly hidden?: boolean;
+  /** 줄 끝 칸(순서 메뉴와 보이기 스위치) */
+  readonly end?: ReactNode;
 }): ReactNode {
   const { feature, ops } = props;
   const look = FEATURE[feature.kind];
@@ -252,7 +261,7 @@ export function FeatureRow(props: {
         <Button
           size="sm"
           variant="ghost"
-          disabled={feature.off}
+          disabled={feature.off || props.hidden === true}
           iconStart={<Terminal aria-hidden />}
           onClick={() => {
             ops.onRunCommand(feature);
@@ -261,6 +270,7 @@ export function FeatureRow(props: {
           {t("desktop.addons.feature.run")}
         </Button>
       ) : null}
+      {props.end}
     </li>
   );
 }

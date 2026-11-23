@@ -50,6 +50,7 @@ import { disabledFixOf, requiredByCoreOf } from "../craft/deps/deps-model.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { useTabRead } from "../workbench/tab-read.ts";
 import { useWorkbenchController } from "../workbench/controller.ts";
+import { profileTitleOf } from "../convo/profile-chip-model.ts";
 import { CHOICE_TEXT, PROBLEM_TEXT, profileErrorText } from "./compose-text.ts";
 import type { MessageId, MessageArgs } from "@fresnel/client/i18n";
 
@@ -240,7 +241,9 @@ function DeleteDialog(props: {
         if (!open) props.onCancel();
       }}
       title={t("desktop.compose.profile.delete.heading")}
-      description={t("desktop.compose.profile.delete.body", { title: props.profile?.title ?? "" })}
+      description={t("desktop.compose.profile.delete.body", {
+        title: props.profile === null ? "" : profileTitleOf(props.profile.id, props.profile.title),
+      })}
       footer={
         <>
           <DialogClose asChild>
@@ -449,7 +452,7 @@ export function ProfilePanel(props: {
           >
             {profiles.map((item) => (
               <SelectOption key={item.id} value={item.id}>
-                {item.title}
+                {profileTitleOf(item.id, item.title)}
               </SelectOption>
             ))}
           </Select>

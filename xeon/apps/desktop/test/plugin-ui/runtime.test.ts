@@ -180,3 +180,50 @@ describe("plugin ui runtime", () => {
     expect(nonce).toBe("ab".repeat(16));
   });
 });
+
+describe("plugin ui runtime: user layout (AGE-73)", () => {
+  test("refresh reads x.ui.hidden and x.ui.order, and a hidden page leaves its placement", async () => {
+    const h = harness(table([setting("x.ui.hidden", ["helm/status"])]));
+    await h.runtime.refresh();
+    const settingsCall = h.calls.find((call) => call.method === "settings.get");
+    expect(settingsCall?.params).toEqual({
+      keys: ["x.ui.apps", "x.ui.allowProjectApps", "x.ui.hidden", "x.ui.order"],
+    });
+    const state = h.runtime.getState();
+    expect([...state.layout.hidden]).toEqual(["helm/status"]);
+    expect(state.groups.page.map(({ entry }) => entry.id)).toEqual(["graph"]);
+    expect(state.entries.map((entry) => entry.id)).toEqual(["status", "graph"]);
+  });
+
+  test("saveLayout shows the change at once and writes both keys in the user scope", async () => {
+    const writes: unknown[] = [];
+    const h = harness({
+      ...table([]),
+      "settings.set": (params) => {
+        writes.push(params);
+        return Promise.resolve({ setting: setting("x.ui.hidden", []) });
+      },
+    });
+    await h.runtime.refresh();
+    const saved = await h.runtime.saveLayout({
+      hidden: new Set(["helm/graph"]),
+      order: { status: [], panel: ["helm/graph", "helm/status"] },
+    });
+    expect(saved.ok).toBe(true);
+    expect(writes).toEqual([
+      { key: "x.ui.hidden", value: ["helm/graph"], scope: "user" },
+      { key: "x.ui.order", value: { panel: ["helm/graph", "helm/status"] }, scope: "user" },
+    ]);
+    expect(h.runtime.getState().groups.page.map(({ entry }) => entry.id)).toEqual(["status"]);
+  });
+
+  test("a failed write puts the old layout back and returns write_failed", async () => {
+    const h = harness(table([]), { offline: true });
+    const saved = await h.runtime.saveLayout({
+      hidden: new Set(["helm/graph"]),
+      order: { status: [], panel: [] },
+    });
+    expect(saved).toEqual({ ok: false, error: { kind: "write_failed" } });
+    expect([...h.runtime.getState().layout.hidden]).toEqual([]);
+  });
+});

@@ -5,7 +5,7 @@
 //     fresnel                         the compiled binary (the resource directory is its parent, hostResourceDir())
 //     fresnel-web, ui/                the web gateway program and the UI bundle (apps/desktop/dist/ui) it serves; the service
 //                                     looks for both next to `fresnel` (apps/host gateway-command.ts)
-//     orchestration-sdk/templates/         group templates for `fresnel group new` (locateGroupTemplates)
+//     orchestration-sdk/templates/         group templates for the plugin builder (core-authoring locateTemplateDirs)
 //     guide/skills/                the Fresnel Guide skills (plugin-guide locateGuideSkills)
 //     default-plugins/<name>/      default plugin bundles (installDefaultPlugins)
 //     binaries/<name> + binaries.lock.json   bundled external binaries (macOS only, L0.os.spec 3.6)

@@ -29,8 +29,6 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | `.github/workflows/fresnel-release.yml` | 릴리즈 스모크 두 OS, 서명 시크릿 전달 |
 | `.github/workflows/fresnel-macos.yml` | macOS job의 릴리즈 스모크 단계 |
 | `xeon/justfile`, 루트 `justfile` | `release`, `release-smoke` 레시피 |
-| `xeon/apps/cli/src/group/fs-port.ts`, `runtime.ts` | 템플릿 탐색에 자원 디렉터리 단계를 더함 |
-| `xeon/apps/cli/test/group-templates-locate.test.ts` | 템플릿 탐색 순서 시험 |
 | `xeon/packages/platform-os/test/binaries.test.ts` | Linux의 bwrap·socat 설치 안내 시험 |
 
 ## 3. 작업 분해
@@ -58,7 +56,6 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 |---|---|
 | `release.test.ts` | 설정 파싱과 잘못된 설정, 잠금 파일의 정렬과 모양, SHA256SUMS 정렬, 고지 두 형식, 아카이브 이름, 버전 검사, 종료 코드, 스모크의 배치와 sums 파싱, 버전 고정 일치 |
 | `workflow-pins.test.ts` | 워크플로 `uses:`의 SHA 고정과 버전 주석, 판정 함수의 거부 사례, 서명 건너뛰기 두 경우 |
-| `group-templates-locate.test.ts` | 환경 변수, 자원 디렉터리, walk-up의 순서와 null |
 | `binaries.test.ts`(추가 항목) | Linux에서 bwrap과 socat 없음 안내의 apt 명령 |
 | `release-smoke.test.ts`(X11) | 아카이브 생성과 X11 검사 전체 |
 

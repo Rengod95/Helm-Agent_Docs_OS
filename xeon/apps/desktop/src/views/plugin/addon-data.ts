@@ -4,6 +4,7 @@ import type { ExtHookInfo } from "@fresnel/contracts/wire";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useCommands, type Commands } from "../commands.ts";
+import { isHidden } from "../../plugin-ui/placements.ts";
 import { addonMetaOf, type AddonMetaMap, type AddonSource } from "./addon-model.ts";
 import { useExtListing } from "./ext-listing.ts";
 import { usePluginUiState } from "./plugin-context.tsx";
@@ -71,9 +72,10 @@ export interface AddonData {
 
 /**
  * 플레이그라운드 입력을 모은다. `manifests`가 참이면 이름마다 `ext.get`도 읽는다(설명, 만든 이, 링크, 훅, 메서드).
- * 탭 줄은 `ext.list`만으로 충분해 거짓이다
+ * 탭 줄은 `ext.list`만으로 충분해 거짓이다. 사용자가 숨긴 항목(`x.ui.hidden`)은 빠진다(플레이그라운드 목록, 머리 줄 탭, 탭 화면).
+ * `keepHidden`이 참이면 숨긴 항목도 둔다: 크래프트 "화면과 설정" 탭이 숨긴 항목에도 스위치를 그린다(AGE-73)
  */
-export function useAddonData(manifests: boolean): AddonData {
+export function useAddonData(manifests: boolean, keepHidden = false): AddonData {
   const state = usePluginUiState();
   const listing = useExtListing();
   const commands = useCommands();
@@ -118,8 +120,14 @@ export function useAddonData(manifests: boolean): AddonData {
     return map;
   }, [wanted, listing, manifests, got]);
   const source = useMemo(
-    () => ({ entries: state.entries, inactive: state.inactive, settings: state.settings }),
-    [state.entries, state.inactive, state.settings],
+    () => ({
+      entries: keepHidden
+        ? state.entries
+        : state.entries.filter((entry) => !isHidden(state.layout, entry)),
+      inactive: state.inactive,
+      settings: state.settings,
+    }),
+    [keepHidden, state.entries, state.layout, state.inactive, state.settings],
   );
   const listed = useMemo(() => new Set((listing ?? []).map((entry) => entry.name)), [listing]);
   return { source, meta, locale: activeLocale(), phase: state.phase, listed };

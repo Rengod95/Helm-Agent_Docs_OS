@@ -33,7 +33,6 @@ binds: []
 - `defineOrchestration`, `OrchestrationApi<S>`, `OrchestrationService`, `DriveArbiter`, `replayDrive`의 정의: `L3.group-sdk.spec`
 - 4연산 타입, 훅 표, 매니페스트 스키마, 검증 함수: `F.extensions.spec`
 - 확장 로딩, 신뢰 등급, 예약 키 `ext.<id>.enabled`·`ext.<id>.isolation`의 정의: `X.loading-trust.spec`
-- `fresnel group new` 명령의 실행(인자 해석, 파일 쓰기, 출력): `L4.cli.spec`
 - Helm과 학습 플러그인의 내부: `L3.helm.spec`, `L3.learning.spec`
 
 정식 예의 위치:
@@ -596,7 +595,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 #### 3.3.6 생성 명령의 요구 인터페이스
 
-명령 `fresnel group new <이름> [--drive|--policy]`의 실행은 `L4.cli.spec`이 소유한다. 이 문서는 요구만 정한다.
+[제거: 2026-11-23 사용자, AGE-33] `fresnel group new` 명령을 지웠다. 아래 요구 R1~R6은 이력으로 남긴다.
 
 | 요구 | 내용 |
 |---|---|
@@ -721,8 +720,8 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | 이름 | 쓰는 문서 |
 |---|---|
 | 플러그인 판정 기준(3.1.1), 추가 체크리스트 C1~C9(3.1.2) | `L3.readme`, 외부 플러그인 작성자 |
-| `TemplateKind`, `TemplateIndexSchema`, `TEMPLATE_PLACEHOLDERS`, `templates/index.json` | `L3.group-sdk.plan`(파일 배치), `L4.cli.spec`(생성 명령) |
-| 생성 명령 요구 R1~R6 | `L4.cli.spec` |
+| `TemplateKind`, `TemplateIndexSchema`, `TEMPLATE_PLACEHOLDERS`, `templates/index.json` | `L3.group-sdk.plan`(파일 배치), (생성 명령은 2026-11-23에 지웠다) |
+| 생성 명령 요구 R1~R6 | 명령을 지웠다(2026-11-23, AGE-33). 요구는 이력 |
 | 정식 예 fixture `reviewgate`, `commitguard`, `guardrail`과 `GuardVerdict`, `GuardSite`, `GuardCheck`, `patternCheck` | `L3.group-sdk.plan`(테스트), `L3.slots.plan` |
 
 요구:
@@ -736,7 +735,6 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | `EXT_ID_PATTERN`, `RESERVED_EXT_IDS`, 접두 소유, slots의 컨텍스트 배치(C-2) | `eng.context-map.design` |
 | 신뢰 등급과 외부 플러그인 로딩 | `X.loading-trust.spec` |
 | 핸들러 순서 tier | `X.primitives.spec` |
-| `fresnel group new` 실행 | `L4.cli.spec` |
 
 ## 9. 수용 기준
 
@@ -757,7 +755,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 - [미결] 정책 플러그인의 `orchestration` 선언 유무 기준의 최종 확정(4.2.1).
 - (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 훅 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 플러그인의 신뢰 등급 값 집합과 다른 플러그인 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).
-- [미결] 생성 명령 `fresnel group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
+- [제거: 2026-11-23 사용자, AGE-33] `fresnel group new`를 지워서 소유 문서 물음은 없어졌다. [미결] 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
 - [결정: review.decisions-2 U-18] 새 플러그인 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.
 - [결정: review.decisions-2 T-21] 공통 모순 (1) 플러그인 kind 접두는 공개·비공개 모두 `grp.<id>.*`다. 템플릿은 공개 레코드에 `g.record`, 비공개 기록에 `recordPrivate`를 쓴다(`L3.readme` §10.2).
 - [미결] 공통 모순 (2) on 핸들러 외부 효과 금지와 `delegate`의 `requestId` 멱등 예외. 템플릿은 핸들러에서 `delegate`를 쓰지 않는다.

@@ -18,6 +18,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
+import { profileTitleOf } from "../convo/profile-chip-model.ts";
 import { useWorkbenchController } from "./controller.ts";
 
 /** 프로필 목록의 읽기 상태 */
@@ -110,7 +111,7 @@ export function ProfileSection(props: {
           >
             {profiles.value.map((profile) => (
               <SelectOption key={profile.id} value={profile.id}>
-                {profile.title}
+                {profileTitleOf(profile.id, profile.title)}
               </SelectOption>
             ))}
           </Select>
@@ -135,7 +136,9 @@ export function ProfileSection(props: {
         body={
           chosen === undefined
             ? ""
-            : t("desktop.inspect.profile.confirm.body", { title: chosen.title })
+            : t("desktop.inspect.profile.confirm.body", {
+                title: profileTitleOf(chosen.id, chosen.title),
+              })
         }
         action={t("desktop.inspect.profile.apply")}
         onCancel={() => {

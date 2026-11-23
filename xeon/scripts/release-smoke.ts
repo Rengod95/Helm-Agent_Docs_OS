@@ -4,8 +4,7 @@
 //   1. the archive matches its .sha256 file and every file matches SHA256SUMS
 //   2. the layout: binary, group templates, both default plugins, notices; binaries.lock.json only for a macOS archive,
 //      every entry matches its file
-//   3. the binary starts: `fresnel version`, `fresnel group new` without FRESNEL_GROUP_TEMPLATES_DIR (the compiled binary finds the
-//      templates through its resource directory), `fresnel doctor` names the external binaries (macOS: sops, age, rg as bundled)
+//   3. the binary starts: `fresnel version`, `fresnel doctor` names the external binaries (macOS: sops, age, rg as bundled)
 //   4. @swc/core is not inside the binary (DR-07)
 //   release-smoke <archive>
 // This file imports no workspace package. Exit codes: 0 every check passed, 1 a check failed, 2 environment (tar missing).
@@ -191,18 +190,6 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
       "run.version-injected",
       ver.output.includes(version),
       `fresnel version does not print ${version}: ${ver.output.trim().slice(0, 200)}`,
-    );
-
-    const group = await runFresnel(binary, ["group", "new", "smoke-group", "--drive"], cwd, home);
-    check(
-      "run.group-new",
-      group.exitCode === 0,
-      `exit ${String(group.exitCode)}: ${group.output.trim().slice(0, 200)}`,
-    );
-    check(
-      "run.group-new.files",
-      existsSync(join(cwd, "smoke-group", "package.json")),
-      "smoke-group/package.json",
     );
 
     const doctor = await runFresnel(binary, ["doctor"], cwd, home);

@@ -97,11 +97,41 @@ describe("screens: 화면 줄은 카드의 화면 칸을 매니페스트 선언 
       },
       { id: "start", placement: "command", mode: null, reason: null, capabilities: [] },
     ]);
-    expect(facts.gives).toContainEqual({ kind: "ui", count: 3 });
+    expect(facts.gives.filter((gives) => gives.kind === "ui")).toEqual([
+      { kind: "ui", placement: "page", count: 1 },
+      { kind: "ui", placement: "panel", count: 1 },
+      { kind: "ui", placement: "command", count: 1 },
+    ]);
   });
 
   test("a card without UI declarations has no screen lines", () => {
     expect(workFactsOf(sample("rvw_sample_rule").card).screens).toEqual([]);
+  });
+});
+
+describe("gives: 화면 칩은 자리마다 한 칩이고 자리 순서를 따른다", () => {
+  test("two card screens and one status cell give two chips in placement order, card before status", () => {
+    const card = sample("rvw_sample_rule").card;
+    const inject = card.does.inject;
+    if (inject === null) throw new Bug("the sample has no inject inventory");
+    const facts = workFactsOf({
+      ...card,
+      does: {
+        ...card.does,
+        inject: {
+          ...inject,
+          ui: [
+            { id: "cell", placement: "status", readsState: null, modelVisible: "none" },
+            { id: "thread-a", placement: "card", readsState: null, modelVisible: "none" },
+            { id: "thread-b", placement: "card", readsState: null, modelVisible: "none" },
+          ],
+        },
+      },
+    });
+    expect(facts.gives).toEqual([
+      { kind: "ui", placement: "card", count: 2 },
+      { kind: "ui", placement: "status", count: 1 },
+    ]);
   });
 });
 

@@ -31,6 +31,7 @@ import {
   createProfile,
   deleteProfile,
   renameProfile,
+  shownTitleOf,
   titleOf,
   useCanvasStore,
 } from "./store.ts";
@@ -105,7 +106,9 @@ export function ProfileHead(props: {
   const failureId = useId();
   const builtinId = useId();
   const saved = store.live?.saved[props.current];
+  // 이름 고치기·복사 입력의 초기값과 비교는 저장된 제목(`name`)을 쓰고, 보이는 글은 `shownName`이다
   const name = titleOf(store, props.current) ?? props.current;
+  const shownName = shownTitleOf(store, props.current) ?? props.current;
   // 엔진이 지우지 않는 것: `default`(내장, `builtin`). 숨은 `craft`는 목록에 오지 않는다
   const protectedProfile = saved?.builtin === true || props.current === "default";
 
@@ -213,13 +216,13 @@ export function ProfileHead(props: {
             <Menu
               size="sm"
               align="end"
-              aria-label={t("desktop.craft.canvas.cv9.profileMenu.label", { name })}
+              aria-label={t("desktop.craft.canvas.cv9.profileMenu.label", { name: shownName })}
               trigger={
                 <IconButton
                   ref={triggerRef}
                   size="md"
                   variant="ghost"
-                  label={t("desktop.craft.canvas.cv9.profileMenu.label", { name })}
+                  label={t("desktop.craft.canvas.cv9.profileMenu.label", { name: shownName })}
                 >
                   <Ellipsis aria-hidden />
                 </IconButton>
@@ -296,7 +299,7 @@ export function ProfileHead(props: {
       {deleting && saved !== undefined ? (
         <DeleteDialog
           id={props.current}
-          name={name}
+          name={shownName}
           onDone={() => {
             setDeleting(false);
             restoreFocus();

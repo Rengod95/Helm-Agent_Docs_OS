@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";
 import { renderToString } from "react-dom/server";
 import { pluginViewsOf, profilesUsingOf } from "../../../src/views/workbench/remove-model.ts";
@@ -11,12 +12,13 @@ import {
 // 지우기 확인의 영향 묶음(B-04): 이 확장을 쓰는 프로필과 플러그인 뷰. 판단은 순수 함수로, 그림은 상자 본문의 서버 렌더로 본다.
 
 const PROFILES: readonly {
+  readonly id: string;
   readonly title: string;
   readonly plugins: readonly { readonly name: string }[];
 }[] = [
-  { title: "조사용", plugins: [{ name: "taskflow" }, { name: "exa" }] },
-  { title: "기본", plugins: [{ name: "exa" }] },
-  { title: "비움", plugins: [] },
+  { id: "research", title: "조사용", plugins: [{ name: "taskflow" }, { name: "exa" }] },
+  { id: "basic", title: "기본", plugins: [{ name: "exa" }] },
+  { id: "empty", title: "비움", plugins: [] },
 ];
 
 const ENTRIES: readonly {
@@ -36,6 +38,17 @@ describe("지우기 영향 판단", () => {
     expect(profilesUsingOf(PROFILES, "taskflow")).toEqual(["조사용"]);
     expect(profilesUsingOf(PROFILES, "exa")).toEqual(["조사용", "기본"]);
     expect(profilesUsingOf(PROFILES, "none")).toEqual([]);
+  });
+
+  test("기본 프로필(id default)의 제목 default는 '기본'으로 세고, 다른 프로필의 default 제목은 그대로다", () => {
+    const named = [
+      { id: "default", title: "default", plugins: [{ name: "exa" }] },
+      { id: "review", title: "default", plugins: [{ name: "exa" }] },
+    ];
+    expect(profilesUsingOf(named, "exa")).toEqual([
+      t("desktop.profileChip.defaultName"),
+      "default",
+    ]);
   });
 
   test("플러그인 뷰는 이 확장의 항목만 항목 순서대로, 제목이 비면 화면 id를 쓴다", () => {

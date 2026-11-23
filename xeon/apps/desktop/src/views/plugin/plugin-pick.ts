@@ -1,5 +1,11 @@
 import { useSyncExternalStore } from "react";
-import type { PlacedEntry } from "../../plugin-ui/placements.ts";
+import type { ExtUiEntry } from "@fresnel/contracts/wire";
+import {
+  itemKeyOf,
+  orderedBy,
+  sortedEntries,
+  type PlacedEntry,
+} from "../../plugin-ui/placements.ts";
 import type { PluginUiState } from "../../plugin-ui/runtime.ts";
 
 // 플러그인 화면 목록(옆 "플러그인" 탭이 쓴다)과, 크래프트·머리 줄 탭 메뉴에서 고른 화면이나 플러그인을
@@ -8,12 +14,37 @@ import type { PluginUiState } from "../../plugin-ui/runtime.ts";
 /** Helm 옆 패널의 확장 이름. 이 확장의 `panel` 항목은 Helm 탭이 그린다 */
 export const HELM_EXTENSION = "helm";
 
-/** 플러그인 화면 항목: 모든 `page` 항목과 Helm이 아닌 확장의 `panel` 항목 */
+/** 오른쪽 플러그인 패널 목록에 드는 항목인가: 모든 `page`와 Helm이 아닌 확장의 `panel` */
+function isPanelListEntry(entry: ExtUiEntry): boolean {
+  return (
+    entry.placement === "page" ||
+    (entry.placement === "panel" && entry.extension !== HELM_EXTENSION)
+  );
+}
+
+/**
+ * 플러그인 화면 항목: 모든 `page` 항목과 Helm이 아닌 확장의 `panel` 항목. 숨긴 항목은 없고(`groups`가 뺐다),
+ * 사용자 순서(`x.ui.order.panel`)가 앞선다. 순서가 없는 항목은 화면, 옆 패널 순이고 그 안은 확장 이름, 화면 id 순이다
+ */
 export function pluginScreenItemsOf(state: PluginUiState): readonly PlacedEntry[] {
-  return [
-    ...state.groups.page,
-    ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
-  ];
+  return orderedBy(
+    [...state.groups.page, ...state.groups.panel.filter(({ entry }) => isPanelListEntry(entry))],
+    (item) => itemKeyOf(item.entry),
+    state.layout.order.panel,
+  );
+}
+
+/** 오른쪽 플러그인 패널 목록의 지금 순서(숨긴 항목 포함). "위로", "아래로"가 이 목록에서 옮긴다 */
+export function panelOrderKeysOf(state: PluginUiState): readonly string[] {
+  const list = sortedEntries(state.entries.filter(isPanelListEntry));
+  return orderedBy(
+    [
+      ...list.filter((entry) => entry.placement === "page"),
+      ...list.filter((entry) => entry.placement === "panel"),
+    ],
+    itemKeyOf,
+    state.layout.order.panel,
+  ).map(itemKeyOf);
 }
 
 export interface PluginPickRequest {

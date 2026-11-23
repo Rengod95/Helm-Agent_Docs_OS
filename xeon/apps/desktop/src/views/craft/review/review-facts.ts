@@ -1,9 +1,11 @@
 import {
   HOOK_NAMES,
   HOOKS,
+  PLACEMENTS,
   type BridgeCapability,
   type HookKind,
   type HookPower,
+  type Placement,
   type PluginCard,
   type UiMode,
 } from "@fresnel/contracts/extensions";
@@ -41,14 +43,14 @@ export type GivesFact =
   | { readonly kind: "command"; readonly value: string }
   | { readonly kind: "agent"; readonly value: string }
   | { readonly kind: "skill"; readonly value: string }
-  | { readonly kind: "ui"; readonly count: number }
+  | { readonly kind: "ui"; readonly placement: Placement; readonly count: number }
   | { readonly kind: "decision" };
 
 /**
  * 화면 줄 하나(작동 방식의 "화면" 줄이 쓸 값). 자리와 이름, 그리는 방식, 자체 코드의 까닭과 다리 권한을 매니페스트 선언 그대로 싣는다.
  * 옛 카드에는 방식이 없어 `mode`가 null이다. 선언형 화면은 까닭과 권한이 없다
  */
-interface ScreenFact {
+export interface ScreenFact {
   readonly id: string;
   readonly placement: string;
   readonly mode: UiMode | null;
@@ -81,6 +83,11 @@ function unique<T>(values: readonly T[], key: (value: T) => string): T[] {
 }
 
 const POWER_ORDER: readonly HookPower[] = ["decide", "modify", "contribute", "observe"];
+
+/** 카드의 자리 이름이 계약의 자리이면 그 자리, 아니면 null. 카드는 자리를 문자열로 든다 */
+export function placementOf(name: string): Placement | null {
+  return PLACEMENTS.find((placement) => placement === name) ?? null;
+}
 
 /** 네 줄의 값. 줄에 값이 없으면 빈 목록이고 화면은 그 줄을 그리지 않는다 */
 export function workFactsOf(card: PluginCard): WorkFacts {
@@ -146,16 +153,18 @@ export function workFactsOf(card: PluginCard): WorkFacts {
     })),
     ...(inject?.agents ?? []).map((value): GivesFact => ({ kind: "agent", value })),
     ...skills.map((skill): GivesFact => ({ kind: "skill", value: skill.name })),
-    ...((inject?.ui.length ?? 0) > 0
-      ? [{ kind: "ui", count: inject?.ui.length ?? 0 } satisfies GivesFact]
-      : []),
+    // 화면은 자리마다 한 칩(자리 순서). 그 자리에 항목이 없으면 칩도 없다
+    ...PLACEMENTS.flatMap((placement): GivesFact[] => {
+      const count = (inject?.ui ?? []).filter((ui) => ui.placement === placement).length;
+      return count === 0 ? [] : [{ kind: "ui", placement, count }];
+    }),
     ...(powers.has("decide") ? [{ kind: "decision" } satisfies GivesFact] : []),
   ];
   const screens: ScreenFact[] = (inject?.ui ?? []).map((ui) => ({
     id: ui.id,
     placement: ui.placement,
     mode: ui.mode ?? null,
-    reason: ui.app?.reason ?? null,
+    reason: ui.app?.reason === undefined || ui.app.reason === "" ? null : ui.app.reason,
     capabilities: unique(ui.app?.capabilities ?? [], (capability) => capability),
   }));
   return { when, reads, changes, gives, screens };
