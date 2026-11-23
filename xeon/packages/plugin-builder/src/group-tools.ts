@@ -311,7 +311,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a test chat (craft chat) the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true keeps it waiting the same way.",
+    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; the user removes an installed plugin in the Craft plugin list). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
