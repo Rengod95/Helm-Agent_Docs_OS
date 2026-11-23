@@ -40,12 +40,61 @@ const encoder = new TextEncoder();
 /** Slices decode exactly: a U+FEFF at a slice's start is text, not a byte-order mark. */
 const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
-/** Remove control characters that break display and transcripts; tabs and newlines stay. */
+// FRESNEL-PATCH: P21
+const ESC = 0x1b;
+const BEL = 0x07;
+
+/**
+ * End (exclusive) of the terminal escape sequence that starts with ESC at `start`: CSI (`ESC [` parameters, final byte
+ * 0x40..0x7E), OSC (`ESC ]` up to BEL or `ESC \\`) and nF (`ESC` intermediates 0x20..0x2F, one final byte, e.g. `ESC ( B`).
+ * Any other ESC is a single unit, which the control filter drops.
+ */
+function escapeEnd(text: string, start: number): number {
+  const next = text.charCodeAt(start + 1);
+  let end = start + 2;
+  if (next === 0x5b) {
+    while (end < text.length) {
+      const unit = text.charCodeAt(end);
+      end += 1;
+      if (unit >= 0x40 && unit <= 0x7e) return end;
+    }
+    return end;
+  }
+  if (next === 0x5d) {
+    while (end < text.length) {
+      const unit = text.charCodeAt(end);
+      if (unit === BEL) return end + 1;
+      if (unit === ESC && text.charCodeAt(end + 1) === 0x5c) return end + 2;
+      end += 1;
+    }
+    return end;
+  }
+  if (next >= 0x20 && next <= 0x2f) {
+    end = start + 1;
+    while (end < text.length && text.charCodeAt(end) >= 0x20 && text.charCodeAt(end) <= 0x2f)
+      end += 1;
+    return Math.min(end + 1, text.length);
+  }
+  return start + 1;
+}
+
+/**
+ * Remove control characters that break display and transcripts; tabs and newlines stay. Terminal escape sequences go
+ * whole, so colored output keeps its text without the `[31m` remainder a dropped ESC would leave.
+ */
 export function sanitizeOutput(text: string): string {
   // FRESNEL-PATCH: P10
   let kept = "";
-  for (let index = 0; index < text.length; index++) {
-    if (!isInvalidOutputUnit(text.charCodeAt(index))) kept += text.charAt(index);
+  let index = 0;
+  while (index < text.length) {
+    const unit = text.charCodeAt(index);
+    // FRESNEL-PATCH: P21
+    if (unit === ESC) {
+      index = escapeEnd(text, index);
+      continue;
+    }
+    if (!isInvalidOutputUnit(unit)) kept += text.charAt(index);
+    index += 1;
   }
   return kept;
 }

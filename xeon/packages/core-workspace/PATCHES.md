@@ -17,6 +17,7 @@
 | P8 | `tools/path-utils.ts:7`, `tools/path-utils.ts:12` | `normalizeToolPath`를 export하고(`src/roots.ts`가 `..` 마디 검사에 쓴다), 함수가 받는 env를 `Pick<ExecutionEnv, "absolutePath" \| "exists">`로 좁힌다. 탈출 검사는 넣지 않는다(plan §2 표) | `roots.test.ts` |
 | P9 | `harness/output.ts:261` | `isolatedDeclarations`가 요구하는 export 상수 타입 주석을 단다 | `tsc -b` |
 | P10 | `files/upstream/path-utils.ts`(`resolveReadToolPath`), `upstream/output.ts`(`sanitizeOutput`) | `eng.typescript.guide` §1 포크 코드 절과 TY-22를 적용해 린트 억제 주석을 걷는다. 읽기 경로 후보 확인의 `no-await-in-loop` 반복문은 `@fresnel/contracts`의 `eachAsync`로 옮긴다. `no-control-regex`가 걸린 `INVALID_OUTPUT` 정규식은 UTF-16 코드 단위를 검사하는 `isInvalidOutputUnit`으로 바꾼다. 검사 범위는 같다: U+0000..U+0008, U+000B..U+001F, U+FFF9..U+FFFB. 동작은 같다 | `tsc -b`, `bun run lint`, `test/output.test.ts`, `test/roots.test.ts` |
+| P21 | `upstream/output.ts`(`sanitizeOutput`, `escapeEnd`) | 제어 문자를 한 코드 단위씩 지우면 색이 든 명령 출력에서 ESC만 빠지고 `[31m`, `[0m` 같은 꼬리가 글로 남아 대화 화면과 모델 입력에 보였다(chatQa 2026-11-23, 데스크톱 대화 검수). ESC를 만나면 그 순서 전체를 뺀다: CSI(`ESC [` … 끝 바이트 0x40..0x7E), OSC(`ESC ]` … BEL 또는 `ESC \\`), nF(`ESC` 중간 바이트 0x20..0x2F 뒤 끝 바이트 하나). 그 밖의 ESC는 전처럼 ESC 하나만 빠진다. 남는 제어 문자 범위(P10)는 같다 | `test/output.test.ts` |
 
 ## 복사 범위(패치가 아니라 선택)
 

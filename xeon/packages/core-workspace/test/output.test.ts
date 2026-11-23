@@ -70,4 +70,18 @@ describe("output helpers", () => {
   test("sanitizeOutput drops control characters but keeps tabs and newlines", () => {
     expect(sanitizeOutput("a\u0000b\tc\nd\u001Be")).toBe("ab\tc\nde");
   });
+
+  // P21: 색이 든 출력에서 ESC만 빠지면 `[31m` 꼬리가 남아 대화 화면에 보였다(chatQa 2026-11-23)
+  test("sanitizeOutput removes whole terminal escape sequences", () => {
+    const e = "\u001B";
+    expect(sanitizeOutput(`${e}[31mERROR${e}[0m ${e}[1;33mwarn${e}[0m\n${e}[2K${e}[1Gok`)).toBe(
+      "ERROR warn\nok",
+    );
+    expect(
+      sanitizeOutput(`${e}]8;;https://x.test\u0007link${e}]8;;\u0007 ${e}]0;t${e}\\done`),
+    ).toBe("link done");
+    expect(sanitizeOutput(`a${e}(Bb${e}[m`)).toBe("ab");
+    expect(sanitizeOutput(`cut ${e}[3`)).toBe("cut ");
+    expect(sanitizeOutput(`end${e}`)).toBe("end");
+  });
 });

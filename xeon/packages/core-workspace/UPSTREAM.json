@@ -27,6 +27,6 @@
     "packages/durable/src/tools/index.ts (Harness 확장 객체 createCodingTools라 쓰지 않는다)",
     "packages/durable/src/truncate.ts (platform-exec로 옮겼다. review.decisions-2 D-08, B-04. 이 패키지는 fresnel.exec의 truncateHeadOf를 부른다)"
   ],
-  "modifications": ["P1", "P2", "P3", "P4", "P6", "P8", "P9", "P10"],
+  "modifications": ["P1", "P2", "P3", "P4", "P6", "P8", "P9", "P10", "P21"],
   "usedBy": "xeon/packages/core-workspace (path-utils, bash, output 복사본. adr.0003, L1.workspace.plan §2)"
 }

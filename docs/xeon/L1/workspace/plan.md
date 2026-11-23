@@ -76,7 +76,7 @@ pi(`earendil-works/pi`, 커밋 `cdaf6c2`, `packages/durable`)의 포크 세 개�
 |---|---|---|
 | `src/tools/path-utils.ts` | `src/files/upstream/path-utils.ts` | P1, P2, P8, P10: Chord 치환, F 서비스 import, `normalizeToolPath` 내보내기, 린트 억제 제거 |
 | `src/tools/bash.ts` | `src/shell/upstream/bash.ts` | P1, P2, P6: 도구 껍데기를 걷고 `runBashCommand(shell, run, limits, context)`로 만듦. 샌드박스 래핑은 호출자가 한다 |
-| `src/harness/output.ts` | `src/upstream/output.ts` | P2, P3, P4, P9, P10: `OutputBuffer`, `boundOutput`, `sanitizeOutput`, `characterEnd`와 상수만. `Progress`는 뺀다 |
+| `src/harness/output.ts` | `src/upstream/output.ts` | P2, P3, P4, P9, P10, P21: `OutputBuffer`, `boundOutput`, `sanitizeOutput`(P21: 터미널 제어 순서를 통째로 뺀다), `characterEnd`와 상수만. `Progress`는 뺀다 |
 
 `cap-workspace`에 남은 포크는 `read.ts`(P1, P2, P5, P10), `edit-diff.ts`(P13–P18), `image.ts`·`image-processor.ts`(P11, P12)다. 같은 패치 id가 두 패키지에 걸치는 것은 P1, P2, P10뿐이고, 행마다 파일이 다르다.
 
