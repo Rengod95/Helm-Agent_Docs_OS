@@ -4255,7 +4255,7 @@
   "desktop.craft.review.after.purposePlaceholder": "이 플러그인이 하는 일을 한 문장으로",
   "desktop.craft.review.removes.profiles": "빠지는 프로필: {names}",
   "desktop.craft.review.removes.noProfiles": "이 플러그인을 쓰는 프로필이 없어요",
-  "desktop.craft.review.removes.state": "저장한 상태도 같이 지워져요",
+  "desktop.craft.review.removes.state": "저장한 데이터도 같이 지워져요",
   "desktop.craft.review.removes.records": "기록 {count}턴은 남아요",
   "desktop.craft.review.approve": "승인",
   "desktop.craft.review.reject": "거절",

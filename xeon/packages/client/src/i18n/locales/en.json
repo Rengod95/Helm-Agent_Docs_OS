@@ -4255,7 +4255,7 @@
   "desktop.craft.review.after.purposePlaceholder": "What this plugin does, in one sentence",
   "desktop.craft.review.removes.profiles": "Leaves profiles: {names}",
   "desktop.craft.review.removes.noProfiles": "No profile uses it",
-  "desktop.craft.review.removes.state": "Its saved state is deleted too",
+  "desktop.craft.review.removes.state": "Its saved data is deleted too",
   "desktop.craft.review.removes.records": "{count, plural, one{# turn record stays} other{# turn records stay}}",
   "desktop.craft.review.approve": "Approve",
   "desktop.craft.review.reject": "Reject",
