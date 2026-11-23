@@ -28,6 +28,7 @@ import {
   viewSchemeModule,
   type AppFile,
   type AppRootInput,
+  type SkippedRoot,
   type AppRoots,
   type Rejection,
   type Refusal,
@@ -98,6 +99,10 @@ function makeSandbox(): Sandbox {
   writeFileSync(path.join(dir, "secret.txt"), "SECRET");
   writeFileSync(path.join(dir, "extensions/helm/other.txt"), "OTHER");
   return { dir, ui };
+}
+
+function kanbanEntry(root: string): AppRootInput {
+  return entryFor(root, { extension: "kanban" });
 }
 
 function entryFor(root: string, overrides: Partial<AppRootInput> = {}): AppRootInput {
@@ -434,6 +439,56 @@ describe("symlinks and roots", () => {
     });
     // 홈이 root를 품고 있는 것은 막지 않는다(root가 홈 안에 있을 뿐이다)
     expect(roots.replace([entryFor(ui)], sandbox.dir)).toEqual({ ok: true, value: [] });
+  });
+
+  test("a reviewed tree is accepted only for its own name and current hash", async () => {
+    const sandbox = makeSandbox();
+    const roots = createAppRoots();
+    const hashA = "a".repeat(64);
+    const hashB = "b".repeat(64);
+    const store = path.join(sandbox.dir, "data/plugin-store");
+    const treeOf = (name: string, hash: string): string => {
+      const tree = path.join(store, "reviewed", name, hash, "tree");
+      mkdirSync(tree, { recursive: true });
+      writeFileSync(path.join(tree, "index.html"), `<html>${name}${hash.slice(0, 1)}</html>`);
+      return tree;
+    };
+    const kanbanA = treeOf("kanban", hashA);
+    const kanbanB = treeOf("kanban", hashB);
+    const other = treeOf("other", hashA);
+    writeFileSync(path.join(store, "reviewed/kanban/current"), `${hashB}\n`);
+    writeFileSync(path.join(store, "reviewed/other/current"), hashA);
+    const outside: SkippedRoot[] = [{ index: 0, kind: "outside_install" }];
+    // 현재 리뷰본은 열린다
+    expect(roots.replace([kanbanEntry(kanbanB)], undefined)).toEqual({ ok: true, value: [] });
+    const served = await respond(roots, "GET", "fresnel-view://kanban/1.0.0/index.html");
+    expect(await served.text()).toBe(`<html>kanban${hashB.slice(0, 1)}</html>`);
+    // 리뷰본 안의 하위 폴더도 된다
+    mkdirSync(path.join(kanbanB, "dist"), { recursive: true });
+    expect(roots.replace([kanbanEntry(path.join(kanbanB, "dist"))], undefined)).toEqual({
+      ok: true,
+      value: [],
+    });
+    // 옛 판 해시
+    expect(roots.replace([kanbanEntry(kanbanA)], undefined)).toEqual({ ok: true, value: outside });
+    // 다른 이름의 리뷰본
+    expect(roots.replace([kanbanEntry(other)], undefined)).toEqual({ ok: true, value: outside });
+    // 승인 대기본과 드래프트 폴더
+    for (const sub of ["candidates", "drafts"]) {
+      const tree = path.join(store, sub, hashB, "tree");
+      mkdirSync(tree, { recursive: true });
+      expect(roots.replace([kanbanEntry(tree)], undefined)).toEqual({ ok: true, value: outside });
+    }
+    // 폴더 밖을 가리키는 링크
+    const link = path.join(store, "reviewed/kanban", hashB, "link");
+    symlinkSync(sandbox.dir, link);
+    expect(roots.replace([kanbanEntry(link)], undefined)).toEqual({ ok: true, value: outside });
+    // `..`로 나가는 경로는 풀린 실제 경로가 다른 폴더라 거절된다
+    const dotted = path.join(kanbanB, "dist", "..", "..", "..", "..", "..");
+    expect(roots.replace([kanbanEntry(dotted)], undefined)).toEqual({
+      ok: true,
+      value: [{ index: 0, kind: "outside_install" }],
+    });
   });
 
   test("a bad entry is skipped and the rest of the list is registered", async () => {

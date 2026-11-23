@@ -13,7 +13,7 @@
 //   그러면 프레임이 `..`을 보내도 이 처리기는 정리된 주소를 받는다. 그 주소는 버전 자리가 어긋나 400이 되거나 root 안의 경로로 풀린다. 밖으로 나가지는 못한다.
 //   아래 검사는 원문 주소에 대해서도 그대로 둔다(Rust 시험과 같은 글자).
 
-import { realpathSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -300,9 +300,30 @@ function isInstallDirOf(dir: string, extension: string, tier: Tier): boolean {
   }
 }
 
-/** root가 확장의 설치 폴더 안인가. 설치 폴더가 root의 조상이거나 root 자신이어야 한다 */
+const HEX_HASH = /^[0-9a-f]{64}$/;
+
+/**
+ * `dir`가 그 확장의 현재 리뷰본 폴더 `…/plugin-store/reviewed/<이름>/<해시>/tree`인가(ADR-0021 §3.6.2).
+ * 폴더 모양과 이름이 맞고, `reviewed/<이름>/current`가 가리키는 해시와 폴더의 해시가 같을 때만 참이다.
+ * 옛 판 해시, 다른 이름, 승인 대기본(`candidates/`)과 드래프트(`drafts/`)는 모양이 달라 거절된다
+ */
+function isReviewedTreeOf(dir: string, extension: string): boolean {
+  if (path.basename(dir) !== "tree") return false;
+  const hashDir = path.dirname(dir);
+  const nameDir = path.dirname(hashDir);
+  const reviewedDir = path.dirname(nameDir);
+  if (!HEX_HASH.test(path.basename(hashDir)) || path.basename(nameDir) !== extension) return false;
+  if (path.basename(reviewedDir) !== "reviewed") return false;
+  if (path.basename(path.dirname(reviewedDir)) !== "plugin-store") return false;
+  const current = attempt(() => readFileSync(path.join(nameDir, "current"), "utf8"));
+  return current.ok && current.value.trim() === path.basename(hashDir);
+}
+
+/** root가 확장의 설치 폴더 안인가. 설치 폴더(또는 현재 리뷰본 폴더)가 root의 조상이거나 root 자신이어야 한다 */
 function insideInstallDir(real: string, extension: string, tier: Tier): boolean {
-  return ancestorsOf(real).some((dir) => isInstallDirOf(dir, extension, tier));
+  return ancestorsOf(real).some(
+    (dir) => isInstallDirOf(dir, extension, tier) || isReviewedTreeOf(dir, extension),
+  );
 }
 
 /** 마디 수(루트 `/`는 0)를 센다. Rust `components().count()`에서 루트 성분을 뺀 값이다 */
