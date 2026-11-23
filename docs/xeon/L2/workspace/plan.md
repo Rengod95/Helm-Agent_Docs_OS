@@ -85,7 +85,7 @@ xeon/packages/cap-workspace/
 | `D/tools/bash.ts` | 184 | `src/shell/upstream/bash.ts`(층 D에서 L1 `core-workspace`로 옮김) | M1 | `Context` 치환. `prepareExecution` 앞에 `fresnel.sandbox` 래핑을 넣는다(`src/shell/run.ts`). `api.output`·`retainedOutput` 대신 `ExecutionEnv.exec`의 spill·window 옵션을 직접 쓴다. PowerShell 부분은 복사만 하고 등록하지 않는다 |
 | `D/tools/env.ts` | 8 | 복사하지 않음 | — | `requireEnv`는 서비스 주입으로 대체 |
 | `D/tools/index.ts` | 39 | 복사하지 않음 | — | Harness 확장 객체(`createCodingTools`)라 쓰지 않는다 |
-| `CA/ls.ts` | 175 | (삭제됨) | M1 | 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. 옛 설명: fs 직접 호출 → `ExecutionEnv.listDir`, 코드 단위 바이트 순 정렬 |
+| `CA/ls.ts` | 175 | `files/list.ts` | M1 | 2026-11-13에 삭제했고 2026-11-23에 읽기 전용 폴더 목록으로 다시 더했다 [결정: 2026-11-23 사용자, AGE-77 질문 3]. 새 구현: `ExecutionEnv.listDir`로 한 층씩 이름순, 깊이 3과 항목 1000 상한, 읽기 보호 경로 가림(`L2.workspace.spec` §4.3.2). 시험은 `test/list.test.ts` |
 | `D/tools/write.ts` | 39 | `src/files/upstream/write.ts` | M3 | 도구 타입 치환. `FileChange` 계산(이전 내용 읽기 + `generateUnifiedPatch`) 추가 |
 | `D/tools/file-mutation-queue.ts` | 55 | `src/files/upstream/file-mutation-queue.ts` | M3 | `Context` 치환 |
 | `D/tools/edit.ts` | 144 | `src/edit/upstream/edit.ts` | M3 | 도구 타입 치환. `prepareEditArguments`는 F 정의의 `toEditInput`으로 옮겼으므로 지운다. 오류 메시지 문자열 대신 고유 코드로 던진다(`edit_not_found` 등) |

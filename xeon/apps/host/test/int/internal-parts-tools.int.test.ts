@@ -66,7 +66,7 @@ async function advertisedNames(
 }
 
 realTest(
-  "the model sees 8 tools up front (7 plus tool_search) and the other 35 only through tool_search",
+  "the model sees 9 tools up front (8 plus tool_search) and the other 35 only through tool_search",
   async () => {
     writeUserSettings(home, TAPE_SETTINGS);
     const captured: { current: Captured | undefined } = { current: undefined };
@@ -80,13 +80,14 @@ realTest(
       if (services === undefined) throw new Error("the capture extension did not start");
       const created = await engine.ports.threads.create({});
       const names = await advertisedNames(services, created.threadId);
-      // 항상 보이는 일곱: 질문(host-dialog-bridge), 작업 목록(cap-work), 파일 넷과 셸(cap-workspace). 여덟째는 검색 도구다
+      // 항상 보이는 여덟: 질문(host-dialog-bridge), 작업 목록(cap-work), 파일 다섯(read, write, edit, grep, ls)과 셸(cap-workspace). 아홉째는 검색 도구다
       expect(names.always).toEqual(
         [
           "ask_user",
           "bash",
           "edit",
           "grep",
+          "ls",
           "read",
           "task_write",
           "tool_search",

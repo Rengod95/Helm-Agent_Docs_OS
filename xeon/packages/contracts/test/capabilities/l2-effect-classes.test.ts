@@ -146,6 +146,7 @@ const EXPECTED: readonly string[] = [
   "workspace.files.write none unsafe",
   "workspace.files.edit none unsafe",
   "workspace.files.grep readOnly safe",
+  "workspace.files.ls readOnly safe",
   "workspace.images.load readOnly safe",
   "workspace.images.resize readOnly safe",
   "workspace.images.register none unsafe",

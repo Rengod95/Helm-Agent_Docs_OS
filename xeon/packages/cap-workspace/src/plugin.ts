@@ -239,6 +239,7 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
             write: { risk: "write" },
             edit: { risk: "write" },
             grep: { risk: "read" },
+            ls: { risk: "read" },
           },
         },
         {

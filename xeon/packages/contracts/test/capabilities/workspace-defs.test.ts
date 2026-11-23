@@ -29,9 +29,42 @@ describe("workspace definitions (M1)", () => {
     expect(validateCapabilitySet(DEFS)).toEqual([]);
   });
 
-  test("five tools are declared: read write edit grep bash", () => {
+  test("six tools are declared: read write edit grep ls bash", () => {
     // 기능 ID 순(workspace.files < workspace.shell), 그 안에서 이름 순
-    expect(orderTools(DEFS).map((t) => t.name)).toEqual(["edit", "grep", "read", "write", "bash"]);
+    expect(orderTools(DEFS).map((t) => t.name)).toEqual([
+      "edit",
+      "grep",
+      "ls",
+      "read",
+      "write",
+      "bash",
+    ]);
+  });
+
+  test("ls is a read-only tool whose description sends the model here instead of a shell command", () => {
+    const ls = WorkspaceFiles.tools[4];
+    expect(ls.name).toBe("ls");
+    expect(ls.hints?.readOnly).toBe(true);
+    expect(ls.description).toContain("instead of running a shell command");
+    expect(WorkspaceFiles.service.methods.ls.readOnly).toBe(true);
+  });
+
+  test("ls renders folders with a trailing slash and reports a cut", () => {
+    const ls = WorkspaceFiles.tools[4];
+    if (ls.toContent === undefined) throw new Error("ls has no toContent");
+    const render: typeof ls.toContent = (out) => ls.toContent?.(out) ?? { content: [] };
+    const text = content(
+      render({
+        root: "/work",
+        entries: [
+          { path: "a.txt", kind: "file" },
+          { path: "src", kind: "directory" },
+        ],
+        truncated: { by: "entries", shown: 2 },
+      }),
+    );
+    expect(text).toBe("a.txt\nsrc/\n\n[Truncated: entries limit, 2.]");
+    expect(content(render({ root: "/work", entries: [] }))).toBe("(empty directory)");
   });
 
   test("keys and the bundle name", () => {

@@ -1,5 +1,5 @@
 // 도구 호출 인자의 화면용 요약과 연속 호출 묶음 세기. 순수 함수이고 던지지 않는다. 모양이 맞지 않으면 generic이다.
-// 도구 이름과 인자 모양의 출처: packages/contracts/src/capabilities/defs/workspace.ts(read, write, edit, grep, bash),
+// 도구 이름과 인자 모양의 출처: packages/contracts/src/capabilities/defs/workspace.ts(read, write, edit, grep, ls, bash),
 // work.ts(task_write), knowledge.ts(memory_manage, knowledge_search, skill_*, session_*), web.ts(web_*), mcp.ts(mcp_*),
 // packages/core-agents/src/tool.ts(agent). 인자는 모델이 보낸 값이라 모양만 본다.
 // MCP 도구의 기계 이름은 `mcp__서버__도구`가 아니라 서버가 광고한 이름 그대로다(cap-mcp/src/client/dynamic-tools.ts `mcpToolName`).
@@ -154,6 +154,7 @@ export type ToolCategory =
  */
 const CATEGORY_OF_TOOL: Readonly<Record<string, ToolCategory>> = {
   read: "read",
+  ls: "read",
   skill_view: "read",
   session_read: "read",
   session_scroll: "read",
@@ -259,6 +260,7 @@ type Summarizer = (args: Record<string, unknown>) => ToolArgsSummary | null;
 const SUMMARIZERS: Readonly<Record<string, Summarizer>> = {
   bash: commandOf,
   read: readOf,
+  ls: lsOf,
   skill_view: skillViewOf,
   write: writeOf,
   edit: editOf,
@@ -305,6 +307,13 @@ function readOf(args: Record<string, unknown>): ToolArgsSummary | null {
       ? null
       : { offset: offset.value, limit: limit.value };
   return { kind: "read", path, range };
+}
+
+/** ls: 폴더를 읽는 호출이라 read로 요약한다. 경로를 생략하면 작업 폴더(`.`)다 */
+function lsOf(args: Record<string, unknown>): ToolArgsSummary | null {
+  const path = optionalOf(args["path"], isString);
+  if (!path.ok) return null;
+  return { kind: "read", path: path.value ?? ".", range: null };
 }
 
 function writeOf(args: Record<string, unknown>): ToolArgsSummary | null {

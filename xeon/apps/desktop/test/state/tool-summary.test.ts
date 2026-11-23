@@ -51,22 +51,25 @@ describe("summarizeToolArgs: 도구별 입력 → 요약", () => {
     ).toEqual({ kind: "edit", path: "src/x.ts" });
   });
 
-  test("없어진 ls와 find의 옛 기록 호출은 표에 없어 generic으로 보이고 범주는 other다", () => {
-    expect(summarizeToolArgs("ls", {})).toEqual({ kind: "generic", text: "{}" });
-    expect(summarizeToolArgs("ls", { path: "src" })).toEqual({
-      kind: "generic",
-      text: '{"path":"src"}',
-    });
+  test("없어진 find의 옛 기록 호출은 표에 없어 generic으로 보이고 범주는 other다", () => {
     expect(summarizeToolArgs("find", { pattern: "**/*.spec.ts", limit: 5 })).toEqual({
       kind: "generic",
       text: '{"pattern":"**/*.spec.ts","limit":5}',
     });
-    expect(toolCategoryOf("ls")).toBe("other");
     expect(toolCategoryOf("find")).toBe("other");
-    expect(groupToolCalls([{ toolName: "ls", args: { path: "src" } }])).toEqual({
+    expect(groupToolCalls([{ toolName: "find", args: { pattern: "*.ts" } }])).toEqual({
       counts: [{ category: "other", count: 1, distinct: null }],
       total: 1,
     });
+  });
+  test("ls: 폴더 읽기로 요약하고 경로를 생략하면 작업 폴더다", () => {
+    expect(summarizeToolArgs("ls", { path: "src", depth: 2 })).toEqual({
+      kind: "read",
+      path: "src",
+      range: null,
+    });
+    expect(summarizeToolArgs("ls", {})).toEqual({ kind: "read", path: ".", range: null });
+    expect(toolCategoryOf("ls")).toBe("read");
   });
 
   test("grep과 knowledge_search: 찾기 대상과 질의를 나눈다", () => {
@@ -519,7 +522,7 @@ describe("toolCategoryOf", () => {
       ["skill_view", "read"],
       ["session_read", "read"],
       ["session_scroll", "read"],
-      ["ls", "other"],
+      ["ls", "read"],
       ["grep", "search"],
       ["find", "other"],
       ["knowledge_search", "search"],

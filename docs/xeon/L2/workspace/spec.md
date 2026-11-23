@@ -16,7 +16,7 @@ binds: [xeon/packages/cap-workspace/**]
 
 ### 1.1 정하는 것
 
-- 파일·셸 도구셋 5종: `read`, `write`, `edit`, `bash`, `grep`(`_research/layer-plan-v2.json` L2-a "파일·셸 도구셋"). `find`와 `ls`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]: 목록과 찾기는 `bash`가 맡는다.
+- 파일·셸 도구셋 6종: `read`, `write`, `edit`, `bash`, `grep`, `ls`(`_research/layer-plan-v2.json` L2-a "파일·셸 도구셋"). `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]. `ls`는 2026-11-23에 읽기 전용 폴더 목록 도구로 다시 더했다 [결정: 2026-11-23 사용자, AGE-77 질문 3 "가"]: "실행마다 묻기"에서 폴더를 둘러보려고 명령 실행(`bash`)을 매번 승인받지 않게 하는 길이다. 찾기는 `grep`과 `bash`가 맡는다.
 - 위 도구가 환원되는 기능 3개의 정의: `workspace.files`, `workspace.shell`, `workspace.images`. 정의 데이터는 F `capabilities/defs/workspace.ts`에 들어간다(`L2.readme` §5.1).
 - 보호 경로 더하기와 목록: 모델 도구 `sandbox_protect`, `sandbox_protected`와 그 기능 `workspace.protection`(3.5.1절, [결정: 2026-11-20, 사용자, AGE-63]). 기능은 막을 경로를 더할 뿐 막기를 푸는 길이 없다.
 - 편집 방식: 정확 일치, 퍼지 일치, `edits` 배열, 실패 코드. 줄 해시 편집은 2차 설계 메모만 둔다.
@@ -185,7 +185,22 @@ export const EditOutput = Type.Object({
   change: FileChangeSchema,
 });
 
-// ---- list (도구 이름 ls): 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]
+// ---- ls [결정: 2026-11-23 사용자, AGE-77 질문 3]. 2026-11-13에 지운 도구를 읽기 전용 폴더 목록으로 다시 더했다. 메서드 이름도 `ls`다(도구 이름 = 메서드 이름)
+export const LIST_DEFAULT_DEPTH = 1;   // 깊이 기본값. 상한 LIST_MAX_DEPTH = 3
+export const LIST_DEFAULT_LIMIT = 200; // 항목 수 기본값. 상한 LIST_MAX_LIMIT = 1000
+export const ListInput = Type.Object({
+  path: Type.Optional(Type.String({ minLength: 1, maxLength: 4096, description: "폴더 경로. 생략하면 작업 폴더" })),
+  depth: Type.Optional(Type.Integer({ minimum: 1, maximum: 3 })),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
+});
+export const ListOutput = Type.Object({
+  root: Type.String({ maxLength: 4096 }),               // 기준 폴더의 정규 경로
+  entries: Type.Array(Type.Object({                     // path는 root 기준 상대 경로, 이름순, 한 층씩
+    path: Type.String({ maxLength: 4096 }),
+    kind: Type.Union([Type.Literal("file"), Type.Literal("directory"), Type.Literal("symlink")]),
+  }), { maxItems: 1000 }),
+  truncated: Type.Optional(TruncationInfoSchema),       // by: "entries"
+});
 
 // ---- grep
 export const GrepInput = Type.Object({
@@ -323,14 +338,19 @@ export const WorkspaceFiles = defineCapability({
       description: "파일 내용을 검색해 경로와 줄 번호를 돌려준다. .gitignore를 따른다. 결과 수와 줄 길이에 한도가 있다.",
       toContent: renderGrep, replay: "safe", executionMode: "parallel", hints: READ_ONLY,
     },
+    {
+      name: "ls", label: "폴더 목록", method: "ls", parameters: ListInput,
+      description: "디렉터리의 파일과 폴더를 보여 준다(몇 층 깊이까지, 항목 수 한도 있음). 프로젝트를 둘러볼 때는 셸 명령을 돌리지 말고 이것을 쓴다. 승인을 묻지 않는다.",
+      toContent: renderList, replay: "safe", executionMode: "parallel", hints: READ_ONLY,
+    },
   ],
 });
 export const WorkspaceFilesKey = serviceKey(WorkspaceFiles);
 ```
 
-- 기계 이름은 pi 이름 그대로다(`read`, `write`, `edit`, `bash`, `grep`). `find`와 `ls`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"].
-- `read`, `write`, `grep`는 `toInput`이 없으므로 `parameters`와 메서드 `input`이 같은 스키마 상수다(`tool_input_mismatch` 없음). `edit`만 `toInput`을 둔다.
-- 노출: 작업 폴더 도구는 모두 `always`다. `ls`와 `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"]이므로 지연 등록의 `exposure` 항목은 두지 않는다(L1.tools §4.1).
+- 기계 이름은 pi 이름 그대로다(`read`, `write`, `edit`, `bash`, `grep`)이고 `ls`를 더했다 [결정: 2026-11-23 사용자]. `find`는 삭제됨 [결정: 2026-11-13 사용자 "ls find는 bash로 대체"].
+- `read`, `write`, `grep`, `ls`는 `toInput`이 없으므로 `parameters`와 메서드 `input`이 같은 스키마 상수다(`tool_input_mismatch` 없음). `edit`만 `toInput`을 둔다.
+- 노출: 작업 폴더 도구는 모두 `always`다. 지연 등록의 `exposure` 항목은 두지 않는다(L1.tools §4.1).
 - `edit`의 `toInput`은 `JSON.parse`를 쓰지만 입력만 보고 결과를 내므로 순수 함수다. 정규화 뒤 `edits`가 비면 메서드 입력 검사(`minItems: 1`)에서 `invalid_input`이 난다.
 - 메서드 `replay`와 도구 `replay`가 같다. 도구가 메서드보다 넓지 않으므로 `replay_widened`가 나지 않는다(`F.capabilities.spec` §4.2).
 
@@ -554,7 +574,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 2. 절대화: `ExecutionEnv.absolutePath`로 cwd 기준 절대 경로를 만든다.
 3. 읽기 변형(read만): 없으면 macOS 스크린샷 이름 변형(좁은 공백 AM/PM, NFD, 곡선 따옴표)을 차례로 시도한다(`resolveReadToolPath`).
 4. 정규 경로: `ExecutionEnv.canonicalPath`로 심볼릭 링크와 `..`를 푼다. 대상이 아직 없으면(새 파일 쓰기) 존재하는 가장 가까운 상위 디렉터리의 정규 경로에 나머지 마디를 붙인다. 나머지 마디에 `..`가 있으면 거부한다.
-5. 포함 검사: 정규 경로가 허용 root 가운데 하나의 안에 있어야 한다. 읽기 도구(`read`, `grep`)는 읽기 root, 쓰기 도구(`write`, `edit`)는 쓰기 root와 비교한다. 비교는 경로 마디 단위다. 문자열 접두 비교는 쓰지 않는다(`/a/bc`는 `/a/b` 안이 아니다).
+5. 포함 검사: 정규 경로가 허용 root 가운데 하나의 안에 있어야 한다. 읽기 도구(`read`, `grep`, `ls`)는 읽기 root, 쓰기 도구(`write`, `edit`)는 쓰기 root와 비교한다. 비교는 경로 마디 단위다. 문자열 접두 비교는 쓰지 않는다(`/a/bc`는 `/a/b` 안이 아니다).
 6. 보호 경로: 정규 경로가 L0.sandbox의 보호 경로 목록에 걸리면 root 안이어도 거부한다. 목록을 조회할 때 이 호출의 허용 root를 넘겨(`protectedPaths(roots)`), bash를 한 번도 돌리지 않았어도 root별 `.git/hooks`, `.git/config`가 첫 호출부터 막히게 한다.
 
 - 4·5·6번 위반은 `denied`다. `detail`은 `{ reason: "outside_root" | "protected_path" | "parent_traversal", requested: <입력 경로>, resolved: <정규 경로> }`다.
@@ -578,6 +598,13 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.3.0 테스트 대화의 허용 root [구현 상태, 2026-11-18, M5c §4.8.7]
 
 테스트 대화(표지 `craftChat`이 있는 대화)는 작업 폴더 규칙 대신 `ThreadWorkspaces.craftScopeOf`의 값으로 root를 정한다(`core-workspace/src/scope.ts`, `roots.ts`의 `craftRoots`). 묶인 플러그인의 원본 폴더 `<설정>/plugins/<이름>`이 읽기·쓰기 root 하나이고, 출력 사본 폴더는 읽기 root다. 묶이지 않았거나 원본 폴더가 아직 없으면 쓰기 root가 없다. 원본 폴더는 `cap-workspace/src/plugin.ts`의 `threadWorkspaces`가 `os.dirs.config`로 정한다. 일반 대화의 root는 `defaultRoots` 그대로다.
+
+### 4.3.2 `ls`의 규칙 [결정: 2026-11-23, 사용자, AGE-77 질문 3]
+
+- 목적: "실행마다 묻기"에서 폴더 둘러보기와 파일 읽기가 `bash` 승인으로 번지지 않게 한다. `read`는 폴더 경로를 받으면 `invalid_input`(`is_directory`)을 내고 안내 문구가 `ls`를 가리킨다.
+- 기준 폴더는 `read`와 같은 읽기 root 검사(§4.3)를 거친다. 작업 폴더 밖(`outside_root`)과 읽기 보호 경로(`protected_path`)는 묻지 않고 `denied`로 거부한다. 보호 경로에 걸린 하위 항목(시크릿 등)은 목록에서 뺀다. 이 경계는 `read`, `grep`과 같고 느슨하게 하지 않는다.
+- 상한: 깊이 기본 1, 최대 3. 항목 수 기본 200, 최대 1000. 넘으면 `truncated: { by: "entries", shown }`을 싣는다. 한 층씩 이름순(코드 단위 비교)으로 내고, 심볼릭 링크는 따라가지 않으며, `.git`과 `node_modules`는 이름만 보이고 안으로 들어가지 않는다. 상한은 도구 입력의 상수이고 설정 키는 없다.
+- 위험 등급은 `read`다(`plugin.ts` 정책). 권한 모드가 묻지 않는 것은 L1.tools §4.5 기본 규칙 `default.read-allow`가 맡는다.
 
 ### 4.3.1 작업 폴더 밖 쓰기
 
