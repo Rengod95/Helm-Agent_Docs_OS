@@ -471,6 +471,11 @@ export type DevkitResult<T> = Result<T, DevkitError>;
 export interface DevkitService {
   kinds(): Promise<readonly KindEntry[]>;
   scaffold(input: ScaffoldInput): Promise<DevkitResult<ScaffoldResult>>;
+  /**
+   * 대상 폴더의 파일이 모두 뼈대 그대로인가(파일이 하나 이상 있고 모두 어느 방식의 뼈대와 파일마다 같다). 뼈대는 검사를 통과하므로
+   * 빌더의 `authoring_trial`은 이 판정으로 뼈대만 있는 폴더에 Test run 카드를 띄우지 않는다. 구현이 없으면 빌더는 막지 않는다
+   */
+  isSkeletonOnly?(input: ScaffoldInput): Promise<DevkitResult<boolean>>;
   validate(dir: string): Promise<DevkitResult<ValidationReport>>;
   validateComposition(composition: CompositionDecl): ValidationReport;
   testRun(input: TestRunInput): Promise<DevkitResult<TestRunHandle>>;

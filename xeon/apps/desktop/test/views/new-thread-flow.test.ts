@@ -3,6 +3,7 @@ import { ok, type Result } from "@fresnel/contracts";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../src/views/commands.ts";
 import {
+  PICK_FOLDER,
   resetNewThreadGuard,
   runNewThread,
   type NewThreadDeps,
@@ -174,4 +175,34 @@ test("a Helm-driven thread (only a slash command) does not hand the click back t
   expect(await runNewThread(deps, undefined)).toEqual({ kind: "created" });
   expect(calls.selected).toEqual([]);
   expect(calls.created).toEqual(["/w/a"]);
+});
+
+test("다른 폴더 열기: the picker opens with pick_folder even when a folder is viewed, and the picked folder gets the thread", async () => {
+  const commands: string[] = [];
+  const { deps, calls } = fixture({
+    threads: [summary({})],
+    selected: thr(1),
+    folderPick: (command) => {
+      commands.push(command);
+      return Promise.resolve("/w/other");
+    },
+  });
+  expect(await runNewThread(deps, PICK_FOLDER)).toEqual({ kind: "created" });
+  expect(commands).toEqual(["pick_folder"]);
+  expect(calls.created).toEqual(["/w/other"]);
+  expect(calls.composer).toBe(1);
+  expect(calls.chat).toBe(1);
+});
+
+test("다른 폴더 열기 취소: no picker result creates nothing and does not switch the screen", async () => {
+  const { deps, calls } = fixture({
+    threads: [summary({})],
+    selected: thr(1),
+    folderPick: () => Promise.resolve(null),
+  });
+  expect(await runNewThread(deps, PICK_FOLDER)).toEqual({ kind: "cancelled" });
+  expect(calls.created).toEqual([]);
+  expect(calls.selected).toEqual([]);
+  expect(calls.composer).toBe(0);
+  expect(calls.chat).toBe(0);
 });

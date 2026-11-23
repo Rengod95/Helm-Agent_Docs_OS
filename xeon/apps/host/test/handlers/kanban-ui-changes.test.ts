@@ -337,6 +337,8 @@ test("the screen's method calls and the model's tool calls reach the same board"
   expect(await callMethod(loaded, byMethod, "board", {})).toEqual(methodBoard);
 });
 
+const pad = (n: number): string => String(n).padStart(2, "0");
+
 test("a scaffolded app skeleton loads through the same loader, and its tool and method share one list", async () => {
   const userDir = freshUserDir();
   const templates = locateTemplateDirs({});
@@ -349,16 +351,20 @@ test("a scaffolded app skeleton loads through the same loader, and its tool and 
   const loaded = await loadExtension(userDir, "memo");
   const { thread } = loaded;
   expect(await callMethod(loaded, thread, "list", {}, "memo")).toEqual({ ok: true, items: [] });
+  const now = new Date();
+  const created = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const first = { title: "첫 항목", created };
+  const second = { title: "둘째 항목", created };
   expect(await callTool(loaded, thread, "memo_add_item", { title: "첫 항목" })).toEqual({
     ok: true,
-    items: ["첫 항목"],
+    items: [first],
   });
   expect(await callMethod(loaded, thread, "add", { title: "둘째 항목" }, "memo")).toEqual({
     ok: true,
-    items: ["첫 항목", "둘째 항목"],
+    items: [first, second],
   });
   expect(await callMethod(loaded, thread, "list", {}, "memo")).toEqual({
     ok: true,
-    items: ["첫 항목", "둘째 항목"],
+    items: [first, second],
   });
 });

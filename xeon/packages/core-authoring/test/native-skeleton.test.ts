@@ -55,6 +55,7 @@ test("the manifest value: one native page, one read method, no tool, no orchestr
           properties: {
             ok: { type: "boolean" },
             items: { type: "array", items: { type: "string" }, maxItems: 500 },
+            today: { type: "string" },
             reason: { type: "string" },
           },
           required: ["ok"],
@@ -95,6 +96,18 @@ test("the screen file is a declarative tree: a heading and a list bound to the r
       { type: "List", bind: { items: { path: "/list/items" } } },
     ],
   });
+});
+
+test("the list result carries the local day (today), and no skeleton file turns the date into UTC", () => {
+  const entry = fileText("src/index.ts");
+  expect(entry).toContain("const today = (): string => {");
+  expect(entry).toContain("d.getFullYear()");
+  expect(entry).toContain("pad(d.getMonth() + 1)");
+  expect(entry).toContain("pad(d.getDate())");
+  expect(entry).toContain("today: today(),");
+  for (const file of nativeSkeletonFiles(VALUES)) {
+    expect(file.text.includes("toISOString")).toBe(false);
+  }
 });
 
 test("the entry is a plain plugin: definePlugin, one state, one read method, no model tool", () => {

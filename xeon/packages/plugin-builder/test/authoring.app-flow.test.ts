@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { toJsonValue } from "@fresnel/contracts/conversation";
 import type { DevkitService } from "@fresnel/contracts/services";
-import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
+import { isSkeletonFolder, scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import { createOrchestrationRig, devkitProbe, type OrchestrationRig } from "./group-support.ts";
 import { tempRoot, templateDirs } from "./support.ts";
 
@@ -27,6 +27,7 @@ function appDevkit(): {
     ...base.devkit,
     scaffold: (input) => scaffoldExtension(input, { templates }),
     validate: (dir) => validateExtensionDir(dir),
+    isSkeletonOnly: (input) => isSkeletonFolder(input, { templates }),
   };
   return { devkit, base };
 }
@@ -99,7 +100,15 @@ test("app flow: scaffold(app) writes the app files, validate passes the app chec
   ).toMatchObject({ ok: false, error: { kind: "no_evidence" } });
   expect(base.submits).toEqual([]);
 
-  // 4. 테스트 대화: 열리면서 testRun이 이 폴더로 한 번 불린다
+  // 4. 테스트 대화: 뼈대 그대로면 카드가 뜨지 않고 거절된다(U-05). 요청한 기능을 파일에 넣고 다시 검사한 뒤에 연다
+  expect(await rig.call("authoring_trial", { sessionId: SESSION })).toMatchObject({
+    ok: false,
+    error: { kind: "skeleton_only" },
+  });
+  expect(base.calls.filter((call) => call.startsWith("testRun:"))).toEqual([]);
+  const entry = join(dir, "src", "index.ts");
+  writeFileSync(entry, `${readFileSync(entry, "utf8")}// the requested feature\n`);
+  expect(await rig.call("authoring_validate", { sessionId: SESSION })).toMatchObject({ ok: true });
   await openTestRun(rig);
   expect(base.calls.filter((call) => call.startsWith("testRun:"))).toEqual([`testRun:${dir}`]);
 
@@ -107,9 +116,8 @@ test("app flow: scaffold(app) writes the app files, validate passes the app chec
   expect(await rig.call("authoring_submit", { sessionId: SESSION, turnId: EVIDENCE_TURN })).toEqual(
     {
       ok: true,
-      draftId: "draft_demo",
-      itemId: "rvw_demo",
       notice: "검토함에서 승인해야 쓸 수 있다",
+      details: { draftId: "draft_demo", itemId: "rvw_demo" },
     },
   );
   expect(base.submits).toEqual([

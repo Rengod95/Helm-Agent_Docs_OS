@@ -16,7 +16,7 @@ Unknown top-level keys are removed with a warning (`unknown_key`). Any error ref
 | `entry` | yes | relative path inside the root, such as `./src/index.ts`. Install needs `.js` or `.mjs` |
 | `plugins` | yes | array of 1 to 16 plugin items (below) |
 | `purpose` | **yes** | one sentence saying what the plugin does for the user, not the request sentence copied. Up to 200 characters |
-| `description` | **yes** | one plain sentence in the user's words, saying what the plugin does for the user. The user reads it on the plugin card. Up to 1024 characters |
+| `description` | **yes** | one or two sentences the user sees on the plugin card, in plain words with no implementation terms (no hook, tool, method, or state names). Up to 1024 characters |
 | `displayName` | no | up to 64 characters |
 | `author` | no | object: `name` (required, up to 128), `email?`, `url?` |
 | `homepage`, `repository` | no | up to 512 characters each |

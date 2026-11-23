@@ -50,4 +50,13 @@ describe("ScreenHeader: 좁은 창에서 줄어드는 쪽 (rerun3 T-05)", () => 
     );
     expect(html).not.toContain("flex-1 items-center gap-2.5");
   });
+
+  test("a fixed title's header wraps the controls to a row below the title, with vertical room", () => {
+    expect(withControls(true)).toMatch(
+      /^<header class="shell-header flex flex-none flex-wrap items-center gap-x-2 gap-y-1\.5 py-1\.5"/u,
+    );
+    expect(withControls(false)).toMatch(
+      /^<header class="shell-header flex flex-none items-center gap-2"/u,
+    );
+  });
 });

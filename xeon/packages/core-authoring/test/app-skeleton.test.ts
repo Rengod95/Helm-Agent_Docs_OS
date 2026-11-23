@@ -49,7 +49,15 @@ test("the manifest value: one app page, two methods (read and write), one model 
           type: "object",
           properties: {
             ok: { type: "boolean" },
-            items: { type: "array", items: { type: "string" }, maxItems: 500 },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { title: { type: "string" }, created: { type: "string" } },
+                required: ["title", "created"],
+              },
+              maxItems: 500,
+            },
             reason: { type: "string" },
           },
           required: ["ok"],
@@ -68,7 +76,15 @@ test("the manifest value: one app page, two methods (read and write), one model 
           type: "object",
           properties: {
             ok: { type: "boolean" },
-            items: { type: "array", items: { type: "string" }, maxItems: 500 },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { title: { type: "string" }, created: { type: "string" } },
+                required: ["title", "created"],
+              },
+              maxItems: 500,
+            },
             reason: { type: "string" },
           },
           required: ["ok"],
@@ -110,10 +126,22 @@ test("the model tool and the screen's write method share one function in the ent
   expect(entry).toContain('g.registerMethod("add", {');
   expect(entry).toContain('name: "kanban_add_item",');
   expect(entry).toContain(
-    "const committed = await g.commit({ items: [...g.state().items, title] });",
+    "const committed = await g.commit({ items: [...g.state().items, made] });",
   );
   // 메서드 add와 모델 도구가 같은 addItem을 부른다(정의는 "addItem(g: "라서 셈에 들지 않는다)
   expect(entry.split("addItem(g, ")).toHaveLength(3);
+});
+
+test("the day an item is made comes from the local calendar (today), and no skeleton file turns the date into UTC", () => {
+  const entry = fileText("src/index.ts");
+  expect(entry).toContain("const made: AppItem = { title, created: today() };");
+  expect(entry).toContain("const today = (): string => {");
+  expect(entry).toContain("d.getFullYear()");
+  expect(entry).toContain("pad(d.getMonth() + 1)");
+  expect(entry).toContain("pad(d.getDate())");
+  for (const file of appSkeletonFiles(VALUES)) {
+    expect(file.text.includes("toISOString")).toBe(false);
+  }
 });
 
 test("without a conversation the entry keeps its items in the plugin store and never answers no_thread", () => {

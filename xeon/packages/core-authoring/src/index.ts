@@ -2,7 +2,12 @@
 // 호스트(조립 루트)가 이 함수들로 제작 포트를 만든다.
 export { KIND_CATALOG, kindEntryOf } from "./catalog.ts";
 export { BUNDLE_ENTRY, folderHash, looksSecret, packExtension } from "./pack.ts";
-export { DEFAULT_VERSION, scaffoldExtension, type ScaffoldOptions } from "./scaffold.ts";
+export {
+  DEFAULT_VERSION,
+  isSkeletonFolder,
+  scaffoldExtension,
+  type ScaffoldOptions,
+} from "./scaffold.ts";
 export { editMembers, readMembers } from "./members.ts";
 export { editDependencies, readDependencies } from "./dependencies.ts";
 export { detachMember } from "./members-detach.ts";

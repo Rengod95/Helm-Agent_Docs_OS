@@ -295,7 +295,7 @@ test("authoring.resume: an answer to the confirmation queues a followUp so the s
         kind: "context",
         customType: "grp.authoring.notice.status",
         content:
-          "[authoring] the user confirmed the kind and the name: continue without asking through authoring_trial",
+          "[authoring] the user confirmed the kind and the name: continue without asking; scaffold, build the feature, validate, then authoring_trial",
         display: false,
       },
     ],
@@ -442,9 +442,8 @@ test("authoring.submit: after a Test run, the turn of that run is the evidence a
   });
   expect(sent).toEqual({
     ok: true,
-    draftId: "draft_demo",
-    itemId: "rvw_demo",
     notice: "검토함에서 승인해야 쓸 수 있다",
+    details: { draftId: "draft_demo", itemId: "rvw_demo" },
   });
   expect(rig.probe.submits).toEqual([
     {
@@ -522,7 +521,7 @@ test("authoring.flow: start, scaffold, validate, bash, trial on the folder, subm
   expect(rig.probe.calls).toEqual([`scaffold:${DIR}`, `validate:${DIR}`, `testRun:${DIR}`]);
   expect(rig.state().trial).toEqual({ threadId: "thr_trial" });
   const sent = await rig.call("authoring_submit", { sessionId: "auth-demo", turnId: "turn_1" });
-  expect(sent).toMatchObject({ ok: true, draftId: "draft_demo", itemId: "rvw_demo" });
+  expect(sent).toMatchObject({ ok: true, details: { draftId: "draft_demo", itemId: "rvw_demo" } });
 });
 
 test("authoring.trial: the tool takes only the session; prompt and profile are not accepted", async () => {
@@ -532,6 +531,31 @@ test("authoring.trial: the tool takes only the session; prompt and profile are n
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
   const refused = await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "hi" });
   expect(refused).toMatchObject({ ok: false });
+});
+
+test("authoring.trial-skeleton: a folder still the skeleton is refused with skeleton_only and shows no card; the card comes once the folder differs (U-05)", async () => {
+  const rig = await createOrchestrationRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  rig.probe.skeleton = true;
+  const refused = await rig.call("authoring_trial", { sessionId: "auth-demo" });
+  expect(refused).toMatchObject({
+    ok: false,
+    error: {
+      kind: "skeleton_only",
+      message: expect.stringContaining("implement the requested feature"),
+    },
+  });
+  expect(rig.state()).toMatchObject({ pending: null });
+  expect(rig.probe.calls.filter((call) => call.startsWith("testRun:"))).toEqual([]);
+  rig.probe.skeleton = false;
+  expect(await rig.call("authoring_trial", { sessionId: "auth-demo" })).toEqual({
+    ok: true,
+    status: "awaiting_confirmation",
+    action: "trial",
+    hint: expect.stringContaining("Do not ask the same thing with ask_user"),
+  });
 });
 
 test("authoring.card-hint: the start result and a pending confirmation tell the model to wait for the card and not to ask the same thing (F-08)", async () => {
@@ -569,7 +593,7 @@ test("authoring.submit-evidence: without a turnId the latest turn of the Test ru
   expect(rig.probe.submits).toEqual([]);
   rig.probe.latestTurn = "turn_latest";
   const sent = await rig.call("authoring_submit", { sessionId: "auth-demo" });
-  expect(sent).toMatchObject({ ok: true, draftId: "draft_demo" });
+  expect(sent).toMatchObject({ ok: true, details: { draftId: "draft_demo" } });
   expect(rig.probe.submits[0]?.evidence).toEqual([
     { kind: "turn", threadId: "thr_trial", turnId: "turn_latest" },
   ]);

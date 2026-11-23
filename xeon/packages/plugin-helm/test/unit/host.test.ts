@@ -114,8 +114,12 @@ test("commands.start-stop-status", async () => {
   await rig.command("stop");
   await rig.settle("k3");
   expect(statesOf(rig).at(-1)?.pending).toBeNull();
-  // 잘못된 하위 명령은 사용법을 알린다
-  expect(await rig.command("explode")).toContain("사용법");
+  // 하위 명령 뒤의 인자가 틀리면 사용법을 알린다
+  expect(await rig.command("stop 글")).toContain("사용법");
+  // 하위 명령이 아닌 글은 시작의 주제다(U-09)
+  expect(await rig.command("explode")).toBe(
+    "[helm] 시작을 기다리는 중이에요, 단계: 대기, 주제: explode",
+  );
 });
 
 test("commands: stop issued while the lenses run ends the inquiry stopped before the apply turn", async () => {

@@ -34,6 +34,7 @@ import {
   detachMember,
   editDependencies,
   editMembers,
+  isSkeletonFolder,
   KIND_CATALOG,
   locateTemplateDirs,
   MANIFEST_PATH,
@@ -645,6 +646,12 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       if (found === null)
         return Promise.resolve(err({ kind: "io", message: "the extension templates are missing" }));
       return scaffoldExtension(input, { templates: found, installedNames: installedNames() });
+    },
+    isSkeletonOnly: (input) => {
+      const found = templates();
+      if (found === null)
+        return Promise.resolve(err({ kind: "io", message: "the extension templates are missing" }));
+      return isSkeletonFolder(input, { templates: found });
     },
     validate: async (dir) => {
       const checked = await validateExtensionDir(dir);

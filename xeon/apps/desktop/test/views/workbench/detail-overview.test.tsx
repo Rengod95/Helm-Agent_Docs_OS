@@ -145,6 +145,15 @@ describe("개요 탭 그림", () => {
     expect(htmlOf(card())).not.toContain(t("desktop.workbench.detail.overview.noPurpose"));
   });
 
+  test("목적이 없고 설명이 있으면 하는 일은 설명의 첫 문장이고 나머지 설명은 보이지 않는다", () => {
+    const html = htmlOf(
+      card({ purpose: null, description: "Helm이 목표를 나눠 조사해요. 결과를 모아요." }),
+    );
+    expect(html).toContain("Helm이 목표를 나눠 조사해요.");
+    expect(html).not.toContain("결과를 모아요.");
+    expect(html).not.toContain(t("desktop.workbench.detail.overview.noPurpose"));
+  });
+
   test("카드를 못 읽었으면 하는 일 칸에 한 줄만 보이고 준비 상태도 없다", () => {
     const html = htmlOf(null, null);
     expect(html).toContain(t("desktop.workbench.detail.overview.noCard"));

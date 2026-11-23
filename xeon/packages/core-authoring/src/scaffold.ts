@@ -301,6 +301,45 @@ function sameFile(path: string, found: Uint8Array, skeleton: Uint8Array): boolea
   return Buffer.from(found).equals(Buffer.from(skeleton));
 }
 
+/** 뼈대 방식 넷의 파일을 모두 계획한다(디스크에는 쓰지 않는다). 입력이 맞지 않아 계획하지 못하는 방식은 빈 목록이다 */
+async function skeletonFiles(
+  input: ScaffoldInput,
+  options: ScaffoldOptions,
+  values: AppSkeletonValues,
+): Promise<Result<PlannedFile[][], DevkitError>> {
+  return mapAll([...SCAFFOLD_MODES], async (mode) => {
+    const plan = await planScaffold(input, mode, options, values);
+    return ok<PlannedFile[]>(plan.ok ? plan.value : []);
+  });
+}
+
+/** 폴더의 파일 가운데 뼈대 어느 것과도 파일마다 같지 않은 것의 경로(폴더 기준 상대 경로) */
+async function unmatchedFiles(
+  dir: string,
+  paths: readonly string[],
+  skeletons: readonly (readonly PlannedFile[])[],
+): Promise<Result<string[], DevkitError>> {
+  const read = await mapAll(paths, async (path) => {
+    const found = await io(path, () => readFile(join(dir, path)));
+    if (!found.ok) return found;
+    return ok({ path, bytes: found.value });
+  });
+  if (!read.ok) return read;
+  return ok(
+    read.value
+      .filter(
+        (file) =>
+          !skeletons.some((files) =>
+            files.some(
+              (skeleton) =>
+                skeleton.path === file.path && sameFile(file.path, file.bytes, skeleton.bytes),
+            ),
+          ),
+      )
+      .map((file) => file.path),
+  );
+}
+
 /**
  * 다시 만들기(`replace`): 폴더에 남은 파일이 모두 어느 방식의 뼈대 그대로일 때만 새 뼈대로 바꾼다. 뼈대와 다른 파일(사용자나 빌더가 고친 것)이
  * 하나라도 있으면 아무것도 지우지 않고 그 목록을 담아 거부한다. 지울 파일(새 뼈대가 쓰지 않는 옛 뼈대 파일)을 돌려준다
@@ -312,37 +351,43 @@ async function replaceablePlan(
 ): Promise<Result<readonly string[], DevkitError>> {
   const existing = await listFiles(input.dir);
   if (!existing.ok) return existing;
+  // 옛 뼈대 후보는 종류, 이름, 폴더만으로 계획한다(구성이나 목적은 뼈대의 파일 내용을 바꾸지 않는다)
   const bare: ScaffoldInput = { kind: input.kind, name: input.name, dir: input.dir };
-  const planned = await mapAll([...SCAFFOLD_MODES], async (mode) => {
-    // 입력이 맞지 않아 계획하지 못하는 방식은 옛 뼈대 후보가 아니다
-    const plan = await planScaffold(bare, mode, options, values);
-    return ok<PlannedFile[]>(plan.ok ? plan.value : []);
-  });
-  if (!planned.ok) return planned;
-  const skeletons = planned.value;
-  const read = await mapAll(existing.value, async (path) => {
-    const found = await io(path, () => readFile(join(input.dir, path)));
-    if (!found.ok) return found;
-    return ok({ path, bytes: found.value });
-  });
-  if (!read.ok) return read;
-  const changed = read.value
-    .filter(
-      (file) =>
-        !skeletons.some((files) =>
-          files.some(
-            (skeleton) =>
-              skeleton.path === file.path && sameFile(file.path, file.bytes, skeleton.bytes),
-          ),
-        ),
-    )
-    .map((file) => file.path);
-  if (changed.length > 0)
+  const skeletons = await skeletonFiles(bare, options, values);
+  if (!skeletons.ok) return skeletons;
+  const changed = await unmatchedFiles(input.dir, existing.value, skeletons.value);
+  if (!changed.ok) return changed;
+  if (changed.value.length > 0)
     return err({
       kind: "exists",
-      message: `${input.dir} has files that differ from the skeleton and were not replaced: ${changed.join(", ")}`,
+      message: `${input.dir} has files that differ from the skeleton and were not replaced: ${changed.value.join(", ")}`,
     });
   return ok(existing.value);
+}
+
+/**
+ * 폴더의 파일이 모두 뼈대 그대로인가. 파일이 하나 이상 있고 모든 파일이 방식 넷 가운데 어느 뼈대와 파일마다 같을 때만 참이다.
+ * 파일이 없거나 폴더가 없으면 거짓이다(뼈대를 만든 적이 없다). `input`은 뼈대를 만들 때와 같은 종류, 이름, 구성을 준다.
+ * 목적과 설명은 판정에 들어가지 않는다(매니페스트 비교가 두 칸을 뺀다)
+ */
+export async function isSkeletonFolder(
+  input: ScaffoldInput,
+  options: ScaffoldOptions,
+): Promise<Result<boolean, DevkitError>> {
+  if (!isAbsolute(input.dir)) return err(invalid("dir must be an absolute path"));
+  const existing = await listFiles(input.dir);
+  if (!existing.ok) return existing.error.kind === "not_found" ? ok(false) : existing;
+  if (existing.value.length === 0) return ok(false);
+  const skeletons = await skeletonFiles(input, options, valuesOf(input, options));
+  if (!skeletons.ok) return skeletons;
+  const changed = await unmatchedFiles(input.dir, existing.value, skeletons.value);
+  if (!changed.ok) return changed;
+  return ok(changed.value.length === 0);
+}
+
+/** 뼈대 글자 자리(`__ID__`, `__TITLE__`, `__VERSION__`)의 값. 뼈대를 만들 때와 판정할 때 같은 값을 쓴다 */
+function valuesOf(input: ScaffoldInput, options: ScaffoldOptions): AppSkeletonValues {
+  return { id: input.name, title: options.displayName ?? input.name, version: DEFAULT_VERSION };
 }
 
 /** 뼈대를 만든다. 실패하면 파일을 하나도 쓰지 않는다(쓰기 전에 모두 계획한다) */
@@ -375,11 +420,7 @@ export async function scaffoldExtension(
       ),
     );
 
-  const values: AppSkeletonValues = {
-    id: input.name,
-    title: options.displayName ?? input.name,
-    version: DEFAULT_VERSION,
-  };
+  const values = valuesOf(input, options);
   const state =
     input.replace === true ? await targetStateForReplace(input.dir) : await targetState(input.dir);
   if (!state.ok) return state;

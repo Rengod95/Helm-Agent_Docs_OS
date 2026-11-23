@@ -10,6 +10,7 @@ import type { DevkitService } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { INITIAL_AUTHORING_STATE, sessionOpen, type AuthoringState } from "./group-state.ts";
 import { confirmCard, confirmedYes, packConfirmation } from "./confirm.ts";
+import { folderLabel } from "./folder-label.ts";
 
 // 맡기기 입력(drive-isolation.md 2.2, 2.6). 다른 플러그인(Helm)이 `handoff`로 `{ purpose, id }`를 싣는다. `id`는 맡긴 쪽의 요청 id다.
 const HandoffInputSchema = Type.Object({
@@ -125,13 +126,13 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     if (answer === "none")
       return askOf(
         requestKey(state, "intent"),
-        confirmCard(`플러그인 "${name}"을 ${state.dir ?? ""}에 만들까요?`),
+        confirmCard(`플러그인 "${name}"을 ${folderLabel(state.dir ?? "")}에 만들까요?`),
       );
     if (answer === "yes") {
       await resume(
         state,
         "intent",
-        "the user confirmed the kind and the name: continue without asking through authoring_trial",
+        "the user confirmed the kind and the name: continue without asking; scaffold, build the feature, validate, then authoring_trial",
       );
       const next: AuthoringState = { ...state, phase: "compose", intentConfirmed: true };
       return commitThen(next);

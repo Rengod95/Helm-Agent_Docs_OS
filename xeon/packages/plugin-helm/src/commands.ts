@@ -51,7 +51,8 @@ export function parseHelmCommand(
   if (sub === "stop" || sub === "status") {
     return tail === "" ? ok({ name: sub }) : err({ kind: "usage", message: HELM_USAGE });
   }
-  return err({ kind: "usage", message: HELM_USAGE });
+  // 하위 명령이 아닌 글(`/helm 책을 끝까지 읽는 습관`)은 시작의 주제다. 입력을 조용히 버리지 않는다(U-09)
+  return ok({ name: "start", topic: [sub, ...rest].join(" ") });
 }
 
 /** 순수 함수. 커밋된 상태를 상태 보기로 바꾼다. `/helm status`와 확장 메서드 `status`가 같이 쓴다 */

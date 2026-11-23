@@ -28,8 +28,8 @@ import type { ProfileSetLoad } from "./profile-put-menu.tsx";
 import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
 import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
 import {
+  cardLeadOf,
   cardTextIn,
-  doesLeadOfCard,
   hookCountOf,
   profilesWithOf,
   readinessWordOf,
@@ -100,8 +100,9 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
       </div>
     );
   }
+  // 카드와 같은 규칙: 목적이 있으면 목적, 없으면 설명의 첫 문장, 둘 다 없으면 "목적이 없어요"(rerun4 U-01).
   // 첫 줄이 설명을 올렸거나 설명과 같은 글이면 아래 설명 줄은 그리지 않는다(같은 글을 두 번 보이지 않게)
-  const lead = doesLeadOfCard(card);
+  const lead = cardLeadOf(card);
   const description = cardTextIn(card, "description");
   const kind = pluginKindOf(card);
   const hooks = hookCountOf(card);

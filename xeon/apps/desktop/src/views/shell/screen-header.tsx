@@ -62,8 +62,9 @@ export interface ScreenHeaderProps {
   /** true면 바로 뒤 내용에 공용 위 간격을 주지 않는다. 안쪽 위 여백을 이미 가진 대화 기록(머리에 붙어야 하는 스크롤 영역)용 */
   readonly flush?: boolean;
   /**
-   * true면 좁은 창에서 제목이 줄지 않고(`shrink-0`) 컨트롤이 줄어든다(메트릭 머리, rerun3 T-05). 기본은 제목이 줄고 컨트롤이 자리를 지킨다.
-   * 컨트롤 줄 안의 요소도 `min-w-0`·`shrink`여야 실제로 줄어든다
+   * true면 좁은 창에서 제목이 줄지 않고(`shrink-0`) 컨트롤이 머리 아래 줄로 내려간다(메트릭 머리, rerun3 T-05, rerun4 U-02).
+   * 머리에 위아래 여백(`py-1.5`)을 두고 줄 사이 간격을 토큰으로 둔다. 기본은 제목이 줄고 컨트롤이 자리를 지킨다.
+   * 머리 아래 줄에서도 모자라면 컨트롤 줄 안의 요소가 `min-w-0`·`shrink`로 줄어든다
    */
   readonly titleFixed?: boolean;
 }
@@ -72,7 +73,11 @@ export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
   if (props.hidden === true) return null;
   return (
     <header
-      className="shell-header flex flex-none items-center gap-2"
+      className={
+        props.titleFixed === true
+          ? "shell-header flex flex-none flex-wrap items-center gap-x-2 gap-y-1.5 py-1.5"
+          : "shell-header flex flex-none items-center gap-2"
+      }
       data-flush={props.flush === true ? "" : undefined}
     >
       <PanelExpandButton />

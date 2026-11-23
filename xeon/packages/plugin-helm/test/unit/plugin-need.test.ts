@@ -9,7 +9,7 @@ import type {
 import type { OrchestrationApi } from "@fresnel/orchestration-sdk";
 import { BUILDER_PLUGIN, helmDrive } from "../../src/drive.ts";
 import type { ExplorationMarker } from "../../src/guard.ts";
-import { parseHelmCommand, runHelmCommand, viewOf } from "../../src/commands.ts";
+import { HELM_USAGE, parseHelmCommand, runHelmCommand, viewOf } from "../../src/commands.ts";
 import { needIdFrom, inquiryIdFrom } from "../../src/signals.ts";
 import { DEFAULT_HELM_SETTINGS } from "../../src/settings.ts";
 import {
@@ -74,6 +74,21 @@ test("plugin.parse: /helm plugin takes the purpose, and an empty purpose is a us
   });
   expect(parseHelmCommand("  plugin   ").ok).toBe(false);
   expect(parseHelmCommand("plugin")).toMatchObject({ ok: false, error: { kind: "usage" } });
+});
+
+test("parse.free-text: a line whose first word is not a subcommand starts an inquiry on the whole text", () => {
+  expect(parseHelmCommand("책을 끝까지 읽는 습관을 만드는 법")).toEqual({
+    ok: true,
+    value: { name: "start", topic: "책을 끝까지 읽는 습관을 만드는 법" },
+  });
+  expect(parseHelmCommand("  캐시   무효화 ")).toEqual({
+    ok: true,
+    value: { name: "start", topic: "캐시 무효화" },
+  });
+  expect(parseHelmCommand("stop 글")).toEqual({
+    ok: false,
+    error: { kind: "usage", message: HELM_USAGE },
+  });
 });
 
 test("plugin.command: the request is committed once, a second one waits, and a live inquiry refuses it", async () => {

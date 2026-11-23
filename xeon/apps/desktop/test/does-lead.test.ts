@@ -45,6 +45,20 @@ describe("doesLeadOf", () => {
     ).toEqual({ text: "리딩 보드 항목을 더하고 옮겨요.", fromDescription: true });
   });
 
+  test("a long developer-worded description gives only its first sentence as the lead line", () => {
+    const drafted = t("desktop.craft.review.purpose.toolMany", {
+      count: 2,
+      names: TWO.join(", "),
+    });
+    expect(
+      doesLeadOf({
+        purpose: drafted,
+        description: "화면의 add 메서드와 같은 함수를 써요. 실패하면 오류 값을 돌려줘요.",
+        toolNames: TWO,
+      }),
+    ).toEqual({ text: "화면의 add 메서드와 같은 함수를 써요.", fromDescription: true });
+  });
+
   test("a single drafted tool gives the count 1 wording", () => {
     const drafted = t("desktop.craft.review.purpose.toolOne", { name: "reading_board_add_item" });
     expect(
