@@ -3442,6 +3442,7 @@
   "desktop.threads.newDialog.create": "Create",
   "desktop.threads.newDialog.createNoFolder": "Create without a folder",
   "desktop.threads.newDialog.folderLabel": "Working folder",
+  "desktop.threads.newDialog.folderPlaceholder": "Folder path",
   "desktop.threads.newDialog.optional": "(optional)",
   "desktop.threads.newDialog.title": "New conversation",
   "desktop.threads.newIn": "New conversation in {folder}",
