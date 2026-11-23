@@ -25,7 +25,7 @@ describe("checkTree", () => {
     const tree: UiNode = { type: "Gizmo", children: [{ type: "Text", props: { text: "x" } }] };
     expect(summary(checkTree(tree).issues)).toEqual([["unknown_widget", "/type"]]);
     expect(checkTree({ type: "Gizmo" }).issues.map((issue) => issue.message)).toEqual([
-      '"Gizmo" is not in widget catalog 1.0.0',
+      '"Gizmo" is not in widget catalog 1.1.0',
     ]);
   });
 

@@ -30,7 +30,8 @@ import { createScope, resolvePath, withLocal, type Scope } from "./scope.ts";
 // - 모르는 위젯은 자리표시 노드 하나이고 자식은 버린다.
 // - 노드 수와 깊이는 한도로 막는다. 한도를 넘는 첫 노드가 too_long 자리표시 하나가 되고, 그 뒤는 모두 버린다.
 // - 바인드 문자열은 4096자에서 자른다.
-// - 배열 바인드: LIST_BINDS의 목록 키(List.items, Table.rows, ListDescription.items, ActivityTree.items, Timeline.items, Sparkline.points, Select.options, SegmentedControl.options)에
+// - 배열 바인드: LIST_BINDS의 목록 키(List.items, Table.rows, ListDescription.items, ActivityTree.items, Timeline.items, Sparkline.points, Select.options, SegmentedControl.options,
+//   Board.columns, Board.cards, SortableList.items)에
 //   배열이 오면 props가 아니라 lists로 푼다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드다. 앞 500개만 보고 넘치면 truncated다.
 //   목록 원소 하나가 일 한 단위다. format은 배열 바인드에 적용하지 않는다. 배열이 아닌 값은 목록을 만들지 않고 위의 bind 규칙을 따른다.
 
@@ -40,15 +41,17 @@ const LIST_LIMIT: number = UI_LIMITS.eventRows;
 /** each 복사 한 벌, when 판정 한 번, 목록 원소 하나가 각각 일 한 단위다. 그리지 않는 복사도 세므로 거짓 when 아래의 중첩 each도 멈춘다 */
 const WORK_LIMIT: number = UI_LIMITS.treeNodes * 10;
 /** 배열 바인드를 목록으로 받는 위젯과 그 키. 카탈로그 binds의 키 가운데 배열만 받는 것이다 */
-const LIST_BINDS: Readonly<Partial<Record<WidgetName, string>>> = {
-  List: "items",
-  Table: "rows",
-  ListDescription: "items",
-  ActivityTree: "items",
-  Timeline: "items",
-  Sparkline: "points",
-  Select: "options",
-  SegmentedControl: "options",
+const LIST_BINDS: Readonly<Partial<Record<WidgetName, readonly string[]>>> = {
+  List: ["items"],
+  Table: ["rows"],
+  ListDescription: ["items"],
+  ActivityTree: ["items"],
+  Timeline: ["items"],
+  Sparkline: ["points"],
+  Select: ["options"],
+  SegmentedControl: ["options"],
+  Board: ["columns", "cards"],
+  SortableList: ["items"],
 };
 /** 목록 레코드에 옮기지 않는 키. 프로토타입을 바꾸거나 바깥 이름을 흉내 낸다 */
 const RECORD_DENY_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
@@ -220,8 +223,9 @@ function resolveProps(
     if (isForbiddenPropName(key)) continue;
     const prop = propSpecOf(widget, key);
     if (prop === undefined || scalarMismatch(prop, value) !== undefined) continue;
+    // 메서드 동사는 메시지 키가 아니다. 그대로 둔다
     props[key] =
-      typeof value === "string"
+      typeof value === "string" && prop.kind !== "verb"
         ? clipText(extMessageOf(walk.messages, walk.locale, value))
         : clipScalar(value);
   }
@@ -230,7 +234,7 @@ function resolveProps(
   for (const [key, binding] of Object.entries(binds)) {
     if (isForbiddenPropName(key) || !bindAllowed(widget, key)) continue;
     const read: PointerRead = resolvePath(scope, binding.path);
-    if (read.found && isArrayValue(read.value) && LIST_BINDS[type] === key) {
+    if (read.found && isArrayValue(read.value) && LIST_BINDS[type]?.includes(key) === true) {
       lists ??= {};
       lists[key] = listOf(read.value, walk);
       continue;

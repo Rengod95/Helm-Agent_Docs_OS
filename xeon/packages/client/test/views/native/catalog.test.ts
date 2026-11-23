@@ -13,7 +13,7 @@ import { helmViewFiles, readHelmJson } from "./fixtures.ts";
 
 describe("widget catalog v1", () => {
   test("version and the widget names, in catalog order", () => {
-    expect(WIDGET_CATALOG_VERSION).toEqual("1.0.0");
+    expect(WIDGET_CATALOG_VERSION).toEqual("1.1.0");
     expect(WIDGET_NAMES).toEqual([
       "Stack",
       "Row",
@@ -49,6 +49,8 @@ describe("widget catalog v1", () => {
       "TurnLink",
       "ViewLink",
       "ApprovalLink",
+      "Board",
+      "SortableList",
     ]);
   });
 

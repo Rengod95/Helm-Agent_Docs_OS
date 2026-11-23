@@ -18,6 +18,10 @@ const actions: NativeTreeActions = {
   runCommand: (name) => {
     commands.push(name);
   },
+  callMethod: (verb) => {
+    commands.push(verb);
+    return Promise.resolve(false);
+  },
   openLink: (link) => {
     opened.push(link);
   },
