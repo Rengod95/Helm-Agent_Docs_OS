@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import {
   blockRowsOf,
+  detailTabOf,
   INITIAL_WORKBENCH,
   isDetailTab,
   listLoaded,
@@ -19,11 +20,11 @@ import {
 } from "../../../src/views/craft/composition/composition-canvas.tsx";
 import { CheckBanner } from "../../../src/views/craft/composition/composition-check.tsx";
 import { CompositionTab } from "../../../src/views/craft/composition/composition-tab.tsx";
-import { ExtDetail, visibleTabOf } from "../../../src/views/workbench/ext-detail.tsx";
+import { ExtDetail } from "../../../src/views/workbench/ext-detail.tsx";
 import { entry, inContexts } from "../workbench/support.tsx";
 
 // 구성 탭의 정적 마크업과 상세 탭 입구. 블록 이름, 캔버스, 빈 상태, 검사 띠 글, 블록 이슈 줄,
-// Drive 플러그인에만 생기는 구성 탭 단추와 다른 확장에서 남은 값의 개요 돌려주기를 값으로 본다. 효과는 돌지 않는다.
+// 구성 탭(plugTab)은 모든 플러그인에 있고, Drive 플러그인이 아니면 "멤버도 Drive 단계도 없어요" 한 줄을 보인다. 효과는 돌지 않는다.
 
 /** 구성을 선언한 설치본(Drive 플러그인 하나와 구성원 하나) */
 const COMPOSITION: CompositionDecl = {
@@ -232,12 +233,14 @@ function detailOf(row: ExtListEntry, tab: DetailTab): string {
       <ExtDetail
         entry={row}
         tab={tab}
+        card={null}
         profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
         onBack={() => undefined}
         onRetry={() => undefined}
         onStop={() => undefined}
         onRemove={() => undefined}
+        onRecheck={() => undefined}
       />,
       createWorkbenchStore(() => state),
     ),
@@ -254,40 +257,34 @@ function triggersOf(html: string): { text: string; selected: boolean }[] {
 
 const DRIVE = entry("kit", { isOrchestration: true, layer: "L2" });
 const PLAIN = entry("web");
-const COMPOSITION_LABEL = t("desktop.craft.composition.tab");
+const BUILD_LABEL = t("desktop.workbench.detail.tab.build");
 
-describe("상세의 구성 탭 입구", () => {
-  test("Drive 플러그인에는 구성 탭 단추가 있고, 다른 플러그인에는 없다", () => {
-    const drive = triggersOf(detailOf(DRIVE, "overview")).map((tab) => tab.text);
-    const plain = triggersOf(detailOf(PLAIN, "overview")).map((tab) => tab.text);
-    expect(drive).toContain(COMPOSITION_LABEL);
-    expect(plain).not.toContain(COMPOSITION_LABEL);
-    // 의존 바로 뒤에 선다
-    const dependencies = t("desktop.craft.deps.tab");
-    expect(drive.indexOf(COMPOSITION_LABEL)).toBe(drive.indexOf(dependencies) + 1);
+describe("상세의 구성 탭(plugTab)", () => {
+  test("구성 탭은 모든 플러그인에 있고, 개요 다음, 의존 앞에 선다", () => {
+    for (const row of [DRIVE, PLAIN]) {
+      const labels = triggersOf(detailOf(row, "overview")).map((tab) => tab.text);
+      const overview = labels.indexOf(t("desktop.workbench.detail.tab.overview"));
+      expect(labels.indexOf(BUILD_LABEL)).toBe(overview + 1);
+      expect(labels.indexOf(t("desktop.craft.deps.tab"))).toBe(overview + 2);
+    }
   });
 
-  test("Drive 플러그인에서 구성 탭을 고르면 그 탭이 선택되고 읽는 중 글을 보인다", () => {
-    const html = detailOf(DRIVE, "composition");
+  test("Drive 플러그인의 구성 탭은 Drive 단계를 읽는 중 글로 보인다", () => {
+    const html = detailOf(DRIVE, "build");
     const selected = triggersOf(html).filter((tab) => tab.selected);
-    expect(selected.map((tab) => tab.text)).toEqual([COMPOSITION_LABEL]);
+    expect(selected.map((tab) => tab.text)).toEqual([BUILD_LABEL]);
     expect(html).toContain(t("desktop.craft.composition.loading"));
   });
 
-  test("다른 플러그인에 남은 구성 탭 값이면 개요를 고른 채로 그린다", () => {
-    const html = detailOf(PLAIN, "composition");
-    const selected = triggersOf(html).filter((tab) => tab.selected);
-    expect(selected.map((tab) => tab.text)).toEqual([t("desktop.workbench.detail.tab.overview")]);
+  test("Drive 플러그인이 아니고 멤버도 없으면 구성 탭은 한 줄만 보이고 Drive 단계 칸이 없다", () => {
+    const html = detailOf(PLAIN, "build");
+    expect(textOf(html)).toContain(t("desktop.workbench.detail.build.none"));
     expect(html).not.toContain(t("desktop.craft.composition.loading"));
   });
 
-  test("고른 탭 돌려주기는 Drive 플러그인에서만 구성을 남긴다", () => {
-    expect(visibleTabOf("composition", DRIVE)).toBe("composition");
-    expect(visibleTabOf("composition", PLAIN)).toBe("overview");
-    expect(visibleTabOf("hooks", PLAIN)).toBe("hooks");
-  });
-
-  test("구성 탭은 DETAIL_TABS의 탭 이름이다", () => {
-    expect(isDetailTab("composition")).toBe(true);
+  test("구성 탭은 DETAIL_TABS의 탭 이름이고, 옛 구성 탭 이름은 구성 탭으로 옮겨진다", () => {
+    expect(isDetailTab("build")).toBe(true);
+    expect(isDetailTab("composition")).toBe(false);
+    expect(detailTabOf("composition")).toBe("build");
   });
 });

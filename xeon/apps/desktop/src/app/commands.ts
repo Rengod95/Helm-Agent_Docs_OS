@@ -571,6 +571,11 @@ export function createCommands(
       });
       return written.ok;
     },
+    pluginListView: () => deps.local.get(LOCAL.pluginListView) ?? null,
+    async savePluginListView(view) {
+      const written = await deps.local.set(LOCAL.pluginListView, view);
+      return written.ok;
+    },
     lastThreadId() {
       const id = deps.local.get(LOCAL.lastThread);
       return id === undefined || id === "" ? null : id;

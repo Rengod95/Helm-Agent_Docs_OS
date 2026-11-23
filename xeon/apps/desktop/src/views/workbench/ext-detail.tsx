@@ -1,12 +1,13 @@
-// P-17 플러그인 상세("자세히 보기"). 탭: 개요(위치, 기능 연결, 진단), 구성원(구성원이 있을 때), 의존(기능 연결 표 포함), 구성(Drive 플러그인만, 설치본 구성을 읽기 전용으로), 훅(`ext.get`·`ext.timings`, wb-opus 훅 표),
-// 화면과 설정(앱에 더한 화면, 패널, 카드, 명령과 설정 편집, 권한. 플레이그라운드에서 옮겼다, AGE-76 plugMin), 측정, 기록(`scope.handler_failed`), 버전(§6.24.1, 신뢰 수준 포함).
+// P-17 플러그인 상세("자세히 보기"). 여섯 탭(plugTab, AGE-76), 탭 하나는 질문 하나에 답하고 이어진 구역은 두 단으로 둔다(`TwoColumns`, 좁으면 한 단):
+// 개요(`detail-overview.tsx`: 하는 일 / 쓰임과 믿음, 준비 상태), 구성(멤버와 Drive 단계 / 훅 표), 의존(기대는 것 / 기대어 오는 것, 아래 기능 연결 표),
+// 화면과 설정(화면과 대화 기능 / 설정 폼과 설정 화면), 상태(메트릭 / 실패 기록), 버전(§6.24.1, 신뢰 수준 포함). 옛 탭 값은 `detailTabOf`가 옮긴다.
 // 머리 줄: 이름(표시 이름 + 회색 mono id), 종류, 출처, 버전, 쓰는 곳, 문제가 있으면 상태. 층 id와 등급 같은 내부 말은 머리에 두지 않는다.
 // 머리 행동: 프로필에 넣기(체크 메뉴), 테스트 챗, 내보내기, "…" 메뉴의 지우기. 앱 핵심 플러그인은 행동 대신 자물쇠 문장을 늘 보인다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   failureRowsOf,
   inspectHookRowsOf,
-  isDetailTab,
+  detailTabOf,
   rowOf,
   type DetailTab,
   type ExtRowVM,
@@ -14,15 +15,13 @@ import {
   type InspectHookVM,
 } from "@fresnel/client/workbench";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import type { ExtTimingsResult } from "@fresnel/contracts/extensions";
+import type { ExtTimingsResult, PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtGetResult, ExtListEntry } from "@fresnel/contracts/wire";
 import { PanelExpandButton } from "../shell/screen-header.tsx";
 import {
   Alert,
   Button,
   IconButton,
-  ListDescription,
-  ListDescriptionRow,
   Menu,
   MenuItem,
   Progress,
@@ -48,18 +47,18 @@ import { BindingsPanel } from "./bindings-panel.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
+import { DetailOverview } from "./detail-overview.tsx";
 import { HealthCell, rowHealthOf } from "./plugin-list.tsx";
 import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
 import { profileUseOf, profileUseText } from "./profile-use.ts";
 import { removableOf } from "./remove-model.ts";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { SurfacesTab } from "./surfaces-tab.tsx";
-import { MUTED, PLAIN_TABLE } from "./tab-body.tsx";
+import { ColumnHead, MUTED, PLAIN_TABLE, TwoColumns } from "./tab-body.tsx";
 import { originText } from "./origin-text.ts";
+import { kindWord, pluginKindOf } from "./plugin-kind.tsx";
+import { readinessBlocked, toolReadinessOf } from "./tool-ready.ts";
 import { VersionsTab } from "./versions-tab.tsx";
-
-/** 확장 상세의 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이 */
-const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 /** 칸에 값이 없을 때의 자리 글 */
 const DASH = "—";
@@ -84,47 +83,6 @@ function DetailName(props: { readonly row: ExtRowVM }): ReactNode {
         <span className="font-mono text-mono-sm font-normal text-text-tertiary">{row.name}</span>
       )}
     </h2>
-  );
-}
-
-function Overview(props: { readonly entry: ExtListEntry }): ReactNode {
-  const { entry } = props;
-  return (
-    <div className="grid gap-3">
-      <ListDescription
-        variant="ghost"
-        size="xs"
-        aria-label={t("desktop.workbench.detail.tab.overview")}
-        className={`${LD} max-w-176`}
-      >
-        <ListDescriptionRow term={t("desktop.workbench.detail.origin")}>
-          {originText(entry.origin)}{" "}
-          <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
-        </ListDescriptionRow>
-        {/* 이 플러그인의 기능 연결 줄은 의존 탭 아래 기능 연결 표와 겹쳐 뺐다(AGE-76 plugMin 뒤 정리, uiTog) */}
-      </ListDescription>
-      {entry.diagnostics.length > 0 && (
-        <section aria-label={t("desktop.workbench.detail.diagnostics")} className="grid gap-1">
-          {entry.diagnostics.map((d) => (
-            <Alert
-              key={`${d.code}:${d.message}`}
-              tone={d.severity === "error" ? "danger" : "warning"}
-              layout="inline"
-              size="sm"
-            >
-              {d.message}
-              {d.file !== undefined && (
-                <span className="font-mono">
-                  {" "}
-                  {d.file}
-                  {d.line === undefined ? "" : `:${d.line}`}
-                </span>
-              )}
-            </Alert>
-          ))}
-        </section>
-      )}
-    </div>
   );
 }
 
@@ -344,12 +302,56 @@ function RecordTab(props: { readonly name: string }): ReactNode {
   return <FailureRecords rows={failureRowsOf(records, props.name)} failed={failed} />;
 }
 
+/** 단 안의 구역: 머리 글과 그 내용. 머리와 내용 사이는 `gap-3`이다 */
+function Part(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
+  return (
+    <div className="grid gap-3">
+      <ColumnHead title={props.title} />
+      {props.children}
+    </div>
+  );
+}
+
 /**
- * 고른 탭을 이 확장에서 보일 탭으로 바꾼다. 구성 탭은 Drive 플러그인(`isOrchestration`)에만 있으므로,
- * 다른 확장에 남은 구성 탭 값이면 개요로 돌린다
+ * 구성 탭(plugTab): 왼쪽 단은 멤버(있을 때)와 Drive 단계(Drive 플러그인일 때), 둘 다 없으면 한 줄이다.
+ * 오른쪽 단은 훅 표다. Drive 단계는 읽기 전용이라 편집 단추는 없다
  */
-export function visibleTabOf(tab: DetailTab, entry: ExtListEntry): DetailTab {
-  return tab === "composition" && !entry.isOrchestration ? "overview" : tab;
+function BuildTab(props: {
+  readonly entry: ExtListEntry;
+  readonly get: Load;
+  readonly timings: TimingsLoad;
+}): ReactNode {
+  const { entry, get } = props;
+  const manifest = get.kind === "ready" ? get.result.manifest : null;
+  const withMembers = hasMembers(entry);
+  const withComposition = entry.isOrchestration;
+  const start =
+    withMembers || withComposition ? (
+      <>
+        {withMembers && (
+          <Part title={t("desktop.craft.members.tab")}>
+            <MembersTab entry={entry} manifest={manifest} />
+          </Part>
+        )}
+        {withComposition && (
+          <Part title={t("desktop.craft.composition.tab")}>
+            <CompositionTab name={entry.name} manifest={manifest} failed={get.kind === "error"} />
+          </Part>
+        )}
+      </>
+    ) : (
+      <p className={MUTED}>{t("desktop.workbench.detail.build.none")}</p>
+    );
+  return (
+    <TwoColumns
+      start={start}
+      end={
+        <Part title={t("desktop.workbench.detail.tab.hooks")}>
+          <HooksTab get={get} timings={props.timings} />
+        </Part>
+      }
+    />
+  );
 }
 
 /** 앱 핵심 플러그인의 자물쇠 문장. 끄기, 지우기, 프로필에 넣기 대신 늘 보인다(정보 아이콘 뒤에 숨기지 않는다) */
@@ -364,14 +366,18 @@ function CoreLockLine(): ReactNode {
 
 export function ExtDetail(props: {
   readonly entry: ExtListEntry;
-  /** 지금 고른 탭(스토어 값). 기록 보기처럼 밖에서 연 때 그 탭이다 */
+  /** 지금 고른 탭(스토어 값). 기록 보기처럼 밖에서 연 때 그 탭이다. 옛 이름이면 `detailTabOf`로 옮긴다 */
   readonly tab: DetailTab;
+  /** 플러그인 카드(`plugin.list`). 읽지 못했으면 null이다. 개요 탭이 쓴다 */
+  readonly card: PluginCard | null;
   readonly profiles: ProfileSetLoad;
   readonly onTab: (tab: DetailTab) => void;
   readonly onBack: () => void;
   readonly onRetry: () => void;
   readonly onStop: () => void;
   readonly onRemove: () => void;
+  /** 준비 상태의 "다시 확인": 카드를 다시 읽는다 */
+  readonly onRecheck: () => void;
 }): ReactNode {
   const commands = useCommands();
   // 훅 시간은 테스트 챗 창이 빌린 대화가 아니라 빌리기 전의 대화로 읽는다(C7)
@@ -380,9 +386,8 @@ export function ExtDetail(props: {
   const row = rowOf(entry);
   const title = row.displayName ?? row.name;
   const profileSet = props.profiles.set;
-  const withMembers = hasMembers(entry);
-  // 구성 탭은 Drive 플러그인에만 있다(`isOrchestration`). 읽기 전용이라 편집 단추는 없다
-  const withComposition = entry.isOrchestration;
+  // 스토어에 옛 탭 이름이 남아 있어도 지금의 탭으로 옮겨 연다(모르는 값은 개요)
+  const tab = detailTabOf(props.tab) ?? "overview";
   const [get, setGet] = useState<Load>({ kind: "loading" });
   const [timings, setTimings] = useState<TimingsLoad>({ kind: "loading" });
   useEffect(() => {
@@ -403,8 +408,12 @@ export function ExtDetail(props: {
       rethrow,
     );
   }, [commands, entry.name, threadId]);
+  // 머리의 종류는 목록의 종류 칸과 같은 규칙(카드의 종류)이다. 카드를 못 읽었으면 묶음 종류(옛 글)로 둔다
+  const cardKind = pluginKindOf(props.card);
+  const kindLine = cardKind === null ? kindText(row.kind) : kindWord(cardKind);
+  const blocked = readinessBlocked(props.card === null ? null : toolReadinessOf(props.card));
   return (
-    <article className="grid min-h-0 content-start gap-3 p-4">
+    <article className="@container/detail grid min-h-0 content-start gap-3 p-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <PanelExpandButton />
         <Button size="xs" variant="ghost" onClick={props.onBack}>
@@ -413,7 +422,7 @@ export function ExtDetail(props: {
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
           <DetailName row={row} />
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
-            <span>{kindText(row.kind)}</span>
+            <span>{kindLine}</span>
             {entry.origin === undefined ? null : <span>{originText(entry.origin)}</span>}
             <span>{row.version}</span>
             {profileSet === null ? null : (
@@ -421,7 +430,9 @@ export function ExtDetail(props: {
                 {profileUseText(profileUseOf(entry.name, row.appCore, profileSet))}
               </span>
             )}
-            {rowHealthOf(row) === "ready" ? null : <HealthCell row={row} />}
+            {rowHealthOf(row, blocked) === "ready" ? null : (
+              <HealthCell row={row} blocked={blocked} />
+            )}
           </div>
         </div>
         <div className="flex flex-none items-center gap-2">
@@ -458,69 +469,57 @@ export function ExtDetail(props: {
       </header>
       <AutoOffNotice entry={entry} onRetry={props.onRetry} onStop={props.onStop} />
       <Tabs
-        value={visibleTabOf(props.tab, entry)}
+        value={tab}
         onValueChange={(value) => {
-          if (isDetailTab(value)) props.onTab(value);
+          const next = detailTabOf(value);
+          if (next !== null) props.onTab(next);
         }}
         variant="soft"
         size="xs"
+        className="gap-4"
       >
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
-          {/* 구성원이 있는 플러그인만 구성원 탭이 있다(m6Mb). 없는 플러그인은 지금과 같다 */}
-          {withMembers && (
-            <TabsTrigger value="members">{t("desktop.craft.members.tab")}</TabsTrigger>
-          )}
+          <TabsTrigger value="build">{t("desktop.workbench.detail.tab.build")}</TabsTrigger>
           <TabsTrigger value="dependencies">{t("desktop.craft.deps.tab")}</TabsTrigger>
-          {withComposition && (
-            <TabsTrigger value="composition">{t("desktop.craft.composition.tab")}</TabsTrigger>
-          )}
-          <TabsTrigger value="hooks" count={entry.hookCount}>
-            {t("desktop.workbench.detail.tab.hooks")}
-          </TabsTrigger>
           <TabsTrigger value="surfaces">{t("desktop.workbench.detail.tab.surfaces")}</TabsTrigger>
-          <TabsTrigger value="metrics">{t("desktop.workbench.detail.tab.metrics")}</TabsTrigger>
-          <TabsTrigger value="record">{t("desktop.workbench.detail.tab.record")}</TabsTrigger>
+          <TabsTrigger value="health">{t("desktop.workbench.detail.tab.health")}</TabsTrigger>
           <TabsTrigger value="versions">{t("desktop.workbench.detail.tab.versions")}</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
-          <Overview entry={entry} />
+          <DetailOverview
+            entry={entry}
+            card={props.card}
+            profiles={props.profiles}
+            onRecheck={props.onRecheck}
+          />
         </TabsContent>
-        {withMembers && (
-          <TabsContent value="members">
-            <MembersTab
-              entry={entry}
-              manifest={get.kind === "ready" ? get.result.manifest : null}
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="build">
+          <BuildTab entry={entry} get={get} timings={timings} />
+        </TabsContent>
         <TabsContent value="dependencies">
           <div className="grid gap-6">
             <DepsTab entry={entry} />
-            {/* 목록 맨 위에 있던 기능 연결 표(B-05)는 여기로 옮겼다(AGE-76 plugMin) */}
+            {/* 목록 맨 위에 있던 기능 연결 표(B-05)는 여기로 옮겼다(AGE-76 plugMin). 두 단 아래 전체 폭이다 */}
             <BindingsPanel />
           </div>
-        </TabsContent>
-        {withComposition && (
-          <TabsContent value="composition">
-            <CompositionTab
-              name={entry.name}
-              manifest={get.kind === "ready" ? get.result.manifest : null}
-              failed={get.kind === "error"}
-            />
-          </TabsContent>
-        )}
-        <TabsContent value="hooks">
-          <HooksTab get={get} timings={timings} />
         </TabsContent>
         <TabsContent value="surfaces">
           <SurfacesTab entry={entry} />
         </TabsContent>
-        <TabsContent value="metrics">
-          <MetricsTab entry={entry} />
-        </TabsContent>
-        <TabsContent value="record">
-          <RecordTab name={entry.name} />
+        <TabsContent value="health">
+          <TwoColumns
+            start={
+              <Part title={t("desktop.workbench.detail.tab.metrics")}>
+                <MetricsTab entry={entry} />
+              </Part>
+            }
+            end={
+              <Part title={t("desktop.workbench.detail.tab.record")}>
+                <RecordTab name={entry.name} />
+              </Part>
+            }
+          />
         </TabsContent>
         <TabsContent value="versions">
           <VersionsTab key={entry.name} entry={entry} locked={row.lock !== null} />

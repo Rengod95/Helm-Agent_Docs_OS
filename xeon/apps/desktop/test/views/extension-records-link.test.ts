@@ -4,7 +4,7 @@ import { createWorkbenchStore } from "../../src/state/workbench/index.ts";
 import { recordsJumpOf } from "../../src/views/extension-records-link.ts";
 
 describe("recordsJumpOf", () => {
-  test("from the chat it goes to the workbench extensions screen and opens that extension's record tab", () => {
+  test("from the chat it goes to the workbench extensions screen and opens that extension's health tab", () => {
     const shell = createShellStore(1280);
     const workbench = createWorkbenchStore();
     recordsJumpOf(shell.actions, workbench.actions)("bad-guard");
@@ -13,7 +13,7 @@ describe("recordsJumpOf", () => {
     const state = workbench.read.getState();
     expect([state.detail, state.detailTab, state.sel]).toEqual([
       "bad-guard",
-      "record",
+      "health",
       { k: "plugin", id: "bad-guard" },
     ]);
   });
@@ -25,6 +25,6 @@ describe("recordsJumpOf", () => {
     jump("bad-guard");
     jump("other");
     const state = workbench.read.getState();
-    expect([state.detail, state.detailTab]).toEqual(["other", "record"]);
+    expect([state.detail, state.detailTab]).toEqual(["other", "health"]);
   });
 });

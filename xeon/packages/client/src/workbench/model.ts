@@ -22,16 +22,13 @@ export type WorkbenchView = (typeof WORKBENCH_VIEWS)[number];
 
 export type ListStatus = "idle" | "loading" | "ready" | "error";
 
-/** 자세히 보기의 탭 이름. 확장 상세(`ext-detail.tsx`)의 탭 값과 같다 */
+/** 자세히 보기의 탭 이름(plugTab, 여섯). 확장 상세(`ext-detail.tsx`)의 탭 값과 같다. 한 탭은 한 질문에 답한다 */
 export const DETAIL_TABS = [
   "overview",
-  "members",
+  "build",
   "dependencies",
-  "composition",
-  "hooks",
   "surfaces",
-  "metrics",
-  "record",
+  "health",
   "versions",
 ] as const;
 export type DetailTab = (typeof DETAIL_TABS)[number];
@@ -39,6 +36,24 @@ export type DetailTab = (typeof DETAIL_TABS)[number];
 /** 탭 값이 자세히 보기의 탭 이름인가. 화면 탭 바가 주는 글을 좁힌다 */
 export function isDetailTab(value: string): value is DetailTab {
   return DETAIL_TABS.some((tab) => tab === value);
+}
+
+/** 옛 탭 이름과 옮겨 간 탭(plugTab). `detailTabOf`만 쓴다 */
+const OLD_DETAIL_TABS: readonly { readonly name: string; readonly tab: DetailTab }[] = [
+  { name: "members", tab: "build" },
+  { name: "composition", tab: "build" },
+  { name: "hooks", tab: "build" },
+  { name: "metrics", tab: "health" },
+  { name: "record", tab: "health" },
+];
+
+/**
+ * 탭 값을 지금의 탭으로 옮긴다. 새 이름은 그대로이고, 옛 이름은 옮겨 간 탭으로 간다
+ * (`members`, `composition`, `hooks` → `build`; `metrics`, `record` → `health`). 모르는 값은 null이다
+ */
+export function detailTabOf(value: string): DetailTab | null {
+  if (isDetailTab(value)) return value;
+  return OLD_DETAIL_TABS.find((old) => old.name === value)?.tab ?? null;
 }
 
 export interface WorkbenchState {

@@ -39,3 +39,29 @@ export function TabBody<T>(props: {
       return assertNever(read, "TabRead");
   }
 }
+
+/**
+ * 두 단(plugTab): 서로 이어진 구역을 한 탭 안에 나란히 둔다. 상세 칸이 48rem 미만이면(`@[48rem]/detail`) 한 단으로 접혀 왼쪽 단이 먼저 온다.
+ * 두 단 사이와 구역 사이 간격은 토큰 눈금(`gap-6`)이다. 칸은 `@container/detail`인 상세 글(`ext-detail.tsx`)의 안에서만 나뉜다
+ */
+export function TwoColumns(props: {
+  readonly start: ReactNode;
+  readonly end: ReactNode;
+}): ReactNode {
+  return (
+    <div className="grid gap-6 @[48rem]/detail:grid-cols-2 @[48rem]/detail:items-start">
+      <div className="grid min-w-0 content-start gap-6">{props.start}</div>
+      <div className="grid min-w-0 content-start gap-6">{props.end}</div>
+    </div>
+  );
+}
+
+/** 단 머리(plugTab): 글 모양은 목록의 묶음 머리(`GroupHead`)와 같다. 오른쪽 끝 칸(`end`)은 단추 하나처럼 머리와 세로 가운데로 선다 */
+export function ColumnHead(props: { readonly title: string; readonly end?: ReactNode }): ReactNode {
+  return (
+    <div className="flex min-h-control-xs items-center justify-between gap-2">
+      <h3 className="m-0 text-ui-sm font-medium text-text-secondary">{props.title}</h3>
+      {props.end}
+    </div>
+  );
+}

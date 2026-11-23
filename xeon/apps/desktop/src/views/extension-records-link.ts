@@ -15,7 +15,7 @@ export function useOpenExtensionRecords(): OpenExtensionRecords | null {
 }
 
 /**
- * 확장 기록으로 가는 동작: 작업대 영역의 확장 화면으로 가고, 그 확장을 고른 뒤 자세히 보기를 기록 탭으로 연다.
+ * 확장 기록으로 가는 동작: 작업대 영역의 확장 화면으로 가고, 그 확장을 고른 뒤 자세히 보기를 상태 탭(실패 기록, plugTab)으로 연다.
  * 자세히 보기는 고른 확장을 가리키므로(`openDetail`은 선택을 바꾸지 않는다) 고르기를 먼저 한다
  */
 export function recordsJumpOf(
@@ -26,6 +26,6 @@ export function recordsJumpOf(
     shell.switchArea("workbench");
     shell.updatePlace({ screen: "extensions", scroll: 0 });
     workbench.pickPlugin(extension);
-    workbench.openDetail(extension, "record");
+    workbench.openDetail(extension, "health");
   };
 }

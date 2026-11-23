@@ -309,7 +309,8 @@ function screenHtml(
 const countText = (count: number): string => t("desktop.workbench.notices.count", { count });
 
 describe("확장 화면 위 경고 줄의 글과 '보기'", () => {
-  const VIEW = t("desktop.workbench.notices.view");
+  // 단추 글 자체로 찾는다. "목록 보기"(보기 전환의 이름)가 든 글과 헷갈리지 않게 태그 사이 글만 본다
+  const VIEW = `>${t("desktop.workbench.notices.view")}<`;
 
   test("알림이 있으면 개수를 적은 위험 경고와 '보기'를 보인다", () => {
     const html = screenHtml([entry("web"), asked()], [], false);

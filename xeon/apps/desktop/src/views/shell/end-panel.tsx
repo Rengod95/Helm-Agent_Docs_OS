@@ -32,6 +32,7 @@ import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useHiddenUiKeys } from "../plugin/plugin-context.tsx";
 import { WELL_DEFAULT_WIDTH } from "./toaster-slot.ts";
 import { useWellWide } from "./well-wide.ts";
+import { AttentionOrb } from "../effects/attention-orb.tsx";
 
 const WELL_MIN_WIDTH = 320;
 const WELL_MAX_WIDTH = 480;
@@ -135,14 +136,6 @@ function EndBarItem(props: {
   );
 }
 
-/**
- * 플러그인 단추의 주의 구슬(AGE-73): 메뉴 안 탭에 사용자가 볼 것(자동 멈춤 알림, 훅 알림)이 있으면 단추 오른쪽 위에 구슬 하나.
- * 수 알약은 두지 않는다: 알림은 런타임 탭과 플러그인 탭이 같은 훅 알림을 함께 세어 합이 부풀고, 수는 메뉴 줄이 탭마다 보인다.
- * 머리 줄 탭의 주의 점(`playground-tab-strip.tsx` `AttentionDot`)과 같은 크기와 색이다(막대 면이 바탕과 달라 테두리는 두지 않는다). `data-attention`이 있을 때만 그린다
- */
-const ATTENTION_ORB =
-  "data-[attention]:after:absolute data-[attention]:after:-end-0.5 data-[attention]:after:-top-0.5 data-[attention]:after:size-1.5 data-[attention]:after:rounded-full data-[attention]:after:bg-warning-solid data-[attention]:after:content-['']";
-
 /** 플러그인 패널들의 알림 수 합 */
 function PluginCount(props: {
   readonly tabs: readonly PluginEndTabDef[];
@@ -162,7 +155,9 @@ function PluginCount(props: {
 /**
  * 막대 끝 "플러그인" 단추와 2차 메뉴(DP-194). 메뉴는 막대 왼쪽에 서는 팝오버이고 묶음 둘이다:
  * 플러그인이 기여한 패널(`source: plugin`)과 이 대화의 플러그인 상태 화면(`source: host`). 줄을 고르면 그 패널이 well에 열린다.
- * 키보드: 단추에서 열면 첫 줄(또는 지금 열린 줄)에 초점, 위아래 화살표로 옮기고 Enter로 연다. Esc는 닫고 단추로 돌아간다
+ * 키보드: 단추에서 열면 첫 줄(또는 지금 열린 줄)에 초점, 위아래 화살표로 옮기고 Enter로 연다. Esc는 닫고 단추로 돌아간다.
+ * 메뉴 안 탭에 사용자가 볼 것(자동 멈춤 알림, 훅 알림)이 있으면 단추 오른쪽 위에 주의 구슬 하나(AGE-73, DP-194a)를 단다.
+ * 수 알약은 두지 않는다: 알림은 런타임 탭과 플러그인 탭이 같은 훅 알림을 함께 세어 합이 부풀고, 수는 메뉴 줄이 탭마다 보인다.
  */
 function PluginMenu(props: {
   readonly tabs: readonly PluginEndTabDef[];
@@ -229,7 +224,15 @@ function PluginMenu(props: {
           data-end-plugin-menu=""
           anchor={
             <FloatingBarItem
-              icon={<Plug />}
+              // 구슬은 아이콘 칸 뒤에 절대 위치로 둔다(칸은 relative 단추 안). 단추가 메뉴의 자리로 남는다
+              icon={
+                <>
+                  <Plug />
+                  {count > 0 && !active ? (
+                    <AttentionOrb className="absolute -end-1 -top-1" />
+                  ) : null}
+                </>
+              }
               data-end-plugin=""
               data-attention={count > 0 && !active ? "" : undefined}
               aria-label={
@@ -238,7 +241,6 @@ function PluginMenu(props: {
               aria-haspopup="menu"
               aria-expanded={open}
               active={active || open}
-              className={ATTENTION_ORB}
             />
           }
         >

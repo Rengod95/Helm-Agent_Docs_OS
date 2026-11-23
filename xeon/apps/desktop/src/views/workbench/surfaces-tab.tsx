@@ -1,5 +1,6 @@
-// 크래프트 상세 "화면과 설정" 탭(P-17, AGE-76 plugMin). 플레이그라운드 상세에 있던 관리가 여기로 왔다.
-// 위에서부터: 열 수 없는 화면 띠(앱 화면 허용), 화면(열기, 머리 줄 탭 고정), 대화 기능(명령 실행), 플러그인 설정 폼과 플러그인이 그린 설정 화면, 권한.
+// 크래프트 상세 "화면과 설정" 탭(P-17, AGE-76 plugMin, plugTab). 플레이그라운드 상세에 있던 관리가 여기로 왔다.
+// 맨 위는 열 수 없는 화면 띠(앱 화면 허용)다. 두 단: 왼쪽은 화면(열기, 머리 줄 탭 고정)과 대화 기능(명령 실행),
+// 오른쪽은 플러그인 설정 폼과 플러그인이 그린 설정 화면이다. 권한은 개요 탭으로 옮겼다.
 // 데이터는 플레이그라운드와 같은 `useAddonData`(화면 항목과 매니페스트)다. 화면 이름은 플러그인 메시지로 고른 글이다.
 // 화면과 기능 줄 끝에는 보이기 스위치를 두고, 상태 표시줄 칸과 오른쪽 패널 목록에 드는 줄에는 순서 메뉴("위로", "아래로")를 둔다.
 // 값은 앱 전체에 한 벌인 사용자 설정 `x.ui.hidden`, `x.ui.order`이고 리뷰를 거치지 않는다(AGE-73, ADR-0021 §3.12).
@@ -17,7 +18,6 @@ import {
   CARD,
   FeatureRow,
   ProblemsNotice,
-  RiskSection,
   ScreenRow,
   Section,
   type SurfaceOps,
@@ -38,6 +38,7 @@ import { PluginConfigForm } from "../plugin/plugin-config-form.tsx";
 import { PinIcon } from "../plugin/plugin-glyph.tsx";
 import { usePlaygroundTabs } from "../plugin/playground-tab-strip.tsx";
 import { isPinned } from "../plugin/playground-tabs.ts";
+import { TwoColumns } from "./tab-body.tsx";
 
 /**
  * 플러그인이 그린 설정 화면(settings 자리, ADR-0021 §3.2). 이 플러그인의 `settings` 항목이 있으면 연한 머리와 그 화면을 붙인다.
@@ -167,7 +168,7 @@ export function SurfacesTab(props: { readonly entry: Pick<ExtListEntry, "name"> 
     data.phase === "ready" ? addonDetailOf(name, data.source, data.meta, data.locale) : undefined;
   if (detail === undefined) {
     return (
-      <div className="grid gap-8">
+      <div className="grid gap-6">
         <PluginConfigForm name={name} title={name} />
         <PluginSettingsSlot name={name} />
       </div>
@@ -220,9 +221,8 @@ export function SurfacesTab(props: { readonly entry: Pick<ExtListEntry, "name"> 
   );
   const commandFeatures = detail.features.filter((feature) => feature.kind === "command");
   const otherFeatures = detail.features.filter((feature) => feature.kind !== "command");
-  return (
-    <div className="grid gap-8">
-      <ProblemsNotice problems={detail.problems} onAllowApps={ops.onAllowApps} />
+  const start = (
+    <>
       {detail.screens.length === 0 ? null : (
         <Section
           title={t("desktop.addons.section.screens")}
@@ -286,9 +286,20 @@ export function SurfacesTab(props: { readonly entry: Pick<ExtListEntry, "name"> 
           </ul>
         </Section>
       )}
-      <PluginConfigForm name={row.name} title={row.title} />
-      <PluginSettingsSlot name={row.name} />
-      <RiskSection detail={detail} />
+    </>
+  );
+  return (
+    <div className="grid gap-6">
+      <ProblemsNotice problems={detail.problems} onAllowApps={ops.onAllowApps} />
+      <TwoColumns
+        start={start}
+        end={
+          <>
+            <PluginConfigForm name={row.name} title={row.title} />
+            <PluginSettingsSlot name={row.name} />
+          </>
+        }
+      />
     </div>
   );
 }

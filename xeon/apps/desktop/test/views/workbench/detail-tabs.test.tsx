@@ -174,12 +174,14 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
       <ExtDetail
         entry={row}
         tab="overview"
+        card={null}
         profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
         onBack={() => undefined}
         onRetry={() => undefined}
         onStop={() => undefined}
         onRemove={() => undefined}
+        onRecheck={() => undefined}
       />,
       createWorkbenchStore(() => state),
     ),

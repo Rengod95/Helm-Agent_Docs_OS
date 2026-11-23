@@ -6,6 +6,7 @@ import {
   closeBuilder,
   closeDetail,
   countsOf,
+  detailTabOf,
   detailsLoaded,
   extOf,
   failureRowsOf,
@@ -258,10 +259,27 @@ describe("workbench model", () => {
   test("자세히 보기는 개요 탭으로 열고, 탭을 주면 그 탭으로 열며, 탭을 고르면 그 탭이 된다", () => {
     expect(INITIAL_WORKBENCH.detailTab).toBe("overview");
     expect(openDetail(base, "web").detailTab).toBe("overview");
-    const recorded = openDetail(base, "web", "record");
-    expect([recorded.detail, recorded.detailTab]).toEqual(["web", "record"]);
+    const recorded = openDetail(base, "web", "health");
+    expect([recorded.detail, recorded.detailTab]).toEqual(["web", "health"]);
     expect(selectDetailTab(recorded, "versions").detailTab).toBe("versions");
-    expect([isDetailTab("record"), isDetailTab("nope")]).toEqual([true, false]);
+    expect([isDetailTab("health"), isDetailTab("record"), isDetailTab("nope")]).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  test("탭 값은 새 이름이면 그대로, 옛 이름 다섯이면 옮겨 간 탭, 모르는 값이면 null이다", () => {
+    expect(detailTabOf("build")).toBe("build");
+    expect(detailTabOf("versions")).toBe("versions");
+    expect(["members", "composition", "hooks"].map(detailTabOf)).toEqual([
+      "build",
+      "build",
+      "build",
+    ]);
+    expect(["metrics", "record"].map(detailTabOf)).toEqual(["health", "health"]);
+    expect(detailTabOf("nope")).toBeNull();
+    expect(detailTabOf("")).toBeNull();
   });
 
   test("목록 갱신은 사라진 확장을 가리키는 선택과 자세히 보기를 풀고 남은 것은 그대로 둔다", () => {

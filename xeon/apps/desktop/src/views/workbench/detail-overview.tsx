@@ -1,0 +1,296 @@
+// 플러그인 상세 "개요" 탭(plugTab, AGE-76). 한 질문에 답한다: 이것은 무엇이고 믿을 만한가.
+// 맨 위는 진단 경고(전체 폭, 숨기지 않는다). 왼쪽 단 "하는 일": 목적, 설명, 종류와 셈(Hook, 도구, Drive).
+// 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 비용(늘 드는 토큰), 권한, 도구 플러그인이면 준비 상태(엔진이 값을 줄 때만).
+import { t } from "@fresnel/client/i18n";
+import { rowOf } from "@fresnel/client/workbench";
+import { detach, rethrow } from "@fresnel/contracts";
+import type { PluginCard } from "@fresnel/contracts/extensions";
+import type { ExtListEntry } from "@fresnel/contracts/wire";
+import { Alert, Button, ListDescription, ListDescriptionRow } from "@caustic/react";
+import { CircleCheck, TriangleAlert } from "@caustic/react/icons";
+import type { ReactNode } from "react";
+import { useCommands } from "../commands.ts";
+import { tokens } from "../craft/canvas/cv6/words.ts";
+import { useAddonData } from "../plugin/addon-data.ts";
+import { addonDetailOf } from "../plugin/addon-model.ts";
+import { RiskSection } from "../plugin/addon-parts.tsx";
+import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
+import { originText } from "./origin-text.ts";
+import type { ProfileSetLoad } from "./profile-put-menu.tsx";
+import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
+import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
+import {
+  cardTextOf,
+  hookCountOf,
+  needsAttentionOf,
+  profilesWithOf,
+  readinessWordOf,
+  toolCountOf,
+} from "./overview-model.ts";
+import { toolReadinessOf, type ToolNeedVM, type ToolReadinessVM } from "./tool-ready.ts";
+
+/** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이(`ext-detail.tsx`의 옛 자리와 같다) */
+const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
+
+export function DetailOverview(props: {
+  readonly entry: ExtListEntry;
+  readonly card: PluginCard | null;
+  readonly profiles: ProfileSetLoad;
+  readonly onRecheck: () => void;
+}): ReactNode {
+  const { entry, card } = props;
+  return (
+    <div className="grid gap-6">
+      {entry.diagnostics.length === 0 ? null : (
+        <section aria-label={t("desktop.workbench.detail.diagnostics")} className="grid gap-1">
+          {entry.diagnostics.map((d) => (
+            <Alert
+              key={`${d.code}:${d.message}`}
+              tone={d.severity === "error" ? "danger" : "warning"}
+              layout="inline"
+              size="sm"
+            >
+              {d.message}
+              {d.file !== undefined && (
+                <span className="font-mono">
+                  {" "}
+                  {d.file}
+                  {d.line === undefined ? "" : `:${d.line}`}
+                </span>
+              )}
+            </Alert>
+          ))}
+        </section>
+      )}
+      <TwoColumns
+        start={<DoesColumn card={card} />}
+        end={
+          <TrustColumn
+            entry={entry}
+            card={card}
+            profiles={props.profiles}
+            onRecheck={props.onRecheck}
+          />
+        }
+      />
+    </div>
+  );
+}
+
+/** 왼쪽 단 "하는 일": 목적(굵게), 설명, 종류와 셈. 카드를 못 읽었으면 한 줄이다 */
+function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
+  const { card } = props;
+  const head = <ColumnHead title={t("desktop.workbench.detail.overview.does")} />;
+  if (card === null) {
+    return (
+      <div className="grid gap-3">
+        {head}
+        <p className={MUTED}>{t("desktop.workbench.detail.overview.noCard")}</p>
+      </div>
+    );
+  }
+  const purpose = cardTextOf(card.purpose);
+  const description = cardTextOf(card.description);
+  const kind = pluginKindOf(card);
+  const hooks = hookCountOf(card);
+  const tools = toolCountOf(card);
+  return (
+    <div className="grid gap-3">
+      {head}
+      {purpose === null ? (
+        <p className={MUTED}>{t("desktop.workbench.detail.overview.noPurpose")}</p>
+      ) : (
+        <p className="m-0 text-ui-strong text-text-primary">{purpose}</p>
+      )}
+      {description === null ? null : (
+        <p className="m-0 text-ui text-text-secondary">{description}</p>
+      )}
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.workbench.detail.overview.does")}
+        className={LD}
+      >
+        {kind === null ? null : (
+          <ListDescriptionRow term={t("desktop.workbench.detail.overview.kind")}>
+            <KindTag kind={kind} />
+          </ListDescriptionRow>
+        )}
+        {hooks > 0 && (
+          <ListDescriptionRow term={t("desktop.craft.canvas.cv3.part.hooks")}>
+            {String(hooks)}
+          </ListDescriptionRow>
+        )}
+        {tools > 0 && (
+          <ListDescriptionRow term={t("desktop.craft.canvas.cv3.cost.toolCount")}>
+            {String(tools)}
+          </ListDescriptionRow>
+        )}
+        {card.does.drive === null ? null : (
+          <ListDescriptionRow term={t("desktop.craft.canvas.cv3.part.steps")}>
+            {t("desktop.workbench.detail.overview.yes")}
+          </ListDescriptionRow>
+        )}
+      </ListDescription>
+    </div>
+  );
+}
+
+/**
+ * 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 비용, 권한, 준비 상태.
+ * 권한은 화면과 설정 탭에서 옮겼고(`useAddonData`로 읽는다), 준비 상태는 카드에 값이 있을 때만 그린다
+ */
+function TrustColumn(props: {
+  readonly entry: ExtListEntry;
+  readonly card: PluginCard | null;
+  readonly profiles: ProfileSetLoad;
+  readonly onRecheck: () => void;
+}): ReactNode {
+  const { entry, card } = props;
+  const row = rowOf(entry);
+  const data = useAddonData(true, true);
+  const detail =
+    data.phase === "ready"
+      ? addonDetailOf(entry.name, data.source, data.meta, data.locale)
+      : undefined;
+  const set = props.profiles.set;
+  const use: ProfileUse | null = set === null ? null : profileUseOf(entry.name, row.appCore, set);
+  const cost = card === null ? null : card.cost.always;
+  const readiness = card === null ? null : toolReadinessOf(card);
+  return (
+    <div className="grid gap-3">
+      <ColumnHead title={t("desktop.workbench.detail.overview.trust")} />
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.workbench.detail.overview.trust")}
+        className={LD}
+      >
+        {set === null || use === null ? null : (
+          <ListDescriptionRow term={t("desktop.workbench.detail.overview.profiles")}>
+            {use.kind === "profiles" ? (
+              <span className="grid justify-items-start">
+                {profilesWithOf(entry.name, set.profiles).map((profile) => (
+                  <span key={profile.id}>{profile.title}</span>
+                ))}
+              </span>
+            ) : (
+              profileUseText(use)
+            )}
+          </ListDescriptionRow>
+        )}
+        <ListDescriptionRow term={t("desktop.workbench.detail.origin")}>
+          {originText(entry.origin)}{" "}
+          <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
+        </ListDescriptionRow>
+        {cost === null ? null : (
+          <ListDescriptionRow term={t("desktop.craft.canvas.cv3.sec.cost")}>
+            {`${t("desktop.craft.canvas.cv3.cost.always")} ${tokens(cost)}`}
+          </ListDescriptionRow>
+        )}
+      </ListDescription>
+      {detail === undefined ? null : <RiskSection detail={detail} />}
+      {readiness === null ? null : (
+        <ReadinessSection readiness={readiness} onRecheck={props.onRecheck} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * 준비 상태 구역: 도구마다 한 줄. 없거나 버전이 낮은 줄은 숨기지 않고 경고로 두며, 설치 안내와 "복사"를 단다.
+ * 앱이 대신 설치하지 않는다. 머리의 "다시 확인"은 카드를 다시 읽는다
+ */
+function ReadinessSection(props: {
+  readonly readiness: ToolReadinessVM;
+  readonly onRecheck: () => void;
+}): ReactNode {
+  return (
+    <div className="grid gap-3">
+      <ColumnHead
+        title={t("desktop.workbench.detail.ready.title")}
+        end={
+          <Button size="xs" variant="ghost" onClick={props.onRecheck}>
+            {t("desktop.workbench.detail.ready.recheck")}
+          </Button>
+        }
+      />
+      <ul className="m-0 grid list-none gap-1 p-0">
+        {props.readiness.needs.map((need) => (
+          <NeedLine key={need.tool} need={need} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * 도구 한 줄. 모든 줄이 같은 세 칸(표시 그림, 글, 복사)이라 글의 왼쪽 끝이 맞는다. 그림은 첫 줄 높이(`h-lh`) 안에서 세로 가운데다.
+ * 없거나 버전이 낮으면 숨기지 않는 경고 면(warning tint)과 경고 그림, 필요한 버전과 지금 버전, 설치 안내(mono)와 "복사"를 둔다
+ */
+function NeedLine(props: { readonly need: ToolNeedVM }): ReactNode {
+  const { need } = props;
+  const commands = useCommands();
+  const warn = needsAttentionOf(need);
+  const install = warn ? need.install : null;
+  const versions = [
+    need.minVersion === null
+      ? null
+      : t("desktop.workbench.detail.ready.minVersion", { min: need.minVersion }),
+    need.foundVersion === null
+      ? null
+      : t("desktop.workbench.detail.ready.foundVersion", { found: need.foundVersion }),
+  ].filter((text) => text !== null);
+  return (
+    <li
+      data-need={need.state}
+      data-warn={warn ? "" : undefined}
+      className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 rounded-lg px-3 py-2 text-ui-sm${warn ? " bg-warning-tint" : ""}`}
+    >
+      <span aria-hidden className="flex h-lh items-center">
+        {warn ? (
+          <TriangleAlert className="size-icon-sm text-warning-text" />
+        ) : (
+          <CircleCheck className="size-icon-sm text-success-text" />
+        )}
+      </span>
+      <div className="grid min-w-0 gap-1">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <span className="font-mono text-mono-sm text-text-primary">{need.tool}</span>
+          <span className={warn ? "text-warning-text" : "text-text-secondary"}>
+            {t(readinessWordOf(need.state))}
+          </span>
+          {need.required ? null : (
+            <span className="text-text-tertiary">
+              {t("desktop.workbench.detail.ready.optional")}
+            </span>
+          )}
+        </div>
+        {warn && versions.length > 0 ? (
+          <div className="flex flex-wrap gap-x-2 text-text-secondary">
+            {versions.map((text) => (
+              <span key={text}>{text}</span>
+            ))}
+          </div>
+        ) : null}
+        {need.why === null ? null : <p className="m-0 text-text-tertiary">{need.why}</p>}
+        {install === null ? null : (
+          <code className="font-mono text-mono-sm text-text-primary">{install}</code>
+        )}
+      </div>
+      {install === null ? (
+        <span />
+      ) : (
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => {
+            detach(commands.copyText(install), rethrow);
+          }}
+        >
+          {t("desktop.workbench.detail.ready.copy")}
+        </Button>
+      )}
+    </li>
+  );
+}
