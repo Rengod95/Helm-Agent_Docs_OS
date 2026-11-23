@@ -264,9 +264,10 @@ describe("service schedule over the wire", () => {
           status: "finished",
           outcome: "completed",
         });
+        // 시각 예약도 "지금 한 번 실행"으로 돌릴 수 있다(AGE-77 F-31). 이 예약은 이미 한 번 돌고 꺼져서 `disabled`로 거절된다
         expect(await client.request("schedule.fire", { scheduleId: timerId })).toEqual({
           ok: false,
-          error: { kind: "not_remote" },
+          error: { kind: "disabled" },
         });
       } finally {
         await client.close();
