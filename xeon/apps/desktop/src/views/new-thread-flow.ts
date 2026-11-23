@@ -5,10 +5,16 @@ import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useShellActions } from "../state/shell/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
-import { blankThreadIn, planNewThread, type NewThreadPlan } from "./new-thread-model.ts";
+import {
+  blankThreadIn,
+  planNewThread,
+  type NewThreadPlan,
+  type WhenFolderUnknown,
+} from "./new-thread-model.ts";
 
 // 새 대화를 만드는 길 하나(R5). ⌘N, 팔레트, 트레이, 사이드바 "새 대화"가 모두 이 함수를 부른다.
-// 보던 대화의 작업 폴더에서 열고, 보낸 것 없는 빈 대화가 있으면 그리로 가고, 폴더를 모르면 폴더 고르기를 연다(취소하면 아무것도 만들지 않는다).
+// 보던 대화의 작업 폴더에서 열고, 보낸 것 없는 빈 대화가 있으면 그리로 가고, 폴더를 모르면 `whenUnknown`대로 한다: 폴더 없이 열거나(사이드바, ⌘N, 팔레트)
+// 폴더 고르기를 연다(폴더가 꼭 필요한 부르는 쪽, 취소하면 아무것도 만들지 않는다).
 // 어느 길이든 대화가 열리면 입력창에 초점을 요청한다. 폴더 고르기 창은 하나만 연다.
 
 export type NewThreadResult =
@@ -34,6 +40,8 @@ export interface NewThreadDeps {
   readonly threads: readonly ThreadSummary[];
   readonly selected: ThreadSummary["threadId"] | null;
   readonly folderPick: FolderPickInvoke | undefined;
+  /** 작업 폴더를 모를 때의 길. 기본은 폴더 고르기(폴더가 꼭 필요한 부르는 쪽) */
+  readonly whenUnknown?: WhenFolderUnknown;
   /** 대화 영역의 입력창이 보이는 화면으로 바꾼다(설정 화면에서 눌러도 대화가 보인다) */
   readonly showChat: () => void;
   readonly selectThread: (threadId: ThreadSummary["threadId"]) => void;
@@ -54,7 +62,7 @@ export async function runNewThread(
   };
   const plan: NewThreadPlan =
     explicit === undefined
-      ? planNewThread(threads, deps.selected)
+      ? planNewThread(threads, deps.selected, deps.whenUnknown ?? "pick")
       : explicit === null
         ? { kind: "createNoFolder" }
         : { kind: "create", workspace: explicit };
@@ -83,6 +91,7 @@ export async function runNewThread(
 
 export function useStartNewThread(
   folderPick: FolderPickInvoke | undefined,
+  whenUnknown: WhenFolderUnknown = "pick",
 ): (workspace?: string | null) => Promise<NewThreadResult> {
   const commands = useCommands();
   const shell = useShellActions();
@@ -94,6 +103,7 @@ export function useStartNewThread(
         threads,
         selected,
         folderPick,
+        whenUnknown,
         showChat: () => {
           const model = shell.snapshot();
           shell.switchArea("chat");

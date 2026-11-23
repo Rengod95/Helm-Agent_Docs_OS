@@ -571,6 +571,15 @@ describe("latest turn id per thread", () => {
     expect(run([head(9)], s).recentTurnIds).toEqual({});
   });
 
+  test("turn.started also sets the summary's lastTurnId, so a thread that ran a turn is not blank", () => {
+    const s = run([
+      head(5),
+      { type: "threads", threads: [summary(T)] },
+      batch(5, 6, [started(6, T, trn(4))]),
+    ]);
+    expect(s.threads.byId[T]?.lastTurnId).toBe(trn(4));
+  });
+
   test("a turn.started without a turn id records nothing", () => {
     const s = run([head(5), batch(5, 6, [started(6, T, null)])]);
     expect(s.latestTurnId).toEqual({});

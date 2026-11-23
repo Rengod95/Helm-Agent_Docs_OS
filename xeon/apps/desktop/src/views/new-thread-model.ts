@@ -3,20 +3,27 @@ import type { ThreadSummary } from "@fresnel/contracts/wire";
 // ⌘N·팔레트 "새 대화"가 무엇을 할지 정한다(W6). [기본값: 사용자 결정 없음]
 // - 지금 보는 대화의 작업 폴더가 있으면 그 폴더에서 새 대화를 연다.
 // - 아직 아무것도 보내지 않은 빈 새 대화가 그 폴더에 이미 있으면 새로 만들지 않고 그것으로 간다.
-// - 작업 폴더를 모르면 폴더 고르기를 연다(폴더 없는 대화를 쌓지 않는다).
+// - 작업 폴더를 모르면(첫 실행, 폴더 없는 대화에서 누름) 폴더 없이 새 대화를 연다. 프로젝트는 직접 만들 때만 생기고 프로젝트 밖 대화는
+//   "프로젝트 없는 대화"에 든다 [결정: 2026-11-22 사용자, AGE-34]. 폴더 고르기 창은 사용자가 대화 상자에서 직접 연다.
 
 export type NewThreadPlan =
   | { readonly kind: "open"; readonly threadId: ThreadSummary["threadId"] }
   | { readonly kind: "create"; readonly workspace: string }
+  /** 폴더 고르기 창을 연다(폴더가 꼭 필요한 부르는 쪽: 제작 대화, 폴더 고르기 단추) */
   | { readonly kind: "pickFolder" }
-  /** 새 대화 대화 상자의 "폴더 없이 만들기"(사용자가 직접 고른 길). 계획 함수는 이 값을 내지 않는다 */
+  /** 폴더 없이 만든다(새 대화 대화 상자의 "폴더 없이 만들기", 그리고 작업 폴더를 모르는 새 대화) */
   | { readonly kind: "createNoFolder" };
 
-/** 보낸 것이 없는 새 대화: 턴이 없고, 제목이 없고, 분기·시험 표식이 없고, 닫히지 않았다 */
+/**
+ * 보낸 것이 없는 새 대화: 턴이 없고, 제목이 없고, 사용자 말(첫 입력 미리보기)도 대기 중인 입력도 없고, 분기·시험 표식이 없고, 닫히지 않았다.
+ * Helm이 Drive한 대화처럼 사용자 말이 슬래시 명령뿐이어도 보낸 것이 있으면 빈 대화가 아니다
+ */
 export function isBlankThread(thread: ThreadSummary): boolean {
   return (
     thread.lastTurnId === undefined &&
     thread.title === null &&
+    thread.preview === undefined &&
+    thread.queuedInputs === 0 &&
     thread.forkedFrom === null &&
     thread.testRun === undefined &&
     thread.status !== "closed" &&
@@ -56,13 +63,23 @@ export function recentWorkspacesOf(threads: readonly ThreadSummary[]): readonly 
   return [...counts].slice(0, RECENT_WORKSPACE_MAX).map(([path, count]) => ({ path, count }));
 }
 
+/** 작업 폴더를 모를 때 할 일: 폴더 없이 연다(사이드바, ⌘N, 팔레트) 또는 폴더 고르기 창을 연다(폴더가 꼭 필요한 부르는 쪽) */
+export type WhenFolderUnknown = "noFolder" | "pick";
+
 export function planNewThread(
   threads: readonly ThreadSummary[],
   selectedId: ThreadSummary["threadId"] | null,
+  whenUnknown: WhenFolderUnknown = "noFolder",
 ): NewThreadPlan {
   const selected = threads.find((thread) => thread.threadId === selectedId);
   const workspace = selected?.workspace ?? null;
-  if (workspace === null) return { kind: "pickFolder" };
+  if (workspace === null) {
+    if (whenUnknown === "pick") return { kind: "pickFolder" };
+    const blankNoFolder = blankThreadIn(threads, null);
+    return blankNoFolder === null
+      ? { kind: "createNoFolder" }
+      : { kind: "open", threadId: blankNoFolder };
+  }
   const blank = blankThreadIn(threads, workspace);
   if (blank !== null) return { kind: "open", threadId: blank };
   return { kind: "create", workspace };

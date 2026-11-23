@@ -97,7 +97,7 @@ export function App(props: AppProps): ReactNode {
   const threadIds = useThreadIds();
   const approvalIds = useApprovalIds();
   const runPluginCommand = usePluginCommandRunner();
-  const startThread = useStartNewThread(props.folderPick);
+  const startThread = useStartNewThread(props.folderPick, "noFolder");
   // 앱을 다시 켜면 마지막에 보던 대화를 연다. 목록이 다 온 뒤 한 번만 읽고, 없어졌으면 빈 무대로 둔다.
   // 복원이 끝나기 전의 선택(처음의 null)은 저장하지 않는다
   const threadsStatus = useThreadsStatus();

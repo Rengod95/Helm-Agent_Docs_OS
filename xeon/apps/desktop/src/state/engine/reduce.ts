@@ -786,7 +786,12 @@ function applyFactCore(state: EngineMirror, fact: DurableFact): EngineMirror {
     case "thread.closed":
       return patchThread(state, fact.threadId, (t) => ({ ...t, status: "closed" }));
     case "turn.started": {
-      const running = patchThread(state, fact.threadId, (t) => ({ ...t, status: "running" }));
+      // 요약의 lastTurnId도 맞춘다: 턴이 하나라도 돈 대화는 "빈 대화"가 아니다(새 대화 재사용과 빈 대화 숨김이 이 값을 읽는다)
+      const running = patchThread(state, fact.threadId, (t) => ({
+        ...t,
+        status: "running",
+        ...(fact.turnId === null ? {} : { lastTurnId: fact.turnId }),
+      }));
       // turn.started의 turnId는 호스트가 항상 준다(projector가 turnIdOf로 읽는다). 없으면 기록하지 않는다
       const latestTurnId =
         fact.turnId === null

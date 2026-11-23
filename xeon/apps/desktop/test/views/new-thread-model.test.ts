@@ -30,11 +30,33 @@ test("a thread with a turn or a title is not blank", () => {
   expect(isBlankThread(summary({ lastTurnId: trn(1) }))).toBe(false);
   expect(isBlankThread(summary({ title: "x" }))).toBe(false);
   expect(isBlankThread(summary({ status: "closed" }))).toBe(false);
+  // Helm이 Drive한 대화: 사용자 말이 슬래시 명령뿐이어도 보낸 것이 있으면 빈 대화가 아니다
+  expect(isBlankThread(summary({ preview: "/helm start 탐구" }))).toBe(false);
+  expect(isBlankThread(summary({ queuedInputs: 1 }))).toBe(false);
 });
 
-test("no selected thread asks for a folder", () => {
-  expect(planNewThread([summary({})], null)).toEqual({ kind: "pickFolder" });
-  expect(planNewThread([summary({ workspace: null })], thr(1))).toEqual({ kind: "pickFolder" });
+test("no selected thread or an unknown folder opens a thread without a folder", () => {
+  expect(planNewThread([summary({})], null)).toEqual({ kind: "createNoFolder" });
+  expect(planNewThread([summary({ workspace: null, title: "x" })], thr(1))).toEqual({
+    kind: "createNoFolder",
+  });
+  // 폴더 없는 빈 대화가 이미 있으면 그리로 간다
+  expect(
+    planNewThread(
+      [summary({ workspace: null, title: "x" }), summary({ threadId: thr(2), workspace: null })],
+      thr(1),
+    ),
+  ).toEqual({ kind: "open", threadId: thr(2) });
+});
+
+test("a caller that needs a folder still gets the folder picker when the folder is unknown", () => {
+  expect(planNewThread([summary({})], null, "pick")).toEqual({ kind: "pickFolder" });
+});
+
+test("a Helm-driven thread (only a slash command sent) is not reused as blank", () => {
+  const helm = summary({ preview: "/helm start 탐구", queuedInputs: 1 });
+  expect(planNewThread([helm], thr(1))).toEqual({ kind: "create", workspace: "/w/a" });
+  expect(blankThreadIn([helm], "/w/a")).toBeNull();
 });
 
 test("the selected folder opens a new thread there", () => {
