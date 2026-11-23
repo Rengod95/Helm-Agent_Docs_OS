@@ -13,6 +13,14 @@ const NAME = "kanban";
 
 afterAll(cleanupStaged);
 
+const pad = (n: number): string => String(n).padStart(2, "0");
+
+/** 이 기기 시간대의 오늘 `YYYY-MM-DD`. 뼈대와 같은 식으로 값을 적어 둔다(UTC로 바꾸지 않는다) */
+function localDay(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** 뼈대 파일을 시험 공간에 쓰고 저장소를 붙인 호스트에 싣는다 */
 async function skeletonHost(store: PluginStorePort) {
   const t = await createTestHost({ pluginStore: store });
@@ -26,25 +34,40 @@ async function skeletonHost(store: PluginStorePort) {
   return t;
 }
 
-test("with no conversation, the skeleton's list and add work through the plugin store", async () => {
+test("with no conversation, the skeleton's list and add work through the plugin store, and each item keeps the local day it was made", async () => {
   const store = memoryPluginStore();
   const t = await skeletonHost(store);
+  const day = localDay();
   expect(await callMethod(t, NAME, "list", {}, null)).toEqual({ ok: true, items: [] });
   expect(await callMethod(t, NAME, "add", { title: "첫 항목" }, null)).toEqual({
     ok: true,
-    items: ["첫 항목"],
+    items: [{ title: "첫 항목", created: day }],
   });
   expect(await callMethod(t, NAME, "add", { title: "둘째" }, null)).toEqual({
     ok: true,
-    items: ["첫 항목", "둘째"],
+    items: [
+      { title: "첫 항목", created: day },
+      { title: "둘째", created: day },
+    ],
   });
   expect(await callMethod(t, NAME, "list", {}, null)).toEqual({
     ok: true,
-    items: ["첫 항목", "둘째"],
+    items: [
+      { title: "첫 항목", created: day },
+      { title: "둘째", created: day },
+    ],
   });
   const stored = await store.get(NAME, "items");
   if (!stored.ok || stored.value === null) throw new Error("no items in the plugin store");
-  expect(parseJson(stored.value)).toEqual({ ok: true, value: { items: ["첫 항목", "둘째"] } });
+  expect(parseJson(stored.value)).toEqual({
+    ok: true,
+    value: {
+      items: [
+        { title: "첫 항목", created: day },
+        { title: "둘째", created: day },
+      ],
+    },
+  });
 });
 
 test("adds at the same time with no conversation are all kept", async () => {
@@ -52,7 +75,11 @@ test("adds at the same time with no conversation are all kept", async () => {
   await Promise.all(["가", "나", "다"].map((title) => callMethod(t, NAME, "add", { title }, null)));
   expect(await callMethod(t, NAME, "list", {}, null)).toEqual({
     ok: true,
-    items: expect.arrayContaining(["가", "나", "다"]),
+    items: expect.arrayContaining([
+      expect.objectContaining({ title: "가" }),
+      expect.objectContaining({ title: "나" }),
+      expect.objectContaining({ title: "다" }),
+    ]),
   });
 });
 
@@ -65,7 +92,7 @@ test("with an open conversation, the skeleton keeps its items in the conversatio
   expect(await callMethod(t, NAME, "list", {}, thread)).toEqual({ ok: true, items: [] });
   expect(await callMethod(t, NAME, "add", { title: "대화 항목" }, thread)).toEqual({
     ok: true,
-    items: ["대화 항목"],
+    items: [{ title: "대화 항목", created: localDay() }],
   });
   expect(await store.get(NAME, "items")).toEqual({ ok: true, value: null });
 });

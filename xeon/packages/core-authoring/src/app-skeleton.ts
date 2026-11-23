@@ -37,12 +37,19 @@ function appToolName(id: string): string {
 
 const EMPTY_OBJECT = { type: "object", properties: {}, additionalProperties: false };
 
+/** 항목 하나. `created`는 만든 날의 `YYYY-MM-DD`(이 기기의 시간대, 뼈대의 `today()`가 만든다) */
+const ITEM_SHAPE = {
+  type: "object",
+  properties: { title: { type: "string" }, created: { type: "string" } },
+  required: ["title", "created"],
+};
+
 /** 두 메서드의 결과 모양. 성공이면 `ok`와 `items`, 실패면 `ok`와 `reason`이다 */
 const RESULT_SHAPE = {
   type: "object",
   properties: {
     ok: { type: "boolean" },
-    items: { type: "array", items: { type: "string" }, maxItems: ITEM_MAX },
+    items: { type: "array", items: ITEM_SHAPE, maxItems: ITEM_MAX },
     reason: { type: "string" },
   },
   required: ["ok"],
@@ -125,15 +132,27 @@ function entryText(values: AppSkeletonValues): string {
     "// 화면(ui/app)은 메서드를 부르고 모델은 도구를 부른다. 둘 다 addItem 하나로 상태를 고치므로 같은 목록을 본다.",
     '// 대화가 열려 있으면 상태 문서(g.state, g.commit)에, 없으면 플러그인 저장소(g.pluginStore, 키 "items")에 둔다.',
     "",
+    "interface AppItem {",
+    "  readonly title: string;",
+    "  readonly created: string;",
+    "}",
+    "",
     "interface AppState {",
-    "  readonly items: readonly string[];",
+    "  readonly items: readonly AppItem[];",
     "}",
     "",
     "const stateSchema = Type.Object({",
-    `  items: Type.Array(Type.String({ maxLength: ${TITLE_MAX} }), { maxItems: ${ITEM_MAX} }),`,
+    `  items: Type.Array(Type.Object({ title: Type.String({ maxLength: ${TITLE_MAX} }), created: Type.String({ maxLength: 10 }) }), { maxItems: ${ITEM_MAX} }),`,
     "});",
     "",
     "const initialState: AppState = { items: [] };",
+    "",
+    "// 날짜는 이 기기의 시간대로 쓴다. UTC 글로 바꾸면 자정 무렵 하루 어긋나므로 그렇게 쓰지 않는다",
+    'const pad = (n: number): string => String(n).padStart(2, "0");',
+    "const today = (): string => {",
+    "  const d = new Date();",
+    '  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());',
+    "};",
     "",
     'const ITEMS_KEY = "items";',
     "",
@@ -145,7 +164,7 @@ function entryText(values: AppSkeletonValues): string {
     "type AppApi = OrchestrationApi<AppState>;",
     "",
     "type ItemsOutcome =",
-    "  | { readonly ok: true; readonly items: readonly string[] }",
+    "  | { readonly ok: true; readonly items: readonly AppItem[] }",
     "  | { readonly ok: false; readonly reason: string };",
     "",
     "/** 대화 없이 쓰는 목록을 플러그인 저장소에서 읽는다. 저장된 값이 목록 모양이 아니면 저장 데이터가 깨진 것이다 */",
@@ -172,15 +191,16 @@ function entryText(values: AppSkeletonValues): string {
     "",
     "/** 항목 하나를 더한다. 대화가 열려 있으면 상태 문서에, 없으면 플러그인 저장소에 쓴다. 메서드 add와 모델 도구가 이 함수 하나를 쓴다 */",
     "async function addItem(g: AppApi, open: boolean, title: string): Promise<ItemsOutcome> {",
+    "  const made: AppItem = { title, created: today() };",
     "  if (open) {",
-    "    const committed = await g.commit({ items: [...g.state().items, title] });",
+    "    const committed = await g.commit({ items: [...g.state().items, made] });",
     "    return { ok: true, items: committed.items };",
     "  }",
     "  return inStoreLine<ItemsOutcome>(async () => {",
     "    const current = await readStored(g);",
     "    if (!current.ok) return current;",
     `    if (current.items.length >= ${ITEM_MAX}) return { ok: false, reason: "full" };`,
-    "    const next = [...current.items, title];",
+    "    const next = [...current.items, made];",
     "    const put = await g.pluginStore.put(ITEMS_KEY, { items: next });",
     "    return put.ok ? { ok: true, items: next } : { ok: false, reason: put.error.kind };",
     "  });",
@@ -335,9 +355,14 @@ const APP_JS = `// 앱 화면 한 장. 목록을 읽어 그리고, 입력을 받
 
   function render(items) {
     list.replaceChildren(
-      ...items.map((text) => {
+      ...items.map((entry) => {
         const item = document.createElement("li");
-        item.textContent = text;
+        const title = document.createElement("span");
+        title.textContent = entry.title;
+        const made = document.createElement("time");
+        made.className = "app-created";
+        made.textContent = entry.created;
+        item.append(title, made);
         return item;
       }),
     );
@@ -429,6 +454,7 @@ body {
   border-radius: var(--radius);
   background: var(--panel, transparent);
 }
+.app-created { margin-left: var(--space-2); color: var(--dim, inherit); }
 .app-status { margin: 0; color: var(--dim, inherit); }
 `;
 
