@@ -169,7 +169,8 @@ describe("플러그인 목록: 카드 보기", () => {
   test("줄마다 카드 하나를 그리고, 카드를 못 읽었으면 목적이 없다는 글을 보인다", () => {
     const cards: PluginCards = {
       cardOf: () => null,
-      reload: () => undefined,
+      readinessOf: () => null,
+      recheck: () => undefined,
     };
     const rows = [rowOf(entry("web", { displayName: "웹 검색" }))];
     const html = renderToString(

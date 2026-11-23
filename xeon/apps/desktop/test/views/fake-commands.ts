@@ -170,6 +170,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       invocables: () => Promise.resolve(ok([])),
       pluginsInProfile: () => Promise.resolve(ok(new Set<string>())),
       pluginCards: () => Promise.resolve(ok([])),
+      recheckTools: () => Promise.resolve(ok(null)),
       drafts: () => Promise.resolve(ok([])),
       previewProfile: () =>
         Promise.resolve(

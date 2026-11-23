@@ -224,6 +224,10 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("plugin.list", {}));
       return got.ok ? ok(got.value.plugins) : err(got.error);
     },
+    async recheckTools() {
+      const got = await withConnection((c) => c.request("host.status", { includeBinaries: true }));
+      return got.ok ? ok(null) : err(got.error);
+    },
     async drafts(name) {
       const got = await withConnection((c) => c.request("plugin.draft.list", { name }));
       return got.ok ? ok(got.value.drafts) : err(got.error);

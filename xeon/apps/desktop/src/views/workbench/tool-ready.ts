@@ -1,92 +1,124 @@
-// 도구 종류 플러그인의 "준비 상태"(AGE-76 질문 2 "Tool type plugin", plugTab). 플러그인이 기대는 외부 도구(python3, git 같은 것)가
-// 이 컴퓨터에 있는지를 화면이 그리는 모양 한 벌이다. 엔진 쪽 계약(필드 이름, 점검)은 리드 plugTool이 만들고 아직 병합되지 않았다.
-// 그래서 화면은 카드(`plugin.list`)에 아래 필드가 있을 때만 읽고, 없으면 null이라 줄, 카드, 상세 어디에도 준비 상태를 그리지 않는다.
-// 계약이 들어오면 이 파일만 고친다: 필드 이름(`TOOL_READINESS_FIELD`)과 아래 두 인터페이스의 필드 이름을 계약에 맞춘다.
+// 플러그인 상세와 목록의 "준비 상태"(AGE-76 질문 2 "Tool type plugin", plugWire). 원천은 엔진 카드(`plugin.list`)의 두 칸이다:
+// 도구 플러그인의 `externalTool`(선언과 엔진이 점검한 `status`)과, 다른 플러그인의 `dependencies.dependsOn`(도구 플러그인을 가리키는 의존).
+// 도구 플러그인은 자기 도구 한 줄, 도구에 기대는 플러그인(예: `cap-workspace` → `tool-rg` hard, `tool-git` soft)은 기대는 도구마다 한 줄이다.
+// 엔진 계약은 바꾸지 않고 화면 쪽에서 모은다. 앱은 설치 명령을 돌리지 않는다(설치 안내는 글과 복사뿐이다).
+import type { Locale } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { CardExternalTool, PluginCard } from "@fresnel/contracts/extensions";
 
-/** 카드에서 읽는 필드 이름. plugTool 계약의 이름으로 바꾸면 된다 */
-const TOOL_READINESS_FIELD = "toolReadiness";
-
-/** 도구 하나의 상태: 있음, 없음, 버전 낮음, 앱에 들어 있음(macOS 앱이 묶어 오는 sops, age, rg 같은 것) */
-export const TOOL_NEED_STATES = ["ready", "missing", "tooOld", "bundled"] as const;
+/**
+ * 도구 한 줄의 상태. 엔진 `ExternalToolStatus.kind`를 화면 이름으로 옮긴 것과, 점검 값이 아직 없는 `unchecked`다.
+ * `ready` 시스템에서 찾음, `bundled` 앱에 들어 있는 것을 씀, `missing` 없음, `tooOld` 버전이 낮음, `unusable` 찾았지만 쓸 수 없음
+ */
+export const TOOL_NEED_STATES = [
+  "ready",
+  "bundled",
+  "missing",
+  "tooOld",
+  "unusable",
+  "unchecked",
+] as const;
 export type ToolNeedState = (typeof TOOL_NEED_STATES)[number];
 
 export interface ToolNeedVM {
-  /** 도구 이름(명령 이름 그대로, 예: "python3") */
+  /** 도구 플러그인 이름(예: "tool-git") */
+  readonly plugin: string;
+  /** 실행 파일 이름(예: "git") */
   readonly tool: string;
   readonly state: ToolNeedState;
-  /** 없어도 플러그인이 돌면 false(선택) */
+  /** 없으면 플러그인이 돌지 않는가(hard 의존, 또는 도구 플러그인 자신). 거짓이면 "선택" */
   readonly required: boolean;
+  /** 필요한 최소 버전. 없으면 어느 버전이든 된다 */
   readonly minVersion: string | null;
+  /** 찾은 버전. 못 찾았거나 점검 전이면 null */
   readonly foundVersion: string | null;
-  /** 왜 필요한지 한 줄 */
-  readonly why: string | null;
-  /** 설치 안내 한 줄(복사 단추가 복사하는 글, 예: "brew install python@3.12"). 앱이 대신 설치하지 않는다 */
-  readonly install: string | null;
+  /** 화면 언어의 설치 안내 한 줄(복사 단추가 복사하는 글). 앱이 대신 설치하지 않는다 */
+  readonly install: string;
 }
 
 export interface ToolReadinessVM {
   readonly needs: readonly ToolNeedVM[];
-  /** 마지막으로 확인한 때(ISO 8601). 모르면 null */
-  readonly checkedAt: string | null;
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isTextOrNull(value: unknown): value is string | null {
-  return value === null || (typeof value === "string" && value.length <= 200);
-}
-
-function isNeedState(value: unknown): value is ToolNeedState {
-  return TOOL_NEED_STATES.some((state) => state === value);
-}
-
-function needOf(value: unknown): ToolNeedVM | null {
-  if (!isRecord(value)) return null;
-  const { tool, state, required, minVersion, foundVersion, why, install } = value;
-  if (typeof tool !== "string" || tool.length === 0 || tool.length > 64) return null;
-  if (!isNeedState(state) || typeof required !== "boolean") return null;
-  if (
-    !isTextOrNull(minVersion) ||
-    !isTextOrNull(foundVersion) ||
-    !isTextOrNull(why) ||
-    !isTextOrNull(install)
-  ) {
-    return null;
+/** 카드의 도구 칸을 도구 한 줄로 옮긴다 */
+export function toolNeedOf(
+  plugin: string,
+  tool: CardExternalTool,
+  required: boolean,
+  locale: Locale,
+): ToolNeedVM {
+  const base = {
+    plugin,
+    tool: tool.binary,
+    required,
+    minVersion: tool.minVersion ?? null,
+    install: tool.install[locale],
+  };
+  const status = tool.status;
+  if (status === undefined) {
+    return { ...base, state: "unchecked", foundVersion: null };
   }
-  return { tool, state, required, minVersion, foundVersion, why, install };
+  switch (status.kind) {
+    case "ready":
+      return { ...base, state: "ready", foundVersion: status.version };
+    case "bundled":
+      return { ...base, state: "bundled", foundVersion: status.version };
+    case "missing":
+      return { ...base, state: "missing", foundVersion: null };
+    case "too_old":
+      return {
+        ...base,
+        state: "tooOld",
+        minVersion: status.required,
+        foundVersion: status.found,
+      };
+    case "unusable":
+      return { ...base, state: "unusable", foundVersion: null };
+    default:
+      return assertNever(status, "ExternalToolStatus");
+  }
 }
 
-/** 엔진 값 하나를 준비 상태로 읽는다. 모양이 하나라도 틀리면 null(계약이 바뀐 신호라 지어내지 않는다) */
-function readinessOfValue(value: unknown): ToolReadinessVM | null {
-  if (!isRecord(value)) return null;
-  const { needs, checkedAt } = value;
-  if (!Array.isArray(needs) || !isTextOrNull(checkedAt)) return null;
-  const read: ToolNeedVM[] = [];
-  for (const item of needs) {
-    const need = needOf(item);
-    if (need === null) return null;
-    read.push(need);
-  }
-  return { needs: read, checkedAt };
+/** 의존 대상(`이름` 또는 `이름/id`)의 플러그인 이름 */
+function targetPluginOf(target: string): string {
+  return target.split("/")[0] ?? target;
 }
 
 /**
- * 카드(또는 계약이 정할 다른 엔진 값)에서 준비 상태를 읽는다. 필드가 없거나, 모양이 맞지 않거나, 도구가 하나도 없으면 null이다(화면은 그리지 않는다)
+ * 카드의 준비 상태. 도구 플러그인이면 자기 도구 한 줄(늘 필수)이고, 아니면 의존에 든 도구 플러그인마다 한 줄이다(hard는 필수, soft는 선택).
+ * 같은 도구 플러그인을 여러 멤버가 가리키면 한 줄로 모으고 hard가 이긴다. 도구가 하나도 없으면 null이다(화면은 구역을 그리지 않는다)
  */
-export function toolReadinessOf(source: object): ToolReadinessVM | null {
-  if (!(TOOL_READINESS_FIELD in source)) return null;
-  const readiness = readinessOfValue(source[TOOL_READINESS_FIELD]);
-  return readiness === null || readiness.needs.length === 0 ? null : readiness;
+export function toolReadinessOf(
+  card: PluginCard,
+  cardOf: (name: string) => PluginCard | null,
+  locale: Locale,
+): ToolReadinessVM | null {
+  if (card.externalTool !== undefined) {
+    return { needs: [toolNeedOf(card.name, card.externalTool, true, locale)] };
+  }
+  const order: string[] = [];
+  const required = new Map<string, boolean>();
+  for (const dependency of card.dependencies?.dependsOn ?? []) {
+    const name = targetPluginOf(dependency.target);
+    if (name === card.name) continue;
+    if (!required.has(name)) order.push(name);
+    required.set(name, (required.get(name) ?? false) || dependency.kind === "hard");
+  }
+  const needs = order.flatMap((name) => {
+    const tool = cardOf(name)?.externalTool;
+    return tool === undefined ? [] : [toolNeedOf(name, tool, required.get(name) ?? false, locale)];
+  });
+  return needs.length === 0 ? null : { needs };
 }
 
-/** 꼭 필요한 도구가 없거나 버전이 낮은가. 목록과 상세 머리의 상태 칸이 "준비 안 됨"을 보인다 */
+/** 없거나 버전이 낮거나 쓸 수 없는 도구인가. 이런 줄은 숨기지 않고 경고로 늘 보인다 */
+export function needsAttentionOf(need: Pick<ToolNeedVM, "state">): boolean {
+  return need.state === "missing" || need.state === "tooOld" || need.state === "unusable";
+}
+
+/** 꼭 필요한 도구가 없거나 버전이 낮거나 쓸 수 없는가. 목록과 상세 머리의 상태 칸이 "준비 안 됨"을 보인다 */
 export function readinessBlocked(readiness: ToolReadinessVM | null): boolean {
   return (
-    readiness !== null &&
-    readiness.needs.some(
-      (need) => need.required && (need.state === "missing" || need.state === "tooOld"),
-    )
+    readiness !== null && readiness.needs.some((need) => need.required && needsAttentionOf(need))
   );
 }

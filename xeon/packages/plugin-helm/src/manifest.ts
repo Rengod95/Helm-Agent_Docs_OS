@@ -13,6 +13,8 @@ export const helmManifest: OrchestrationManifest = defineManifest({
   version: "0.1.1",
   displayName: "Helm",
   description: "막힌 문제를 새 관점으로 탐구하고, 모르는 분야의 지식을 지금 작업에 적용해요.",
+  // 목적 한 문장(카드 `purpose`). 설명이 이미 한 문장이라 그 문장을 그대로 쓴다(plugWire, AGE-76)
+  purpose: "막힌 문제를 새 관점으로 탐구하고, 모르는 분야의 지식을 지금 작업에 적용해요.",
   entry: "./dist/index.js",
   defaultEnabled: true,
   components: { agents: ["./agents/explorer.md"] },

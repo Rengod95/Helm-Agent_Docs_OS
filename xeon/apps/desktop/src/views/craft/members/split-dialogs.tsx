@@ -14,9 +14,10 @@ import {
   Skeleton,
 } from "@caustic/react";
 import { detach, rethrow } from "@fresnel/contracts";
-import type { DependencyKind } from "@fresnel/contracts/extensions";
+import type { DependencyKind, PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { useEffect, useState, type ReactNode } from "react";
+import { useCommands } from "../../commands.ts";
 import { pickWorkspaceFolder } from "../../folder-pick.ts";
 import { useFolderPick } from "../../folder-pick-context.ts";
 import { KIND_WORD } from "../deps/deps-model.ts";
@@ -28,6 +29,7 @@ import {
   MERGE_MAX,
   MERGE_MIN,
   mergeCandidatesOf,
+  mergeDependentsOf,
   newNameProblemOf,
   PURPOSE_MAX,
   purposeProblemOf,
@@ -420,7 +422,10 @@ function MergeBody(props: {
   readonly start?: MergeStart;
 }): ReactNode {
   const { actions, entries } = props;
+  const commands = useCommands();
   const [candidates, setCandidates] = useState<readonly Candidate[] | null>(null);
+  // 고른 원본에 hard로 기대는 플러그인을 미리 알리려고 카드를 한 번 읽는다. 못 읽으면 알림 없이 둔다(엔진이 승인 때 다시 막는다)
+  const [cards, setCards] = useState<readonly PluginCard[]>([]);
   const [picked, setPicked] = useState<readonly string[]>(props.start?.picked ?? []);
   const [name, setName] = useState(props.start?.name ?? "");
   const [dir, setDir] = useState<string | null>(null);
@@ -451,6 +456,20 @@ function MergeBody(props: {
     };
   }, [actions, entries]);
 
+  useEffect(() => {
+    let live = true;
+    detach(
+      commands.workbench.pluginCards().then((got) => {
+        if (live && got.ok) setCards(got.value);
+        return undefined;
+      }),
+      rethrow,
+    );
+    return () => {
+      live = false;
+    };
+  }, [commands]);
+
   if (done !== null) {
     return (
       <>
@@ -477,6 +496,12 @@ function MergeBody(props: {
   }
   const chosen = picked.flatMap((n) => candidates.filter((c) => c.entry.name === n));
   const first = chosen[0];
+  const titleOf = (plugin: string): string =>
+    entries.find((entry) => entry.name === plugin)?.displayName ?? plugin;
+  const blockers = mergeDependentsOf(
+    chosen.map((c) => c.entry.name),
+    cards,
+  );
   const nameProblem = newNameProblemOf(
     name,
     entries.map((e) => e.name),
@@ -567,6 +592,21 @@ function MergeBody(props: {
           </ul>
         )}
       </fieldset>
+      {blockers.length === 0 ? null : (
+        <div className="grid gap-1" data-merge-dependents="">
+          <NoticeLine tone="warning">{t("desktop.craft.split.merge.dependents")}</NoticeLine>
+          <ul className="m-0 grid list-none gap-1 p-0">
+            {blockers.map((line) => (
+              <NoticeLine key={line.source} tone="warning" as="li">
+                {t("desktop.craft.split.merge.dependent", {
+                  source: titleOf(line.source),
+                  dependents: line.dependents.map(titleOf).join(", "),
+                })}
+              </NoticeLine>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <NameField value={name} problem={nameProblem} onChange={setName} />
         <Field

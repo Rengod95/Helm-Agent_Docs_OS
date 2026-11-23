@@ -1,17 +1,28 @@
-// 플러그인 상세 "개요" 탭의 순수 모델(plugTab): 글 칸 정리, Hook·도구 수, 도구 상태 글 키, 경고 줄 기준, 프로필 이름.
+// 플러그인 상세 "개요" 탭의 순수 모델(plugTab, plugWire): 글 칸 정리, 내장 플러그인 글의 화면 언어, Hook·도구 수, 도구 상태 글 키, 프로필 이름.
 import { describe, expect, test } from "bun:test";
-import { t } from "@fresnel/client/i18n";
+import { activeLocale, setActiveLocale, t, type Locale } from "@fresnel/client/i18n";
 import type { InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
 import type { Profile } from "@fresnel/contracts/wire";
 import {
+  cardTextIn,
   cardTextOf,
   hookCountOf,
-  needsAttentionOf,
   profilesWithOf,
   readinessWordOf,
   toolCountOf,
 } from "../../../src/views/workbench/overview-model.ts";
-import { TOOL_NEED_STATES, type ToolNeedVM } from "../../../src/views/workbench/tool-ready.ts";
+import { TOOL_NEED_STATES } from "../../../src/views/workbench/tool-ready.ts";
+
+/** 화면 언어를 잠깐 바꿔 읽는다 */
+function inLocale<T>(locale: Locale, read: () => T): T {
+  const before = activeLocale();
+  setActiveLocale(locale);
+  try {
+    return read();
+  } finally {
+    setActiveLocale(before);
+  }
+}
 
 function card(over: Partial<PluginCard> = {}): PluginCard {
   return {
@@ -41,19 +52,6 @@ const INJECT: InjectInventory = {
   replaces: [],
 };
 
-function need(over: Partial<ToolNeedVM>): ToolNeedVM {
-  return {
-    tool: "python3",
-    state: "ready",
-    required: true,
-    minVersion: null,
-    foundVersion: null,
-    why: null,
-    install: null,
-    ...over,
-  };
-}
-
 describe("개요의 글 칸", () => {
   test("목적과 설명은 앞뒤 공백을 떼고, 비었거나 없으면 null이다", () => {
     expect(cardTextOf("  목적  ")).toBe("목적");
@@ -61,6 +59,27 @@ describe("개요의 글 칸", () => {
     expect(cardTextOf("")).toBeNull();
     expect(cardTextOf(null)).toBeNull();
     expect(cardTextOf(undefined)).toBeNull();
+  });
+
+  test("내장 플러그인의 목적과 설명은 카탈로그의 화면 언어 글이고, 사용자 플러그인은 카드 값 그대로다", () => {
+    const goal = card({
+      name: "host-goal-bridge",
+      purpose: "Shows goals beside the conversation.",
+      origin: { kind: "builtin" },
+    });
+    expect(inLocale("ko", () => cardTextIn(goal, "purpose"))).toBe("목표를 대화 옆에 보여 줘요.");
+    expect(inLocale("en", () => cardTextIn(goal, "purpose"))).toBe(
+      "Shows goals beside the conversation.",
+    );
+    expect(inLocale("ko", () => cardTextIn(card({ purpose: " 내 목적 " }), "purpose"))).toBe(
+      "내 목적",
+    );
+    // 이름이 내장과 같아도 사용자 플러그인이면 카드 값이다
+    const mine = card({ name: "host-goal-bridge", purpose: "mine" });
+    expect(inLocale("ko", () => cardTextIn(mine, "purpose"))).toBe("mine");
+    expect(inLocale("ko", () => cardTextIn(card({ description: "설명" }), "description"))).toBe(
+      "설명",
+    );
   });
 });
 
@@ -79,22 +98,17 @@ describe("개요의 셈", () => {
   });
 });
 
-describe("준비 상태의 글과 경고 기준", () => {
+describe("준비 상태의 글", () => {
   test("도구 상태마다 글 키가 하나씩 있다", () => {
     expect(TOOL_NEED_STATES.map(readinessWordOf)).toEqual([
       "desktop.workbench.detail.ready.ready",
+      "desktop.workbench.detail.ready.bundled",
       "desktop.workbench.detail.ready.missing",
       "desktop.workbench.detail.ready.tooOld",
-      "desktop.workbench.detail.ready.bundled",
+      "desktop.workbench.detail.ready.unusable",
+      "desktop.workbench.detail.ready.unchecked",
     ]);
     expect(t(readinessWordOf("tooOld"))).toBe("버전이 낮아요");
-  });
-
-  test("없거나 버전이 낮은 도구만 경고 줄이 된다", () => {
-    expect(needsAttentionOf(need({ state: "missing" }))).toBe(true);
-    expect(needsAttentionOf(need({ state: "tooOld" }))).toBe(true);
-    expect(needsAttentionOf(need({ state: "ready" }))).toBe(false);
-    expect(needsAttentionOf(need({ state: "bundled" }))).toBe(false);
   });
 });
 

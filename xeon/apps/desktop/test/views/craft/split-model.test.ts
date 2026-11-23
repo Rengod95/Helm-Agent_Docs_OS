@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { CardDependency, PluginCard } from "@fresnel/contracts/extensions";
 import type { DevkitIssue, MemberInfo } from "@fresnel/contracts/services";
 import type { CommandError } from "../../../src/views/commands.ts";
 import {
@@ -7,6 +8,7 @@ import {
   detachPlanOf,
   extensionNameOf,
   mergeCandidatesOf,
+  mergeDependentsOf,
   newNameProblemOf,
   purposeProblemOf,
   siblingDirOf,
@@ -214,6 +216,55 @@ describe("mergeCandidatesOf: 합칠 수 있는 후보", () => {
       entry("driver", { layer: "plugin", isOrchestration: true }),
     ]);
     expect(candidates.map((e) => e.name)).toEqual(["solo"]);
+  });
+});
+
+/** 의존 칸만 채운 카드 */
+function depCard(name: string, dependsOn: readonly CardDependency[] = []): PluginCard {
+  return {
+    name,
+    displayName: name,
+    purpose: null,
+    does: { inject: null, hook: null, drive: null },
+    enforcement: "advisory",
+    runs: { code: false, isolated: null },
+    cost: { always: null, drive: null, onDemand: null, toolCount: null, basis: "unknown" },
+    health: { state: "ok", lastActiveAt: null, lastError: null },
+    origin: { kind: "user" },
+    review: { state: "approved", currentHash: null, pendingItemId: null, approvedAt: null },
+    usedBy: [],
+    dependencies: { dependsOn, dependents: [] },
+  };
+}
+
+function dep(from: string, target: string, kind: CardDependency["kind"]): CardDependency {
+  return { from, target, kind, range: null, problem: null };
+}
+
+describe("mergeDependentsOf: 합칠 원본에 꼭 기대는 플러그인(plugWire)", () => {
+  const cards = [
+    depCard("a"),
+    depCard("b"),
+    depCard("c"),
+    // hard로 a에 기댄다(구성원 id가 붙은 대상도 확장 이름으로 읽는다)
+    depCard("user1", [dep("user1", "a/inner", "hard")]),
+    // soft는 막지 않는다
+    depCard("user2", [dep("user2", "a", "soft"), dep("user2", "b", "hard")]),
+    // 고른 것끼리의 의존은 세지 않는다
+    depCard("c-dep", [dep("c-dep", "c", "hard")]),
+  ];
+
+  test("고른 원본마다 hard로 기대는, 고르지 않은 플러그인을 고른 순서대로 준다", () => {
+    expect(mergeDependentsOf(["b", "a"], cards)).toEqual([
+      { source: "b", dependents: ["user2"] },
+      { source: "a", dependents: ["user1"] },
+    ]);
+  });
+
+  test("기대는 플러그인을 같이 고르면 알림이 없고, 아무도 기대지 않으면 빈 목록이다", () => {
+    expect(mergeDependentsOf(["a", "user1"], cards)).toEqual([]);
+    expect(mergeDependentsOf(["c", "c-dep"], cards)).toEqual([]);
+    expect(mergeDependentsOf(["c", "b"], [depCard("c"), depCard("b")])).toEqual([]);
   });
 });
 

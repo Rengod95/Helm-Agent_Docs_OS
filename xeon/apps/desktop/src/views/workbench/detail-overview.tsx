@@ -1,13 +1,13 @@
 // 플러그인 상세 "개요" 탭(plugTab, AGE-76). 한 질문에 답한다: 이것은 무엇이고 믿을 만한가.
 // 맨 위는 진단 경고(전체 폭, 숨기지 않는다). 왼쪽 단 "하는 일": 목적, 설명, 종류와 셈(Hook, 도구, Drive).
-// 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 비용(늘 드는 토큰), 권한, 도구 플러그인이면 준비 상태(엔진이 값을 줄 때만).
+// 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 비용(늘 드는 토큰), 권한, 준비 상태(도구 플러그인이거나 도구에 기댈 때, `tool-ready.ts`).
 import { t } from "@fresnel/client/i18n";
 import { rowOf } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Alert, Button, ListDescription, ListDescriptionRow } from "@caustic/react";
-import { CircleCheck, TriangleAlert } from "@caustic/react/icons";
+import { CircleCheck, Clock, TriangleAlert } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { tokens } from "../craft/canvas/cv6/words.ts";
@@ -20,14 +20,13 @@ import type { ProfileSetLoad } from "./profile-put-menu.tsx";
 import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
 import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
 import {
-  cardTextOf,
+  cardTextIn,
   hookCountOf,
-  needsAttentionOf,
   profilesWithOf,
   readinessWordOf,
   toolCountOf,
 } from "./overview-model.ts";
-import { toolReadinessOf, type ToolNeedVM, type ToolReadinessVM } from "./tool-ready.ts";
+import { needsAttentionOf, type ToolNeedVM, type ToolReadinessVM } from "./tool-ready.ts";
 
 /** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이(`ext-detail.tsx`의 옛 자리와 같다) */
 const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
@@ -35,6 +34,8 @@ const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-descripti
 export function DetailOverview(props: {
   readonly entry: ExtListEntry;
   readonly card: PluginCard | null;
+  /** 준비 상태(`toolReadinessOf`). 도구 플러그인도 아니고 도구에 기대지도 않으면 null이라 구역을 그리지 않는다 */
+  readonly readiness: ToolReadinessVM | null;
   readonly profiles: ProfileSetLoad;
   readonly onRecheck: () => void;
 }): ReactNode {
@@ -68,6 +69,7 @@ export function DetailOverview(props: {
           <TrustColumn
             entry={entry}
             card={card}
+            readiness={props.readiness}
             profiles={props.profiles}
             onRecheck={props.onRecheck}
           />
@@ -89,8 +91,8 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
       </div>
     );
   }
-  const purpose = cardTextOf(card.purpose);
-  const description = cardTextOf(card.description);
+  const purpose = cardTextIn(card, "purpose");
+  const description = cardTextIn(card, "description");
   const kind = pluginKindOf(card);
   const hooks = hookCountOf(card);
   const tools = toolCountOf(card);
@@ -138,11 +140,12 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
 
 /**
  * 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 비용, 권한, 준비 상태.
- * 권한은 화면과 설정 탭에서 옮겼고(`useAddonData`로 읽는다), 준비 상태는 카드에 값이 있을 때만 그린다
+ * 권한은 화면과 설정 탭에서 옮겼고(`useAddonData`로 읽는다), 준비 상태는 값이 있을 때만 그린다
  */
 function TrustColumn(props: {
   readonly entry: ExtListEntry;
   readonly card: PluginCard | null;
+  readonly readiness: ToolReadinessVM | null;
   readonly profiles: ProfileSetLoad;
   readonly onRecheck: () => void;
 }): ReactNode {
@@ -156,7 +159,7 @@ function TrustColumn(props: {
   const set = props.profiles.set;
   const use: ProfileUse | null = set === null ? null : profileUseOf(entry.name, row.appCore, set);
   const cost = card === null ? null : card.cost.always;
-  const readiness = card === null ? null : toolReadinessOf(card);
+  const readiness = props.readiness;
   return (
     <div className="grid gap-3">
       <ColumnHead title={t("desktop.workbench.detail.overview.trust")} />
@@ -198,8 +201,8 @@ function TrustColumn(props: {
 }
 
 /**
- * 준비 상태 구역: 도구마다 한 줄. 없거나 버전이 낮은 줄은 숨기지 않고 경고로 두며, 설치 안내와 "복사"를 단다.
- * 앱이 대신 설치하지 않는다. 머리의 "다시 확인"은 카드를 다시 읽는다
+ * 준비 상태 구역: 도구마다 한 줄. 없거나 버전이 낮거나 쓸 수 없는 줄은 숨기지 않고 경고로 두며, 설치 안내와 "복사"를 단다.
+ * 앱이 대신 설치하지 않는다. 머리의 "다시 확인"은 엔진에 도구 점검을 다시 시키고(`host.status { includeBinaries }`) 카드를 다시 읽는다
  */
 function ReadinessSection(props: {
   readonly readiness: ToolReadinessVM;
@@ -217,7 +220,7 @@ function ReadinessSection(props: {
       />
       <ul className="m-0 grid list-none gap-1 p-0">
         {props.readiness.needs.map((need) => (
-          <NeedLine key={need.tool} need={need} />
+          <NeedLine key={need.plugin} need={need} />
         ))}
       </ul>
     </div>
@@ -226,7 +229,8 @@ function ReadinessSection(props: {
 
 /**
  * 도구 한 줄. 모든 줄이 같은 세 칸(표시 그림, 글, 복사)이라 글의 왼쪽 끝이 맞는다. 그림은 첫 줄 높이(`h-lh`) 안에서 세로 가운데다.
- * 없거나 버전이 낮으면 숨기지 않는 경고 면(warning tint)과 경고 그림, 필요한 버전과 지금 버전, 설치 안내(mono)와 "복사"를 둔다
+ * 없거나 버전이 낮거나 쓸 수 없으면 숨기지 않는 경고 면(warning tint)과 경고 그림, 필요한 버전과 지금 버전, 설치 안내(mono)와 "복사"를 둔다.
+ * 점검 값이 아직 없으면(`unchecked`) 경고 없이 흐린 그림과 "아직 확인하지 않았어요"다
  */
 function NeedLine(props: { readonly need: ToolNeedVM }): ReactNode {
   const { need } = props;
@@ -250,6 +254,8 @@ function NeedLine(props: { readonly need: ToolNeedVM }): ReactNode {
       <span aria-hidden className="flex h-lh items-center">
         {warn ? (
           <TriangleAlert className="size-icon-sm text-warning-text" />
+        ) : need.state === "unchecked" ? (
+          <Clock className="size-icon-sm text-text-tertiary" />
         ) : (
           <CircleCheck className="size-icon-sm text-success-text" />
         )}
@@ -273,7 +279,6 @@ function NeedLine(props: { readonly need: ToolNeedVM }): ReactNode {
             ))}
           </div>
         ) : null}
-        {need.why === null ? null : <p className="m-0 text-text-tertiary">{need.why}</p>}
         {install === null ? null : (
           <code className="font-mono text-mono-sm text-text-primary">{install}</code>
         )}

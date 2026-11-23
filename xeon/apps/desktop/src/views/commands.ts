@@ -1154,6 +1154,12 @@ export interface WorkbenchCommands {
    * (AGE-33)
    */
   pluginCards(): Promise<Result<readonly PluginCard[], CommandError>>;
+  /**
+   * 준비 상태의 "다시 확인"(AGE-76 plugWire): `host.status { includeBinaries: true }`로 엔진이 외부 도구를 다시 점검하게 한다.
+   * 엔진은 그 결과를 도구 플러그인 카드의 `externalTool.status`에 옮기므로, 끝난 뒤 `pluginCards`를 다시 읽으면 새 값이다.
+   * 점검은 엔진이 정한 실행 파일 이름과 닫힌 인자로만 돈다(앱이 명령을 보내지 않는다)
+   */
+  recheckTools(): Promise<Result<null, CommandError>>;
   /** `plugin.draft.list { name }`: 그 플러그인의 드래프트(새것이 먼저) */
   drafts(name: string): Promise<Result<readonly DraftInfo[], CommandError>>;
   /** `ext.validateComposition { composition }`(W-47): 구성 선언 검사. 이슈 목록은 비어 있으면 통과다 */

@@ -6,20 +6,24 @@ import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import { useWorkbenchActions } from "../../state/workbench/index.ts";
 import { KindGlyph } from "../craft/canvas/cv6/glyphs.tsx";
-import { HealthCell, notReadyOf, RowName, UseText } from "./plugin-cells.tsx";
+import { cardTextIn } from "./overview-model.ts";
+import { HealthCell, RowName, UseText } from "./plugin-cells.tsx";
 import { kindFaceStyle, kindWord, pluginKindOf } from "./plugin-kind.tsx";
 import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
+import { readinessBlocked } from "./tool-ready.ts";
 import type { PluginCards } from "./use-plugin-cards.ts";
 
 function PluginCardItem(props: {
   readonly row: ExtRowVM;
   readonly card: PluginCard | null;
+  /** 꼭 필요한 도구가 없거나 버전이 낮은가(`readinessBlocked`) */
+  readonly blocked: boolean;
   readonly profiles: ProfileSetLoad;
 }): ReactNode {
   const actions = useWorkbenchActions();
   const { row, card } = props;
   const kind = pluginKindOf(card);
-  const purpose = card === null || card.purpose === null ? "" : card.purpose.trim();
+  const purpose = (card === null ? null : cardTextIn(card, "purpose")) ?? "";
   return (
     <li className="relative h-full min-w-0">
       {kind !== null && (
@@ -63,7 +67,7 @@ function PluginCardItem(props: {
         )}
         <div className="mt-auto flex min-w-0 items-center justify-between gap-2">
           <UseText row={row} profiles={props.profiles.set} />
-          <HealthCell row={row} blocked={notReadyOf(card)} />
+          <HealthCell row={row} blocked={props.blocked} />
         </div>
       </div>
     </li>
@@ -87,6 +91,7 @@ export function PluginCardGrid(props: {
           key={row.name}
           row={row}
           card={props.cards.cardOf(row.name)}
+          blocked={readinessBlocked(props.cards.readinessOf(row.name))}
           profiles={props.profiles}
         />
       ))}

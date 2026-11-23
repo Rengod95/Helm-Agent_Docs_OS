@@ -1,12 +1,13 @@
-// 플러그인 상세 "개요" 탭 그림(plugTab): 카드가 없을 때와 목적이 없을 때의 글, 준비 상태 값이 있을 때의 경고와 설치 안내,
-// 값이 없거나 모양이 틀리면 준비 상태 구역을 그리지 않는 것을 본다.
+// 플러그인 상세 "개요" 탭 그림(plugTab, plugWire): 카드가 없을 때와 목적이 없을 때의 글, 엔진 카드의 도구 칸에서 모은 준비 상태의
+// 경고와 설치 안내(도구 플러그인 자신, 도구에 기대는 플러그인), 준비 상태가 없으면 구역을 그리지 않는 것을 본다.
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { INITIAL_WORKBENCH, listLoaded } from "@fresnel/client/workbench";
-import type { PluginCard } from "@fresnel/contracts/extensions";
+import type { CardExternalTool, PluginCard } from "@fresnel/contracts/extensions";
 import { renderToString } from "react-dom/server";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
 import { DetailOverview } from "../../../src/views/workbench/detail-overview.tsx";
+import { toolReadinessOf, type ToolReadinessVM } from "../../../src/views/workbench/tool-ready.ts";
 import { entry, inContexts } from "./support.tsx";
 
 function card(over: Partial<PluginCard> = {}): PluginCard {
@@ -27,7 +28,7 @@ function card(over: Partial<PluginCard> = {}): PluginCard {
 }
 
 /** 개요 탭을 그린 마크업. 프로필 목록은 읽지 않은 상태다 */
-function htmlOf(value: PluginCard | null): string {
+function htmlOf(value: PluginCard | null, readiness: ToolReadinessVM | null = null): string {
   const row = entry("kit");
   const state = listLoaded(INITIAL_WORKBENCH, [row]);
   return renderToString(
@@ -35,6 +36,7 @@ function htmlOf(value: PluginCard | null): string {
       <DetailOverview
         entry={row}
         card={value}
+        readiness={readiness}
         profiles={{ set: null, reload: () => undefined }}
         onRecheck={() => undefined}
       />,
@@ -43,70 +45,97 @@ function htmlOf(value: PluginCard | null): string {
   );
 }
 
-// 시험 카드: 준비 상태 필드를 가진 객체를 변수에 담아 넘긴다(객체 리터럴의 초과 속성 검사를 피한다)
-const READINESS = {
-  needs: [
-    {
-      tool: "python3",
-      state: "tooOld",
-      required: true,
-      minVersion: "3.11",
-      foundVersion: "3.9",
-      why: "스크립트를 돌려요",
-      install: "brew install python@3.12",
-    },
-    {
-      tool: "rg",
-      state: "ready",
-      required: false,
-      minVersion: null,
-      foundVersion: "14.1",
-      why: null,
-      install: null,
-    },
-  ],
-  checkedAt: null,
-};
-const withReadiness = { ...card(), toolReadiness: READINESS };
-const withBadReadiness = { ...card(), toolReadiness: { needs: "잘못된 모양" } };
+/** 엔진 카드의 도구 칸(`externalTool`) */
+function tool(binary: string, over: Partial<CardExternalTool> = {}): CardExternalTool {
+  return {
+    binary,
+    versionArgs: "--version",
+    install: { ko: `brew install ${binary}`, en: `brew install ${binary}` },
+    bundled: false,
+    ...over,
+  };
+}
 
-describe("개요 탭 그림", () => {
-  test("준비 상태 값이 있으면 구역 머리, 버전이 낮은 도구의 경고와 설치 안내, 복사, 다시 확인을 보인다", () => {
-    const html = htmlOf(withReadiness);
-    expect(html).toContain(t("desktop.workbench.detail.ready.title"));
-    expect(html).toContain(t("desktop.workbench.detail.ready.recheck"));
-    expect(html).toContain("python3");
-    expect(html).toContain(t("desktop.workbench.detail.ready.tooOld"));
-    expect(html).toContain(t("desktop.workbench.detail.ready.minVersion", { min: "3.11" }));
-    expect(html).toContain(t("desktop.workbench.detail.ready.foundVersion", { found: "3.9" }));
-    expect(html).toContain("brew install python@3.12");
-    expect(html).toContain(t("desktop.workbench.detail.ready.copy"));
-  });
+const SOPS = card({
+  name: "tool-sops",
+  externalTool: tool("sops", {
+    minVersion: "3.9.0",
+    status: { kind: "too_old", found: "3.8.1", required: "3.9.0" },
+  }),
+});
+const RG = card({
+  name: "tool-rg",
+  externalTool: tool("rg", { status: { kind: "bundled", version: "14.1.1" } }),
+});
+const GIT = card({ name: "tool-git", externalTool: tool("git", { status: { kind: "missing" } }) });
+const WORKSPACE = card({
+  name: "cap-workspace",
+  dependencies: {
+    dependsOn: [
+      { from: "cap-workspace", target: "tool-rg", kind: "hard", range: null, problem: null },
+      { from: "cap-workspace", target: "tool-git", kind: "soft", range: null, problem: null },
+    ],
+    dependents: [],
+  },
+});
+const CARDS = new Map([SOPS, RG, GIT, WORKSPACE].map((c) => [c.name, c] as const));
+const cardOf = (name: string): PluginCard | null => CARDS.get(name) ?? null;
+const readinessOf = (value: PluginCard): ToolReadinessVM | null =>
+  toolReadinessOf(value, cardOf, "ko");
 
-  test("경고 줄은 숨기지 않고 경고 면과 경고 그림으로 그리며, 있는 도구는 경고 없이 준비됨이다", () => {
-    const html = htmlOf(withReadiness);
-    const rows = html.split("<li ").slice(1);
-    const marks = rows.map((row) => [
+/** 줄마다 [상태, 경고 표시, 경고 면, 경고 그림, "선택"] */
+function marksOf(html: string): readonly (string | boolean)[][] {
+  return html
+    .split("<li ")
+    .slice(1)
+    .map((row) => [
       /data-need="([a-zA-Z]+)"/.exec(row)?.[1] ?? "",
       row.includes("data-warn"),
       row.includes("bg-warning-tint"),
       row.includes('data-icon="TriangleAlert"'),
+      row.includes(t("desktop.workbench.detail.ready.optional")),
     ]);
-    expect(marks).toEqual([
-      ["tooOld", true, true, true],
-      ["ready", false, false, false],
-    ]);
-    expect(html).toContain(t("desktop.workbench.detail.ready.ready"));
+}
+
+describe("개요 탭 그림", () => {
+  test("도구 플러그인은 자기 도구 한 줄: 버전이 낮으면 필요한 버전과 지금 버전, 설치 안내와 복사, 다시 확인을 보인다", () => {
+    const html = htmlOf(SOPS, readinessOf(SOPS));
+    expect(html).toContain(t("desktop.workbench.detail.ready.title"));
+    expect(html).toContain(t("desktop.workbench.detail.ready.recheck"));
+    expect(html).toContain("sops");
+    expect(html).toContain(t("desktop.workbench.detail.ready.tooOld"));
+    expect(html).toContain(t("desktop.workbench.detail.ready.minVersion", { min: "3.9.0" }));
+    expect(html).toContain(t("desktop.workbench.detail.ready.foundVersion", { found: "3.8.1" }));
+    expect(html).toContain("brew install sops");
+    expect(html).toContain(t("desktop.workbench.detail.ready.copy"));
+    expect(marksOf(html)).toEqual([["tooOld", true, true, true, false]]);
   });
 
-  test("카드에 준비 상태 필드가 없으면 준비 상태 구역을 그리지 않는다", () => {
-    const html = htmlOf(card());
+  test("도구에 기대는 플러그인은 기대는 도구마다 한 줄: 약한 의존은 선택이고, 없는 도구는 숨기지 않는 경고다", () => {
+    const html = htmlOf(WORKSPACE, readinessOf(WORKSPACE));
+    expect(marksOf(html)).toEqual([
+      ["bundled", false, false, false, false],
+      ["missing", true, true, true, true],
+    ]);
+    expect(html).toContain(t("desktop.workbench.detail.ready.bundled"));
+    expect(html).toContain(t("desktop.workbench.detail.ready.missing"));
+    expect(html).toContain("brew install git");
+    // 앱에 들어 있는 도구에는 설치 안내가 없다
+    expect(html).not.toContain("brew install rg");
+  });
+
+  test("점검 값이 아직 없으면 경고 없이 확인 전 글이다", () => {
+    const fresh = card({ name: "tool-age", externalTool: tool("age") });
+    const html = htmlOf(fresh, readinessOf(fresh));
+    expect(marksOf(html)).toEqual([["unchecked", false, false, false, false]]);
+    expect(html).toContain(t("desktop.workbench.detail.ready.unchecked"));
+    expect(html).not.toContain("brew install age");
+  });
+
+  test("준비 상태가 없으면 구역을 그리지 않는다", () => {
+    const html = htmlOf(card(), null);
     expect(html).not.toContain(t("desktop.workbench.detail.ready.title"));
     expect(html).not.toContain("brew install");
-  });
-
-  test("준비 상태 모양이 맞지 않으면 구역을 그리지 않는다", () => {
-    expect(htmlOf(withBadReadiness)).not.toContain(t("desktop.workbench.detail.ready.title"));
   });
 
   test("목적이 없으면 목적 자리에 흐린 한 줄을 보인다", () => {
@@ -117,7 +146,7 @@ describe("개요 탭 그림", () => {
   });
 
   test("카드를 못 읽었으면 하는 일 칸에 한 줄만 보이고 준비 상태도 없다", () => {
-    const html = htmlOf(null);
+    const html = htmlOf(null, null);
     expect(html).toContain(t("desktop.workbench.detail.overview.noCard"));
     expect(html).not.toContain(t("desktop.workbench.detail.ready.title"));
   });
