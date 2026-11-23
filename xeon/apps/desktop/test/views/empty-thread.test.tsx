@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import { emptyThreadViewOf } from "../../src/views/empty-thread.tsx";
+import { emptyThreadViewOf, hidesFolderPick } from "../../src/views/empty-thread.tsx";
 import { ThreadContextBarView } from "../../src/views/thread-context-bar.tsx";
 
 // 새 대화 화면(DP-70)이 무엇을 그릴지와 맥락 줄(DP-71)의 그림
@@ -66,5 +66,14 @@ describe("ThreadContextBarView", () => {
     expect(out).toContain("main");
     expect(out).toContain("devbox");
     expect(out).toContain("다른 연결 1");
+  });
+});
+
+describe("which threads skip the folder picker (R-08)", () => {
+  test("a test chat and a test run open straight to the conversation; others keep the picker", () => {
+    expect(hidesFolderPick({ craftChat: { plugin: null } })).toBe(true);
+    expect(hidesFolderPick({ testRun: { paused: false } })).toBe(true);
+    expect(hidesFolderPick({})).toBe(false);
+    expect(hidesFolderPick(undefined)).toBe(false);
   });
 });
