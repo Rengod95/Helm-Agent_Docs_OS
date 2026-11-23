@@ -2,7 +2,7 @@ import type { Result } from "@fresnel/contracts";
 import type { HostConnection } from "@fresnel/contracts/wire";
 import type { CommandError, ProfileCanvasCommands } from "../views/commands.ts";
 
-// 프로필 캔버스(C3, craft-flows §6.10, §8)가 부르는 wire: 읽기 다섯과 쓰기 하나(`profile.put`).
+// 프로필 캔버스(C3, craft-flows §6.10, §8)가 부르는 wire: 읽기 다섯과 쓰기 셋(`profile.put`, `profile.clone`, `profile.delete`).
 // 쓰기는 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다(`withWrite`).
 
 type WithConnection = <T>(
@@ -20,5 +20,7 @@ export function createProfileCanvasCommands(
     applied: (profileId) => withConnection((c) => c.request("blocks.applied", { profileId })),
     preview: (profileId) => withConnection((c) => c.request("profile.preview", { id: profileId })),
     put: (profile, baseRev) => withWrite((c) => c.request("profile.put", { profile, baseRev })),
+    clone: (params) => withWrite((c) => c.request("profile.clone", params)),
+    remove: (id) => withWrite((c) => c.request("profile.delete", { id })),
   };
 }
