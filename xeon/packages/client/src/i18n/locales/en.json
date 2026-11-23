@@ -1431,6 +1431,7 @@
   "desktop.schedules.columns.next": "Next run",
   "desktop.schedules.columns.last": "Last run",
   "desktop.schedules.trigger.interval": "Interval",
+  "desktop.schedules.trigger.daily": "Daily",
   "desktop.schedules.trigger.at": "Time",
   "desktop.schedules.trigger.fileWatch": "File watch",
   "desktop.schedules.trigger.remote": "Remote",

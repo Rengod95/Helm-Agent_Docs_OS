@@ -1431,6 +1431,7 @@
   "desktop.schedules.columns.next": "다음 실행",
   "desktop.schedules.columns.last": "마지막 실행",
   "desktop.schedules.trigger.interval": "간격",
+  "desktop.schedules.trigger.daily": "매일",
   "desktop.schedules.trigger.at": "시각",
   "desktop.schedules.trigger.fileWatch": "파일 감시",
   "desktop.schedules.trigger.remote": "원격",

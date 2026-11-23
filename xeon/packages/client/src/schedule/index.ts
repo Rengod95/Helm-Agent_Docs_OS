@@ -116,12 +116,18 @@ export function scheduleListView(items: readonly ScheduleListItem[]): readonly S
 
 // ── 트리거 입력 ────────────────────────────────────────────────────────
 
+/**
+ * 시트에서 고르는 트리거 종류. 계약의 종류에 "매일"(`daily`)을 더한다. "매일"은 계약에서 간격 트리거(86400초 간격과
+ * 첫 실행 시각)로 저장되므로 `triggerOfDraft`가 그 모양으로 바꾼다.
+ */
+export type TriggerDraftKind = ScheduleTriggerKind | "daily";
+
 /** 시트 입력값. 사용자가 친 그대로 두고 `triggerOfDraft`가 검사한다. 숫자 칸은 문자열이다 */
 export type TriggerDraft = {
-  readonly kind: ScheduleTriggerKind;
-  /** 간격(초). 간격 트리거 */
+  readonly kind: TriggerDraftKind;
+  /** 간격(초). `interval` 종류에서만 쓴다 */
   readonly intervalSeconds: string;
-  /** 매일 반복할 지역 시각(`HH:MM`). 채우면 간격 대신 "매일 그 시각"(86400초 간격과 첫 실행 시각)이 된다. 없거나 빈 글이면 간격 트리거다 */
+  /** 매일 반복할 지역 시각(`HH:MM`). `daily` 종류에서만 쓴다. `interval`은 이 칸을 읽지 않는다 */
   readonly dailyTime?: string;
   /** 시각(epoch ms). 고르지 않았으면 null */
   readonly atMs: number | null;
@@ -256,9 +262,9 @@ function repeatOf(draft: TriggerDraft, nowMs: number): TriggerDraftResult {
 export function triggerOfDraft(draft: TriggerDraft, nowMs: number): TriggerDraftResult {
   switch (draft.kind) {
     case "interval":
-      return draft.dailyTime !== undefined && draft.dailyTime.trim() !== ""
-        ? dailyOf(draft.dailyTime, nowMs)
-        : intervalOf(draft.intervalSeconds);
+      return intervalOf(draft.intervalSeconds);
+    case "daily":
+      return dailyOf(draft.dailyTime ?? "", nowMs);
     case "at":
       return atOf(draft.atMs, nowMs);
     case "file_watch":

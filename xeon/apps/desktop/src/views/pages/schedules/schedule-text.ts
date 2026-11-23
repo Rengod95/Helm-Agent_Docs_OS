@@ -5,7 +5,7 @@ import {
   scheduleErrorKey,
   type ScheduleErrorKey,
   type ScheduleLastRun,
-  type ScheduleTriggerKind,
+  type TriggerDraftKind,
   type TriggerDraftResult,
 } from "@fresnel/client";
 import type { CommandError } from "../../commands.ts";
@@ -32,23 +32,29 @@ export interface StatusView {
   readonly tone: StatusTone;
 }
 
-export const TRIGGER_KINDS: readonly ScheduleTriggerKind[] = [
+/**
+ * 트리거 고르기의 순서. "매일"은 간격 다음에 따로 둔다(간격 칸과 매일 시각 칸이 한 번에 보이지 않게).
+ * "반복"은 계약의 루프 트리거(간격 + 최대 반복 + 만료)라 빼지 않고 맨 뒤에 둔다.
+ */
+export const TRIGGER_KINDS: readonly TriggerDraftKind[] = [
   "interval",
+  "daily",
   "at",
   "file_watch",
   "remote",
   "repeat",
 ];
 
-const TRIGGER_KIND_ID: Readonly<Record<ScheduleTriggerKind, MessageId>> = {
+const TRIGGER_KIND_ID: Readonly<Record<TriggerDraftKind, MessageId>> = {
   interval: "desktop.schedules.trigger.interval",
+  daily: "desktop.schedules.trigger.daily",
   at: "desktop.schedules.trigger.at",
   file_watch: "desktop.schedules.trigger.fileWatch",
   remote: "desktop.schedules.trigger.remote",
   repeat: "desktop.schedules.trigger.repeat",
 };
 
-export function triggerKindId(kind: ScheduleTriggerKind): MessageId {
+export function triggerKindId(kind: TriggerDraftKind): MessageId {
   return TRIGGER_KIND_ID[kind];
 }
 

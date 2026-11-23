@@ -228,7 +228,7 @@ describe("triggerOfDraft", () => {
 
   test("daily time: becomes a 86400 second interval whose first run is the next local occurrence", () => {
     const morning = new Date(2026, 10, 24, 8, 0, 0).getTime();
-    expect(triggerOfDraft({ ...DRAFT, dailyTime: "09:00" }, morning)).toEqual({
+    expect(triggerOfDraft({ ...DRAFT, kind: "daily", dailyTime: "09:00" }, morning)).toEqual({
       ok: true,
       trigger: {
         kind: "interval",
@@ -237,7 +237,7 @@ describe("triggerOfDraft", () => {
       },
     });
     // 오늘 시각이 이미 지났으면 내일이다
-    expect(triggerOfDraft({ ...DRAFT, dailyTime: "07:30" }, morning)).toEqual({
+    expect(triggerOfDraft({ ...DRAFT, kind: "daily", dailyTime: "07:30" }, morning)).toEqual({
       ok: true,
       trigger: {
         kind: "interval",
@@ -245,13 +245,19 @@ describe("triggerOfDraft", () => {
         firstAtMs: new Date(2026, 10, 25, 7, 30, 0).getTime(),
       },
     });
-    expect(triggerOfDraft({ ...DRAFT, dailyTime: "25:00" }, morning)).toEqual({
+    expect(triggerOfDraft({ ...DRAFT, kind: "daily", dailyTime: "25:00" }, morning)).toEqual({
       ok: false,
       field: "dailyTime",
       code: "invalid_trigger",
     });
-    // 빈 시각은 평범한 간격이다
-    expect(triggerOfDraft({ ...DRAFT, dailyTime: "" }, NOW)).toEqual({
+    // 매일을 골랐는데 시각이 비었으면 시각 칸이 막는다
+    expect(triggerOfDraft({ ...DRAFT, kind: "daily", dailyTime: "" }, NOW)).toEqual({
+      ok: false,
+      field: "dailyTime",
+      code: "invalid_trigger",
+    });
+    // 간격 종류는 매일 시각을 읽지 않는다
+    expect(triggerOfDraft({ ...DRAFT, dailyTime: "09:00" }, NOW)).toEqual({
       ok: true,
       trigger: { kind: "interval", everySeconds: 600 },
     });
