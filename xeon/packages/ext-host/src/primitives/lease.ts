@@ -513,8 +513,8 @@ interface StepContext {
   readonly generation: NonNullable<RegistrationRecord["generation"]>;
   readonly loop: StepLoop;
   readonly invocation: DriveInvocation;
-  /** 이 단계의 `last`가 사용자 메시지이면 그 메시지의 순번. 그 메시지로 여는 turn의 기본 요청 id 재료다 */
-  readonly userSeq: number | null;
+  /** 이 단계가 받은 사용자 메시지의 요청 id에서 낸 짧은 키. 메시지 없이 도는 단계는 null이다 */
+  readonly userKey: string | null;
 }
 
 /** 예외가 "거부" 결과가 될 수 있으면 그 코드. PrimitiveError는 `code`, 루프 거부는 `kind`를 쓴다. 그 밖은 버그라 undefined */
@@ -1009,9 +1009,9 @@ export function createLeaseBroker(
   ): Promise<StepOutcome> {
     const { lease, invocation, loop, thread, record, generation } = ctx;
     const nextId = (): string =>
-      ctx.userSeq === null
+      ctx.userKey === null
         ? `${lease.lineageId}:${invocation.baseRev}.${invocation.i}`
-        : `${lease.lineageId}:u${String(ctx.userSeq)}.${invocation.i}`;
+        : `${lease.lineageId}:u${ctx.userKey}.${invocation.i}`;
     switch (command.do) {
       case "turn": {
         const requestId = command.requestId ?? nextId();
@@ -1322,7 +1322,8 @@ export function createLeaseBroker(
       generation,
       loop: makeStepLoop(thread, lease, invocation),
       invocation,
-      userSeq: next.last?.kind === "user" ? lease.userSeq : null,
+      // 요청 id는 메시지에서 낸다. 프레임의 순번을 쓰면 재시작 뒤 순번이 0부터 다시 세어져 이전 메시지의 turn 요청 id와 겹치고, 루프가 옛 turn을 재생해 새 메시지가 묻힌다
+      userKey: next.last?.kind === "user" ? sha256Hex(next.last.requestId).slice(0, 16) : null,
     };
     let consumed: UserEntry | null = null;
     const outcome = await withAmbient(
@@ -1353,6 +1354,11 @@ export function createLeaseBroker(
           }
         }
         const executed = await executeCommand(ctx, command);
+        // `turn`이 임대 반납이나 한도로 열리지 못했다. 메시지는 처리되지 않았으므로 정착시키지 않고 코어 루프가 받게 돌려보낸다
+        if (consumed !== null && executed.kind === "inactive") {
+          returnUserMessage(thread, lease, consumed);
+          return executed;
+        }
         // `turn`이 메시지를 받아 정착했다. 이 기록이 서기 전에 죽으면 재시작 뒤 같은 메시지가 다시 전달된다(최소 한 번 전달)
         if (consumed !== null) {
           if (
