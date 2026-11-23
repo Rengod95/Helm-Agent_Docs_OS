@@ -7,7 +7,7 @@ import { Button } from "@caustic/react";
 import { ReactFlow, useReactFlow, type Node, type NodeProps, type NodeTypes } from "@xyflow/react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMotionReduced } from "../../../../lib/motion-presets.tsx";
-import { useCraftTheme } from "../../orbit.tsx";
+import { useCraftTheme } from "../../craft-theme.ts";
 import { Icon, KIND_COLOR, KindTile, PartGlyph, type PartIcon } from "./glyphs.tsx";
 import { pluginOf, type Kind, type Plugin } from "./model.ts";
 import { purposeOf } from "../shared-meta.ts";
