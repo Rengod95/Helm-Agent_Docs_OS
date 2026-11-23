@@ -60,8 +60,9 @@ function FilterBar(props: { readonly data: MetricsData }): ReactNode {
   const set = (patch: Partial<MetricsFilter>): void => {
     setFilter({ ...filter, ...patch });
   };
+  // 좁은 창에서 머리 컨트롤 줄이 줄어들 수 있게 `min-w-0 shrink`이고, 모자란 칸은 줄을 바꾼다(rerun3 T-05)
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
       <SegmentedControl
         size={HEADER_SEGMENTED_SIZE}
         aria-label={t("desktop.craft.metrics.filter.period")}
@@ -375,6 +376,7 @@ export function MetricsView(props: {
       <ScreenHeader
         title={t("desktop.craft.metrics.title")}
         flush
+        titleFixed
         controls={
           <>
             <FilterBar data={d} />
