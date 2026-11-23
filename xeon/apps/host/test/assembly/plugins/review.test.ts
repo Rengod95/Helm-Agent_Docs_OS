@@ -1013,7 +1013,6 @@ test("an approval hands the item's merge plan to the profile edit; sending back 
       },
       loader: () => undefined,
       refreshPluginSet: () => Promise.resolve(),
-      pluginDataStore: { clear: () => Promise.resolve(ok(undefined)) },
       facts: () => [],
       pluginDataStore: { clear: () => Promise.resolve(ok(undefined)) },
       log: SILENT,

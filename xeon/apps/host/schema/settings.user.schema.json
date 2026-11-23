@@ -41,6 +41,7 @@
         "since": "0.1.0",
         "ui": {
           "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
+          "helpKey": "settings.ext.isolation.help",
           "label": "Account rotation isolation",
           "labelArgs": {
             "name": "Account rotation"
@@ -147,6 +148,7 @@
         "since": "0.1.0",
         "ui": {
           "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
+          "helpKey": "settings.ext.isolation.help",
           "label": "Helm isolation",
           "labelArgs": {
             "name": "Helm"
@@ -283,6 +285,7 @@
         "since": "0.1.0",
         "ui": {
           "help": "none = allow running inside the engine. process = run in its own plugin process (default).",
+          "helpKey": "settings.ext.isolation.help",
           "label": "Anthropic OAuth provider isolation",
           "labelArgs": {
             "name": "Anthropic OAuth provider"
