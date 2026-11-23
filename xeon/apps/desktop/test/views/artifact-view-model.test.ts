@@ -44,6 +44,24 @@ const REGISTERED: ArtifactEntry = {
 };
 
 describe("frameRequestOf", () => {
+  test("셸이 만든 최신 판은 폴더의 실제 파일을 읽는다(본문 없음, 그림은 그림 틀로)", () => {
+    const shell: ArtifactEntry = {
+      key: "file:out/chart.svg",
+      source: { kind: "file", path: "out/chart.svg" },
+      kind: "svg",
+      title: "chart.svg",
+      versions: [{ number: 1, callId: "c1", itemId: itm(1), op: "shell", text: null }],
+      pending: false,
+    };
+    expect(
+      frameRequestOf({ entry: shell, version: shell.versions[0], workspace: "/w", local: true }),
+    ).toEqual({
+      kind: "frame",
+      request: { root: "/w", entry: "out/chart.svg", text: null, wrap: "image" },
+      stamp: "c1",
+    });
+  });
+
   test("최신 판은 프로젝트 폴더의 파일을 그대로 읽는다(본문 없음)", () => {
     expect(
       frameRequestOf({ entry: PAGE, version: PAGE.versions[1], workspace: "/w", local: true }),
