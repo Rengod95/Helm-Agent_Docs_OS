@@ -23,7 +23,7 @@ afterAll(removeRigs);
 async function buildAndSubmit(
   port: ReturnType<typeof createDevkitPort>,
   dir: string,
-  mode: PluginMode,
+  mode: NonNullable<Parameters<ReturnType<typeof createDevkitPort>["scaffold"]>[0]["mode"]>,
   origin: ThreadId,
   evidence: readonly [EvidenceRef],
 ): Promise<boolean> {

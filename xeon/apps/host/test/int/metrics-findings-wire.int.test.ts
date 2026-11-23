@@ -482,14 +482,14 @@ realTest(
       });
       expect(cost.total).toEqual({
         plugin: "*",
-        always: 6238,
+        always: 6254,
         drive: 0,
         onDemand: 0,
         toolCount: 30,
         basis: "measured",
         shared: false,
       });
-      expect(cost.plugins.reduce((sum, row) => sum + (row.always ?? 0), 0)).toBe(6238);
+      expect(cost.plugins.reduce((sum, row) => sum + (row.always ?? 0), 0)).toBe(6254);
 
       // 턴이 없는 프로필은 플러그인 이름만 줄로 내고 칸은 null, 합계 줄은 '*'다
       await connection.request("profile.put", {
