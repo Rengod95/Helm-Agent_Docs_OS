@@ -45,6 +45,65 @@ function lineCount(text: string): number {
   return parts[parts.length - 1] === "" ? parts.length - 1 : parts.length;
 }
 
+const ESC = 0x1b;
+const BEL = 0x07;
+
+/**
+ * 터미널 제어 순서를 뺀다: CSI(`ESC [` 매개 바이트 뒤 끝 바이트 0x40–0x7E, 색·커서), OSC(`ESC ]` … BEL 또는 `ESC \\`, 창 제목·링크),
+ * nF(`ESC ( B`). 그 밖의 ESC는 ESC 하나만 뺀다. 엔진은 명령 결과를 같은 규칙으로 이미 거르지만(core-workspace P21) 실행 중 출력 꼬리와
+ * 엔진이 거르지 않는 도구(MCP 등) 결과는 여기서 거른다. 색은 그리지 않고 글만 남긴다(desktop-ux C-15의 ANSI 색은 [미결]이라 기본값으로 뺀다, chatQa).
+ * 빼지 않으면 ESC는 보이지 않고 `[31m` 같은 꼬리만 출력에 남는다
+ */
+export function stripAnsi(text: string): string {
+  if (!text.includes(String.fromCharCode(ESC))) return text;
+  const kept: string[] = [];
+  let from = 0;
+  let at = 0;
+  while (at < text.length) {
+    if (text.charCodeAt(at) !== ESC) {
+      at += 1;
+      continue;
+    }
+    kept.push(text.slice(from, at));
+    const next = text[at + 1];
+    let end = at + 2;
+    if (next === "[") {
+      while (end < text.length) {
+        const code = text.charCodeAt(end);
+        end += 1;
+        if (code >= 0x40 && code <= 0x7e) break;
+      }
+    } else if (next === "]") {
+      while (end < text.length) {
+        const code = text.charCodeAt(end);
+        if (code === BEL) {
+          end += 1;
+          break;
+        }
+        if (code === ESC && text[end + 1] === "\\") {
+          end += 2;
+          break;
+        }
+        end += 1;
+      }
+    } else if (text.charCodeAt(at + 1) >= 0x20 && text.charCodeAt(at + 1) <= 0x2f) {
+      // nF 순서(`ESC ( B` 글자 모음 고르기): 중간 바이트 0x20–0x2F 뒤 끝 바이트 하나
+      end = at + 1;
+      while (end < text.length && text.charCodeAt(end) >= 0x20 && text.charCodeAt(end) <= 0x2f) {
+        end += 1;
+      }
+      end = Math.min(end + 1, text.length);
+    } else {
+      // 그 밖의 ESC는 ESC 하나만 뺀다(엔진 `sanitizeOutput`, core-workspace P21과 같은 규칙)
+      end = at + 1;
+    }
+    from = end;
+    at = end;
+  }
+  kept.push(text.slice(from));
+  return kept.join("");
+}
+
 export function toolOutputOf(
   content: string | readonly OutputBlock[],
   details: JsonValue | undefined,
@@ -61,7 +120,7 @@ export function toolOutputOf(
       } else if (block.type === "image") parts.push(placeholder);
     }
   }
-  const full = parts.join("\n");
+  const full = stripAnsi(parts.join("\n"));
   const engineTotal = engineTotalLines(details);
   const fullLines = lineCount(full);
   let text = full;

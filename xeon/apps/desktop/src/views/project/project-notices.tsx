@@ -45,17 +45,24 @@ function NoticeCard(props: {
       className="min-w-0"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <div className="grid min-w-0 flex-1 gap-1">
-          <h2 id={headingId} className="m-0 text-ui-strong text-text-primary">
-            {props.title}
-          </h2>
-          <div className="flex min-w-0 items-center gap-1">
-            <p className="m-0 text-ui text-text-secondary">{props.body}</p>
-            <InfoTip text={props.info} />
+        {/* 글과 동작은 한 줄에 들어가면 한 줄, 모자라면 동작이 글 아래 줄로 내려가고 그 안에서 다시 접힌다.
+            글 칸은 basis 60(240px)보다 좁아지지 않는다. 닫기는 늘 오른쪽 끝이다(DP-180, chatQa) */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3" data-slot="notice-main">
+          <div className="grid min-w-0 flex-1 basis-60 gap-1">
+            <h2 id={headingId} className="m-0 text-ui-strong text-text-primary">
+              {props.title}
+            </h2>
+            <div className="flex min-w-0 items-center gap-1">
+              <p className="m-0 text-ui text-text-secondary">{props.body}</p>
+              <InfoTip text={props.info} />
+            </div>
           </div>
-        </div>
-        <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2">
-          {props.actions}
+          <div
+            className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2"
+            data-slot="notice-actions"
+          >
+            {props.actions}
+          </div>
         </div>
         <IconButton
           size="xs"
