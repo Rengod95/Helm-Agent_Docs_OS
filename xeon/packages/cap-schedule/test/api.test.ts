@@ -264,10 +264,16 @@ describe("cancel and fire", () => {
     });
   });
 
-  test("fire refuses an unknown id, a non-remote entry and a disabled one with their codes", async () => {
-    const api = apiOf(createHarness());
+  test("fire refuses an unknown id, a repeat entry and a disabled one with their codes", async () => {
+    const harness = createHarness();
+    const api = apiOf(harness);
     const timer = await api.create({
-      trigger: { kind: "interval", everySeconds: 600 },
+      trigger: {
+        kind: "repeat",
+        intervalSeconds: 600,
+        maxIterations: 3,
+        expiresAtMs: harness.clock.now + 86_400_000,
+      },
       prompt: "x",
     });
     const off = await api.create({ trigger: { kind: "remote" }, prompt: "y", enabled: false });

@@ -1096,7 +1096,7 @@ $ fresnel db previous-rm 20261106T010203004Z --yes --json
 | `invalid_trigger` | 트리거 값이 엔진 규칙에 맞지 않다 (`reason`) | `fresnel help schedule`로 트리거 규칙을 확인한다 | 1 |
 | `limit_reached` | 켜진 예약이 상한(`max`개)이라 더 만들 수 없다 | `fresnel schedule list`로 보고 필요 없는 것은 `cancel`로 끈다 | 1 |
 | `not_found` | 그런 예약이 없다 | `fresnel schedule list --all`로 id를 확인한다 | 1 |
-| `not_remote` | 원격 트리거 예약만 지금 실행할 수 있다 | 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 `--remote`로 만든다 | 1 |
+| `not_remote` | 이 종류의 예약은 지금 실행할 수 없다 | 원격, 간격, 시각 예약만 지금 실행할 수 있다. 반복 예약과 파일 감시 예약은 스스로 이어진다 [결정: 오케스트레이터 기본값, AGE-77 scnFix F-31] | 1 |
 | `disabled` | 꺼진 예약이라 실행하지 않는다 | `fresnel schedule add`로 새 예약을 만든다 | 1 |
 | `store_failed` | 예약 상태 파일을 읽거나 쓰지 못했다 | 상태 디렉터리의 `schedule/state.json`을 고치거나 지운다. 지우면 예약이 모두 사라진다 | 3 |
 

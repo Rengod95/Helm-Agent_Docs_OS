@@ -420,7 +420,7 @@ test("run prints the run id and status of a remote entry; other kinds are refuse
   expect(await h.run(["schedule", "run", "sch_a1"])).toBe(EXIT.error);
   expect(h.stdoutText()).toBe("");
   expect(h.stderrText()).toBe(
-    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격 예약과 시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
+    "fresnel: 이 종류의 예약은 지금 실행할 수 없다\n  해결: 원격, 간격, 시각 예약만 지금 실행할 수 있다. 반복 예약과 파일 감시 예약은 스스로 이어진다\n",
   );
 
   h.stderr.length = 0;

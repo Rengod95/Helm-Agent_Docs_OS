@@ -1691,7 +1691,7 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 │>캐시 무효화 조사   * │ 리팩터 루프     루프 600s 4/10 14:20           진행 중            [...] │
 │  테스트 정리   승인1 │ 주간 보고       매주 월 08:00  -               취소됨             [...] │
 │  빌드 실패 분석      │                                                                         │
-│  예약: 매일 정리   ! │ 행 메뉴: 마지막 실행 대화 열기 | 지금 실행(원격만) | 취소 | 복제        │
+│  예약: 매일 정리   ! │ 행 메뉴: 마지막 실행 대화 열기 | 지금 한 번 실행(원격, 간격, 시각) | 취소 | 복제        │
 │ ~/notes          [+] │                                                                         │
 │  주간 회고           │                                                                         │
 │  CLI 세션       잠김 │                                                                         │
@@ -1738,7 +1738,7 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 | 새 예약 | `schedule.create { trigger, prompt, workspace?, title?, enabled? }` → `ok: true { entry, warnings }` 또는 `ok: false { error }` |
 | 취소 | `schedule.cancel { scheduleId }` + O-06 확인. 다시 켜기는 `schedule.update` |
 | 다시 켜기·고치기 | `schedule.update { scheduleId, enabled?, title?, prompt? }` → `{ scheduleId, enabled, nextRunAt }` |
-| 지금 실행 | `schedule.fire { scheduleId }`(원격 트리거만) |
+| 지금 한 번 실행 | `schedule.fire { scheduleId }`(켜진 원격, 간격, 시각 예약) |
 | 마지막 실행 대화 열기 | `lastRun.threadId` → P-02 |
 | 복제 | 시트를 같은 값으로 열기(로컬) |
 | 서비스 켜기 | P-08 또는 `settings.set { key: "l0.process.service.enabled", value: true }`. 결과의 `setting.pendingUntil`이 `restart`면 "다시 시작 대기" 알림 |
@@ -1749,7 +1749,7 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
   - 읽는 중: 표 `Skeleton`.
   - 오류: `ok: false`는 입력란 아래, 목록 읽기 실패는 표 위 `Alert`.
   - 오프라인: 목록 유지, 동작 잠금.
-  - 권한 필요: 서비스 모드 꺼짐 경고와 "서비스 켜기", `not_remote`(지금 실행 불가).
+  - 권한 필요: 서비스 모드 꺼짐 경고와 "서비스 켜기", `not_remote`(반복 예약과 파일 감시는 지금 실행 불가).
   - 다시 시작 대기: 서비스 모드를 켰지만 엔진이 아직 다시 시작하지 않았으면(`pendingUntil: "restart"`) 띠가 "엔진을 다시 시작해야 서비스 모드가 켜져요"와 "지금 다시 시작"을 보입니다. 켜자마자는 알림이 "서비스 모드를 켜 두었어요. 엔진을 다시 시작해야 켜져요."와 "지금 다시 시작"을 붙이고, 그 알림이 보이는 동안 띠는 숨겨 단추가 하나만 보이게 합니다. 재시작으로 대기가 풀리면 목록을 다시 읽을 때 띠와 그 알림이 사라집니다. 셸이 없는 웹에서는 글만 보이고 단추는 없습니다.
   - 긴 내용: 200개 상한, 프롬프트는 2줄 뒤 접기.
 - 바로 가기 키: ⌘N(이 화면에서는 새 예약), ↑↓ 행, Enter 마지막 실행 대화, ⌫ 취소(확인).
@@ -1761,7 +1761,7 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 - 파일: `xeon/apps/desktop/src/views/pages/schedules/`(모델 `schedule-model.ts`: 거르기, 목록 시각, 행 메뉴 `rowMenuOf`, 상태 기계. 문장 `schedule-text.ts`. 표 `schedule-table.tsx`. 그림 `schedules-view.tsx`. 동작 `schedules-screen.tsx`. 시트와 복제는 `schedule-sheet.tsx`, `schedule-draft.ts`가 맡는다). 명령은 `app/schedule.ts`(`list(params)`). 상대 시각은 `views/pages/shared/relative-age.ts`(앞으로의 시각 `dueAgeOf`, 지난 시각 `relativeAgeOf`).
 - 거르기: `[켜진 것 | 모두]`는 wire 인자다. 켜진 것은 `schedule.list { enabled: true }`, 모두는 `schedule.list {}`다(CLI §4.14와 같다). 기본은 켜진 것이다. 거르기를 바꾸면 선택, 열린 프롬프트, 취소 확인을 비우고 목록을 다시 읽는다.
 - 행 메뉴(W-07, 트랙 h7sched로 일곱 항목): 행 끝의 `[...]`(`IconButton`, `Menu`)에 항목을 둔다. 꺼진 행은 "다시 켜기"(`schedule.update { scheduleId, enabled: true }`), 모든 행은 "실행 기록"(`schedule.runs { scheduleId }`, 읽기 전용 `Sheet`: 읽는 중, 비었음, 읽기 실패 Alert와 다시 읽기, 결과 글자(색)·시작 시각·호스트가 준 오류 글·그 실행의 대화 열기)과 "고치기…"(O-08 시트를 제목·프롬프트만 남겨 열고 `schedule.update`로 저장. 트리거와 작업 폴더는 와이어가 받지 않아 "복제해서 새로 만들라"고 안내, 제목은 비워 지울 수 없다)를 둔다. 다시 켜기 응답의 `enabled`가 거짓이면(지난 `at`, 끝난 반복: L2.schedule §4.4.9 [미결] 14) 성공으로 보이지 않고 "다시 켤 수 없어요" 오류를 띄운다. 아래 네 항목의 설명은 그대로다. [근거: `apps/desktop/src/views/pages/schedules/schedule-model.ts` `rowMenuOf`, `schedules-screen.tsx` `reenableSchedule`]
-- 행 메뉴: 행 끝의 `[...]`(`IconButton`, `Menu`)에 네 항목을 둔다. 항목과 잠금은 `rowMenuOf`가 정한다: 마지막 실행 대화 열기(대화 id가 있을 때만, 목록에 없으면 잠금), 지금 실행(원격 트리거 행만, `schedule.fire { scheduleId }`), 취소(켜진 행만, 기존 O-06 확인), 복제(늘, O-08 시트를 같은 값으로 연다). 마지막 실행 칸은 그 실행의 대화가 목록에 있으면 누를 수 있다(`Button`). 원격 행의 "지금 실행"과 꺼진 행의 "다시 켜기"는 칸 옆에 바로 둔다(시안 p07, d03). Enter로 대화를 여는 키는 그대로다.
+- 행 메뉴: 행 끝의 `[...]`(`IconButton`, `Menu`)에 네 항목을 둔다. 항목과 잠금은 `rowMenuOf`가 정한다: 마지막 실행 대화 열기(대화 id가 있을 때만, 목록에 없으면 잠금), 지금 한 번 실행(켜진 원격, 간격, 시각 행만, `schedule.fire { scheduleId }`) [결정: 오케스트레이터 기본값, AGE-77 scnFix F-31], 취소(켜진 행만, 기존 O-06 확인), 복제(늘, O-08 시트를 같은 값으로 연다). 마지막 실행 칸은 그 실행의 대화가 목록에 있으면 누를 수 있다(`Button`). 원격 행의 "지금 실행"과 꺼진 행의 "다시 켜기"는 칸 옆에 바로 둔다(시안 p07, d03). Enter로 대화를 여는 키는 그대로다.
 - 상대 시각: 다음 실행은 `dueAgeOf`가 "곧", "N분 뒤", "14:20", "내일 09:00"을 만들고, 그 밖은 절대 시각이다. 마지막 실행은 끝난 때(없으면 시작한 때, 그도 없으면 잡은 때)를 "N분 전"으로 쓴다. 절대 시각을 `Tooltip`으로 보이는 것은 시안에 없어 뺐다. 기준 시각은 목록을 마지막으로 읽은 때(`state.nowMs`)다. "완료 어제"의 "어제"는 아직 없어 "1일 전"으로 쓴다 [미결].
 - 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 다시 시작 대기는 `pendingUntil`만 본다(등록 파일의 상태를 데스크톱이 읽는 wire는 없다. `fresnel service status`는 CLI 명령이다). 띠의 "지금 다시 시작"은 `RestartNowButton`(엔진이 running이고 셸이 있을 때만 보인다)을 쓴다. 행의 멈춘 이유 칸은 시안에 없어 뺐다(`stoppedReason`은 데이터로만 남는다). `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
 - 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추, 다시 시작 대기 띠와 알림), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자, 다시 시작 대기 값).
