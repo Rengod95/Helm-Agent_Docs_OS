@@ -137,6 +137,20 @@ describe("카드 → 캔버스 플러그인", () => {
     ]);
   });
 
+  test("도구 종류 선언(externalTool)이 있는 카드는 다른 칸이 비어도 도구로 분류하고 도구 자리에 붙는다", () => {
+    const tool = card("tool-sops", {
+      externalTool: {
+        binary: "sops",
+        versionArgs: "--version",
+        install: { ko: "sops를 설치하세요", en: "Install sops" },
+        bundled: true,
+        status: { kind: "bundled", version: "3.10.2" },
+      },
+    });
+    expect(kindOfCard(tool)).toBe("tool");
+    expect(anchorOfCard(tool)).toBe("feed:tools");
+  });
+
   test("붙는 자리: Hook은 계약의 위치 표에서 첫 자리를 읽는다", () => {
     expect(HOOK_POSITIONS["guard.tool.before"].positions[0]).toEqual({
       kind: "block",

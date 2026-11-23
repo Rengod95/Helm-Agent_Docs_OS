@@ -2,6 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import {
   CARD_MCP_LAUNCH_LIMITS,
+  cardExternalToolOf,
   HOOKS,
   HOOK_POSITIONS,
   dependenciesOf,
@@ -20,6 +21,7 @@ import {
   type CardMcpLaunch,
   type CardScript,
   type CostFigures,
+  type ExternalToolStatus,
   type HookName,
   type HookPositionRow,
   type ImportedHookOrigin,
@@ -551,6 +553,19 @@ export function withRequiredByCore(card: PluginCard): PluginCard {
   return users === undefined ? card : { ...card, requiredByCore: [...users] };
 }
 
+/**
+ * 도구 종류 플러그인의 점검 상태를 응답 카드에 싣는다(AGE-76 질문 2). 카드에 `externalTool` 선언이 있고 엔진이 그 이름을 점검했을 때만 `status`를 더한다.
+ * 저장된 카드는 바꾸지 않는다
+ */
+export function withToolStatus(
+  card: PluginCard,
+  statusOf: (name: string) => ExternalToolStatus | undefined,
+): PluginCard {
+  if (card.externalTool === undefined || card.origin.kind !== "builtin") return card;
+  const status = statusOf(card.name);
+  return status === undefined ? card : { ...card, externalTool: { ...card.externalTool, status } };
+}
+
 /** 카드 한 장을 만든다. 코드는 실행하지 않는다 */
 export function buildPluginCard(input: BuildCardInput): PluginCard {
   const { folder } = input;
@@ -611,5 +626,8 @@ export function buildPluginCard(input: BuildCardInput): PluginCard {
       dependsOn: dependenciesOf(manifest).map((line) => cardDependencyOf(line, null)),
       dependents: [],
     },
+    ...(manifest.externalTool === undefined
+      ? {}
+      : { externalTool: cardExternalToolOf(manifest.externalTool) }),
   };
 }

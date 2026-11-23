@@ -46,6 +46,7 @@ import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
 import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
 import { guideManifest } from "@fresnel/plugin-guide";
 import { authoringManifest, authoringSettings } from "@fresnel/plugin-builder";
+import { TOOL_PLUGIN_KEY_ROWS } from "./tool-plugins.ts";
 import { hostProjectSettings, hostSettings, remoteSettings } from "../settings.ts";
 
 // L4.host-service.spec §4.1 5단계. 모든 패키지의 설정 그룹을 한 카탈로그로 합친다. 이 파일은 assemble.ts의 일부다:
@@ -80,6 +81,8 @@ const BUILTIN_EXTENSIONS: readonly {
   { name: "host-memory-bridge", displayName: "Memory Service Bridge", layer: "L2" },
   { name: "host-proposals-bridge", displayName: "Proposal Service Bridge", layer: "L2" },
   { name: "cap-schedule", displayName: "Schedules", layer: "L2" },
+  // 도구 종류 플러그인은 OS마다 싣는 것이 다르지만 설정 스키마는 하나라 모두 올린다
+  ...TOOL_PLUGIN_KEY_ROWS,
 ];
 
 /** 내장 확장의 예약 키 그룹. 파일 스키마, `config list`, 설정 화면이 같은 키 집합을 보도록 정적 카탈로그에 넣는다(X10) */

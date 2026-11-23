@@ -451,6 +451,14 @@ export type EvidenceRef =
 - 스크립트 칸 [제안, 설계 B]: `InjectInventory.scripts`는 매니페스트 `scripts`마다 `{name, launch, timeoutMs}` 하나다(최대 64개). `launch`는 `CardLaunch`(= `CardMcpLaunch`, 같은 모양)다: `command`는 실행기 이름이나 절대 경로, `args`는 상대 `file`을 포함하고, `envNames`는 이름만(환경 모드가 아닌 스크립트는 실제로 넘어가는 이름, 곧 허용 목록에 있고 토큰·키 이름이 아닌 것만), `cwd`는 null이다. 선언했지만 받지 못하는 이름은 `CardScript.envNotPassed`가 따로 싣는다(없으면 필드 없음) [결정: 2026-11-22, 사용자, AGE-63]. 승인 카드(초안 스크립트 호출, `ScriptCard.envNotPassed`)도 같은 이름을 싣고, 차이 보기는 스크립트 줄의 `[not passed: …]`로 바뀜을 보인다(AGE-33 enDep 11). `timeoutMs`는 정수 1~60000이고 선언이 없으면 10000이다. 검토 카드는 이 칸을 "승인하면 실행될 명령"으로 보인다(`review/m5/profile-project-loader.md` §3.1). 옛 카드는 `scripts`가 없어도 파싱된다.
 - 카드 `review.state`(`approved | pending | draft | none`)는 검토 항목 상태(`pending | approved | sent_back | discarded | superseded | withdrawn`, wire `plugin-review.ts`)와 다른 집합이다.
 
+#### 3.1.5 도구 종류 플러그인 (`external-tool.ts`) [결정: 2026-11-23 사용자, AGE-76 질문 2 "도구도 하나의 플러그인으로 하는건 어떄 Tool type plugin"]
+
+- 매니페스트 `externalTool`은 "이 플러그인은 외부 도구 하나를 나타낸다"는 선언이다. 필드: `binary`(실행 파일 이름, `^[a-z][a-z0-9_-]{0,31}$`, 경로 아님), `minVersion`(선택, SemVer), `versionArgs`(선택, 닫힌 목록 `--version`, `version`, `-V`, `-version`, 기본 `--version`), `install`(`{ko, en}`, 각 300자 이내, 사용자가 복사해 쓰는 설치 안내), `bundled`(선택, 앱이 묶어 오는가), `platforms`(선택, 목록에 없는 OS에서는 그 플러그인이 보이지 않는다).
+- 선언은 데이터일 뿐 명령이 아니다. 엔진은 선언된 실행 파일 이름 하나를 PATH와 알려진 설치 자리에서 찾고 `versionArgs`로만 버전을 읽으며(시간 상한은 L0.os 점검의 것), 플러그인이 임의 명령이나 인자를 낼 길은 없다. 앱이 대신 설치하지 않는다.
+- 도구 종류 플러그인은 모델 도구(`tools`)와 Drive를 선언할 수 없다(`external_tool_conflict`). 모델에게 가는 문구가 늘지 않는다. 형식 오류는 `external_tool_invalid`다.
+- 카드의 `externalTool`은 선언(생략값을 채움)에 점검 상태 `status`를 더한 응답 값이다: `ready`(시스템에서 찾음), `bundled`(앱에 들어 있는 것을 씀), `missing`, `too_old`, `unusable`. 경로는 싣지 않는다. 엔진이 점검하는 것은 내장 도구 플러그인뿐이고, 사용자가 만든 플러그인의 선언은 계약만 열려 있어 `status`가 없다(다음 묶음이 연다). 캔버스는 이 칸이 있는 카드를 종류 `tool`로 분류한다.
+- 도구가 필요한 플러그인은 `dependsOn`으로 도구 플러그인에 기댄다(AGE-33): 강한 의존이 필수, 약한 의존이 선택이다. 도구가 없을 때의 동작(막음이나 경고)은 L0.os §3.6.1 점검이 하던 것과 같다.
+
 #### 3.1.4 플러그인 스크립트 (`plugin-script.ts`) [제안: 설계 B, `review/m5/drive-isolation.md` §3.2·§3.4]
 
 플러그인이 자기 패키지 폴더 안의 파일을 실행하는 계약이다. 선언은 매니페스트 `scripts`(§3.1)가 하고, 실행은 엔진이 `PluginScriptPort`로 한다. 스크립트는 코드(`entry`)가 `g.runScript(name, {stdin?})`로 부를 때만 돈다. 이름 `scripts`, `runScript`, `script_*`는 모두 [제안]이다. 이름 패턴(`SCRIPT_NAME_PATTERN`, `SCRIPT_ENV_NAME_PATTERN`)은 `manifest.ts`에 있다.

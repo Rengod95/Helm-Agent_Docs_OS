@@ -18,6 +18,7 @@ import {
 import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
 import { settingProblemOf } from "../settings-problems.ts";
 import { REQUIRED_BY_CORE } from "../assembly/m4/profile-defaults.ts";
+import { isRequiredToolPlugin } from "../assembly/tool-plugins.ts";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
 import { threadLocked, withWriteOwner } from "./owner.ts";
@@ -225,7 +226,9 @@ const EXT_ENABLED_KEY = /^ext\.([^.]+)\.enabled$/;
 function requiredPluginOffOf(key: string, value: unknown): string | undefined {
   if (value !== false) return undefined;
   const name = EXT_ENABLED_KEY.exec(key)?.[1];
-  return name !== undefined && REQUIRED_BY_CORE.has(name) ? name : undefined;
+  return name !== undefined && (REQUIRED_BY_CORE.has(name) || isRequiredToolPlugin(name))
+    ? name
+    : undefined;
 }
 
 export function createSettingsSetHandler(

@@ -3,6 +3,7 @@ import type { SchemaProof, SchemaSound } from "../base/schema-proof.ts";
 import type { Fold } from "./hooks.ts";
 import { INTERNAL_PLUGIN_LAYERS, type InternalPluginLayer } from "./internal-plugins.ts";
 import { DependencyKindSchema, type DependencyKind } from "./manifest.ts";
+import { CardExternalToolSchema, type CardExternalTool } from "./external-tool.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
 import { BRIDGE_CAPABILITIES, UiModeSchema, type BridgeCapability, type UiMode } from "./ui.ts";
@@ -578,6 +579,11 @@ export interface PluginCard {
    * 프로필 화면이 미리 잠그는 데 쓴다. 저장된 카드가 아니라 응답 값이다
    */
   readonly requiredByCore?: readonly string[];
+  /**
+   * 도구 종류 플러그인의 칸(AGE-76 질문 2): 매니페스트 `externalTool` 선언이 있는 카드에만 있다(캔버스 종류 `tool`의 근거).
+   * 선언은 저장된 카드가 가지고 `status`는 응답 값이다(엔진이 점검한 내장 도구 플러그인만). 선택 필드라 없는 옛 카드도 파싱된다
+   */
+  readonly externalTool?: CardExternalTool;
 }
 const PluginCardShape = Type.Object(
   {
@@ -649,6 +655,7 @@ const PluginCardShape = Type.Object(
     usedBy: Type.Array(Id, { maxItems: 256 }),
     dependencies: Type.Optional(CardDependenciesShape),
     requiredByCore: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 16 })),
+    externalTool: Type.Optional(CardExternalToolSchema),
   },
   { additionalProperties: false },
 );

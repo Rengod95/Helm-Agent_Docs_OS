@@ -32,12 +32,14 @@ import { createSandboxSelfTestPort } from "./sandbox-self-test-port.ts";
 // M4 wire 처리기 43개의 포트 묶음(`spec-deltas/t-f.md` §5). 이 파일은 T-F가 한 번 쓰고, 그 뒤에는 T-XD가
 // 계측 읽기와 Test run 제어(`emptyTraceRead`, `emptyTestRunControl`)를 ext-host 구현으로 바꾸는 한 줄만 고친다.
 
-/** 코어인가: 등급이 guard·core이거나 내장 L1 단위(`core-*`)다. 내장 단위는 로더의 승인 표를 거치지 않아 등급이 늘 builtin이라 층으로 가린다 */
+/** 코어인가: 등급이 guard·core이거나 내장 L1 단위(`core-*`)이거나 내장 도구 종류 플러그인이다. 내장 단위는 로더의 승인 표를 거치지 않아 등급이 늘 builtin이라 층으로 가린다 */
 function isCore(record: ExtensionRecord): boolean {
   return (
     record.tier === "guard" ||
     record.tier === "core" ||
-    (record.origin === "builtin" && effectiveLayer(record.manifest) === "L1")
+    (record.origin === "builtin" && effectiveLayer(record.manifest) === "L1") ||
+    // 내장 도구 종류 플러그인(AGE-76 질문 2)은 엔진이 쓰는 외부 도구의 상태를 알리는 것이라 늘 켜진다. 프로필에 넣거나 뺄 대상이 아니다
+    (record.origin === "builtin" && record.manifest.externalTool !== undefined)
   );
 }
 

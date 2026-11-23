@@ -224,6 +224,7 @@ import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { guideForcedOn, guideWiringOf } from "./assembly/guide.ts";
 import { GUIDE_ORCHESTRATION_NAME } from "@fresnel/plugin-guide";
+import { createToolStatusSource } from "./assembly/tool-status.ts";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
@@ -1306,6 +1307,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     const units: ExtensionUnit[] = [
       ...builtinUnits({
+        platform: os.info.platform,
         commands,
         dialogArea,
         web,
@@ -1671,7 +1673,19 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const storeId = parse(StoreIdSchema, storeService.storeId);
     // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
+    // 도구 종류 플러그인의 상태. 시작 때 한 번 점검하고, `host.status`의 점검(`diagnose`)마다 복사를 바꾼다. 실패는 로그에만 남긴다
+    const toolStatuses = createToolStatusSource();
+    detach(
+      osHandle.checkBinaries(lifetime.signal).then((checked) => {
+        toolStatuses.accept(checked);
+        return checked.ok;
+      }),
+      (caught) => {
+        os.logger("tool-plugins").error("tool.startup_check_failed", { cause: String(caught) });
+      },
+    );
     portsHandle = createEnginePorts({
+      toolStatusOf: (name) => toolStatuses.statusOf(name),
       // 개발 모드에서 켜지는 가이드 그룹은 모든 대화에 든다(대화별 켜짐 집합, M5c §4.1.3). 코어는 m4가 등급으로 정한다
       pluginsForced: () => (guideWiring.forced() ? [GUIDE_ORCHESTRATION_NAME] : []),
       // 훑기 자식을 다시 띄울 자기 실행 값. 시험이 넣은 값이 있으면 그것을 쓴다(플러그인 호스트와 같다)
@@ -1918,7 +1932,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       startedAt,
       ports: portsHandle.ports,
       shutdown: shutdownCoordinator,
-      diagnose: async (signal) => ({ binaries: await osHandle.checkBinaries(signal) }),
+      diagnose: async (signal) => {
+        const binaries = await osHandle.checkBinaries(signal);
+        toolStatuses.accept(binaries);
+        return { binaries };
+      },
       close: shutdown,
     };
     return engine;

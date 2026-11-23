@@ -91,6 +91,10 @@ export type ManifestIssueCode =
   | "widgets_required"
   | "method_invalid"
   | "method_duplicate"
+  /** `externalTool` 선언이 모양에 맞지 않는다(실행 파일 이름, 버전 인자, 설치 안내 글). 거부다 */
+  | "external_tool_invalid"
+  /** `externalTool`이 있는 도구 종류 플러그인이 모델 도구(`tools`)나 Drive를 선언했다. 거부다 */
+  | "external_tool_conflict"
   | "tool_duplicate"
   | "command_duplicate"
   /** `scripts` 이름이 둘이다(설계 B [제안]). 거부다 */
@@ -275,6 +279,8 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
       return "ui_invalid";
     case "methods":
       return "method_invalid";
+    case "externalTool":
+      return "external_tool_invalid";
     case "userConfig":
       return "user_config_invalid";
     case "isolation":
@@ -768,6 +774,40 @@ export function validateComposition(
 /** 정규화된(스키마를 통과한) 매니페스트의 의미 검사 */
 function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
+
+  // 도구 종류 플러그인(AGE-76 질문 2)은 외부 도구 하나를 나타낼 뿐이다: 모델 도구나 Drive를 내지 않아 모델에게 가는 문구가 늘지 않는다
+  if (manifest.externalTool !== undefined) {
+    if ((manifest.tools ?? []).length > 0) {
+      issues.push(
+        issue(
+          "error",
+          "external_tool_conflict",
+          "/externalTool",
+          "a tool-type plugin (externalTool) cannot declare model tools",
+        ),
+      );
+    }
+    if (pluginDeclsOf(manifest).some((decl) => decl.drives === true)) {
+      issues.push(
+        issue(
+          "error",
+          "external_tool_conflict",
+          "/externalTool",
+          "a tool-type plugin (externalTool) cannot declare a drive",
+        ),
+      );
+    }
+    for (const { index, id } of duplicatesIn(manifest.externalTool.platforms ?? [])) {
+      issues.push(
+        issue(
+          "error",
+          "external_tool_invalid",
+          `/externalTool/platforms/${index}`,
+          `platform "${id}" is listed twice`,
+        ),
+      );
+    }
+  }
 
   const reservedPrefix = RESERVED_EXTENSION_NAME_PREFIXES.find((prefix) =>
     manifest.name.startsWith(prefix),

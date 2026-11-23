@@ -1,7 +1,12 @@
 import { readdir } from "node:fs/promises";
 import { basename } from "node:path";
 import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
-import type { CardScript, PluginCard, PluginOriginKind } from "@fresnel/contracts/extensions";
+import type {
+  CardScript,
+  ExternalToolStatus,
+  PluginCard,
+  PluginOriginKind,
+} from "@fresnel/contracts/extensions";
 import type {
   InvocableEntry,
   PluginGetResult,
@@ -20,6 +25,7 @@ import {
   buildPluginCard,
   withInstalledDependencies,
   withRequiredByCore,
+  withToolStatus,
   type CardSubject,
 } from "./card.ts";
 import { discoverPluginFolders, type DiscoverProjectRoot } from "./discover.ts";
@@ -79,6 +85,8 @@ export interface PluginServiceDeps {
   readonly profiles: Pick<ProfileTestRunPort, "list">;
   /** 검토본 저장소. 검토 칸, 무결성, 보관 목록을 여기서 읽는다 */
   readonly store: PluginStoreReader;
+  /** 도구 종류 플러그인의 마지막 점검 상태(응답 카드의 `externalTool.status`). 생략하면 상태를 싣지 않는다 */
+  readonly toolStatusOf?: (name: string) => ExternalToolStatus | undefined;
   /** 진단을 남기는 로그 */
   readonly log: { info(message: string, fields: Readonly<Record<string, unknown>>): void };
 }
@@ -506,8 +514,12 @@ function installedNodesOf(records: readonly PluginRecordSource[]): DependencyNod
 }
 
 /** 응답 값의 카드: 의존 칸을 설치된 사실로 채우고 필수 표시를 싣는다(AGE-33 enDep 5a, 10). 저장된 항목은 바꾸지 않는다 */
-function responseCardOf(card: PluginCard, nodes: readonly DependencyNode[]): PluginCard {
-  return withRequiredByCore(withInstalledDependencies(card, nodes));
+function responseCardOf(
+  card: PluginCard,
+  nodes: readonly DependencyNode[],
+  toolStatusOf: (name: string) => ExternalToolStatus | undefined,
+): PluginCard {
+  return withToolStatus(withRequiredByCore(withInstalledDependencies(card, nodes)), toolStatusOf);
 }
 
 /** 필터: 프로필은 그 프로필에 든 것과 공통 묶음에 든 것을 보인다(§3.4) */
@@ -529,6 +541,7 @@ function matches(card: PluginCard, filter: PluginListFilter): boolean {
  * 저장소를 읽지 못하면 그 호출이 `store` 실패를 돌려준다(기본값으로 바꾸지 않는다).
  */
 export function createPluginService(deps: PluginServiceDeps): PluginService {
+  const toolStatusOf = (name: string): ExternalToolStatus | undefined => deps.toolStatusOf?.(name);
   let index: Index | undefined;
   /** 검토본 폴더를 읽은 결과. 검토본은 내용 주소라 `이름 + 해시`가 키다(고정 복사본이라 다시 읽지 않는다) */
   const reviewedReads = new Map<string, Result<PluginFolder, FolderRejection>>();
@@ -561,7 +574,7 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
     if (!listed.ok) return err({ kind: "profiles", failure: listed.error });
     const nodes = installedNodesOf(deps.records());
     const plugins = read.value.entries
-      .map((entry) => withUsedBy(responseCardOf(entry.card, nodes), listed.value))
+      .map((entry) => withUsedBy(responseCardOf(entry.card, nodes, toolStatusOf), listed.value))
       .filter((card) => matches(card, filter));
     return ok({ plugins });
   }
@@ -681,7 +694,10 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       current: item.current,
     }));
     return ok({
-      card: withUsedBy(responseCardOf(entry.card, installedNodesOf(deps.records())), listed.value),
+      card: withUsedBy(
+        responseCardOf(entry.card, installedNodesOf(deps.records()), toolStatusOf),
+        listed.value,
+      ),
       versions: shaped,
       source:
         entry.source === null

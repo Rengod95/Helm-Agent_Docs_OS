@@ -1,3 +1,4 @@
+import { TOOL_PLUGIN_NAMES } from "../tool-plugins.ts";
 import { join } from "node:path";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, TurnIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
@@ -189,6 +190,9 @@ function libraryOf(
         requiredKeys: fact.requiredKeys,
         version: fact.version,
         dependencies: dependenciesOf(fact.manifest),
+        ...(TOOL_PLUGIN_NAMES.includes(name) && fact.manifest.externalTool !== undefined
+          ? { alwaysOn: true }
+          : {}),
         members: pluginsOf(fact.manifest).flatMap((entry) =>
           entry.decl.id === undefined ? [] : [entry.decl.id],
         ),

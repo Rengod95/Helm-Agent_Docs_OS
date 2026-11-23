@@ -1,0 +1,34 @@
+{
+  "tool-rg": {
+    "ko": "ripgrep을 설치하세요: brew install ripgrep (Linux: apt install ripgrep)",
+    "en": "Install ripgrep: brew install ripgrep (Linux: apt install ripgrep)"
+  },
+  "tool-sops": {
+    "ko": "sops를 설치하세요: brew install sops (또는 https://github.com/getsops/sops/releases)",
+    "en": "Install sops: brew install sops (or https://github.com/getsops/sops/releases)"
+  },
+  "tool-age": {
+    "ko": "age를 설치하세요: brew install age (Linux: apt install age)",
+    "en": "Install age: brew install age (Linux: apt install age)"
+  },
+  "tool-git": {
+    "ko": "git을 설치하세요: brew install git (Linux: apt install git)",
+    "en": "Install git: brew install git (Linux: apt install git)"
+  },
+  "tool-security": {
+    "ko": "macOS에 들어 있는 /usr/bin/security를 찾지 못했어요. 시스템 구성을 확인하세요.",
+    "en": "The macOS /usr/bin/security tool was not found. Check the system setup."
+  },
+  "tool-bwrap": {
+    "ko": "bubblewrap을 설치하세요: apt install bubblewrap",
+    "en": "Install bubblewrap: apt install bubblewrap"
+  },
+  "tool-socat": {
+    "ko": "socat을 설치하세요: apt install socat",
+    "en": "Install socat: apt install socat"
+  },
+  "tool-secret-tool": {
+    "ko": "libsecret-tools를 설치하세요: apt install libsecret-tools",
+    "en": "Install libsecret-tools: apt install libsecret-tools"
+  }
+}

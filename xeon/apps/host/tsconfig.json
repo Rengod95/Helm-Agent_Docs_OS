@@ -5,7 +5,12 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src", "test", "src/assembly/measure/metric-labels.json"],
+  "include": [
+    "src",
+    "test",
+    "src/assembly/measure/metric-labels.json",
+    "src/assembly/tool-install.json"
+  ],
   "references": [
     {
       "path": "../../packages/client"
