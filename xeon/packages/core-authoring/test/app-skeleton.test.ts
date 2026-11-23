@@ -38,7 +38,7 @@ test("the manifest value: one app page, two methods (read and write), one model 
     tools: [
       {
         name: "kanban_add_item",
-        description: "앱 목록에 항목 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다",
+        description: "앱 목록에 항목 하나를 더한다.",
       },
     ],
     methods: [
@@ -125,9 +125,7 @@ test("the model tool and the screen's write method share one function in the ent
   expect(entry).toContain('g.registerMethod("list", {');
   expect(entry).toContain('g.registerMethod("add", {');
   expect(entry).toContain('name: "kanban_add_item",');
-  expect(entry).toContain(
-    "const committed = await g.commit({ items: [...g.state().items, made] });",
-  );
+  expect(entry).toContain("const put = await g.pluginStore.put(ITEMS_KEY, { items: next });");
   // 메서드 add와 모델 도구가 같은 addItem을 부른다(정의는 "addItem(g: "라서 셈에 들지 않는다)
   expect(entry.split("addItem(g, ")).toHaveLength(3);
 });
@@ -209,4 +207,15 @@ test("no screen file reaches the network", () => {
     expect(text.includes("XMLHttpRequest")).toBe(false);
     expect(/https?:\/\//.test(text)).toBe(false);
   }
+});
+
+test("the example screen labels its input and spaces the items of a list row with a gap token", () => {
+  const html = fileText("ui/app/index.html");
+  expect(html).toContain('<label class="app-label" for="title-input">항목 이름</label>');
+  expect(html).toContain('<input class="app-input" id="title-input" maxlength="200">');
+  const css = fileText("ui/app/theme.css");
+  expect(css).toContain(
+    ".app-list li {\n  display: flex;\n  align-items: center;\n  gap: var(--space-3);",
+  );
+  expect(css).not.toContain("margin-left");
 });

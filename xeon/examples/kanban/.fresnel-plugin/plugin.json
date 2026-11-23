@@ -12,11 +12,11 @@
   "tools": [
     {
       "name": "kanban_move_card",
-      "description": "보드의 카드 하나를 칸과 자리로 옮긴다. 화면의 move 메서드와 같은 함수를 쓴다"
+      "description": "보드의 카드 하나를 칸과 자리로 옮긴다."
     },
     {
       "name": "kanban_add_card",
-      "description": "할 일 칸 맨 끝에 카드 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다"
+      "description": "할 일 칸 맨 끝에 카드 하나를 더한다."
     }
   ],
   "methods": [

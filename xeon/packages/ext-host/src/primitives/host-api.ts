@@ -290,15 +290,18 @@ function assertOwnDataOnly(record: RegistrationRecord, what: string): void {
 }
 
 /**
- * 플러그인 전용 저장소의 쓰기(`put`, `delete`)는 확장 메서드 처리기 안에서만 된다. 훅, on 핸들러, drive, setup, 도구 `execute`, 명령 처리기처럼
- * 재실행되거나 메서드가 아닌 문맥에서는 거부하고, `readOnly` 메서드에서도 거부한다(X.primitives.spec §4.6.7). `ownDataOnly` 메서드는 된다.
+ * 플러그인 전용 저장소의 쓰기(`put`, `delete`)는 확장 메서드 처리기와 도구 `execute` 안에서만 된다. 같은 플러그인의 화면 메서드와 모델 도구가
+ * 어느 대화에서 불리든 같은 한 기록을 쓰게 하려는 것이다. 훅, on 핸들러, drive, setup, 명령 처리기처럼 재실행되거나 그 밖의 문맥에서는 거부하고,
+ * `readOnly` 메서드에서도 거부한다(X.primitives.spec §4.6.7). `ownDataOnly` 메서드는 된다.
  */
 function assertStoreWrite(record: RegistrationRecord): void {
   const amb = ambient();
-  if ((amb !== undefined && amb.invocation !== "method") || !inExtMethod()) {
+  const inTool = amb?.invocation === "tool";
+  const inMethod = (amb === undefined || amb.invocation === "method") && inExtMethod();
+  if (!inTool && !inMethod) {
     throw new PrimitiveError(
       "store_outside_method",
-      `the plugin store of ${record.extension} can be written only inside an extension method handler`,
+      `the plugin store of ${record.extension} can be written only inside an extension method handler or a tool execute`,
       { scopeId: record.id },
     );
   }
@@ -309,6 +312,16 @@ function assertStoreWrite(record: RegistrationRecord): void {
       { scopeId: record.id },
     );
   }
+}
+
+/** 저장소 쓰기가 성공한 뒤 확장 데이터가 바뀌었다고 알린다(`ExtChange` data). 열려 있는 화면이 자기 메서드로 다시 읽는다 */
+function announceStoreChange(core: HostCore, record: RegistrationRecord): void {
+  core.notify({
+    kind: "data",
+    extension: record.manifest.name,
+    scopeId: record.id,
+    threadId: ambient()?.threadId ?? null,
+  });
 }
 
 function assertOpen(record: RegistrationRecord, generation: Generation): void {
@@ -436,11 +449,15 @@ export function createRegistrationApi(
       get: (key) => deps.pluginStore.get(record.extension, key),
       put: async (key, value) => {
         assertStoreWrite(record);
-        return deps.pluginStore.put(record.extension, key, value);
+        const written = await deps.pluginStore.put(record.extension, key, value);
+        if (written.ok) announceStoreChange(deps.core, record);
+        return written;
       },
       delete: async (key) => {
         assertStoreWrite(record);
-        return deps.pluginStore.delete(record.extension, key);
+        const removed = await deps.pluginStore.delete(record.extension, key);
+        if (removed.ok) announceStoreChange(deps.core, record);
+        return removed;
       },
       list: (prefix) => deps.pluginStore.list(record.extension, prefix ?? ""),
     },

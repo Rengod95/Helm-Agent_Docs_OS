@@ -391,6 +391,25 @@ test("approval without a purpose is refused, and a purpose in the decision is re
   expect(current?.contentHash ?? null).toBe(item.candidateHash);
 });
 
+test("a purpose the manifest already has stays on the approved card when the decision carries a drafted purpose", async () => {
+  const rig = rigOf();
+  writeFiles(join(rig.pluginsDir, "owned"), {
+    ".fresnel-plugin/plugin.json": manifestOf("owned", "Tracks movies to watch.", "Tracks movies."),
+  });
+  const itemId = firstOf(valueOf(await rig.review.scan()).queued);
+  const outcome = valueOf(
+    await rig.review.decide(itemId, {
+      kind: "approve",
+      profileIds: [],
+      libraryOnly: true,
+      purpose: "Adds one movie. Uses the same function as the add method of the screen.",
+    }),
+  );
+  expect(outcome.item.card.purpose).toBe("Tracks movies to watch.");
+  const current = valueOf(await rig.store.current("owned"));
+  expect(current?.meta.card.purpose).toBe("Tracks movies to watch.");
+});
+
 test("approval without a description is refused with description_required; a purpose does not stand in for it", async () => {
   const rig = rigOf();
   writeFiles(join(rig.pluginsDir, "no-text"), {

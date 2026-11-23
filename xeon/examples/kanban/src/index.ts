@@ -10,8 +10,9 @@ import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 
 // 칸반 본보기. 상태 하나(카드 목록과 새 카드 번호), 읽기 메서드 board, 쓰기 메서드 move와 add,
 // 같은 함수를 쓰는 모델 도구 kanban_move_card와 kanban_add_card. 화면(ui/app)은 메서드를 부르고 모델은 도구를 부른다.
-// 상태가 놓이는 곳은 대화가 정한다. 대화가 열려 있으면 상태 문서(g.state, g.commit), 없으면 플러그인 저장소(g.pluginStore, 키 `board`)다.
-// 옮기기와 더하기 계산은 moveCard와 addCard 하나씩이고, 두 출처를 BoardSource로 받아 계산만 한 벌로 쓴다.
+// 기록은 항상 플러그인 전용 저장소(g.pluginStore, 키 `board`)에 둔다. 화면 메서드와 모델 도구가 어느 대화에서 불리든 같은 한 보드를 읽고 쓴다.
+// 대화마다 따로 가져야 하는 기록은 상태 문서(g.state, g.commit)에 둘 수 있다.
+// 옮기기와 더하기 계산은 moveCard와 addCard 하나씩이고, 저장소를 BoardSource로 받아 계산만 한 벌로 쓴다.
 
 const COLUMNS = ["todo", "doing", "done"] as const;
 type Column = (typeof COLUMNS)[number];
@@ -90,16 +91,8 @@ interface BoardSource {
   write(next: BoardState): Promise<Result<BoardState, string>>;
 }
 
-/** 대화가 열려 있을 때: 상태 문서를 읽고 g.commit으로 쓴다 */
-function threadBoard(g: BoardApi): BoardSource {
-  return {
-    read: () => Promise.resolve(ok(g.state())),
-    write: async (next) => ok(await g.commit(next)),
-  };
-}
-
 /**
- * 대화가 없을 때: 플러그인 저장소의 `board` 키를 읽고 쓴다. 저장된 값이 보드 모양이 아니면 저장 데이터가 깨진 것이다.
+ * 플러그인 저장소의 `board` 키를 읽고 쓴다. 저장된 값이 보드 모양이 아니면 저장 데이터가 깨진 것이다.
  */
 function storeBoard(g: BoardApi): BoardSource {
   return {
@@ -173,13 +166,12 @@ async function addCard(board: BoardSource, input: AddInput): Promise<CardOutcome
   return { ok: true, cards: written.value.cards };
 }
 
-/** 고침 하나를 상태의 출처에 맞춰 돌린다. 대화가 열려 있으면 바로, 없으면 저장소 줄 위에서 돌린다 */
+/** 고침 하나를 저장소 줄 위에서 돌린다 */
 function editBoard(
   g: BoardApi,
-  open: boolean,
   edit: (board: BoardSource) => Promise<CardOutcome>,
 ): Promise<CardOutcome> {
-  return open ? edit(threadBoard(g)) : inStoreLine(() => edit(storeBoard(g)));
+  return inStoreLine(() => edit(storeBoard(g)));
 }
 
 const board: PluginModule = definePlugin<BoardState>({
@@ -187,51 +179,45 @@ const board: PluginModule = definePlugin<BoardState>({
   state: { schema: stateSchema, initial: initialState, version: 1 },
   setup(g) {
     g.registerMethod("board", {
-      handler: async (_params, ctx) => {
-        const open = ctx.threadId !== null && ctx.threadOpen !== false;
-        const source = open ? threadBoard(g) : storeBoard(g);
-        const read = await source.read();
+      handler: async () => {
+        const read = await storeBoard(g).read();
         return read.ok ? { ok: true, cards: read.value.cards } : { ok: false, reason: read.error };
       },
     });
     g.registerMethod("move", {
-      handler: async (params, ctx) => {
+      handler: async (params) => {
         const checked = parse(moveParams, params);
         if (!checked.ok) return { ok: false, reason: "invalid_params" };
-        const open = ctx.threadId !== null && ctx.threadOpen !== false;
-        return editBoard(g, open, (source) => moveCard(source, checked.value));
+        return editBoard(g, (source) => moveCard(source, checked.value));
       },
     });
     g.registerMethod("add", {
-      handler: async (params, ctx) => {
+      handler: async (params) => {
         const checked = parse(addParams, params);
         if (!checked.ok) return { ok: false, reason: "invalid_params" };
-        const open = ctx.threadId !== null && ctx.threadOpen !== false;
-        return editBoard(g, open, (source) => addCard(source, checked.value));
+        return editBoard(g, (source) => addCard(source, checked.value));
       },
     });
     g.registerTool({
       name: "kanban_move_card",
-      description: "보드의 카드 하나를 칸과 자리로 옮긴다. 화면의 move 메서드와 같은 함수를 쓴다",
+      description: "보드의 카드 하나를 칸과 자리로 옮긴다.",
       parameters: moveParams,
       replay: "unsafe",
-      execute: async (args, ctx) => {
-        if (ctx.threadId === null) return { ok: false, reason: "no_thread" };
+      execute: async (args) => {
         const checked = parse(moveParams, args);
         if (!checked.ok) return { ok: false, reason: "invalid_input" };
-        return moveCard(threadBoard(g), checked.value);
+        return editBoard(g, (source) => moveCard(source, checked.value));
       },
     });
     g.registerTool({
       name: "kanban_add_card",
-      description: "할 일 칸 맨 끝에 카드 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다",
+      description: "할 일 칸 맨 끝에 카드 하나를 더한다.",
       parameters: addParams,
       replay: "unsafe",
-      execute: async (args, ctx) => {
-        if (ctx.threadId === null) return { ok: false, reason: "no_thread" };
+      execute: async (args) => {
         const checked = parse(addParams, args);
         if (!checked.ok) return { ok: false, reason: "invalid_input" };
-        return addCard(threadBoard(g), checked.value);
+        return editBoard(g, (source) => addCard(source, checked.value));
       },
     });
   },

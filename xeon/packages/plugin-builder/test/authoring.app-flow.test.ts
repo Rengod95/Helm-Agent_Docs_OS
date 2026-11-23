@@ -117,7 +117,6 @@ test("app flow: scaffold(app) writes the app files, validate passes the app chec
     {
       ok: true,
       notice: "검토함에서 승인해야 쓸 수 있다",
-      details: { draftId: "draft_demo", itemId: "rvw_demo" },
     },
   );
   expect(base.submits).toEqual([

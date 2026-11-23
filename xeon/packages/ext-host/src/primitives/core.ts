@@ -470,14 +470,15 @@ export type ExtChange =
     }
   | {
       /**
-       * data: 확장의 상태 판이 커밋되었거나 기록이 남았다(`g.state` commit·update·commitWith, `g.record`, `g.recordPrivate`).
+       * data: 확장의 상태 판이 커밋되었거나 기록이 남았다(`g.state` commit·update·commitWith, `g.record`, `g.recordPrivate`, 플러그인 전용 저장소의 `put`·`delete`).
        * 커밋이 실패하거나 충돌하면 알리지 않는다. 값은 싣지 않고, 화면은 자기 메서드로 다시 읽는다(ADR-0021 §3.4.2)
        */
       readonly kind: "data";
       /** 바뀐 확장의 이름(`record.manifest.name`) */
       readonly extension: string;
       readonly scopeId: RegistrationId;
-      readonly threadId: ThreadId;
+      /** 플러그인 전용 저장소 쓰기가 낸 신호는 대화에 묶이지 않으므로 null일 수 있다 */
+      readonly threadId: ThreadId | null;
     };
 
 export function newUsage(): UsageRecorder {

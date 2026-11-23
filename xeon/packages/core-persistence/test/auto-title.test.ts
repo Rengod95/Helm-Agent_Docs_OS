@@ -183,6 +183,22 @@ describe("autoTitleThread", () => {
     expect(model.calls[0]?.user).not.toContain("두 번째 질문");
   });
 
+  test("a /helm plugin thread is titled from the user's description only, never from the first reply", async () => {
+    const h = await openHarness();
+    const threadId = threadWithTurn(
+      h,
+      FIRST_INPUT_TITLE,
+      "/helm plugin 하루 지출을 적는 앱 만들어 줘",
+      "dir 인자를 빼먹어서 다시 불러 볼게요.",
+    );
+    const model = fakeModel(ok("하루 지출 앱"));
+
+    const result = await autoTitleThread(depsOf(h, model.port), threadId);
+
+    expect(result).toEqual(ok({ status: "titled", title: "하루 지출 앱" }));
+    expect(model.calls[0]?.user).toBe("First user message:\n하루 지출을 적는 앱 만들어 줘");
+  });
+
   test("never overwrites a human title and never calls the model", async () => {
     const h = await openHarness();
     const threadId = threadWithTurn(h, "내가 정한 제목", "질문", "답");

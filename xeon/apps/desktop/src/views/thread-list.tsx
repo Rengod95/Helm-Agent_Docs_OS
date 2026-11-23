@@ -4,7 +4,6 @@ import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
-  Alert,
   Badge,
   Button,
   Dialog,
@@ -17,7 +16,7 @@ import {
   ListNavigationItem,
   Skeleton,
 } from "@caustic/react";
-import { Folder, FolderOpen, RotateCcw, Search, X } from "@caustic/react/icons";
+import { Folder, RotateCcw, Search, X } from "@caustic/react/icons";
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useFlipList } from "../lib/motion-presets.tsx";
 import { ProgressOrb } from "./effects/progress-orb.tsx";
@@ -34,8 +33,8 @@ import { useShellActions } from "../state/shell/index.ts";
 import { useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { SIDE_ROW } from "./side-row.ts";
-import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
-import { useStartNewThread } from "./new-thread-flow.ts";
+import type { FolderPickInvoke } from "./folder-pick.ts";
+import { PICK_FOLDER, useStartNewThread } from "./new-thread-flow.ts";
 import { isBlankThread, recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import {
   FolderPath,
@@ -352,29 +351,33 @@ function OtherFolder(props: {
   readonly creating: boolean;
   readonly recent: readonly RecentWorkspace[];
   readonly onCreate: (path: string | null) => void;
-  readonly onPickFailed: () => void;
+  /** 폴더 고르기 창이 있으면 항목을 누르는 순간 그 창을 바로 연다(대화 상자를 한 번 더 거치지 않는다) */
+  readonly onPickFolder: () => void;
 }): ReactNode {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [pickFailed, setPickFailed] = useState(false);
   const workspace = checkWorkspaceInput(text);
   const hint = workspaceHint(workspace);
   const folderPick = props.folderPick;
-  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
-    const picked = await pickWorkspaceFolder(invoke);
-    if (!picked.ok) {
-      setPickFailed(true);
-      props.onPickFailed();
-      return;
-    }
-    if (picked.value !== undefined) setText(picked.value);
-  };
   // 대화 상자를 닫고 만든다. 만들지 못한 까닭은 목록 아래 줄에 보인다
   const create = (): void => {
     if (props.creating || workspace.kind === "invalid") return;
     setOpen(false);
     props.onCreate(workspace.kind === "path" ? workspace.path : null);
   };
+  if (folderPick !== undefined) {
+    return (
+      <Button
+        size="xs"
+        variant="ghost"
+        className="justify-self-start"
+        disabled={props.creating}
+        onClick={props.onPickFolder}
+      >
+        {t("desktop.threads.otherFolder")}
+      </Button>
+    );
+  }
   return (
     <Dialog
       open={open}
@@ -413,11 +416,6 @@ function OtherFolder(props: {
       }
     >
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
-        {pickFailed ? (
-          <Alert tone="danger" layout="inline" size="sm">
-            {t("desktop.workspace.pickFailed")}
-          </Alert>
-        ) : null}
         <Field
           label={t("desktop.threads.newDialog.folderLabel")}
           optional
@@ -431,29 +429,15 @@ function OtherFolder(props: {
             invalid={hint !== null}
             spellCheck={false}
             autoComplete="off"
-            placeholder="/Users/me/project"
+            placeholder={t("desktop.threads.newDialog.folderPlaceholder")}
             className="font-mono text-mono-sm"
             onValueChange={(value) => {
               setText(value);
-              setPickFailed(false);
             }}
             onKeyDown={(event) => {
               // 한글 조합 중의 Enter는 글자를 확정하는 키라 만들기가 아니다
               if (event.key === "Enter" && !event.nativeEvent.isComposing) create();
             }}
-            suffix={
-              folderPick === undefined ? null : (
-                <IconButton
-                  size="xs"
-                  variant="ghost"
-                  label={t("desktop.workspace.pickFolderButton")}
-                  disabled={props.creating}
-                  onClick={() => detach(pick(folderPick), rethrow)}
-                >
-                  <FolderOpen />
-                </IconButton>
-              )
-            }
           />
         </Field>
         {props.recent.length === 0 ? null : (
@@ -467,7 +451,6 @@ function OtherFolder(props: {
                   meta={t("desktop.threads.recentCount", { count: recent.count })}
                   onSelect={() => {
                     setText(recent.path);
-                    setPickFailed(false);
                   }}
                 >
                   <span className="block truncate font-mono text-mono-sm" title={recent.path}>
@@ -538,7 +521,7 @@ export function ThreadList(props: {
 
   const startThread = useStartNewThread(props.folderPick, "noFolder");
   /** `path`: 글은 그 폴더, `undefined`는 보던 폴더(없으면 고르기), `null`은 대화 상자의 "폴더 없이 만들기" */
-  const create = async (path: string | null | undefined): Promise<void> => {
+  const create = async (path: string | null | undefined | typeof PICK_FOLDER): Promise<void> => {
     setError(null);
     setCreating(true);
     const result = await startThread(path);
@@ -547,7 +530,7 @@ export function ThreadList(props: {
       setError(createFailureText(result.error, typeof path === "string"));
     else if (result.kind === "pickFailed") setError(t("desktop.workspace.pickFailed"));
   };
-  const start = (path: string | null | undefined): void => {
+  const start = (path: string | null | undefined | typeof PICK_FOLDER): void => {
     detach(create(path), rethrow);
   };
   // 새 대화 대화 상자는 닫히면서 초점을 자기 단추로 되돌린다. 닫힌 뒤에 입력창 초점을 한 번 더 요청한다
@@ -735,8 +718,8 @@ export function ThreadList(props: {
           creating={creating}
           recent={recent}
           onCreate={startFromDialog}
-          onPickFailed={() => {
-            setError(t("desktop.workspace.pickFailed"));
+          onPickFolder={() => {
+            start(PICK_FOLDER);
           }}
         />
       </div>
