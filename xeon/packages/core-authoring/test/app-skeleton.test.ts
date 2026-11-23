@@ -75,6 +75,7 @@ test("the manifest value: one app page, two methods (read and write), one model 
         },
         readOnly: false,
         label: "항목 추가",
+        ownDataOnly: true,
       },
     ],
     ui: {

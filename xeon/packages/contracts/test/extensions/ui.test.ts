@@ -109,6 +109,19 @@ describe("manifest ui", () => {
     expect(codesOf(both.issues)).toEqual(["method_invalid"]);
     const bad = validateManifest(pluginJson({ methods: [{ ...method, verb: "Bad-Verb" }] }));
     expect(codesOf(bad.issues)).toEqual(["method_invalid"]);
+    const readOnlyOwn = validateManifest(
+      pluginJson({ methods: [{ ...method, ownDataOnly: true }] }),
+    );
+    expect(codesOf(readOnlyOwn.issues)).toEqual(["method_invalid"]);
+    expect(readOnlyOwn.issues[0]?.path).toBe("/methods/0/ownDataOnly");
+    const write = { ...method, readOnly: false };
+    const approvalOwn = validateManifest(
+      pluginJson({ methods: [{ ...write, ownDataOnly: true, approval: true }] }),
+    );
+    expect(codesOf(approvalOwn.issues)).toEqual(["method_invalid"]);
+    const goodOwn = validateManifest(pluginJson({ methods: [{ ...write, ownDataOnly: true }] }));
+    expect(goodOwn.issues).toEqual([]);
+    expect(goodOwn.manifest?.methods).toEqual([{ ...write, ownDataOnly: true }]);
     const ok = validateManifest(pluginJson({ methods: [method] }));
     expect(ok.manifest?.methods).toEqual([method]);
   });

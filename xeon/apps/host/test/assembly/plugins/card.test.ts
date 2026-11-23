@@ -421,6 +421,33 @@ test("화면 칸: 매니페스트의 자리, 그리는 방식, 자체 코드의 
   expect(parse(PluginCardSchema, card).ok).toBe(true);
 });
 
+function methodDecl(verb: string, extra: Record<string, unknown>): Record<string, unknown> {
+  return { verb, params: {}, result: {}, ...extra };
+}
+
+test("자기 데이터만 바꿈으로 밝힌 쓰기 메서드는 카드에 실려 승인 전에 보이고, 표시가 없는 메서드는 실리지 않는다", () => {
+  const card = cardOf(
+    folderOf("own-data", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "own-data",
+        version: "1.0.0",
+        methods: [
+          methodDecl("board", { readOnly: true }),
+          methodDecl("move", { readOnly: false, label: "카드 옮기기", ownDataOnly: true }),
+          methodDecl("add", { readOnly: false, ownDataOnly: true }),
+          methodDecl("wipe", { readOnly: false }),
+        ],
+      }),
+    }),
+  );
+  expect(card.does.inject?.ownDataMethods).toEqual([
+    { verb: "move", label: "카드 옮기기" },
+    { verb: "add", label: null },
+  ]);
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
+});
+
 test("재료와 선언이 하나도 없는 코드 플러그인은 Inject 칸이 null이다", () => {
   const card = cardOf(
     folderOf("bare-code", {

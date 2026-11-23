@@ -19,6 +19,14 @@ import {
   type FakeBackendOptions,
 } from "./support.ts";
 
+const OWN_DATA_CONTEXT = () =>
+  policyContext({
+    methods: new Map([
+      ["start", { readOnly: false, approval: false }],
+      ["move", { readOnly: false, approval: false, ownDataOnly: true }],
+    ]),
+  });
+
 function setup(
   options: {
     context?: () => BridgePolicyContext;
@@ -144,6 +152,21 @@ describe("bridge host", () => {
     expect(denied.pair.toFrame).toEqual([
       { v: 1, id: 1, ok: false, error: { kind: "denied", detail: "not_confirmed" } },
     ]);
+  });
+
+  test("a write method the plugin marked ownDataOnly runs without a confirmation line; an unmarked write still asks", async () => {
+    const own = setup({ context: OWN_DATA_CONTEXT, answers: ["deny"] });
+    own.pair.frame.send(request(1, "call", { verb: "move" }));
+    await flush();
+    expect(own.confirm.asked).toEqual([]);
+    expect(own.calls.names).toEqual(["call:move"]);
+    expect(own.pair.toFrame).toEqual([{ v: 1, id: 1, ok: true, value: { done: true } }]);
+
+    const plain = setup({ context: OWN_DATA_CONTEXT, answers: ["deny"] });
+    plain.pair.frame.send(request(1, "call", { verb: "start" }));
+    await flush();
+    expect(plain.confirm.asked).toEqual([asked("start")]);
+    expect(plain.calls.names).toEqual([]);
   });
 
   test("a frame cannot supply the confirmation label: unknown fields are rejected", async () => {

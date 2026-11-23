@@ -68,6 +68,7 @@ export function policyContextOf(
       {
         readOnly: decl.readOnly,
         approval: decl.approval === true,
+        ...(decl.ownDataOnly === true ? { ownDataOnly: true } : {}),
         ...(decl.label === undefined ? {} : { label: decl.label }),
       },
     ]),

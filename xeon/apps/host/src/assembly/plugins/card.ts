@@ -361,6 +361,10 @@ function injectOf(
   const providers = unique(decls.flatMap((decl) => (decl.provides ?? []).map((p) => p.id)));
   const replaces = unique(decls.flatMap((decl) => decl.replaces ?? []));
   const ui: PluginUiDecl[] = (manifest.ui?.items ?? []).map(uiDeclOf);
+  // "자기 데이터만 바꿈"으로 밝힌 쓰기 메서드. 화면이 확인 줄 없이 부르므로 승인 전에 사람이 본다
+  const ownDataMethods = (manifest.methods ?? [])
+    .filter((method) => method.ownDataOnly === true)
+    .map((method) => ({ verb: method.verb, label: method.label ?? null }));
   const always = materials.instructions.map((item) => ({ path: item.path, bytes: item.bytes }));
   const skills = materials.skills.map((skill) => ({
     name: skill.name,
@@ -389,6 +393,7 @@ function injectOf(
     commands.length === 0 &&
     providers.length === 0 &&
     replaces.length === 0 &&
+    ownDataMethods.length === 0 &&
     ui.length === 0;
   if (empty) return null;
   return {
@@ -401,6 +406,7 @@ function injectOf(
     ui,
     replaces,
     scripts,
+    ...(ownDataMethods.length === 0 ? {} : { ownDataMethods }),
   };
 }
 

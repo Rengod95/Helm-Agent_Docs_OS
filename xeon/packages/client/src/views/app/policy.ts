@@ -17,6 +17,8 @@ import { assertNever, parse } from "@fresnel/contracts";
 export interface MethodGrant {
   readonly readOnly: boolean;
   readonly approval: boolean;
+  /** 매니페스트 `ownDataOnly`: 플러그인이 "자기 데이터만 바꿈"이라 밝힌 쓰기 메서드. 확인 줄 없이 실행한다(엔진이 다른 곳에 닿는 길을 막는다) */
+  readonly ownDataOnly?: boolean;
   /** 매니페스트가 정한 사람 말 라벨. 확인 줄이 날 동사 대신 보인다. 없으면 동사를 보인다 */
   readonly label?: string;
 }

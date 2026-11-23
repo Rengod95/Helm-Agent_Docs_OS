@@ -49,7 +49,7 @@ import {
   type ToolChangeReport,
 } from "@fresnel/contracts/extensions";
 import { stateAs } from "../erase.ts";
-import { type Ambient, withAmbient } from "../primitives/ambient.ts";
+import { type Ambient, withAmbient, withOwnDataMethod } from "../primitives/ambient.ts";
 import { PrimitiveError } from "../primitives/errors.ts";
 import type { AnyState } from "../primitives/erased-types.ts";
 import { EFFECT_KEY_MAX } from "../primitives/effect-worker.ts";
@@ -193,6 +193,8 @@ export interface EngineCallRouterDeps {
    * (쓰기와 기록은 thread와 멱등 키를 문맥에서 읽는다). 없으면 문맥 없이 부른다. 대리 등록이 채운다 [제안 part 2]
    */
   readonly ambientOf?: (requestId: number | null) => Ambient | undefined;
+  /** 호출을 낳은 요청이 `ownDataOnly` 쓰기 메서드의 호출인가. 참이면 자식의 엔진 호출도 그 제한(`own_data_method`)을 받는다 */
+  readonly ownDataOf?: (requestId: number | null) => boolean;
   /** 호출을 낳은 도구 실행의 `ctx.changes`. 도구 실행 밖이거나 코어가 주지 않았으면 undefined다 */
   readonly changesOf?: (requestId: number | null) => ToolChangeReport | undefined;
   /**
@@ -529,10 +531,12 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
       waits: deps.waitsOf?.(params.requestId),
       scripts: deps.scripts,
     };
-    const routed = await attemptAsync(() =>
+    const routeNow = (): ReturnType<typeof route> =>
       amb === undefined
         ? route(g, params.method, params.params, context)
-        : withAmbient(amb, () => route(g, params.method, params.params, context)),
+        : withAmbient(amb, () => route(g, params.method, params.params, context));
+    const routed = await attemptAsync(() =>
+      deps.ownDataOf?.(params.requestId) === true ? withOwnDataMethod(routeNow) : routeNow(),
     );
     if (!routed.ok) return err(failureOf(routed.error.cause));
     return routed.value;

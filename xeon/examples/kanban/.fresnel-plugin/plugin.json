@@ -86,7 +86,8 @@
         "additionalProperties": false
       },
       "readOnly": false,
-      "label": "카드 옮기기"
+      "label": "카드 옮기기",
+      "ownDataOnly": true
     },
     {
       "verb": "add",
@@ -121,7 +122,8 @@
         "additionalProperties": false
       },
       "readOnly": false,
-      "label": "카드 추가"
+      "label": "카드 추가",
+      "ownDataOnly": true
     }
   ],
   "ui": {

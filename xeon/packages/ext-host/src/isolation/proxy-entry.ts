@@ -51,7 +51,7 @@ import {
   type ToolResourceDef,
 } from "@fresnel/contracts/extensions";
 import { handlerOfHook, stateAs } from "../erase.ts";
-import { ambient, type Ambient } from "../primitives/ambient.ts";
+import { ambient, inOwnDataMethod, type Ambient } from "../primitives/ambient.ts";
 import type { AnyState } from "../primitives/erased-types.ts";
 import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { hostOf } from "../primitives/host-api.ts";
@@ -259,6 +259,8 @@ interface Session {
   readonly changes: Map<number, ToolChangeReport>;
   /** 요청 id에서 그 요청의 열린 사용자 대기 수로 가는 표. 요청이 끝나면 남은 만큼 푼다 */
   readonly waits: Map<number, OpenWaits>;
+  /** `ownDataOnly` 쓰기 메서드를 부른 요청 id. 자식이 그 요청 중에 보내는 엔진 호출에 같은 제한을 건다 */
+  readonly ownData: Set<number>;
 }
 
 /** 훅 디스패처가 넘기는 문맥(`{scopeId, state, threadId, signal}`). 모양을 확인한 뒤 읽는다 */
@@ -505,12 +507,14 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
     const ambients = new Map<number, Ambient>();
     const changes = new Map<number, ToolChangeReport>();
     const waits = new Map<number, OpenWaits>();
+    const ownData = new Set<number>();
     const router = createEngineCallRouter({
       gOf: (registration) => registrations.get(registration),
       replayOf: () => false,
       ambientOf: (requestId) => (requestId === null ? undefined : ambients.get(requestId)),
       changesOf: (requestId) => (requestId === null ? undefined : changes.get(requestId)),
       waitsOf: (requestId) => (requestId === null ? undefined : waits.get(requestId)),
+      ownDataOf: (requestId) => requestId !== null && ownData.has(requestId),
       ...(deps.scripts === undefined ? {} : { scripts: deps.scripts }),
     });
     // 흐름 제어는 감독이 보내는 알림을 쓰고, 감독의 확인과 종료를 받는다. 두 값이 서로를 가리키므로 흐름 제어는 감독 뒤에 만든다
@@ -546,7 +550,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       now: deps.now,
       logger,
     });
-    return { supervisor, gate, ambients, changes, waits };
+    return { supervisor, gate, ambients, changes, waits, ownData };
   }
 
   /** 떠 있는 세션을 돌려준다. 없으면 연다(다시 켜진 등록이 부른다) */
@@ -597,6 +601,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       },
       onRequestId: (id) => {
         requestId = id;
+        if (inOwnDataMethod()) session.ownData.add(id);
         if (amb !== undefined) {
           session.ambients.set(id, amb);
           session.waits.set(id, {
@@ -613,6 +618,7 @@ export function createIsolatedEntry(deps: IsolatedEntryDeps): ExtensionEntry {
       session.ambients.delete(requestId);
       session.changes.delete(requestId);
       session.waits.delete(requestId);
+      session.ownData.delete(requestId);
       // 요청이 끝났는데 자식이 `end`를 보내지 못했다(죽음, 시간 초과): 남은 사용자 대기만큼 예산 시계를 푼다
       const gate = amb?.handler?.gate;
       if (gate !== undefined) {

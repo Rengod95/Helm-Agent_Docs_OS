@@ -23,6 +23,12 @@ export interface ExtMethodDecl {
   readonly approval?: boolean;
   /** 프레임 `call` 확인 줄이 동사 대신 보이는 글(1~48자). 확장이 쓴 글이라 셸이 제어·방향 제어 글자를 지우고 보인다 */
   readonly label?: string;
+  /**
+   * 참이면 이 쓰기 메서드는 이 플러그인의 자기 데이터(상태, 기록, 자기 저장소)만 바꾼다고 플러그인이 밝힌 것이다. 화면이 부를 때 확인 줄 없이 실행되고,
+   * 이 표시는 검토 카드에 실려 사람이 승인 전에 본다. 엔진은 이 메서드가 다른 확장이나 대화에 닿는 길(post, 기능 호출, 포트, 효과 요청, 주도 시작)을 쓰면 거부한다.
+   * `readOnly`나 `approval`과 함께 참일 수 없다. 표시가 없는 쓰기는 지금처럼 매번 확인한다 [결정: 2026-11-23 사용자, AGE-78 질문 5]
+   */
+  readonly ownDataOnly?: boolean;
 }
 const ExtMethodDeclShape = Type.Object(
   {
@@ -32,6 +38,7 @@ const ExtMethodDeclShape = Type.Object(
     readOnly: Type.Boolean(),
     approval: Type.Optional(Type.Boolean()),
     label: Type.Optional(Type.String({ minLength: 1, maxLength: EXT_LABEL_MAX })),
+    ownDataOnly: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

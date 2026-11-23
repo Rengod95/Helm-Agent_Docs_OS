@@ -83,6 +83,7 @@ function manifestText(values: AppSkeletonValues): string {
         result: RESULT_SHAPE,
         readOnly: false,
         label: "항목 추가",
+        ownDataOnly: true,
       },
     ],
     ui: {

@@ -102,3 +102,15 @@ export function withReadOnlyMethod<T>(fn: () => T): T {
 export function inReadOnlyMethod(): boolean {
   return readOnlyStorage.getStore() === true;
 }
+
+// `ownDataOnly: true`로 선언한 쓰기 확장 메서드 처리기의 비동기 흐름 표지(pgRe §4.2 3번). 이 메서드는 확인 줄 없이 화면에서 불리므로
+// 자기 상태와 기록(commit, record, recordPrivate, 자기 저장소)만 바꾼다. 다른 확장이나 대화에 닿는 길(post, 기능 호출, 포트, 효과 요청, 주도 시작)은 `own_data_method`로 거부한다
+const ownDataStorage = new AsyncLocalStorage<true>();
+
+export function withOwnDataMethod<T>(fn: () => T): T {
+  return ownDataStorage.run(true, fn);
+}
+
+export function inOwnDataMethod(): boolean {
+  return ownDataStorage.getStore() === true;
+}
