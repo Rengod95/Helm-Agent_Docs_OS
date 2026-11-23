@@ -3412,6 +3412,7 @@
   "desktop.threads.subBadge": "하위",
   "desktop.threads.approvalsBadge": "승인 {count}",
   "desktop.threads.approvalsWaiting": "승인 {count}개를 기다려요",
+  "desktop.threads.questionsWaiting": "답변 {count}개를 기다려요",
   "desktop.threads.closedBadge": "닫힘",
   "desktop.threads.scheduleBadge": "예약",
   "desktop.threads.scheduleOrigin.run": "{count}번째 실행",

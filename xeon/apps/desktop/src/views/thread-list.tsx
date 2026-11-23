@@ -26,6 +26,7 @@ import {
   useThreadsStatus,
   useThreadSummaries,
   useThreadApprovals,
+  useThreadQuestions,
   useTurnFailure,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
@@ -87,6 +88,14 @@ const LIST_COLUMN =
  */
 const ROW_HEIGHT = SIDE_ROW;
 
+/** 기다리는 수의 읽는 글. 모두 질문이면 "답변", 아니면 "승인" */
+export function waitingTextOf(count: number, questionsOnly: boolean): string {
+  return t(
+    questionsOnly ? "desktop.threads.questionsWaiting" : "desktop.threads.approvalsWaiting",
+    { count },
+  );
+}
+
 /**
  * 행 오른쪽 표식(DP-104). 승인은 둥근 면 위의 무채색 숫자(DP-189: 줄에는 크리스탈 표시가 없고 수와 그 면이 주의를 맡는다. DP-150: 제목 칸을 먼저 자르지 않게 좁게), 나머지는 12px tertiary 글과 필요한 곳만 아이콘 12. 종류는 `rowBadgeOf`가 정한다 */
 function metaOf(
@@ -97,11 +106,12 @@ function metaOf(
   now: number,
   urgent: boolean,
   folder: string | null,
+  questionsOnly: boolean,
 ): ReactNode {
   const badge = rowBadgeOf(thread, approvals, child, unsent);
   switch (badge) {
     case "approvals":
-      return <ApprovalCount approvals={approvals} urgent={urgent} />;
+      return <ApprovalCount approvals={approvals} urgent={urgent} questionsOnly={questionsOnly} />;
     // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
     case "resumable":
       return (
@@ -170,8 +180,13 @@ function approvalCountText(approvals: number): string {
  * 크기만) [결정: 2026-11-19 사용자 "3색없는 버전으로", lcMk5가 lcMk4의 info solid 파랑 면을 바꿈]. 처음 그릴 때(목록을 열 때)는 움직이지 않는다.
  * 보이는 숫자는 낭독하지 않고 숨은 글이 "승인 n개를 기다려요(· 시한이 있어요)"를 말한다
  */
-function ApprovalCount(props: { readonly approvals: number; readonly urgent: boolean }): ReactNode {
-  const waiting = t("desktop.threads.approvalsWaiting", { count: props.approvals });
+function ApprovalCount(props: {
+  readonly approvals: number;
+  readonly urgent: boolean;
+  /** 기다리는 것이 모두 질문이면 참: "승인" 대신 "답변"으로 읽는다(AGE-77 S-02) */
+  readonly questionsOnly: boolean;
+}): ReactNode {
+  const waiting = waitingTextOf(props.approvals, props.questionsOnly);
   const [seen, setSeen] = useState(props.urgent);
   const [cue, setCue] = useState(false);
   // 앞 값과 견주어 그리는 중에 정한다(효과 안에서 상태를 바꾸지 않는다)
@@ -216,6 +231,8 @@ const ThreadRow = memo(function ThreadRow(props: {
   const selected = useSelectedThreadId() === id;
   const unlisted = useUnlistedApprovals(id);
   const approvals = useThreadApprovals(id);
+  const questions = useThreadQuestions(id);
+  const questionsOnly = questions > 0 && questions >= approvals;
   const unsent = unsentRowOf(useTurnFailure(id));
   const attention = approvals > 0 || unlisted > 0;
   const urgent = useApprovalUrgent(id);
@@ -227,7 +244,7 @@ const ThreadRow = memo(function ThreadRow(props: {
   // 툴팁에는 제목 아래로 알릴 말을 한 줄씩 더한다. 표시가 없으면 제목만 남는다
   const tooltip = [
     title,
-    approvals > 0 ? t("desktop.threads.approvalsWaiting", { count: approvals }) : null,
+    approvals > 0 ? waitingTextOf(approvals, questionsOnly) : null,
     unlisted > 0 ? t("desktop.threads.unlistedApprovals") : null,
     unsent ? t("desktop.threads.status.unsent") : null,
   ]
@@ -257,6 +274,7 @@ const ThreadRow = memo(function ThreadRow(props: {
               props.now,
               urgent,
               props.folder ?? null,
+              questionsOnly,
             )}
             {running && !attention ? <ProgressOrb className="ms-0.5" /> : null}
           </span>

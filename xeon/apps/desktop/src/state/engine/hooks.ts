@@ -120,6 +120,8 @@ export const useUnlistedApprovals = (id: ThreadId): number =>
   useEngine((s) => sel.selectUnlistedApprovals(s, id));
 export const useThreadApprovals = (id: ThreadId): number =>
   useEngine((s) => sel.selectThreadApprovals(s, id));
+export const useThreadQuestions = (id: ThreadId): number =>
+  useEngine((s) => sel.selectThreadQuestions(s, id));
 export const useToolCallAwaitingApproval = (
   toolCallId: string,
   earlierCallIds: readonly string[],

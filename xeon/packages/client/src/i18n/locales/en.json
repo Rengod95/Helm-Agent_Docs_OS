@@ -3412,6 +3412,7 @@
   "desktop.threads.subBadge": "Sub",
   "desktop.threads.approvalsBadge": "Approvals {count}",
   "desktop.threads.approvalsWaiting": "Waiting for approval ({count})",
+  "desktop.threads.questionsWaiting": "Waiting for an answer ({count})",
   "desktop.threads.closedBadge": "Closed",
   "desktop.threads.scheduleBadge": "Schedule",
   "desktop.threads.scheduleOrigin.run": "run {count}",
