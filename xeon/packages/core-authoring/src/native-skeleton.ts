@@ -87,6 +87,7 @@ function entryText(): string {
     "// 선언형 화면 플러그인 골격. 상태 하나(items)와 읽기 메서드 list를 둔다.",
     "// 화면(ui/native/main.view.json)은 코드가 없는 트리라서 list의 결과를 `/list/items`로 읽어 목록으로 그린다.",
     "// 항목을 더하는 쓰기 메서드와 모델 도구는 뼈대에 없다. 더할 때는 메서드를 registerMethod로 등록하고 manifest methods에 선언한다.",
+    "// 보드(열과 카드)와 끌어 순서를 바꾸는 목록도 native로 된다: 트리의 Board, SortableList가 move에 적은 쓰기 메서드를 부른다(examples/kanban-native).",
     "",
     "interface NativeState {",
     "  readonly items: readonly string[];",
