@@ -73,14 +73,13 @@ describe("크래프트 스토어", () => {
     expect(store.actions.snapshot()).toMatchObject({ sel: { k: "agent" }, panel: false });
   });
 
-  test("끄기 대기는 목록이 목표 상태를 보이면 걷힌다", () => {
+  test("앱 핵심 묶음은 접힌 채 시작하고 펴고 접는다", () => {
     const store = createWorkbenchStore();
-    store.actions.listLoaded([e("a", "enabled")]);
-    store.actions.markPending("a", false);
-    store.actions.listLoaded([e("a", "enabled")]);
-    expect(store.actions.snapshot().pending).toEqual({ a: false });
-    store.actions.listLoaded([e("a", "disabled")]);
-    expect(store.actions.snapshot().pending).toEqual({});
+    expect(store.actions.snapshot().coreOpen).toBe(false);
+    store.actions.setCoreOpen(true);
+    expect(store.actions.snapshot().coreOpen).toBe(true);
+    store.actions.setCoreOpen(false);
+    expect(store.actions.snapshot().coreOpen).toBe(false);
   });
 
   test("거르기: 종류는 하나를 고르고 넣어 주는 것은 토글한다", () => {

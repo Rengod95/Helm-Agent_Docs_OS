@@ -137,8 +137,6 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
       addInstruction: () => Promise.resolve(err({ kind: "unsupported" })),
-      removePreview: () =>
-        Promise.resolve(err({ kind: "not_available", command: "ext.removePreview" })),
       bindings: () => Promise.resolve(err({ kind: "unsupported" })),
       install: () => Promise.resolve(err({ kind: "unsupported" })),
       reload: () => Promise.resolve(ok(null)),
@@ -148,9 +146,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       onDriveFramesChanged: () => () => {},
       timings: () => Promise.resolve(err({ kind: "unsupported" })),
       explain: () => Promise.resolve(err({ kind: "unsupported" })),
-      toggle: () => Promise.resolve(ok(null)),
-      reenable: () => Promise.resolve(ok(null)),
-      keepOff: () => Promise.resolve(ok(null)),
+      retry: () => Promise.resolve(ok(null)),
+      stop: () => Promise.resolve(ok(null)),
       profiles: () => Promise.resolve(ok([])),
       applyProfile: () =>
         Promise.resolve(ok({ position: { storeId: STORE, seq: 1 }, preview: {} })),

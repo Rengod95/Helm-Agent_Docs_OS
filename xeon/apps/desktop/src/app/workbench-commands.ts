@@ -9,7 +9,7 @@ import type {
   SettingsInvalidatedParams,
   StreamChunkParams,
 } from "@fresnel/contracts/wire";
-import type { CommandError, NotAvailableCommand, WorkbenchCommands } from "../views/commands.ts";
+import type { CommandError, WorkbenchCommands } from "../views/commands.ts";
 import { installPreviewOfDraft } from "./plugin-draft.ts";
 
 // 크래프트 명령. 결과는 요청의 반환값이다(거울에 넣지 않는다). 상태 반영은 `views/workbench`의 컨트롤러가 스토어에 한다.
@@ -90,11 +90,6 @@ export function pluginSetOf(
   );
 }
 
-/** M5c-1에서 wire가 빠지고 대체가 없는 명령의 typed 거절. 보내지 않으므로 호스트 상태는 그대로다 */
-function unavailable(command: NotAvailableCommand): CommandError {
-  return { kind: "not_available", command };
-}
-
 function draftKey(source: string, sha256: string): string {
   return `${source}\n${sha256}`;
 }
@@ -146,11 +141,8 @@ export function createWorkbenchCommands(
       drafts.delete(key);
       return ok({ itemId: sent.value.itemId });
     },
-    // 지우기는 `plugin.requestRemove`가 검토 항목을 만든다. 저장 데이터 지우기(`dropData`)는 대체가 없어 보내지 않는다
-    remove: (name, options) =>
-      options?.dropData === true
-        ? Promise.resolve(err(unavailable("ext.remove.dropData")))
-        : withConnection((c) => c.request("plugin.requestRemove", { name })),
+    // 지우기는 `plugin.requestRemove`가 검토 항목을 만든다. 지워지는 시점은 검토가 정한다
+    remove: (name) => withConnection((c) => c.request("plugin.requestRemove", { name })),
     // "지침 추가"는 지침 한 줄을 그대로 보낸다. 승인은 검토함이 하므로 여기서 프로필을 고치지 않는다
     addInstruction: (text, profileId) =>
       withConnection((c) =>
@@ -159,8 +151,6 @@ export function createWorkbenchCommands(
           profileId === undefined ? { text } : { text, profileId },
         ),
       ),
-    // 저장 테이블 목록을 읽는 wire(`ext.removePreview`)가 빠졌고 `plugin.get`의 카드에는 저장 테이블이 없다. 대체가 없다
-    removePreview: () => Promise.resolve(err(unavailable("ext.removePreview"))),
     bindings: (threadId) =>
       withConnection((c) => c.request("ext.bindings", threadId === undefined ? {} : { threadId })),
     async reload(name) {
@@ -183,39 +173,15 @@ export function createWorkbenchCommands(
       ),
     explain: (key, threadId) =>
       withConnection((c) => c.request("settings.explain", { key, threadId })),
-    async toggle(request) {
-      const done = await withConnection((c) =>
-        c.request("settings.set", {
-          key: request.key,
-          value: request.value,
-          scope: request.scope,
-        }),
-      );
-      return done.ok ? ok(null) : err(done.error);
-    },
-    // "다시 켜기"와 "켜 두기" 답. 켜짐을 설정에 먼저 써야 다음 시작에도 켜진 채다(끄기의 짝). 쓰기가 실패하면 켜기를 요청하지 않는다
-    async reenable(name) {
-      const saved = await withConnection((c) =>
-        c.request("settings.set", { key: `ext.${name}.enabled`, value: true, scope: "user" }),
-      );
-      if (!saved.ok) return err(saved.error);
+    // "다시 시도". 전역 켜기 설정은 쓰지 않는다(관리 범위만 받는 키다). 엔진이 멈춘 표시를 풀고 다음 단계 경계에서 다시 싣는다
+    async retry(name) {
       const done = await withConnection((c) => c.request("ext.reenable", { name }));
       return done.ok ? ok(null) : err(done.error);
     },
-    // "끄기" 답. 먼저 설정에 꺼짐을 써서 다음 시작에도 꺼진 채로 두고, 그다음 호스트가 auto_disable로 끈다(`ext.disableConfirm`).
-    // 쓰기가 실패하면 끄기를 요청하지 않는다. 쓰기는 됐는데 `ext.disableConfirm`이 거절되면 설정을 켜짐으로 되돌린다:
-    // 확장은 이번 실행에서 켜진 채인데 설정만 꺼져 있으면 질문도 사라지고(호스트가 설정 꺼짐을 "끈다" 답으로 본다) 재시작 때 갑자기 꺼진다.
-    // 되돌리기도 실패하면 처음 오류를 돌려준다(되돌릴 수단이 더 없다)
-    async keepOff(name) {
-      const key = `ext.${name}.enabled`;
-      const saved = await withConnection((c) =>
-        c.request("settings.set", { key, value: false, scope: "user" }),
-      );
-      if (!saved.ok) return err(saved.error);
+    // 엔진의 "계속 실패해요" 질문에 멈춤으로 답한다. 이번 실행에서만 멈추고 설정은 쓰지 않는다
+    async stop(name) {
       const done = await withConnection((c) => c.request("ext.disableConfirm", { name }));
-      if (done.ok) return ok(null);
-      await withConnection((c) => c.request("settings.set", { key, value: true, scope: "user" }));
-      return err(done.error);
+      return done.ok ? ok(null) : err(done.error);
     },
     async profiles() {
       const got = await withConnection((c) => c.request("profile.list", {}));

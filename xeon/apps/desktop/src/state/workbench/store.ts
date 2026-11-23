@@ -1,7 +1,6 @@
 // 크래프트 스토어: `@fresnel/client/workbench`의 순수 함수를 zustand 스토어 하나로 감싼다(README는 그 패키지에 있다).
 import type { Contrib, KindFilter, Sel } from "@fresnel/client/workbench/canvas";
 import {
-  clearPending,
   clearPick,
   closeBuilder,
   closeDetail,
@@ -13,7 +12,6 @@ import {
   listFailed,
   listLoaded,
   listLoading,
-  markPending,
   openDetail,
   ordersLoaded,
   pickGroup,
@@ -22,13 +20,11 @@ import {
   requestBuilder,
   select,
   selectDetailTab,
+  setCoreOpen,
   setKind,
-  setListLayer,
-  setListState,
   setQuery,
   setView,
   toggleContrib,
-  type ListStateFilter,
   type WorkbenchState,
   type WorkbenchView,
 } from "@fresnel/client/workbench";
@@ -56,8 +52,8 @@ export interface WorkbenchActions {
   closeDetail(): void;
   selectDetailTab(tab: DetailTab): void;
   setQuery(query: string): void;
-  setListLayer(layer: string): void;
-  setListState(state: ListStateFilter): void;
+  /** 플러그인 목록의 "앱 핵심" 묶음을 펴거나 접는다 */
+  setCoreOpen(open: boolean): void;
   setKind(kind: KindFilter): void;
   toggleContrib(c: Contrib): void;
   detailsLoaded(name: string, result: ExtGetResult): void;
@@ -65,8 +61,6 @@ export interface WorkbenchActions {
   ordersLoaded(order: Readonly<Record<string, readonly string[]>>): void;
   /** 외부 훅 알림을 담는다. `safe`면 질문도 꺼짐도 담지 않는다(안전 모드) */
   hookNoticesLoaded(hooks: readonly HookEntry[], safe: boolean): void;
-  markPending(name: string, target: boolean): void;
-  clearPending(name: string): void;
   requestBuilder(hook: string | null): void;
   closeBuilder(): void;
   snapshot(): WorkbenchState;
@@ -112,16 +106,13 @@ export function createWorkbenchStore(
     closeDetail: () => apply(closeDetail),
     selectDetailTab: (tab) => apply((s) => selectDetailTab(s, tab)),
     setQuery: (query) => apply((s) => setQuery(s, query)),
-    setListLayer: (layer) => apply((s) => setListLayer(s, layer)),
-    setListState: (state) => apply((s) => setListState(s, state)),
+    setCoreOpen: (open) => apply((s) => setCoreOpen(s, open)),
     setKind: (kind) => apply((s) => setKind(s, kind)),
     toggleContrib: (c) => apply((s) => toggleContrib(s, c)),
     detailsLoaded: (name, result) => apply((s) => detailsLoaded(s, name, result)),
     healthLoaded: (entries) => apply((s) => healthLoaded(s, entries)),
     ordersLoaded: (order) => apply((s) => ordersLoaded(s, order)),
     hookNoticesLoaded: (hooks, safe) => apply((s) => hookNoticesLoaded(s, hooks, safe)),
-    markPending: (name, target) => apply((s) => markPending(s, name, target)),
-    clearPending: (name) => apply((s) => clearPending(s, name)),
     requestBuilder: (hook) => apply((s) => requestBuilder(s, hook)),
     closeBuilder: () => apply(closeBuilder),
     snapshot: () => api.getState(),

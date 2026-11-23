@@ -5,7 +5,6 @@ import {
   hookNoticesOf,
   listLoaded,
   openDetail,
-  pickGroup,
   type WorkbenchState,
 } from "@fresnel/client/workbench";
 import type { ExtListEntry, HookEntry } from "@fresnel/contracts/wire";
@@ -24,8 +23,8 @@ import {
 import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
 import { asked, entry, inContexts, liveEngine } from "./support.tsx";
 
-// 끌까요(2026-11-04 사용자) 질문의 알림 상태. 질문과 두 답은 플러그인 카드(선택 패널, 자세히 보기)와 오른쪽 "플러그인" 탭에 있고, 목록 위에는 없다.
-// 두 답 단추는 연결이 살아 있고 확장이 잠기지 않았을 때만 누를 수 있다.
+// 계속 실패하는 플러그인의 알림 상태(2026-11-04 사용자, AGE-74). 알림과 두 행동(다시 시도, 이 프로필에서 빼기)은 상세와 오른쪽 "플러그인" 탭에 있고, 목록 위에는 없다.
+// 다시 시도는 연결이 살아 있고 확장이 잠기지 않았을 때만 누를 수 있다. 어느 쪽도 설정(`ext.<이름>.enabled`)을 쓰지 않는다.
 
 function storeWith(
   review: ExtListEntry,
@@ -57,93 +56,57 @@ function buttonState(html: string, label: string): "enabled" | "disabled" | "mis
   return "missing";
 }
 
-const KEEP_ON = t("desktop.workbench.keepOff.keepOn");
-const KEEP_OFF = t("desktop.workbench.keepOff.keepOff");
-const QUESTION = t("desktop.workbench.keepOff.question");
+const RETRY = t("desktop.workbench.keepOff.retry");
+const REMOVE = t("desktop.workbench.keepOff.removeFromProfile");
 const COUNT = t("desktop.workbench.keepOff.consecutive", { name: "review", count: 5 });
 const AUTO_OFF = t("desktop.workbench.autoDisabled", { name: "review" });
-const REENABLE = t("desktop.workbench.reenable");
-const SELECTION = t("desktop.workbench.selection.label");
 
-/** 고른 확장의 선택 패널 마크업(다른 곳의 같은 글을 뺀다) */
-function panelOf(html: string): string {
-  return html.slice(html.indexOf(`aria-label="${SELECTION}"`));
+/** review의 상세를 연 채 그린다 */
+function detailOf(review: ExtListEntry, live = true): string {
+  return render(review, { live, prepare: (s) => openDetail(s, "review") });
 }
 
-/** review를 고른 채 그린 선택 패널 */
-function pickedPanel(review: ExtListEntry, live = true): string {
-  return panelOf(render(review, { live, prepare: (s) => pickGroup(s, "review") }));
-}
-
-describe("끌까요: 목록 위에는 알림이 없다", () => {
-  test("묻는 확장이어도 고르기 전의 목록 위에는 실패 횟수 줄, 질문, 끄기 단추가 없다", () => {
+describe("계속 실패해요: 목록 위에는 알림 글이 없다", () => {
+  test("묻는 확장이어도 상세를 열기 전의 목록에는 실패 횟수 줄과 두 행동이 없다", () => {
     const html = render(asked(), { live: true });
     expect(html).not.toContain(COUNT);
-    expect(html).not.toContain(QUESTION);
-    expect(html).not.toContain(KEEP_OFF);
+    expect(html).not.toContain(RETRY);
+    expect(html).not.toContain(REMOVE);
   });
 });
 
-describe("끌까요: 선택 패널(플러그인 카드)", () => {
-  test("고른 확장의 선택 패널은 실패 횟수, 질문, 두 답을 보이고 연결이 살아 있으면 누를 수 있다", () => {
-    const panel = pickedPanel(asked());
-    expect(panel).toContain(COUNT);
-    expect(panel).toContain(QUESTION);
-    expect(buttonState(panel, KEEP_ON)).toBe("enabled");
-    expect(buttonState(panel, KEEP_OFF)).toBe("enabled");
-    expect(panel).not.toContain(REENABLE);
-  });
-
-  test("연결이 끊기면 선택 패널의 질문은 그대로 보이고 두 답 단추는 잠긴다", () => {
-    const panel = pickedPanel(asked(), false);
-    expect(panel).toContain(QUESTION);
-    expect(buttonState(panel, KEEP_ON)).toBe("disabled");
-    expect(buttonState(panel, KEEP_OFF)).toBe("disabled");
-  });
-
-  test("관리 위치로 잠긴 확장은 질문이 있어도 선택 패널의 두 답 단추가 잠긴다", () => {
-    const panel = pickedPanel(asked({ enabledSource: "managed" }));
-    expect(panel).toContain(QUESTION);
-    expect(buttonState(panel, KEEP_ON)).toBe("disabled");
-    expect(buttonState(panel, KEEP_OFF)).toBe("disabled");
-  });
-
-  test("질문이 없는 자동 꺼짐은 선택 패널에 다시 켜기 단추를 보이고 질문은 보이지 않는다", () => {
-    const plain = entry("review", {
-      layer: "L3",
-      isOrchestration: true,
-      status: "disabled",
-      autoDisabled: true,
-    });
-    const panel = pickedPanel(plain);
-    expect(panel).toContain(REENABLE);
-    expect(panel).not.toContain(QUESTION);
-    expect(panel).not.toContain(KEEP_OFF);
-  });
-});
-
-describe("끌까요: 자세히 보기", () => {
-  test("자세히 보기는 탭 위에 질문과 두 답을 보인다", () => {
-    const html = render(asked(), {
-      live: true,
-      prepare: (s) => openDetail(s, "review"),
-    });
+describe("계속 실패해요: 상세(AGE-74 켜 두기, 꺼 두기 대신 다시 시도와 이 프로필에서 빼기)", () => {
+  test("상세는 탭 위에 실패 횟수와 두 행동을 보이고, 연결이 살아 있으면 다시 시도를 누를 수 있다", () => {
+    const html = detailOf(asked());
     expect(html).toContain(t("desktop.workbench.detail.back"));
-    expect(html).toContain(QUESTION);
-    expect(buttonState(html, KEEP_OFF)).toBe("enabled");
+    expect(html).toContain(COUNT);
+    expect(buttonState(html, RETRY)).toBe("enabled");
+    expect(buttonState(html, REMOVE)).not.toBe("missing");
   });
 
-  test("질문이 없는 자동 꺼짐은 자동으로 꺼졌다는 글과 다시 켜기를 보인다", () => {
+  test("연결이 끊기면 알림은 그대로 보이고 두 행동은 잠긴다", () => {
+    const html = detailOf(asked(), false);
+    expect(html).toContain(COUNT);
+    expect(buttonState(html, RETRY)).toBe("disabled");
+    expect(buttonState(html, REMOVE)).toBe("disabled");
+  });
+
+  test("관리 위치로 잠긴 확장은 알림이 있어도 다시 시도가 잠긴다", () => {
+    expect(buttonState(detailOf(asked({ enabledSource: "managed" })), RETRY)).toBe("disabled");
+  });
+
+  test("질문이 없는 자동 꺼짐은 멈췄다는 글과 같은 두 행동을 보인다", () => {
     const plain = entry("review", {
       layer: "L3",
       isOrchestration: true,
       status: "disabled",
       autoDisabled: true,
     });
-    const html = render(plain, { live: true, prepare: (s) => openDetail(s, "review") });
+    const html = detailOf(plain);
     expect(html).toContain(AUTO_OFF);
-    expect(html).toContain(REENABLE);
-    expect(html).not.toContain(QUESTION);
+    expect(buttonState(html, RETRY)).toBe("enabled");
+    expect(buttonState(html, REMOVE)).not.toBe("missing");
+    expect(html).not.toContain(COUNT);
   });
 });
 

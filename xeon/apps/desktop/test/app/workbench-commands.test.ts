@@ -101,20 +101,6 @@ const DRAFT: PluginDraftCreateResult = {
   },
 };
 
-/** `settings.set`이 돌려주는 저장 결과. 답 명령은 이 결과를 받아야 다음 호출로 넘어간다 */
-const SETTING_WRITTEN = {
-  setting: {
-    key: "ext.review.enabled",
-    value: false,
-    source: { scope: "user" },
-    locked: false,
-    shadowed: [],
-    runtimeChange: "live",
-    pendingUntil: null,
-    deprecated: false,
-  },
-};
-
 const HEALTH: ExtHealthEntry = {
   name: "web",
   registrationId: "web",
@@ -284,97 +270,26 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("켜 두기와 다시 켜기 답은 설정에 켜짐을 쓰고 그다음 ext.reenable을 name만 담아 보내며 값 null을 돌려준다", async () => {
+  test("다시 시도는 ext.reenable만 name을 담아 보내고 전역 켜기 설정은 쓰지 않으며 값 null을 돌려준다", async () => {
     const applied = { appliesAt: "nextStepBoundary", diagnostics: [] };
-    const { app, params, methods } = await liveApp({
-      results: { "settings.set": SETTING_WRITTEN, "ext.reenable": applied },
-    });
-    expect(await app.commands.workbench.reenable("review")).toEqual({ ok: true, value: null });
-    expect(paramsOf(params, "settings.set")).toEqual([
-      { key: "ext.review.enabled", value: true, scope: "user" },
-    ]);
+    const { app, params } = await liveApp({ results: { "ext.reenable": applied } });
+    expect(await app.commands.workbench.retry("review")).toEqual({ ok: true, value: null });
     expect(paramsOf(params, "ext.reenable")).toEqual([{ name: "review" }]);
-    expect(orderOf(methods, "settings.set", "ext.reenable")).toEqual([
-      "settings.set",
-      "ext.reenable",
-    ]);
+    expect(paramsOf(params, "settings.set")).toEqual([]);
     await app.stop();
   });
 
-  test("다시 켜기의 설정 쓰기가 거절되면 ext.reenable을 보내지 않고 코드를 담은 오류 값이다", async () => {
-    const { app, params } = await liveApp({
-      errors: {
-        "settings.set": { code: WIRE_ERRORS["settings.locked"].code, kind: "settings.locked" },
-      },
-    });
-    expect(await app.commands.workbench.reenable("review")).toEqual({
-      ok: false,
-      error: { kind: "rejected", code: WIRE_ERRORS["settings.locked"].code },
-    });
-    expect(paramsOf(params, "ext.reenable")).toEqual([]);
-    await app.stop();
-  });
-
-  test("끄기 답은 설정에 끄기를 user 범위로 쓴 뒤 ext.disableConfirm을 name만 담아 보내고 값 null을 돌려준다", async () => {
+  test("멈춤 답은 ext.disableConfirm만 name을 담아 보내고 전역 켜기 설정은 쓰지 않는다", async () => {
     const applied = { appliesAt: "nextStepBoundary", diagnostics: [] };
-    const { app, params, methods } = await liveApp({
-      results: { "settings.set": SETTING_WRITTEN, "ext.disableConfirm": applied },
-    });
-    expect(await app.commands.workbench.keepOff("review")).toEqual({ ok: true, value: null });
-    expect(paramsOf(params, "settings.set")).toEqual([
-      { key: "ext.review.enabled", value: false, scope: "user" },
-    ]);
+    const { app, params } = await liveApp({ results: { "ext.disableConfirm": applied } });
+    expect(await app.commands.workbench.stop("review")).toEqual({ ok: true, value: null });
     expect(paramsOf(params, "ext.disableConfirm")).toEqual([{ name: "review" }]);
-    expect(orderOf(methods, "settings.set", "ext.disableConfirm")).toEqual([
-      "settings.set",
-      "ext.disableConfirm",
-    ]);
+    expect(paramsOf(params, "settings.set")).toEqual([]);
     await app.stop();
   });
 
-  test("끄기 답의 설정 쓰기가 관리 위치 잠금으로 거절되면 ext.disableConfirm을 보내지 않고 코드를 담은 오류 값이다", async () => {
-    const { app, params } = await liveApp({
-      errors: {
-        "settings.set": { code: WIRE_ERRORS["settings.locked"].code, kind: "settings.locked" },
-      },
-    });
-    expect(await app.commands.workbench.keepOff("review")).toEqual({
-      ok: false,
-      error: { kind: "rejected", code: WIRE_ERRORS["settings.locked"].code },
-    });
-    expect(paramsOf(params, "ext.disableConfirm")).toEqual([]);
-    await app.stop();
-  });
-
-  test("설정에는 꺼졌는데 ext.disableConfirm이 거절되면 설정을 켜짐으로 되돌리고 그 코드를 담은 오류 값이다", async () => {
-    const { app, params, methods } = await liveApp({
-      results: { "settings.set": SETTING_WRITTEN },
-      errors: {
-        "ext.disableConfirm": {
-          code: WIRE_ERRORS["extension.safeModeActive"].code,
-          kind: "extension.safeModeActive",
-        },
-      },
-    });
-    expect(await app.commands.workbench.keepOff("review")).toEqual({
-      ok: false,
-      error: { kind: "rejected", code: WIRE_ERRORS["extension.safeModeActive"].code },
-    });
-    expect(paramsOf(params, "settings.set")).toEqual([
-      { key: "ext.review.enabled", value: false, scope: "user" },
-      { key: "ext.review.enabled", value: true, scope: "user" },
-    ]);
-    expect(orderOf(methods, "settings.set", "ext.disableConfirm")).toEqual([
-      "settings.set",
-      "ext.disableConfirm",
-      "settings.set",
-    ]);
-    await app.stop();
-  });
-
-  test("켜 두기 답이 안전 모드로 거절되면 코드를 담은 오류 값이다", async () => {
+  test("다시 시도가 안전 모드로 거절되면 코드를 담은 오류 값이다", async () => {
     const { app } = await liveApp({
-      results: { "settings.set": SETTING_WRITTEN },
       errors: {
         "ext.reenable": {
           code: WIRE_ERRORS["extension.safeModeActive"].code,
@@ -382,7 +297,7 @@ describe("크래프트 명령의 wire 호출", () => {
         },
       },
     });
-    expect(await app.commands.workbench.reenable("review")).toEqual({
+    expect(await app.commands.workbench.retry("review")).toEqual({
       ok: false,
       error: { kind: "rejected", code: WIRE_ERRORS["extension.safeModeActive"].code },
     });
@@ -677,25 +592,11 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("저장 테이블 목록(removePreview)은 대체가 없어 보내지 않고 not_available이다", async () => {
-    const { app, params } = await liveApp({});
-    expect(await app.commands.workbench.removePreview("web")).toEqual({
-      ok: false,
-      error: { kind: "not_available", command: "ext.removePreview" },
-    });
-    expect(paramsOf(params, "ext.removePreview")).toEqual([]);
-    await app.stop();
-  });
-
   test("remove는 plugin.requestRemove로 이름만 보내고 검토 항목 id를 돌려준다", async () => {
     const requested = { itemId: "rvw_1" };
     const { app, params } = await liveApp({ results: { "plugin.requestRemove": requested } });
     expect(await app.commands.workbench.remove("web")).toEqual({ ok: true, value: requested });
-    expect(await app.commands.workbench.remove("web", { dropData: false })).toEqual({
-      ok: true,
-      value: requested,
-    });
-    expect(paramsOf(params, "plugin.requestRemove")).toEqual([{ name: "web" }, { name: "web" }]);
+    expect(paramsOf(params, "plugin.requestRemove")).toEqual([{ name: "web" }]);
     await app.stop();
   });
 
@@ -715,16 +616,6 @@ describe("크래프트 명령의 wire 호출", () => {
       { text: "Answer in Korean." },
       { text: "Be terse.", profileId: "work" },
     ]);
-    await app.stop();
-  });
-
-  test("remove에 dropData를 참으로 주면 저장 데이터 지우기는 대체가 없어 보내지 않고 not_available이다", async () => {
-    const { app, params } = await liveApp({});
-    expect(await app.commands.workbench.remove("web", { dropData: true })).toEqual({
-      ok: false,
-      error: { kind: "not_available", command: "ext.remove.dropData" },
-    });
-    expect(paramsOf(params, "plugin.requestRemove")).toEqual([]);
     await app.stop();
   });
 

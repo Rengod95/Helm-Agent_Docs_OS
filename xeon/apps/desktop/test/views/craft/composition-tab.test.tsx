@@ -230,14 +230,13 @@ function detailOf(row: ExtListEntry, tab: DetailTab): string {
   return renderToString(
     inContexts(
       <ExtDetail
-        state={state}
         entry={row}
         tab={tab}
+        profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
         onBack={() => undefined}
-        onToggle={() => undefined}
-        onKeepOn={() => undefined}
-        onKeepOff={() => undefined}
+        onRetry={() => undefined}
+        onStop={() => undefined}
         onRemove={() => undefined}
       />,
       createWorkbenchStore(() => state),

@@ -21,8 +21,12 @@ import {
   useWorkbenchController,
   type WorkbenchController,
 } from "../../../src/views/workbench/controller.ts";
-import { REMOVE_REQUESTED_TEXT, removableOf } from "../../../src/views/workbench/remove-model.ts";
-import { SelectionPanel } from "../../../src/views/workbench/selection-panel.tsx";
+import {
+  REMOVE_BODY_TEXT,
+  REMOVE_REQUESTED_TEXT,
+  removableOf,
+} from "../../../src/views/workbench/remove-model.ts";
+import { ExtDetail } from "../../../src/views/workbench/ext-detail.tsx";
 import { harness } from "../../state/helpers.ts";
 import { fakeCommands } from "../fake-commands.ts";
 import { entry, inContexts, screenStore } from "./support.tsx";
@@ -66,8 +70,12 @@ describe("지우기 판단", () => {
     expect(t(REMOVE_REQUESTED_TEXT)).toContain("리뷰");
   });
 
-  test("확인 문구는 실행 중인 Turn에서 바로 빠진다고 적는다", () => {
-    expect(t("desktop.workbench.remove.body")).toContain("실행 중인 Turn");
+  test("확인 상자 본문은 리뷰로 보낸다고 적고, 바로 지운다거나 Turn이라고 쓰지 않는다", () => {
+    expect(REMOVE_BODY_TEXT).toBe("desktop.workbench.remove.body");
+    const body = t(REMOVE_BODY_TEXT);
+    expect(body).toContain("지우기 요청을 리뷰로 보내요. 리뷰에서 승인하면 이 플러그인이 지워지고");
+    expect(body).not.toContain("Turn");
+    expect(body).not.toContain("바로");
   });
 });
 
@@ -169,59 +177,35 @@ describe("controller.remove", () => {
   });
 });
 
-describe("controller.remove의 저장 데이터 지우기", () => {
-  test("dropData를 참으로 넘기면 대체가 없어 not_available이고, 목록을 다시 읽고 실패로 본다", async () => {
-    const seen: { name: string; options: unknown }[] = [];
-    let listed = 0;
+describe("지우기 확인의 보내기", () => {
+  test("확인은 이름 하나만 plugin.requestRemove로 넘긴다(저장 데이터 옵션은 없다)", async () => {
+    const seen: unknown[][] = [];
     const commands = commandsWith({
-      remove: (name, options) => {
-        seen.push({ name, options });
-        return Promise.resolve(err({ kind: "not_available", command: "ext.remove.dropData" }));
+      remove: (...args) => {
+        seen.push(args);
+        return Promise.resolve(ok({ itemId: "rvw_1" }));
       },
-      list: () => {
-        listed += 1;
-        return Promise.resolve(ok([]));
-      },
+      list: () => Promise.resolve(ok([])),
     });
-    const done = await controllerOf(createWorkbenchStore(), commands).remove("web", {
-      dropData: true,
-    });
-    expect(done).toEqual({ outcome: "failed", refusal: null });
-    expect(seen).toEqual([{ name: "web", options: { dropData: true } }]);
-    expect(listed).toBe(1);
-  });
-
-  test("저장 데이터 지우기가 이미 없는 이름(3401)이면 gone이고 목록을 다시 읽는다(폴더가 남았다는 경고를 띄우지 않는다)", async () => {
-    let listed = 0;
-    const commands = commandsWith({
-      remove: () => Promise.resolve(err({ kind: "rejected", code: 3401 })),
-      list: () => {
-        listed += 1;
-        return Promise.resolve(ok([]));
-      },
-      health: () => Promise.resolve(ok([])),
-      hooks: () => Promise.resolve(ok([])),
-      orderGet: () => Promise.resolve(ok({ hooks: [] })),
-    });
-    expect(
-      await controllerOf(createWorkbenchStore(), commands).remove("web", { dropData: true }),
-    ).toEqual({ outcome: "gone", refusal: null });
-    expect(listed).toBe(1);
+    const done = await controllerOf(createWorkbenchStore(), commands).remove("web");
+    expect(done).toEqual({ outcome: "removed", refusal: null });
+    expect(seen).toEqual([["web"]]);
   });
 });
 
-function panelHtml(target: ExtListEntry): string {
+/** 상세 머리를 그린다. 지우기는 머리의 "…" 메뉴 안에 있다 */
+function headerHtml(target: ExtListEntry): string {
   const store = screenStore();
   return renderToString(
     inContexts(
-      <SelectionPanel
-        state={store.actions.snapshot()}
+      <ExtDetail
         entry={target}
-        onToggle={noop}
-        onDetail={noop}
-        onClear={noop}
-        onReenable={noop}
-        onKeepOff={noop}
+        tab="overview"
+        profiles={{ set: null, reload: noop }}
+        onTab={noop}
+        onBack={noop}
+        onRetry={noop}
+        onStop={noop}
         onRemove={noop}
       />,
       store,
@@ -229,28 +213,15 @@ function panelHtml(target: ExtListEntry): string {
   );
 }
 
-/** "지우기" 단추의 여는 태그 */
-function removeButtonTag(html: string): string {
-  const label = t("desktop.workbench.remove.open");
-  const found = [...html.matchAll(/<button[^>]*>/g)].find((m) => {
-    const after = html.slice(m.index + m[0].length);
-    return after.startsWith(label);
-  });
-  if (found === undefined) throw new Error("remove button not rendered");
-  return found[0];
-}
+const MENU = `aria-label="${t("desktop.workbench.detail.menu")}"`;
 
-describe("지우기 단추", () => {
-  test("사용자 설치본은 누를 수 있다", () => {
-    expect(removeButtonTag(panelHtml(entry("web", { origin: "user" })))).not.toContain(
-      'disabled=""',
-    );
+describe("지우기 메뉴", () => {
+  test("사용자 설치본은 머리에 지우기가 든 메뉴가 있다", () => {
+    expect(headerHtml(entry("web", { origin: "user" }))).toContain(MENU);
   });
 
-  test("내장 확장은 꺼져 있다", () => {
-    expect(removeButtonTag(panelHtml(entry("core-loop", { origin: "builtin" })))).toContain(
-      'disabled=""',
-    );
+  test("내장 확장은 지울 수 없어 메뉴를 두지 않는다", () => {
+    expect(headerHtml(entry("notes", { origin: "builtin" }))).not.toContain(MENU);
   });
 });
 

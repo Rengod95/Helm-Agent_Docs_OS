@@ -4052,7 +4052,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "extension method call time budget",
+          "label": "plugin method call time budget",
           "labelKey": "settings.x.operations.budget.uiMs.label",
           "order": 260,
           "tab": "plugins",

@@ -18,13 +18,11 @@ import {
   runtimeViewOf,
   selectedEntry,
   userConfigOf,
-  type ExtRowVM,
   type InspectFeatureVM,
   type InspectHookVM,
   type HandlerFailureEntry,
   type InspectSettingVM,
   type RuntimeDriveView,
-  type WorkbenchState,
 } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -58,9 +56,8 @@ import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { TONE_CLASS } from "../pages/settings/settings-text.ts";
 import { BAR_TONE, FOLD_TEXT } from "./ext-detail.tsx";
-import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
+import { kindText, stateText, stateTone } from "./ext-row.tsx";
 import { detachVoid, reloadOnExtChanges, useWorkbenchController } from "./controller.ts";
-import { useToggleRequest } from "./craft-parts.tsx";
 import { linkOf, RoleText, type LinkState } from "../runtime/runtime-tab.tsx";
 import { DriveStackCards } from "../convo/drive-stack.tsx";
 import { driveStackOf } from "../convo/drive-stack-model.ts";
@@ -622,48 +619,20 @@ function FailuresSection(props: {
 }
 
 /**
- * 켜기·끄기 단추(시안 머리의 outline xs). 잠기면 단추를 끄고 이유는 정보 아이콘 뒤에 둔다.
- * 요청이 반영되길 기다리는 동안도 끈다(시안과 같다). 요청 자체는 `onToggle`이 확인 대화 상자로 보낸다.
- */
-function ToggleButton(props: {
-  readonly row: ExtRowVM;
-  readonly onToggle: (target: boolean) => void;
-}): ReactNode {
-  const { row } = props;
-  return (
-    <>
-      <Button
-        size="xs"
-        variant="outline"
-        disabled={row.lock !== null || row.pendingTarget !== null}
-        onClick={() => {
-          props.onToggle(!row.on);
-        }}
-      >
-        {row.on ? t("desktop.inspect.toggle.off") : t("desktop.inspect.toggle.on")}
-      </Button>
-      {row.lock !== null && <InfoTip text={lockText(row.lock)} />}
-    </>
-  );
-}
-
-/**
  * 검사 탭 그림. 값과 연결 상태, 장부, 실패 기록을 받아 그린다(시험은 값을 넣어 그린다).
- * `onToggle`, `onReenable`, `onDetail`은 호출자가 잇는다.
+ * `onRetry`, `onDetail`은 호출자가 잇는다. 켜기·끄기 단추는 없다(켜고 끔은 프로필에서만, AGE-74).
  */
 export function InspectBody(props: {
   readonly entry: ExtListEntry;
-  readonly pending: WorkbenchState["pending"];
   readonly link: LinkState;
   readonly data: InspectData;
   readonly health: readonly ExtHealthEntry[];
   readonly records: readonly HandlerFailureEntry[];
-  readonly onToggle: (target: boolean) => void;
-  readonly onReenable: () => void;
+  readonly onRetry: () => void;
   readonly onDetail: () => void;
 }): ReactNode {
   const { entry, data } = props;
-  const row = rowOf(entry, props.pending);
+  const row = rowOf(entry);
   const isOrchestration = entry.isOrchestration;
   return (
     <div className="grid content-start gap-5">
@@ -686,12 +655,10 @@ export function InspectBody(props: {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {row.state === "auto_disabled" ? (
-            <Button size="xs" variant="outline" onClick={props.onReenable}>
-              {t("desktop.workbench.reenable")}
+            <Button size="xs" variant="outline" onClick={props.onRetry}>
+              {t("desktop.workbench.keepOff.retry")}
             </Button>
-          ) : (
-            <ToggleButton row={row} onToggle={props.onToggle} />
-          )}
+          ) : null}
           <Menu
             align="end"
             aria-label={t("desktop.inspect.menu.label")}
@@ -762,32 +729,23 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
   const link = linkOf(useLinkPhase());
   const data = useInspectData(entry.name, threadId, link === "live");
   const controller = useWorkbenchController();
-  const toggle = useToggleRequest(controller);
   const actions = useWorkbenchActions();
-  const pending = useWorkbench((s) => s.pending);
   const healthRecords = useWorkbench((s) => s.health);
   const records = useHandlerFailures();
   const health = Object.values(healthRecords).filter((h) => h.name === entry.name);
   return (
-    <>
-      <InspectBody
-        entry={entry}
-        pending={pending}
-        link={link}
-        data={data}
-        health={health}
-        records={records}
-        onToggle={(target) => {
-          toggle.request(entry.name, target);
-        }}
-        onReenable={() => {
-          detachVoid(controller.reenable(entry.name));
-        }}
-        onDetail={() => {
-          actions.openDetail(entry.name);
-        }}
-      />
-      {toggle.dialog}
-    </>
+    <InspectBody
+      entry={entry}
+      link={link}
+      data={data}
+      health={health}
+      records={records}
+      onRetry={() => {
+        detachVoid(controller.retry(entry.name));
+      }}
+      onDetail={() => {
+        actions.openDetail(entry.name);
+      }}
+    />
   );
 }

@@ -1,30 +1,22 @@
-// 확장 목록(`extensions`, P-13): 같은 `ext.list` 데이터의 목록 모양. 층별 묶음, 찾기, 행마다 켜기·끄기(전역). 범위 고르기는 없다.
-// 고른 확장은 옆의 선택 패널이 보이고, "자세히 보기"가 열려 있으면 목록 대신 P-17 상세(버전 탭과 되돌리기 포함)를 그린다.
+// 플러그인 목록(`extensions`, P-13): 같은 `ext.list` 데이터의 목록 모양. 세 묶음(내가 넣은 것, 기본 제공, 앱 핵심), 찾기, 줄마다 쓰는 곳과 "프로필에 넣기".
+// 전역 켜기 스위치는 없다(켜고 끔은 프로필에서만, AGE-74). 줄을 누르면 목록 대신 P-17 상세(화면과 설정, 버전 탭 포함)를 그린다.
 import { PuzzleArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
-import { layerGroups, selectedEntry } from "@fresnel/client/workbench";
+import { pluginGroups, selectedEntry } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands, type DependencyRefusalView } from "../commands.ts";
 import { usePluginUi, usePluginUiState } from "../plugin/plugin-context.tsx";
-import {
-  firstNoticeOf,
-  ListFilters,
-  ListStatusBand,
-  noticeTotalOf,
-  SearchField,
-  useToggleRequest,
-} from "./craft-parts.tsx";
+import { firstNoticeOf, ListStatusBand, noticeTotalOf, SearchField } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { BuilderEntry } from "./builder-entry.tsx";
 import { ExtDetail } from "./ext-detail.tsx";
-import { BindingsPanel } from "./bindings-panel.tsx";
 import { InstallDialog } from "./install-dialog.tsx";
-import { LayerList } from "./layer-list.tsx";
+import { PluginList } from "./plugin-list.tsx";
+import { useProfileSet } from "./profile-put-menu.tsx";
 import { RemoveDialog } from "./remove-dialog.tsx";
 import { keepsDialogOpen } from "./remove-model.ts";
-import { SelectionPanel } from "./selection-panel.tsx";
 import { MergeDialog } from "../craft/members/split-dialogs.tsx";
 import { useSplitActions } from "../craft/members/split-source.ts";
 import { SquareStack } from "@caustic/react/icons";
@@ -42,10 +34,6 @@ export function ExtensionsScreen(): ReactNode {
   const plugin = usePluginUiState();
   const pluginUi = usePluginUi();
   const pluginEntries = plugin.phase === "ready" ? plugin.entries : null;
-  const loadPreview = useCallback(
-    (name: string) => commands.workbench.removePreview(name),
-    [commands],
-  );
   const loadProfiles = useCallback(() => commands.workbench.profiles(), [commands]);
   const [installing, setInstalling] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -53,17 +41,14 @@ export function ExtensionsScreen(): ReactNode {
   // 지우기 확인 상자가 가리키는 이름과, 지우는 요청이 가는 중인지
   const [removing, setRemoving] = useState<string | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
-  // 저장 데이터까지 지우다 실패하면 상자를 열어 두고 다시 시도하게 한다
-  const [removeDataFailed, setRemoveDataFailed] = useState(false);
   const [removeRefusal, setRemoveRefusal] = useState<DependencyRefusalView | null>(null);
-  const toggle = useToggleRequest(controller);
+  const profiles = useProfileSet();
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
   const ready = state.list === "ready";
-  const empty = layerGroups(state).length === 0;
-  const searching =
-    state.query.trim() !== "" || state.listLayer !== "all" || state.listState !== "all";
-  // 자세히 보기가 열렸을 때만 그 확장이 상세가 된다. 선택 패널은 고른 확장을 본다
+  const empty = pluginGroups(state).length === 0;
+  const searching = state.query.trim() !== "";
+  // 자세히 보기가 열렸을 때만 그 확장이 상세가 된다
   const entry = selectedEntry(state);
   const detailEntry = state.detail === null ? null : entry;
   const headerHidden = ready && detailEntry !== null;
@@ -127,11 +112,9 @@ export function ExtensionsScreen(): ReactNode {
             }}
           />
         )}
-        {detailEntry === null && <BindingsPanel />}
         {detailEntry === null && (
           <div className="flex flex-wrap items-center gap-1.5">
             <SearchField />
-            <ListFilters />
           </div>
         )}
         <ListStatusBand controller={controller} />
@@ -147,10 +130,9 @@ export function ExtensionsScreen(): ReactNode {
                     {
                       label: t("desktop.workbench.notices.view"),
                       onClick: () => {
-                        // 자세히 보기가 열려 있으면 목록으로 돌아가 그 확장을 고른다
-                        actions.closeDetail();
-                        if (firstNotice.isOrchestration) actions.pickGroup(firstNotice.name);
-                        else actions.pickPlugin(firstNotice.name);
+                        // 알림이 있는 첫 플러그인의 상세를 연다(알림과 두 행동이 상세 머리 아래에 있다)
+                        actions.pickPlugin(firstNotice.name);
+                        actions.openDetail(firstNotice.name);
                       },
                     },
                   ]
@@ -163,23 +145,20 @@ export function ExtensionsScreen(): ReactNode {
           <div className="min-h-0 flex-1 overflow-auto">
             <ExtDetail
               key={detailEntry.name}
-              state={state}
               entry={detailEntry}
               tab={state.detailTab}
+              profiles={profiles}
               onTab={(tab) => {
                 actions.selectDetailTab(tab);
               }}
               onBack={() => {
                 actions.closeDetail();
               }}
-              onToggle={(target) => {
-                toggle.request(detailEntry.name, target);
+              onRetry={() => {
+                detachVoid(controller.retry(detailEntry.name));
               }}
-              onKeepOn={() => {
-                detachVoid(controller.reenable(detailEntry.name));
-              }}
-              onKeepOff={() => {
-                detachVoid(controller.keepOff(detailEntry.name));
+              onStop={() => {
+                detachVoid(controller.stop(detailEntry.name));
               }}
               onRemove={() => {
                 setRemoving(detailEntry.name);
@@ -198,62 +177,30 @@ export function ExtensionsScreen(): ReactNode {
           />
         )}
         {ready && detailEntry === null && !empty && (
-          <div className="flex min-h-0 flex-1 gap-4">
-            <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-              <LayerList onToggle={toggle.request} />
-            </div>
-            {entry !== null && (
-              <SelectionPanel
-                state={state}
-                entry={entry}
-                onToggle={(target) => {
-                  toggle.request(entry.name, target);
-                }}
-                onDetail={() => {
-                  actions.openDetail(entry.name);
-                }}
-                onClear={() => {
-                  actions.clearPick();
-                }}
-                onReenable={() => {
-                  detachVoid(controller.reenable(entry.name));
-                }}
-                onKeepOff={() => {
-                  detachVoid(controller.keepOff(entry.name));
-                }}
-                onRemove={() => {
-                  setRemoving(entry.name);
-                }}
-              />
-            )}
+          <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+            <PluginList profiles={profiles} />
           </div>
         )}
-        {toggle.dialog}
         <RemoveDialog
           name={removing}
           busy={removeBusy}
-          dataFailed={removeDataFailed}
           refusal={removeRefusal}
-          loadPreview={loadPreview}
           loadProfiles={loadProfiles}
           pluginEntries={pluginEntries}
           onCancel={() => {
             if (!removeBusy) {
               setRemoving(null);
-              setRemoveDataFailed(false);
               setRemoveRefusal(null);
             }
           }}
-          onConfirm={(name, dropData) => {
+          onConfirm={(name) => {
             setRemoveBusy(true);
-            setRemoveDataFailed(false);
             setRemoveRefusal(null);
             detachVoid(
-              controller.remove(name, { dropData }).then(({ outcome, refusal }) => {
+              controller.remove(name).then(({ outcome, refusal }) => {
                 setRemoveBusy(false);
-                // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 이미 없는 이름(3401)과 성공은 토스트로 알리고 닫는다
-                const stay = keepsDialogOpen(outcome, dropData);
-                setRemoveDataFailed(stay && outcome === "failed");
+                // 의존 때문에 거절됐으면 상자를 열어 두고 그 목록을 보인다. 이미 없는 이름(3401)과 성공은 토스트로 알리고 닫는다
+                const stay = keepsDialogOpen(outcome);
                 setRemoveRefusal(refusal);
                 if (!stay) setRemoving(null);
                 return undefined;
@@ -262,7 +209,7 @@ export function ExtensionsScreen(): ReactNode {
           }}
         />
       </div>
-      <BuilderEntry controller={controller} />
+      <BuilderEntry />
     </div>
   );
 }

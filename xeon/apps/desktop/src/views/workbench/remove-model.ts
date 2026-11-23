@@ -1,11 +1,10 @@
 // 확장 지우기(B-04)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
-// M5c-1부터 지우기는 `plugin.requestRemove`가 검토 항목을 만든다(바로 지우지 않는다). 저장 데이터 목록(`ext.removePreview`)과
-// 저장 데이터 지우기는 대체가 없어 `not_available`이다.
+// M5c-1부터 지우기는 `plugin.requestRemove`가 검토 항목을 만든다(바로 지우지 않는다). 저장 데이터는 엔진에 목록도 지우기도 없어 다루지 않는다.
 import { assertNever } from "@fresnel/contracts";
 import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";
 import type { ExtListEntry, ExtUiEntry, Profile } from "@fresnel/contracts/wire";
-import type { CommandError, DependencyRefusalView, StorageTableRow } from "../commands.ts";
+import type { CommandError, DependencyRefusalView } from "../commands.ts";
 import { stripUnsafeText } from "@fresnel/client/views/app";
 import { extMessageOf } from "@fresnel/client/views/native";
 
@@ -73,6 +72,9 @@ export function removableOf(entry: Pick<ExtListEntry, "origin">): boolean {
   return entry.origin === "user";
 }
 
+/** 지우기 확인 상자의 본문. 확인하면 리뷰로 간다는 것, 승인 뒤에 지워진다는 것을 적는다 */
+export const REMOVE_BODY_TEXT: MessageId = "desktop.workbench.remove.body";
+
 /** 지우기 요청을 보냈을 때의 문장. 지우는 것은 검토가 승인한 뒤이므로 "바로 지웠다"고 쓰지 않는다 */
 export const REMOVE_REQUESTED_TEXT: MessageId = "desktop.workbench.remove.requested";
 
@@ -101,48 +103,8 @@ export function removeOutcomeOfError(error: CommandError): RemoveOutcome {
 }
 
 /**
- * 상자를 열어 둘까. 저장 데이터까지 지우다 실패했으면 "설치 폴더는 그대로 남아 있어요" 경고를, 의존 때문에 거절됐으면 그 목록을
- * 상자 안에 보인다. `gone`은 닫는다
+ * 상자를 열어 둘까. 의존 때문에 거절됐으면 그 목록을 상자 안에 보인다. 그 밖의 결과는 닫는다(실패는 토스트로 알린다)
  */
-export function keepsDialogOpen(outcome: RemoveOutcome, dropData: boolean): boolean {
-  return outcome === "refused" || (outcome === "failed" && dropData);
-}
-
-/** 확장이 소유한 저장 테이블 한 줄(저장 데이터 목록의 한 줄). 지금은 만들어지지 않는다(`not_available`) */
-export type StorageTable = StorageTableRow;
-
-/**
- * 지우기 상자가 읽은 저장 데이터. `ready`에서 `tables`가 비었으면 "확인된 저장 데이터가 없어요"다.
- * 장부가 비어 있어도 데이터가 없다는 뜻은 아니므로 문장도 그렇게 쓴다
- */
-export type StoragePreview =
-  | { readonly kind: "loading" }
-  | { readonly kind: "failed" }
-  | { readonly kind: "ready"; readonly tables: readonly StorageTable[] };
-
-/** 저장 데이터 칸의 한 줄 문장. 표를 그릴 수 있을 때(`ready`이고 테이블이 있을 때)는 null이다 */
-export function storageNoteOf(preview: StoragePreview): MessageId | null {
-  switch (preview.kind) {
-    case "loading":
-      return "desktop.workbench.remove.storage.loading";
-    case "failed":
-      return "desktop.workbench.remove.storage.failed";
-    case "ready":
-      return preview.tables.length === 0 ? "desktop.workbench.remove.storage.none" : null;
-    default:
-      return assertNever(preview, "storageNoteOf");
-  }
-}
-
-/** 행 수의 합계 */
-export function totalRowsOf(tables: readonly StorageTable[]): number {
-  return tables.reduce((sum, table) => sum + table.rows, 0);
-}
-
-/**
- * 저장 데이터 지우기를 요청할 값. 칸을 켰고 지울 테이블이 실제로 보일 때만 참이다.
- * 표가 비었으면 칸이 없으므로 체크 상태와 무관하게 거짓이다
- */
-export function dropDataOf(checked: boolean, tables: readonly StorageTable[]): boolean {
-  return checked && tables.length > 0;
+export function keepsDialogOpen(outcome: RemoveOutcome): boolean {
+  return outcome === "refused";
 }

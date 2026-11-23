@@ -99,7 +99,6 @@ import type {
   SetupSnapshot,
 } from "@fresnel/client/settings";
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
-import type { ToggleRequest } from "@fresnel/client/workbench";
 import type {
   LockedOption,
   RestartReason,
@@ -152,9 +151,6 @@ export type BusyInputMode = "steer" | "followUp";
  */
 export type SwitchMode = "default" | "acceptEdits" | "bypass";
 
-/** `not_available`로 막는 명령 이름. `ext.remove.dropData`는 `ext.remove`의 저장 데이터 지우기 칸이다 */
-export type NotAvailableCommand = "ext.removePreview" | "ext.remove.dropData";
-
 /** 프로필 검사 문제 한 줄(`pluginReview.profileInvalid`의 `details.issues`). `profile`은 프로필 id 또는 `common`이다 */
 export interface ProfileIssueView {
   readonly code: string;
@@ -193,10 +189,10 @@ export type CommandError =
       readonly options: readonly LockedOption[];
     }
   /**
-   * 이 앱이 보내지 않는 명령. wire가 빠졌고 정확한 대체가 없다(저장 데이터 목록, 저장 데이터 지우기).
+   * 이 앱이 보내지 않는 명령(`command`는 그 명령 이름). wire가 빠졌고 정확한 대체가 없다.
    * 보내지 않았으므로 호스트 상태는 그대로다. 화면은 실패 갈래로 보인다(조용한 무시가 아니다)
    */
-  | { readonly kind: "not_available"; readonly command: NotAvailableCommand }
+  | { readonly kind: "not_available"; readonly command: string }
   | {
       readonly kind: "rejected";
       readonly code: number | null;
@@ -613,10 +609,16 @@ export interface ServiceAlive {
 /** 앱을 켤 때 마지막 대상 복원의 결과. `none`은 저장된 대상이 없다는 뜻이다 */
 export type RestoreTargetOutcome = "none" | "restored" | "fellBack";
 
-/** 첫 실행 화면의 기본 그룹(L4.desktop-ux §6.5). 켜기 키는 `ext.<그룹>.enabled`(X 로더 예약 키)다 */
+/**
+ * 첫 실행 화면의 기본 그룹(L4.desktop-ux §6.5). 그룹은 플러그인 한 개이고, 켜고 끄는 것은 기본 프로필의 플러그인 목록에 넣고 빼는 일이다.
+ * 사용자 설정 키는 쓰지 않는다(플러그인의 켜고 끄기는 프로필에서만 정한다)
+ */
 export type DefaultGroupId = "helm";
 
-/** 기본 그룹의 켜짐 값과 안전 모드 여부. `enabled`의 null은 설정 값을 쓴 적이 없다는 뜻이다(기본값은 화면 모델이 정한다) */
+/**
+ * 기본 그룹의 켜짐 값과 안전 모드 여부. `enabled`의 null은 켜짐을 알 수 없다는 뜻이다. 기본 프로필에도 공통 묶음에도 없고
+ * 설치되지 않은 그룹이다(기본값은 화면 모델이 정한다)
+ */
 export interface GroupsSnapshot {
   readonly enabled: Readonly<Record<DefaultGroupId, boolean | null>>;
   /** 안전 모드로 떠 있으면 참(`host.status.safeMode`). 그룹은 실리지 않는다 */
@@ -685,7 +687,10 @@ export interface SetupCommands {
     secretName: SecretName,
   ): Promise<Result<null, CommandError>>;
   setDefaultModel(ref: string): Promise<Result<null, CommandError>>;
-  /** 기본 그룹 두 개의 켜짐 값(`settings.get`)과 안전 모드(`host.status`)를 읽는다 */
+  /**
+   * 기본 그룹의 켜짐 값(`profile.list`의 기본 프로필과 공통 묶음에 플러그인이 있는가, 없으면 `plugin.list`로 설치 여부)과
+   * 안전 모드(`host.status`)를 읽는다
+   */
   loadGroups(): Promise<Result<GroupsSnapshot, CommandError>>;
   /** 안전 모드 상태를 읽는다(`host.status`의 `safeMode`, `safeModeCause`, `startupFailures`, `suggestSafeMode`) */
   loadSafeMode(): Promise<Result<SafeModeSnapshot, CommandError>>;
@@ -696,7 +701,10 @@ export interface SetupCommands {
   loadSandboxEnabled(): Promise<Result<boolean, CommandError>>;
   /** 호스트 알림을 읽는다(`host.status`의 `settingsProblems`). 읽지 못한 설정 파일이 없으면 빈 목록이다 */
   loadHostNotices(): Promise<Result<HostNoticesSnapshot, CommandError>>;
-  /** 기본 그룹 하나를 켜거나 끈다(`settings.set { key: "ext.<그룹>.enabled", scope: "user" }`). 적용은 다음 단계 경계다 */
+  /**
+   * 기본 그룹 하나를 켜거나 끈다. 켜면 기본 프로필에 플러그인을 `profile.put`으로 넣고, 끄면 `profile.removePlugin`으로 뺀다
+   * (기본 프로필의 `rev`를 `baseRev`로 보낸다). 공통 묶음에서 온 플러그인을 끄려 하면 호스트의 거절이 그대로 온다
+   */
   setGroupEnabled(group: DefaultGroupId, enabled: boolean): Promise<Result<null, CommandError>>;
   /** 검색 권장을 읽는다(`web.providers`와 "나중에" 값) */
   loadSearch(): Promise<Result<SearchSnapshot, CommandError>>;
@@ -1039,17 +1047,6 @@ export interface TestChatCommands {
   leave(): void;
 }
 
-/** 확장이 소유한 저장 테이블 한 줄 */
-export interface StorageTableRow {
-  readonly name: string;
-  readonly rows: number;
-}
-
-/** `removePreview`의 값. 대체 wire가 없어 만들어지지 않는다(항상 `not_available`) */
-export interface StorageTablesPreview {
-  readonly tables: readonly StorageTableRow[];
-}
-
 /** 검토함으로 보낸 요청의 결과(`pluginReview.submitDraft`). `itemId`는 검토 항목이다 */
 interface ReviewSubmitted {
   readonly itemId: string;
@@ -1076,14 +1073,8 @@ export interface WorkbenchCommands {
    * 미리 보기 없이 불렀고 폴더 내용이 `sha256`과 다르면 `source_changed`로 거절한다. 성공하면 검토 항목 id다
    */
   install(source: string, sha256: string): Promise<Result<ReviewSubmitted, CommandError>>;
-  /**
-   * 지우기 요청: `plugin.requestRemove { name }`(검토 항목을 만든다). `dropData`를 참으로 주면 저장 데이터 지우기는
-   * 대체가 없어 `not_available`이다(보내지 않는다)
-   */
-  remove(
-    name: string,
-    options?: { readonly dropData?: boolean },
-  ): Promise<Result<PluginRequestRemoveResult, CommandError>>;
+  /** 지우기 요청: `plugin.requestRemove { name }`(검토 항목을 만든다). 지우는 것은 검토가 승인한 뒤다 */
+  remove(name: string): Promise<Result<PluginRequestRemoveResult, CommandError>>;
   /**
    * "지침 추가": 한 줄 지침을 `plugin.draft.fromInstruction`으로 보낸다. 지침만 든 플러그인 초안이 되고 검토함에 올라간다(§4.10).
    * 승인하면 `profileId`(없으면 호스트가 `default`로 고른다)에 들어간다. 결과는 초안과 검토 항목 id다
@@ -1092,10 +1083,6 @@ export interface WorkbenchCommands {
     text: string,
     profileId?: string,
   ): Promise<Result<PluginDraftFromInstructionResult, CommandError>>;
-  /**
-   * 지우기 확인에 보일 저장 테이블과 행 수. M5c-1에서 `ext.removePreview`가 빠졌고 대체가 없어 항상 `not_available`이다
-   */
-  removePreview(name: string): Promise<Result<StorageTablesPreview, CommandError>>;
   /** `ext.bindings { threadId? }`: 기능 id마다 지금 바인딩된 공급자, 받는 확장, 미충족 */
   bindings(threadId?: ThreadId): Promise<Result<ExtBindingsResult, CommandError>>;
   /** `ext.reload { name }`: 설치한 판으로 실행 중인 확장을 다음 단계 경계에서 바꾼다. 거절이면 옛 판이 그대로 돈다 */
@@ -1114,12 +1101,13 @@ export interface WorkbenchCommands {
   timings(name: string, threadId?: ThreadId): Promise<Result<ExtTimingsResult, CommandError>>;
   /** `settings.explain { key, threadId }`: 설정 값, 이긴 범위, 그 값을 쓴 쪽(읽기만) */
   explain(key: string, threadId: ThreadId): Promise<Result<SettingsExplainResult, CommandError>>;
-  /** 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "user" }` */
-  toggle(request: ToggleRequest): Promise<Result<null, CommandError>>;
-  /** 자동 꺼짐 다시 켜기와 "켜 두기" 답: `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` 뒤 `ext.reenable { name }`. 적용은 다음 단계 경계다 */
-  reenable(name: string): Promise<Result<null, CommandError>>;
-  /** "끄기" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` 뒤 `ext.disableConfirm { name }`. 설정 쓰기가 실패하면 끄기를 보내지 않는다 */
-  keepOff(name: string): Promise<Result<null, CommandError>>;
+  /**
+   * 오류로 멈춘 플러그인의 "다시 시도": `ext.reenable { name }`만 보낸다. 전역 켜기 설정(`ext.<이름>.enabled`)은 쓰지 않는다
+   * (그 키는 관리 범위만 받는다. 켜고 끔은 프로필에서만 한다, AGE-74). 적용은 다음 단계 경계다
+   */
+  retry(name: string): Promise<Result<null, CommandError>>;
+  /** 엔진의 "계속 실패해요" 질문에 멈춤으로 답한다: `ext.disableConfirm { name }`(이번 실행에서 멈춤). 설정은 쓰지 않는다 */
+  stop(name: string): Promise<Result<null, CommandError>>;
   /** `profile.list`: 저장된 프로필 목록 */
   profiles(): Promise<Result<readonly Profile[], CommandError>>;
   /** `thread.setProfile { threadId, profileId }`: 대화가 참조하는 프로필을 바꾼다(저장은 하지 않는다). 결과는 바뀜의 미리 보기다 */

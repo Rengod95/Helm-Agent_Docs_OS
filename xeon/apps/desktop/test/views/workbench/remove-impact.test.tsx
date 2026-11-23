@@ -49,17 +49,7 @@ describe("지우기 영향 판단", () => {
 });
 
 function bodyHtml(impact: RemoveImpact): string {
-  return renderToString(
-    <RemoveDialogBody
-      preview={{ kind: "ready", tables: [] }}
-      impact={impact}
-      checked={false}
-      busy={false}
-      dataFailed={false}
-      onChecked={() => undefined}
-      onRetry={() => undefined}
-    />,
-  );
+  return renderToString(<RemoveDialogBody impact={impact} />);
 }
 
 const READY: ProfilesView = { kind: "ready", titles: ["조사용", "기본"] };
@@ -80,6 +70,13 @@ describe("지우기 상자 영향 묶음", () => {
     expect(out).toContain(">전체 화면<");
     expect(out).toContain("흐름판");
     expect(out).toContain(">옆 패널<");
+  });
+
+  test("저장 데이터 구역은 없고 본문에는 영향 묶음만 남는다", () => {
+    const out = bodyHtml({ profiles: READY, views: [] });
+    expect(out).not.toContain("저장 데이터");
+    expect(out).toContain("이 플러그인을 쓰는 프로필");
+    expect(out).toContain("조사용, 기본");
   });
 
   test("쓰는 프로필과 뷰가 없으면 두 줄 모두 없어요라고 말한다", () => {

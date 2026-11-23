@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import { listLoaded, pickGroup, type WorkbenchState } from "@fresnel/client/workbench";
+import { listLoaded, type WorkbenchState } from "@fresnel/client/workbench";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -222,10 +222,10 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     status: "enabled",
     autoDisabled: false,
   });
-  // 자동 꺼짐 표시는 고른 확장의 선택 패널(다시 켜기)에 보인다. 고르지 않은 목록 위에는 없다
-  const reenableText = t("desktop.workbench.reenable");
+  // 자동으로 멈춘 확장은 목록 상태 칸에 "멈춤"으로 보인다
+  const reenableText = t("desktop.workbench.health.stopped");
 
-  test("확장 설정 알림을 받으면 목록을 다시 읽고, 같은 화면이 선택 패널과 개수를 새 값으로 그린다", async () => {
+  test("확장 설정 알림을 받으면 목록을 다시 읽고, 같은 화면이 상태 칸을 새 값으로 그린다", async () => {
     const store = createWorkbenchStore();
     const seen: { listener: ((settled: boolean) => void) | null; listed: readonly ExtListEntry[] } =
       {
@@ -244,7 +244,7 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     const controller = controllerOf(store, commands);
     await controller.reload();
 
-    const before = renderSeeded(pickGroup(store.actions.snapshot(), "review"));
+    const before = renderSeeded(store.actions.snapshot());
     expect(before).toContain(reenableText);
 
     const stop = reloadOnExtChanges(commands.workbench, () => controller.reload());
@@ -253,7 +253,7 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     await settle();
 
     expect(store.actions.snapshot().entries).toEqual([WEB, REVIEW_ON]);
-    const after = renderSeeded(pickGroup(store.actions.snapshot(), "review"));
+    const after = renderSeeded(store.actions.snapshot());
     expect(after).not.toContain(reenableText);
 
     stop();
@@ -261,26 +261,32 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
   });
 });
 
-describe("scope: 전역 범위의 호출 인자는 범위를 붙이기 전과 같다", () => {
-  test("목록은 대화 없이(threadId 없이) 읽고, 켜기·끄기는 사용자 범위로 쓴다", async () => {
+describe("다시 시도와 멈추기는 설정을 쓰지 않는다(AGE-74)", () => {
+  test("목록은 대화 없이(threadId 없이) 읽고, 다시 시도와 멈추기는 그 이름 하나로 retry, stop만 부른다", async () => {
     const store = createWorkbenchStore((s) => listLoaded(s, ENTRIES));
     const listed: (string | undefined)[] = [];
-    const written: unknown[] = [];
+    const calls: string[] = [];
     const commands = commandsWith({
       list: (threadId) => {
         listed.push(threadId);
         return Promise.resolve(ok(ENTRIES));
       },
-      toggle: (request) => {
-        written.push(request);
+      retry: (name) => {
+        calls.push(`retry:${name}`);
+        return Promise.resolve(ok(null));
+      },
+      stop: (name) => {
+        calls.push(`stop:${name}`);
         return Promise.resolve(ok(null));
       },
     });
+    const controller = controllerOf(store, commands);
 
-    await controllerOf(store, commands).toggle("web", false);
+    await controller.retry("web");
+    await controller.stop("web");
 
-    expect(listed).toStrictEqual([undefined]);
-    expect(written).toStrictEqual([{ key: "ext.web.enabled", value: false, scope: "user" }]);
+    expect(listed).toStrictEqual([undefined, undefined]);
+    expect(calls).toStrictEqual(["retry:web", "stop:web"]);
   });
 });
 
@@ -336,40 +342,5 @@ describe("안전 모드: 훅 질문은 스토어에 담기지 않는다", () => 
         point: null,
       },
     ]);
-  });
-});
-
-describe("켜기 뒤 적용이 끝난 목록(F9)", () => {
-  test("설정은 저장됐지만 확장이 실리지 않으면, 적용 알림 뒤 대기 표시를 걷고 목록의 실제 상태를 그린다", async () => {
-    const store = createWorkbenchStore();
-    const seen: { listener: ((settled: boolean) => void) | null } = { listener: null };
-    // 엔진은 켜기를 저장하지만 확장은 시작 조건(필수 설정) 때문에 실리지 않는다. 목록에는 꺼짐과 진단이 남는다
-    const notLoaded = entry("web", {
-      status: "disabled",
-      diagnostics: [{ severity: "error", code: "config_required", message: "setting required" }],
-    });
-    const commands = commandsWith({
-      list: () => Promise.resolve(ok([notLoaded])),
-      toggle: () => Promise.resolve(ok(null)),
-      onChanged: (listener) => {
-        seen.listener = listener;
-        return () => {
-          seen.listener = null;
-        };
-      },
-    });
-    const controller = controllerOf(store, commands);
-    await controller.reload();
-    const stop = reloadOnExtChanges(commands.workbench, (settled) => controller.reload(settled));
-
-    await controller.toggle("web", true);
-    // 적용이 끝나기 전 목록은 꺼짐이라 대기 표시가 남는다
-    expect(store.actions.snapshot().pending).toEqual({ web: true });
-
-    seen.listener?.(true);
-    await settle();
-    expect(store.actions.snapshot().pending).toEqual({});
-    expect(store.actions.snapshot().entries.map((item) => item.status)).toEqual(["disabled"]);
-    stop();
   });
 });

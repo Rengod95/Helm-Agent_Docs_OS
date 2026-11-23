@@ -55,8 +55,10 @@ describe("plugin tabs", () => {
       "helm",
     );
     expect(html).toContain("Helm 패널");
-    // 서버 렌더는 이어 붙인 글 사이에 주석 표지를 넣는다
-    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain("helm v0.1.0");
+    // 서버 렌더는 이어 붙인 글 사이에 주석 표지를 넣는다. 좁은 옆 패널의 머리는 제목과 버전만 둔다(확장 이름·등급 글은 없다)
+    const text = html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "");
+    expect(text).toContain("Helm 패널v0.1.0");
+    expect(text).not.toContain(t("client.view.confirm.trust.user"));
     expect(html).not.toContain("다른 패널");
     expect(html).not.toContain(">쪽<");
   });

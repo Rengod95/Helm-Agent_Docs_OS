@@ -1,5 +1,5 @@
 import { assertNever, err, ok, type Logger, type Result } from "@fresnel/contracts";
-import type { HostConnection, WireResult } from "@fresnel/contracts/wire";
+import type { HostConnection, Profile, WireResult } from "@fresnel/contracts/wire";
 import {
   binaryViewOf,
   DEFAULT_MODEL_KEY,
@@ -25,6 +25,7 @@ import type {
   SearchSnapshot,
   SetupCommands,
 } from "../views/commands.ts";
+import { DEFAULT_PROFILE_ID } from "../views/convo/profile-chip-model.ts";
 
 // 최소 설정 화면이 부르는 wire(G2-08). 모델 키는 값 없는 `secret.*`로만 다루고(L0.secrets.spec R4),
 // provider 설정에는 `secret://<이름>` 참조만 쓴다. 값은 이 화면, wire, 로그 어디에도 없다.
@@ -64,14 +65,17 @@ export function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError
 /** 쓰기 범위는 사용자 설정 파일이다. 키 등록과 기본 모델은 대화마다 다르지 않다 */
 const SCOPE = "user";
 
-/** 기본 그룹의 켜기 키(X 로더 예약 키, F.extensions.spec §6). 첫 실행 화면만 쓴다 */
-const GROUP_KEY: Readonly<Record<DefaultGroupId, string>> = {
-  helm: "ext.helm.enabled",
+/**
+ * 기본 그룹이 나타내는 플러그인 이름. 그룹을 켜고 끄는 것은 기본 프로필의 플러그인 목록에 이 이름을 넣고 빼는 일이다.
+ * 사용자 설정 키는 쓰지 않는다(플러그인의 켜고 끄기는 프로필에서만 정한다). 첫 실행 화면만 쓴다
+ */
+const GROUP_PLUGIN: Readonly<Record<DefaultGroupId, string>> = {
+  helm: "helm",
 };
 
-/** 설정 값이 참 또는 거짓이면 그 값, 아니면 null(쓴 적이 없다). 기본값은 화면 모델이 정한다 */
-function storedBoolOf(value: unknown): boolean | null {
-  return typeof value === "boolean" ? value : null;
+/** 기본 프로필. 저장된 것이 없어도 목록에 공장 값으로 든다(호스트가 더한다) */
+function defaultProfileOf(list: WireResult<"profile.list">): Profile | undefined {
+  return list.profiles.find((profile) => profile.id === DEFAULT_PROFILE_ID);
 }
 
 /** `host.status`의 안전 모드 칸을 화면 값으로 바꾼다. 칸이 없으면(구형 호스트) 거짓, null, 0이다 */
@@ -174,14 +178,19 @@ export function createSetupCommands(
       return written.ok ? ok(null) : written;
     },
     async loadGroups() {
-      // 켜기 키는 하나씩 읽는다. 설치되지 않은 그룹의 키는 엔진이 "모르는 설정 키"로 거절해서(`rejected`), 한 번에 읽으면
-      // 다른 그룹까지 읽지 못해 "확인할 수 없음"으로 남았다. 거절된 키는 값을 쓴 적 없는 것(null, 기본값)으로 본다.
-      const stored = async (key: string): Promise<Result<boolean | null, CommandError>> => {
-        const read = await run((c) => c.request("settings.get", { keys: [key] }));
-        if (!read.ok) return read.error.kind === "rejected" ? ok(null) : read;
-        return ok(storedBoolOf(read.value.settings.find((s) => s.key === key)?.value));
+      // 켜짐은 기본 프로필(공통 묶음 포함)의 플러그인 목록이 정한다. 목록에 없으면 설치되었는지 본다: 설치되지 않았으면
+      // 값을 알 수 없는 것(null, 화면 기본값으로 그린다)이고, 설치되었으면 꺼진 것이다.
+      const listed = await run((c) => c.request("profile.list", {}));
+      if (!listed.ok) return listed;
+      const list = listed.value;
+      const groupOn = async (plugin: string): Promise<Result<boolean | null, CommandError>> => {
+        const names = [...list.common.plugins, ...(defaultProfileOf(list)?.plugins ?? [])];
+        if (names.some((ref) => ref.name === plugin)) return ok(true);
+        const cards = await run((c) => c.request("plugin.list", {}));
+        if (!cards.ok) return cards;
+        return ok(cards.value.plugins.some((card) => card.name === plugin) ? false : null);
       };
-      const helm = await stored(GROUP_KEY.helm);
+      const helm = await groupOn(GROUP_PLUGIN.helm);
       if (!helm.ok) return helm;
       const status = await run((c) => c.request("host.status", {}));
       if (!status.ok) return status;
@@ -216,8 +225,32 @@ export function createSetupCommands(
       return ok(hostNoticesOf(status.value));
     },
     async setGroupEnabled(group, enabled) {
+      // 기본 프로필을 다시 읽어 저장된 값(id, 제목, 설정, 시작 Drive, 개정)을 그대로 보낸다. 개정이 어긋나면 호스트가 거절하고 그 오류를 돌려준다
+      const listed = await run((c) => c.request("profile.list", {}));
+      if (!listed.ok) return listed;
+      const profile = defaultProfileOf(listed.value);
+      if (profile === undefined) return err({ kind: "failed" });
+      const plugin = GROUP_PLUGIN[group];
+      if (!enabled) {
+        // 공통 묶음에서 온 것이거나 기본 프로필에 없는 것이면 호스트가 거절한다. 그 오류를 그대로 돌려준다
+        const removed = await run((c) =>
+          c.request("profile.removePlugin", { id: profile.id, plugin, baseRev: profile.rev }),
+        );
+        return removed.ok ? ok(null) : removed;
+      }
+      // 이미 든 것이면 다시 쓰지 않는다(중복 없이, 개정도 올리지 않는다)
+      if (profile.plugins.some((ref) => ref.name === plugin)) return ok(null);
       const written = await run((c) =>
-        c.request("settings.set", { key: GROUP_KEY[group], value: enabled, scope: SCOPE }),
+        c.request("profile.put", {
+          profile: {
+            id: profile.id,
+            title: profile.title,
+            plugins: [...profile.plugins, { name: plugin }],
+            settings: profile.settings,
+            startDrive: profile.startDrive,
+          },
+          baseRev: profile.rev,
+        }),
       );
       return written.ok ? ok(null) : written;
     },

@@ -109,7 +109,7 @@ export function runtimeRowsOf(
   return entries.flatMap((entry) => {
     const status = entry.registration ?? entry.status;
     if (status === "disabled" && !entry.autoDisabled) return [];
-    const row = rowOf({ ...entry, status }, {});
+    const row = rowOf({ ...entry, status });
     const group = groups.find((g) => g.id === entry.name);
     const pending = group?.pendingToggle ?? null;
     const state: ExtState =

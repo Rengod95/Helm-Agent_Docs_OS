@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
-import { extNameOf, INITIAL_WORKBENCH, rowOf } from "../../src/workbench/index.ts";
+import { extNameOf, rowOf } from "../../src/workbench/index.ts";
 
 function inLocale<T>(locale: Locale, read: () => T): T {
   const before = activeLocale();
@@ -52,8 +52,8 @@ describe("확장 이름", () => {
 
   test("행의 표시 이름은 한국어 이름이고, 이름이 id와 같으면 null이다", () => {
     inLocale("ko", () => {
-      expect(rowOf(full(part), INITIAL_WORKBENCH.pending).displayName).toBe("대화 저장");
-      expect(rowOf(full({}), INITIAL_WORKBENCH.pending).displayName).toBeNull();
+      expect(rowOf(full(part)).displayName).toBe("대화 저장");
+      expect(rowOf(full({})).displayName).toBeNull();
     });
   });
 });

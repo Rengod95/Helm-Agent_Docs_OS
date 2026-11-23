@@ -3,17 +3,17 @@ import { t } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
 import { PluginsPanelView } from "../../src/views/pages/settings/settings-plugins-view.tsx";
 
-// 설정 "플러그인" 구역 맨 위 카드(DP-93). 목록과 스위치는 없고, 플레이그라운드로 보내는 한 줄만 있다.
+// 설정 "플러그인" 구역 맨 위 카드(DP-93). 목록과 스위치는 없고, 크래프트의 플러그인 목록으로 보내는 한 줄만 있다(AGE-76 plugMin).
 
 const plain = (html: string): string => html.replaceAll("<!-- -->", "");
 
 describe("PluginsPanelView", () => {
-  test("says plugins are managed in the playground and offers to open it", () => {
+  test("says plugins are managed in the craft plugin list and offers to open it", () => {
     const markup = plain(renderToString(<PluginsPanelView onOpen={() => undefined} />));
     expect(markup).toContain(t("desktop.settings.plugins.moved.title"));
     expect(markup).toContain(t("desktop.settings.plugins.moved.body"));
     expect(markup).toContain(`>${t("desktop.settings.plugins.moved.open")}<`);
-    expect(t("desktop.settings.plugins.moved.body")).toContain("플레이그라운드");
+    expect(t("desktop.settings.plugins.moved.body")).toContain("크래프트");
   });
 
   test("outside the shell there is no open button, and never a plugin switch", () => {

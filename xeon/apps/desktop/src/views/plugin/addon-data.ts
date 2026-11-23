@@ -124,12 +124,3 @@ export function useAddonData(manifests: boolean): AddonData {
   const listed = useMemo(() => new Set((listing ?? []).map((entry) => entry.name)), [listing]);
   return { source, meta, locale: activeLocale(), phase: state.phase, listed };
 }
-
-/** 상세의 "다시 읽기" 뒤처럼 매니페스트를 새로 읽어야 할 때 */
-export function forgetManifest(commands: Commands, name: string): void {
-  const cache = cacheOf(commands);
-  for (const id of cache.asked) if (id.startsWith(`${name}@`)) cache.asked.delete(id);
-  for (const id of cache.got.keys()) if (id.startsWith(`${name}@`)) cache.got.delete(id);
-  cache.snapshot = new Map(cache.got);
-  for (const listener of cache.listeners) listener();
-}

@@ -4554,7 +4554,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "<extension name>.<queue name> format",
+          "help": "<plugin name>.<queue name> format",
           "helpKey": "settings.l2.knowledge.write.trustedEvidenceSources.help",
           "label": "Trusted approval evidence sources",
           "labelKey": "settings.l2.knowledge.write.trustedEvidenceSources.label",
@@ -4838,7 +4838,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Sandbox stdio servers from work folder and extension sources",
+          "label": "Sandbox stdio servers from work folder and plugin sources",
           "labelKey": "settings.l2.mcp.sandbox.projectSource.label",
           "order": 314,
           "tab": "tools",
@@ -5108,7 +5108,7 @@
         "ui": {
           "help": "Covers direct calls from plugins, not model tools. allow creates at once, ask requests approval, deny blocks.",
           "helpKey": "settings.l2.schedule.entries.directCreate.help",
-          "label": "Direct schedule creation by extensions",
+          "label": "Direct schedule creation by plugins",
           "labelKey": "settings.l2.schedule.entries.directCreate.label",
           "order": 350,
           "tab": "execution",
@@ -6809,7 +6809,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Max restarts for isolated extensions",
+          "label": "Max restarts for isolated plugins",
           "labelKey": "settings.x.loadingTrust.isolation.maxRestarts.label",
           "order": 430,
           "tab": "plugins",
@@ -6832,7 +6832,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Isolated extension restart window",
+          "label": "Isolated plugin restart window",
           "labelKey": "settings.x.loadingTrust.isolation.restartWindowSec.label",
           "order": 440,
           "tab": "plugins",
@@ -6858,7 +6858,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Extension search paths",
+          "label": "Plugin search paths",
           "labelKey": "settings.x.loadingTrust.paths.label",
           "order": 410,
           "tab": "plugins",
@@ -7305,7 +7305,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "extension method call time budget",
+          "label": "plugin method call time budget",
           "labelKey": "settings.x.operations.budget.uiMs.label",
           "order": 260,
           "tab": "plugins",
@@ -7636,7 +7636,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When on, the next start loads without user or project extensions and hooks. Use it to recover from a problem.",
+          "help": "When on, the next start loads without user or project plugins and hooks. Use it to recover from a problem.",
           "helpKey": "settings.x.operations.safeMode.default.help",
           "label": "Start in safe mode",
           "labelKey": "settings.x.operations.safeMode.default.label",
@@ -7734,7 +7734,7 @@
         "ui": {
           "help": "Older raw data is deleted; daily summaries stay",
           "helpKey": "settings.x.operations.trace.retentionDays.help",
-          "label": "Measurement raw data retention",
+          "label": "Trace raw data retention",
           "labelKey": "settings.x.operations.trace.retentionDays.label",
           "order": 520,
           "tab": "plugins",
@@ -7915,7 +7915,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "When on, only plugins that declare a Drive can register a drive. When off, plugins that do not declare one can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
+          "help": "When on, only plugins that declare a Drive can register a drive. When off, plugins that do not declare one can also lead conversations. Applies when a Registration is re-enabled or a plugin is reloaded.",
           "helpKey": "settings.x.primitives.driveRequiresOrchestration.help",
           "label": "Drive only from Drive plugins",
           "labelKey": "settings.x.primitives.driveRequiresOrchestration.label",

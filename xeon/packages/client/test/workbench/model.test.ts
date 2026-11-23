@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import type { ExtGetResult, ExtHealthEntry, ExtListEntry } from "@fresnel/contracts/wire";
 import {
   INITIAL_WORKBENCH,
-  clearPending,
   clearPick,
   closeBuilder,
   closeDetail,
@@ -13,21 +12,19 @@ import {
   healthLoaded,
   hookNoticesLoaded,
   hookNoticesOf,
+  isAppCore,
   isDetailTab,
   keepOffOf,
-  layerGroups,
-  listLayersOf,
-  setListLayer,
-  setListState,
   listLoaded,
-  markPending,
+  pluginGroupOf,
+  pluginGroups,
+  setCoreOpen,
   openDetail,
   openLayerOf,
   ordersLoaded,
   pickGroup,
   pickPlugin,
   pickSel,
-  rowOf,
   requestBuilder,
   select,
   selectDetailTab,
@@ -37,7 +34,6 @@ import {
   setQuery,
   setView,
   toggleContrib,
-  toggleRequestOf,
   versionRows,
   versionsViewOf,
   visibleHookNotices,
@@ -122,7 +118,7 @@ describe("workbench model", () => {
       details: {},
       health: {},
       order: {},
-      pending: {},
+      coreOpen: false,
       builder: null,
     });
   });
@@ -132,56 +128,82 @@ describe("workbench model", () => {
     expect(countsOf(base)).toEqual({ total: 5, on: 4, autoDisabled: 1 });
   });
 
-  test("층 묶음은 L1, L2, L3, 그 밖 순서이고 켜짐 수를 센다", () => {
-    expect(layerGroups(base).map((g) => [g.layer, g.total, g.on])).toEqual([
-      ["L3", 2, 1],
-      ["L2", 1, 1],
-      ["external", 1, 1],
-      ["L1", 1, 1],
+  test("플러그인 묶음은 내가 넣은 것, 기본 제공, 앱 핵심 순서이고 묶음 안은 보이는 이름순이다", () => {
+    const state = listLoaded(INITIAL_WORKBENCH, [
+      ...base.entries,
+      entry("cap-web", { origin: "builtin" }),
+      entry("admin-tool", { origin: "managed" }),
+      entry("cap-workspace", { origin: "builtin", enabledSource: "core" }),
+      entry("secret-guard", { origin: "builtin", tier: "guard" }),
+      entry("local", { origin: "project" }),
+    ]);
+    expect(pluginGroups(state).map((g) => [g.key, g.rows.map((r) => r.name)])).toEqual([
+      ["mine", ["acme", "helm", "local", "review", "web"]],
+      ["bundled", ["admin-tool", "cap-web"]],
+      // 카탈로그 이름(ext.name.*)이 있는 core-loop, cap-workspace는 사람 말 이름으로 줄 선다
+      ["core", ["secret-guard", "core-loop", "cap-workspace"]],
     ]);
   });
 
-  test("층·켜짐 거르기는 층 묶음에만 걸리고 층 고르기 값은 목록의 층 순서다", () => {
-    expect(listLayersOf(base)).toEqual(["L3", "L2", "external", "L1"]);
-    const l3 = setListLayer(base, "L3");
-    expect(layerGroups(l3).map((g) => [g.layer, g.rows.map((r) => r.name).toSorted()])).toEqual([
-      ["L3", ["helm", "review"]],
-    ]);
-    const off = setListState(l3, "off");
-    expect(layerGroups(off).flatMap((g) => g.rows.map((r) => r.name))).toEqual(["review"]);
-    expect(visibleRows(off)).toHaveLength(5);
+  test("찾기가 걸리면 빈 묶음은 빠진다", () => {
+    expect(pluginGroups(setQuery(base, "loop")).map((g) => g.key)).toEqual(["core"]);
+    expect(pluginGroups(setQuery(base, "없는 이름"))).toEqual([]);
+  });
+
+  test("앱 핵심 술어: 켜짐 출처 core, 면제 tier, L1 층이면 참이고 그 밖은 거짓이다", () => {
+    expect(
+      [
+        entry("a", { enabledSource: "core" }),
+        entry("b", { tier: "guard" }),
+        entry("c", { layer: "L1" }),
+        entry("d", { enabledSource: "profile" }),
+        entry("e", { enabledSource: "managed", origin: "managed" }),
+      ].map(isAppCore),
+    ).toEqual([true, true, true, false, false]);
+    expect(pluginGroupOf({ appCore: true, origin: "user" })).toBe("core");
+    expect(pluginGroupOf({ appCore: false, origin: undefined })).toBe("bundled");
+  });
+
+  test("앱 핵심 묶음은 접힌 채 시작하고 펴고 접을 수 있다", () => {
+    expect(base.coreOpen).toBe(false);
+    expect(setCoreOpen(base, true).coreOpen).toBe(true);
+    expect(setCoreOpen(setCoreOpen(base, true), false).coreOpen).toBe(false);
   });
 
   test("행 모델: 종류, 표시 이름, 상태, 잠금", () => {
     const rows = visibleRows(base);
     const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
-    expect(byName["core-loop"]).toMatchObject({ kind: "core", lock: "exempt", state: "on" });
-    expect(byName["web"]).toMatchObject({ kind: "plugin", displayName: "웹 검색", lock: null });
+    expect(byName["core-loop"]).toMatchObject({
+      kind: "core",
+      lock: "exempt",
+      state: "on",
+      appCore: true,
+    });
+    expect(byName["web"]).toMatchObject({
+      kind: "plugin",
+      displayName: "웹 검색",
+      lock: null,
+      appCore: false,
+    });
     expect(byName["helm"]).toMatchObject({ kind: "group", displayName: null });
     expect(byName["review"]).toMatchObject({ state: "auto_disabled", on: false, failed: true });
     expect(byName["acme"]).toMatchObject({ state: "safe_excluded", lock: "safe_mode" });
   });
 
-  test("엔진이 필요로 하는 플러그인(켜짐 출처 core)은 required로 잠기고 끄기 요청을 거절한다", () => {
+  test("엔진이 필요로 하는 플러그인(켜짐 출처 core)은 required로 잠기고 앱 핵심이다", () => {
     const state = listLoaded(INITIAL_WORKBENCH, [
       entry("cap-workspace", { enabledSource: "core" }),
     ]);
-    expect(visibleRows(state)[0]).toMatchObject({ name: "cap-workspace", lock: "required" });
-    expect(toggleRequestOf(state, "cap-workspace", false)).toEqual({ ok: false, reason: "locked" });
+    expect(visibleRows(state)[0]).toMatchObject({
+      name: "cap-workspace",
+      lock: "required",
+      appCore: true,
+    });
   });
 
   test("찾기는 이름과 표시 이름을 대소문자 없이 거른다", () => {
     expect(visibleRows(setQuery(base, "웹")).map((r) => r.name)).toEqual(["web"]);
     expect(visibleRows(setQuery(base, "HEL")).map((r) => r.name)).toEqual(["helm"]);
-  });
-
-  test("켜기·끄기는 사용자 범위 키 하나이고 잠긴 행은 거절한다", () => {
-    expect(toggleRequestOf(base, "web", false)).toEqual({
-      ok: true,
-      request: { key: "ext.web.enabled", value: false, scope: "user" },
-    });
-    expect(toggleRequestOf(base, "core-loop", false)).toEqual({ ok: false, reason: "locked" });
-    expect(toggleRequestOf(base, "nope", true)).toEqual({ ok: false, reason: "unknown" });
   });
 
   test("끌까요: 묻지 않은 확장은 null이고, 물으면 기준과 실패 수와 답할 수 있는지를 준다", () => {
@@ -213,19 +235,6 @@ describe("workbench model", () => {
     expect(
       keepOffOf(entry("acme", { keepOffQuestion, safeModeExcluded: "안전 모드" }), true),
     ).toEqual(expected);
-  });
-
-  test("대기 표시는 반영되면 목록이 걷어 낸다", () => {
-    const pending = markPending(base, "web", false);
-    expect(rowOf(web, pending.pending).pendingTarget).toBe(false);
-    const still = listLoaded(pending, base.entries);
-    expect(still.pending).toEqual({ web: false });
-    const done = listLoaded(
-      pending,
-      base.entries.map((e) => (e.name === "web" ? { ...e, status: "disabled" as const } : e)),
-    );
-    expect(done.pending).toEqual({});
-    expect(clearPending(pending, "web").pending).toEqual({});
   });
 
   test("extOf는 첫 슬래시 앞 조각이다", () => {
