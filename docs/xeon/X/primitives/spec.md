@@ -921,7 +921,8 @@ export type PrimitiveErrorCode =
   | "record_kind_undeclared" | "record_invalid" | "read_kind_undeclared" | "record_private_invalid"
   | "capability_undeclared" | "capability_unavailable" | "capability_ambiguous"
   | "service_reserved" | "tool_risk_reserved" | "resource_conflict" | "resource_name_invalid" | "method_schema_invalid"
-  | "read_only_method";
+  | "read_only_method"
+  | "own_data_method";
 
 export class PrimitiveError extends Error {
   readonly code: PrimitiveErrorCode;
@@ -1726,6 +1727,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - 이름 정책(`ResourcePolicy`)은 거치지 않는다. 다른 확장의 같은 동사는 wire 이름이 달라 둘 다 남는다. 포트를 쓰지 않으므로 `port_unavailable`이 없다. 기록은 `ExtHost.resources`에 kind `ext_method`, 이름 `verb`로 남는다(§3.9).
 - 처리기는 `ambient`(`invocation: "method"`, 디스패치 키 `method:<callId>`, 재실행 검사 제외, 예산 없음)에서 돈다. `threadId`가 `null`이면 ambient를 열지 않는다(명령과 같다). 열려 있지 않은 thread(끝난 하위 대화, 재시작 뒤 아직 열지 않은 대화)에 묶인 호출은 켜짐 판정에서 thread 없는 호출로 다룬다. `readOnly` 메서드는 처리기 문맥에 원래 `threadId`를 `threadOpen: false`와 함께 싣고, 이때 `readRecords`는 열린 thread 없이 동작하며 상태 문서(`state()`)는 `no_thread`다. 쓰기 메서드는 `threadId`가 `null`이다 [근거: `packages/ext-host/src/primitives/ext-method.ts`의 `call`, `packages/ext-host/test/primitives/ext-method.test.ts`].
 - `readOnly: true`로 선언한 메서드의 처리기는 읽기 전용으로 선언된 기능 메서드(`capability.readOnly`)만 부를 수 있다. 쓰기·멱등·선언 없음 기능 메서드는 `effect_not_allowed`로 거부하고 공급자를 부르지 않는다. 화면의 `query`가 확인 줄 없이 지나가므로 `readOnly`가 플러그인의 주장에 그치지 않게 엔진이 지킨다. 이 표지는 ambient와 따로 처리기의 비동기 흐름 전체에 달리므로 `threadId`가 `null`인 호출에도 같이 걸린다. 처리기 안에서 `commit`, `commitWith`, `updateState`, `record`, `recordPrivate`, `post`, `requestEffect`를 부르면 `read_only_method`(`PrimitiveError`)로 던지고 아무것도 쓰지 않는다. 쓰려면 메서드를 `readOnly: false`로 선언하고 화면은 `call`(확인 줄)로 부른다. 이유: `query`는 사용자 조작과 확인 줄 없이 지나가므로 `readOnly`가 선언에 그치지 않게 엔진이 지킨다 [제안: 2026-11-04 사용자 14번이 "권고대로 막는 쪽"으로 기울었다고 답했다. 확정 결정은 아니다].
+- 프로필에 없는 앱 호출 [결정: 2026-11-23, 사용자, AGE-78 질문 3]: 설치된(승인된) 플러그인의 메서드는 그 대화의 켜짐 집합에 없어도 불린다. 등록된 처리기가 없고 매니페스트가 그 동사를 선언했으면 `call`이 닫힌 scope의 세대를 연다(`RegistrationScope.openForApp`, 로드 순서대로 하나씩, `RegistrationRecord.appHeld`로 붙잡아 경계의 세대 닫기가 닫지 않는다). 대화의 켜짐 집합(`thread.active`)은 건드리지 않으므로 훅은 켜진 대화에서만 돌고(`registry`의 `isOpen`), 도구는 대화가 실은 플러그인 집합 E(T)로, Drive는 켜짐 집합으로 걸러진다. 그 대화에 켜져 있지 않은 scope의 메서드 처리기는 `threadId: null`로 불린다(대화 상태 `g.state()`가 없다). 전체 끄기(`threadId` 없는 `toggle(false)`, `RegistrationRecord.explicitOff`), 앞선 설정 실패, 설치되지 않음은 열지 않는다(`extension_off`, `not_found`). 다시 켜면 풀린다. 메서드가 쓰는 자기 저장소는 대화 상태가 아니라 플러그인 전용 저장소(`storageOf`)여야 한다. SDK는 아직 이 저장소를 열지 않았다 [미결: 앱 데이터를 대화 없이 쓰는 길]. 시험: `packages/ext-host/test/primitives/ext-method-app-open.test.ts`.
+- `ownDataOnly: true`로 선언한 쓰기 메서드의 처리기는 자기 상태와 기록(`commit`, `commitWith`, `updateState`, `record`, `recordPrivate`, 자기 저장소)만 바꾼다. 처리기 흐름 전체에 표지가 달려(`readOnly` 표지와 같은 방식, `threadId`가 `null`이어도 걸린다) `post`, `requestEffect`, `startDrive`, `capability`와 `port` 조회는 `own_data_method`(`PrimitiveError`)로 던지고, 이미 얻어 둔 기능 핸들을 부르면 `effect_not_allowed`로 거부한다. 격리 자식이 그 요청 중에 보내는 엔진 호출도 같은 표지를 받는다(요청 id 표, `engine-calls`의 `ownDataOf`). 이 제한은 엔진 API의 길을 막는 것이다. 플러그인 코드가 자기 프로세스에서 파일이나 네트워크를 직접 쓰는 것은 이 표지가 막지 못한다(격리 샌드박스와 승인 카드의 몫이다). 같은 요청 id 전달은 `readOnly` 표지에는 아직 없다 [결정: 2026-11-23, 사용자, AGE-78 질문 5; 시험: `packages/ext-host/test/primitives/ext-method-own-data.test.ts`].
 - 등록은 fiber effect다. scope 세대가 닫히면 기록과 검사기가 함께 해제된다. 다시 켜면 setup이 다시 등록하면서 검사기를 새로 만든다.
 - `list()`는 지금 등록된 메서드를 `{ extension, verb, decl, scopeId }`로 돌려준다.
 - `call(input)`는 아래 순서로 보고, 판정이 나오면 그 값을 돌려준다. 처리기에 닿지 않은 결과(`not_found`, `extension_off`, 호출 전에 이미 abort된 `aborted`)는 보고하지 않는다.

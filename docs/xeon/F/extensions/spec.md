@@ -306,6 +306,7 @@ export interface ExtMethodDecl {
   readonly readOnly: boolean;
   readonly approval?: boolean;
   readonly label?: string;             // 1~48자. 프레임 call 확인 줄이 동사 대신 보인다 (EXT_LABEL_MAX)
+  readonly ownDataOnly?: boolean;      // "자기 데이터만 바꿈" 표시. 쓰기 메서드만. readOnly나 approval과 함께 참이면 method_invalid. 화면 call이 확인 줄 없이 실행되고, 검토 카드의 InjectInventory.ownDataMethods에 실린다 [결정: 2026-11-23, 사용자, AGE-78 질문 5]
 }
 export function validateUi(ui: UiDecl): readonly ManifestIssue[];
 export function validateMethods(methods: readonly ExtMethodDecl[]): readonly ManifestIssue[];
@@ -446,6 +447,7 @@ export type EvidenceRef =
 
 - 이름 [결정: 구현 중]: `UiDecl`은 `ui.ts`의 매니페스트 화면 블록과 겹치고 `SettingDef`는 설정 카탈로그와 겹쳐서 카드의 것은 `PluginUiDecl`, `PluginSettingDef`로 쓴다. Fold는 새 이름 없이 `hooks.ts`의 `Fold`(`"tap" | "first" | "chain" | "collect"`)를 쓴다(`HookFold`를 따로 두지 않는다).
 - `HookPosition`, `HookPower` [미결]: 코드에도 이 문서에도 정의가 없다. 이 문서가 참조하는 `F §4.1 HOOK_POSITIONS`는 이 문서에 없다. M5e 제안(`review/m5/hooks-core-boundary.md` 훅 위치 절)이 두 타입과 표를 낸다. 구현은 문자열 자리로 두고, 정의가 확정되면 같은 자리에서 바꾼다.
+- 자기 데이터만 바꿈 칸 [결정: 2026-11-23, 사용자, AGE-78 질문 5]: `InjectInventory.ownDataMethods`는 `ownDataOnly: true`인 메서드마다 `{verb, label|null}` 하나다(최대 64개, 선택 필드라 옛 카드도 파싱된다). 화면이 이 메서드를 부를 때 확인 줄이 뜨지 않으므로 사람이 승인 전에 카드에서 본다. 호스트 계산은 `apps/host/src/assembly/plugins/card.ts`의 `injectOf`다.
 - 스크립트 칸 [제안, 설계 B]: `InjectInventory.scripts`는 매니페스트 `scripts`마다 `{name, launch, timeoutMs}` 하나다(최대 64개). `launch`는 `CardLaunch`(= `CardMcpLaunch`, 같은 모양)다: `command`는 실행기 이름이나 절대 경로, `args`는 상대 `file`을 포함하고, `envNames`는 이름만(환경 모드가 아닌 스크립트는 실제로 넘어가는 이름, 곧 허용 목록에 있고 토큰·키 이름이 아닌 것만), `cwd`는 null이다. 선언했지만 받지 못하는 이름은 `CardScript.envNotPassed`가 따로 싣는다(없으면 필드 없음) [결정: 2026-11-22, 사용자, AGE-63]. 승인 카드(초안 스크립트 호출, `ScriptCard.envNotPassed`)도 같은 이름을 싣고, 차이 보기는 스크립트 줄의 `[not passed: …]`로 바뀜을 보인다(AGE-33 enDep 11). `timeoutMs`는 정수 1~60000이고 선언이 없으면 10000이다. 검토 카드는 이 칸을 "승인하면 실행될 명령"으로 보인다(`review/m5/profile-project-loader.md` §3.1). 옛 카드는 `scripts`가 없어도 파싱된다.
 - 카드 `review.state`(`approved | pending | draft | none`)는 검토 항목 상태(`pending | approved | sent_back | discarded | superseded | withdrawn`, wire `plugin-review.ts`)와 다른 집합이다.
 

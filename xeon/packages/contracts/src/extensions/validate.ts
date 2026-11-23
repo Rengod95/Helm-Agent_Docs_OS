@@ -494,6 +494,16 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
         ),
       );
     }
+    if (method.ownDataOnly === true && (method.readOnly || method.approval === true)) {
+      issues.push(
+        issue(
+          "error",
+          "method_invalid",
+          `${at}/ownDataOnly`,
+          "ownDataOnly marks a write method that skips the confirm line; it cannot be readOnly or require approval",
+        ),
+      );
+    }
   });
 
   return issues;

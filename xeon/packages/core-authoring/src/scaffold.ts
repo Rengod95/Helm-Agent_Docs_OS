@@ -14,6 +14,7 @@ import type {
 import { checkOrchestrationName } from "@fresnel/contracts/services";
 import { appSkeletonFiles, type AppSkeletonValues } from "./app-skeleton.ts";
 import { KIND_CATALOG } from "./catalog.ts";
+import { nativeSkeletonFiles } from "./native-skeleton.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 import {
   ENTRY_PATH,
@@ -93,7 +94,7 @@ async function listFiles(root: string, prefix = ""): Promise<Result<string[], De
   return ok(nested.value.flat().toSorted());
 }
 
-/** 방식의 템플릿 폴더. 생략하면 훅 방식(기존 골격)이다. `app`은 폴더가 없고 `appSkeletonFiles`가 글을 준다 */
+/** 방식의 템플릿 폴더. 생략하면 훅 방식(기존 골격)이다. `app`과 `native`는 폴더가 없고 뼈대 모듈이 글을 준다 */
 function templateOf(dirs: TemplateDirs, mode: PluginMode): string {
   switch (mode) {
     case "hook":
@@ -108,21 +109,30 @@ function templateOf(dirs: TemplateDirs, mode: PluginMode): string {
 }
 
 /**
+ * 화면 뼈대(`app`, `native`)는 템플릿 폴더가 없고 뼈대 모듈(순수 함수)이 글을 만든다. 구성원을 받지 않고 엔진 코드가 생성 파일을 가져오지 않는다
+ */
+function isScreenSkeleton(mode: ScaffoldMode | undefined): mode is "app" | "native" {
+  return mode === "app" || mode === "native";
+}
+
+/**
  * 뼈대 파일 목록과 내용을 읽는다. 종류는 플러그인 하나이고 방식마다 템플릿 폴더 전체를 쓴다.
- * `app`은 템플릿 폴더 없이 `appSkeletonFiles`(순수 함수)가 글을 만든다
+ * 화면 뼈대(`app`, `native`)는 템플릿 폴더 없이 뼈대 모듈이 글을 만든다
  */
 async function plannedTemplate(
   dirs: TemplateDirs,
   mode: ScaffoldMode,
   values: AppSkeletonValues,
 ): Promise<Result<PlannedFile[], DevkitError>> {
-  if (mode === "app")
+  if (isScreenSkeleton(mode)) {
+    const files = mode === "app" ? appSkeletonFiles(values) : nativeSkeletonFiles(values);
     return ok(
-      appSkeletonFiles(values).map((file) => ({
+      files.map((file) => ({
         path: file.path,
         bytes: new TextEncoder().encode(file.text),
       })),
     );
+  }
   const root = templateOf(dirs, mode);
   const names = await listFiles(root);
   if (!names.ok) return names;
@@ -243,11 +253,11 @@ export async function scaffoldExtension(
   if (input.layer !== undefined && !LAYERS_OF_SINGLE.has(input.layer))
     return err(invalid(`layer ${input.layer} is not allowed`));
 
-  // 앱 뼈대는 화면과 엔진 코드가 한 덩어리라 구성원을 받지 않는다. 구성원은 뼈대를 만든 뒤 편집 명령으로 더한다
-  if (input.mode === "app" && (input.orchestration?.members ?? []).length > 0)
+  // 화면 뼈대(앱, 선언형)는 구성원을 받지 않는다. 구성원은 뼈대를 만든 뒤 편집 명령으로 더한다
+  if (isScreenSkeleton(input.mode) && (input.orchestration?.members ?? []).length > 0)
     return err(
       invalid(
-        "the app mode takes no members: scaffold it first, then add members with editMembers",
+        "the app and native modes take no members: scaffold it first, then add members with editMembers",
       ),
     );
 
@@ -280,8 +290,11 @@ export async function scaffoldExtension(
     } else out.push({ path, bytes: file.bytes });
   }
   // 엔트리가 있는 뼈대나 코드 구성원이 있으면 생성 파일을 낸다. 엔트리 `src/index.ts`가 이 파일을 가져온다.
-  // 앱 엔진 코드는 이 파일을 가져오지 않으므로 구성원 코드가 없으면 만들지 않는다
-  if (coded.length > 0 || (input.mode !== "app" && out.some((file) => file.path === ENTRY_PATH)))
+  // 화면 뼈대의 엔진 코드는 이 파일을 가져오지 않으므로 구성원 코드가 없으면 만들지 않는다
+  if (
+    coded.length > 0 ||
+    (!isScreenSkeleton(input.mode) && out.some((file) => file.path === ENTRY_PATH))
+  )
     out.push({
       path: MEMBERS_GENERATED_PATH,
       bytes: new TextEncoder().encode(membersGeneratedText(coded)),

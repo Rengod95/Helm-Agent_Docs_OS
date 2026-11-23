@@ -38,6 +38,7 @@ import {
 import {
   ambient,
   hookStackOf,
+  inOwnDataMethod,
   inReadOnlyMethod,
   withAmbient,
   withoutAmbient,
@@ -253,6 +254,14 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
         // 다시 경로를 고르면 되돌이가 생기므로 검사 없이 공급자를 부른다(U-8)
         if (isPipelineInternal(target, given)) {
           return callService(target, method, service, input, given, amb, given?.requestId);
+        }
+        if (inOwnDataMethod()) {
+          return refuse(
+            id,
+            name,
+            "effect_not_allowed",
+            `${id}.${name} reaches beyond the plugin; an ownDataOnly extension method may not call capabilities`,
+          );
         }
         // `readOnly: true` 메서드는 `query`로 확인 없이 지나가므로 읽기 전용으로 선언된 기능 메서드만 부를 수 있다
         if (inReadOnlyMethod() && effect !== "capability.readOnly") {

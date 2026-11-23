@@ -15,7 +15,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 - `name`: lowercase letters, digits, and hyphens, 2 to 32 characters, no underscore, not reserved.
 - Every hook passed to `g.on(...)` must be listed in that plugin's `hooks`. A listed hook that is never used is a warning.
 - `g.post` needs `usesPost: true`. `g.drive` needs `drives: true` and a plugin group member.
-- Register tools in a plugin group's `setup` with `g.registerTool`. Plain plugins have no tool API in the SDK types.
+- In `setup`, register methods, tools, and commands with `g.registerMethod`, `g.registerTool`, and `g.registerCommand`. A plain plugin (`definePlugin`, no `orchestration`) has them too.
 - Never request `trust.level: "builtin"`. Authoring and install refuse it.
 - Source entries are usually `.ts` (`./src/index.ts`). Install needs a bundled `.js` or `.mjs` entry, which packaging writes as `./dist/index.js`.
 - Put no secrets in the extension. Validation flags secret literals in source (AU-009).
@@ -26,7 +26,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 1. `authoring_kinds`: list the kinds (optional).
 2. `authoring_start` with `kind`, `name`, `dir`: the user must confirm kind and name.
 3. `authoring_compose` (plugin groups only): save the composition draft.
-4. `authoring_scaffold` with `mode` `hook`, `inject`, `drive`, or `app`: write the files into an empty or missing folder. `app` writes a plugin with its own screen (`ui/app/`), read and write methods, and a model tool; read `references/ui.md` first.
+4. `authoring_scaffold` with `mode` `hook`, `inject`, `drive`, `app`, or `native`: write the files into an empty or missing folder. `app` writes a plugin with its own screen (`ui/app/`), read and write methods, and a model tool. `native` writes a plugin with one declarative screen (`ui/native/main.view.json`) and one read method. Read `references/ui.md` before choosing one.
 5. Edit the files, then `authoring_validate`. Repeat until there are no errors.
 6. `authoring_trial`: the user confirms, because it uses model calls. `authoring_replay`: development mode only.
 7. `authoring_submit` with the `turnId` of a turn in the Test run (the evidence): it sends the folder to the review inbox as a draft. Nothing is installed; the user approves it in the review inbox, and only then can the plugin be used. `authoring_package` (optional): packs one bundle file the user can keep; the user confirms.
@@ -34,7 +34,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 
 These tools are deferred: find them with tool search before you call them.
 
-Templates: `xeon/packages/core-authoring/templates/single-plugin/` (single plugin), `xeon/packages/core-authoring/templates/` (inject and drive), and `xeon/packages/orchestration-sdk/templates/` (drive, policy, and observe groups). The `app` skeleton is text in `xeon/packages/core-authoring/src/app-skeleton.ts`.
+Templates: `xeon/packages/core-authoring/templates/single-plugin/` (single plugin), `xeon/packages/core-authoring/templates/` (inject and drive), and `xeon/packages/orchestration-sdk/templates/` (drive, policy, and observe groups). The `app` and `native` skeletons are text in `xeon/packages/core-authoring/src/app-skeleton.ts` and `native-skeleton.ts`.
 
 ## Reference files
 

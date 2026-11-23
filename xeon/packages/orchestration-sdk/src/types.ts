@@ -56,6 +56,18 @@ export type OrchestrationSettingValues<D extends OrchestrationSettingDefs> = {
   readonly [K in keyof D & string]: Static<D[K]["type"]>;
 };
 
+/**
+ * `definePlugin`의 정의. 구성원이 없는 보통 플러그인(예: 화면용 메서드와 모델 도구를 함께 내는 앱 플러그인)이다.
+ * 매니페스트에 `orchestration` 선언이 없고 id 없는 루트 플러그인(layer "L3")이 하나 있다. 그래서 Drive나 구성원 플러그인으로 분류되지 않는다
+ */
+export interface PluginDef<S = never, D extends OrchestrationSettingDefs = NoSettings> {
+  readonly manifest: ExtensionManifest;
+  readonly state?: StateDecl<S>;
+  readonly migrations?: StateMigrations;
+  readonly settings?: SettingGroup<OrchestrationSettingNamespace, D>;
+  readonly setup: (g: OrchestrationApi<S, D>) => void | Promise<void>;
+}
+
 export interface OrchestrationDef<S = never, D extends OrchestrationSettingDefs = NoSettings> {
   /** 저장소 안 플러그인은 defineManifest 상수, 외부 플러그인은 orchestrationManifest(plugin.json 값) */
   readonly manifest: OrchestrationManifest;
@@ -178,6 +190,11 @@ export interface OrchestrationApi<
   ): Promise<Result<ScriptRunResult, ScriptRunFailure>>;
 }
 
+/** `definePlugin`이 돌려주는 모듈. `OrchestrationModule`과 같되 매니페스트에 `orchestration` 선언이 없다. 엔트리 파일은 `entry`를 `extension`으로 내보낸다 */
+export type PluginModule = Omit<OrchestrationModule, "manifest"> & {
+  readonly manifest: ExtensionManifest;
+};
+
 export interface OrchestrationModule {
   readonly manifest: OrchestrationManifest;
   /** X 로더가 부르는 엔트리. F ExtensionEntry */
@@ -198,6 +215,8 @@ export interface OrchestrationModuleSettings {
 
 export type OrchestrationDefIssueCode =
   | "orchestration_missing" // `orchestration` 선언이 없거나 layer가 "L3"인 루트 플러그인이 없음
+  | "plugin_orchestration_declared" // `definePlugin`인데 매니페스트에 `orchestration` 선언이 있음(구성원이 있는 플러그인은 defineOrchestration)
+  | "plugin_root_missing" // `definePlugin`인데 id 없는 layer "L3" 루트 플러그인이 없음
   | "orchestration_name" // ORCHESTRATION_NAME_PATTERN 위반 또는 RESERVED_ORCHESTRATION_NAMES
   | "settings_namespace" // 설정 namespace가 l3.<이름>(trust.level builtin) 또는 ext.<이름>이 아님
   | "state_version" // version이 1 이상의 정수가 아니거나, state가 없는데 migrations가 있음

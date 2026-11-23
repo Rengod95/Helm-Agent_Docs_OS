@@ -38,6 +38,11 @@ import type { StateResetError, StateService } from "./state.ts";
 
 // ── 공개 모양 ──────────────────────────────────────────────────────────────
 
+/** `openForApp`의 결과. 거절 이유는 앱 화면이 `extension_off`로 보인다 */
+export type AppOpenResult =
+  | { readonly kind: "open" }
+  | { readonly kind: "refused"; readonly reason: "explicit_off" | "failed" | "busy" };
+
 export interface RegistrationInfo {
   readonly id: RegistrationId;
   readonly extension: string;
@@ -99,6 +104,11 @@ export interface RegistrationRuntime {
   ): void;
   /** install: 초기 켜기 요청을 정한다. 설정 값이 있으면 매니페스트·정의 기본값을 덮는다 */
   setInitial(record: RegistrationRecord, enabled: boolean): void;
+  /**
+   * 앱 화면이 부를 때 세대를 연다(어느 프로필에도 없어도). 이미 열려 있으면 붙잡기만 한다. 전체 끄기, 앞선 실패, setup 중 바쁨은 거절한다.
+   * thread의 켜짐 집합은 건드리지 않으므로 훅, 도구, Drive는 프로필에 있을 때만 돈다
+   */
+  openForApp(record: RegistrationRecord): Promise<AppOpenResult>;
   /** install: 초기 요청이 참이면 바로 켜기를 적용한다(실행 중 thread가 없을 때) */
   startupApply(record: RegistrationRecord): Promise<RegistrationSetupOutcome>;
   /** prepare: 요청과 현재 상태의 차이를 적용한다. 세대 닫기와 setup 실행이 여기서 일어난다 */
@@ -280,6 +290,8 @@ function recordOf(unit: InstalledUnit, staged: StagedScope): RegistrationRecord 
     waiting: [],
     driveError: false,
     busy: false,
+    appHeld: false,
+    explicitOff: false,
   };
 }
 
@@ -814,6 +826,7 @@ export function createRegistrationRuntime(
 
   /** 세대를 계속 열어 둘 이유가 있는가: 켜 두기를 바라거나 이미 켜져 있는 thread가 있다 */
   function neededAnywhere(record: RegistrationRecord): boolean {
+    if (record.appHeld) return true;
     if (core.threads.size === 0) return record.desired;
     return [...core.threads.values()].some(
       (thread) => thread.active.has(record.id) || wantedBy(thread, record),
@@ -825,7 +838,7 @@ export function createRegistrationRuntime(
     const live = generation !== null && generation.open && !generation.stale;
     const wanted = wantedAnywhere(record);
     if (live) {
-      record.status = wanted ? "enabled" : "disabling";
+      record.status = wanted || record.appHeld ? "enabled" : "disabling";
     } else if (generation !== null && generation.closing) {
       record.status = "disabling";
     } else {
@@ -853,6 +866,7 @@ export function createRegistrationRuntime(
   async function teardown(record: RegistrationRecord): Promise<void> {
     const generation = record.generation;
     record.desired = false;
+    record.appHeld = false;
     for (const thread of core.threads.values()) {
       thread.want.delete(record.id);
       thread.active.delete(record.id);
@@ -910,6 +924,8 @@ export function createRegistrationRuntime(
   ): void {
     if (threadId === undefined) {
       record.desired = enabled;
+      record.explicitOff = !enabled;
+      if (!enabled) record.appHeld = false;
       record.reason = reason;
       for (const thread of core.threads.values()) {
         thread.want.delete(record.id);
@@ -980,6 +996,31 @@ export function createRegistrationRuntime(
       core.notify({ kind: "scope", scopeId: record.id, threadId: thread.threadId });
       deps.requestApply(thread.threadId);
       return reset;
+    },
+    async openForApp(record) {
+      if (record.explicitOff) return { kind: "refused", reason: "explicit_off" };
+      const existing = record.generation;
+      if (existing !== null && existing.open && !existing.stale && !existing.closing) {
+        record.appHeld = true;
+        return { kind: "open" };
+      }
+      if (record.busy || existing !== null) return { kind: "refused", reason: "busy" };
+      if (record.lastError !== undefined || record.driveError) {
+        return { kind: "refused", reason: "failed" };
+      }
+      const result = await runSetup(record);
+      if (!result.ok) {
+        markFailed(record, result);
+        return { kind: "refused", reason: "failed" };
+      }
+      record.generation = result.generation;
+      record.waiting = [];
+      record.lastError = undefined;
+      result.generation.open = true;
+      record.appHeld = true;
+      refreshStatus(record);
+      core.notify({ kind: "scope", scopeId: record.id, threadId: null });
+      return { kind: "open" };
     },
     async startupApply(record) {
       if (!record.desired) return { scopeId: record.id, status: "skipped", issues: [] };

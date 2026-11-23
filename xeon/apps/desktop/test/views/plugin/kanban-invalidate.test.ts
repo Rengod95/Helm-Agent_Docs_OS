@@ -12,11 +12,11 @@ const CHANGED = { extension: "kanban" };
 
 /** `commands.pluginUi.onChanged` 대역: 구독한 listener를 기억하고, 구독을 끊으면 지운다 */
 function fakeOnChanged(): {
-  readonly onChanged: (listener: (extension: string) => void) => () => void;
-  deliver(extension: string): void;
+  readonly onChanged: (listener: (extension: string | null) => void) => () => void;
+  deliver(extension: string | null): void;
   readonly listening: () => number;
 } {
-  const listeners = new Set<(extension: string) => void>();
+  const listeners = new Set<(extension: string | null) => void>();
   return {
     onChanged(listener) {
       listeners.add(listener);
@@ -70,6 +70,14 @@ describe("the kanban change notification reaches the kanban frame as one invalid
     changed.deliver("notes");
     expect(frame.sent).toEqual([]);
     changed.deliver(CHANGED.extension);
+    expect(frame.sent).toEqual([["invalidate", null]]);
+  });
+
+  test("the reconnect signal (null) also pushes one invalidate, so the kanban frame re-reads", () => {
+    const changed = fakeOnChanged();
+    const frame = fakeFrame();
+    framePushOnChange(changed, frame, "kanban");
+    changed.deliver(null);
     expect(frame.sent).toEqual([["invalidate", null]]);
   });
 

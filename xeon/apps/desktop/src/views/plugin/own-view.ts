@@ -35,16 +35,22 @@ export function screenOpenerOf(options: {
   };
 }
 
-/** 확장 바뀜 알림(`ext.ui.changed`)의 구독 함수 모양. `commands.pluginUi.onChanged`가 이 모양이다 */
-export type ExtensionChangeSubscribe = (listener: (extension: string) => void) => () => void;
+/**
+ * 확장 바뀜 알림(`ext.ui.changed`)의 구독 함수 모양. `commands.pluginUi.onChanged`가 이 모양이다.
+ * 값 `null`은 "어느 확장이든 바뀌었을 수 있으니 다시 읽어라"(재연결 뒤)다
+ */
+export type ExtensionChangeSubscribe = (listener: (extension: string | null) => void) => () => void;
 
-/** 이 확장이 바뀌었을 때만 `listener`를 부른다. 다른 확장의 알림은 닿지 않는다. 구독을 끊는 함수를 돌려준다 */
+/**
+ * 이 확장이 바뀌었을 때(또는 재연결로 어느 확장이든 바뀌었을 수 있을 때, 값 `null`) `listener`를 부른다.
+ * 다른 확장의 알림은 닿지 않는다. 구독을 끊는 함수를 돌려준다
+ */
 export function onExtensionChanged(
   subscribe: ExtensionChangeSubscribe,
   extension: string,
   listener: () => void,
 ): () => void {
   return subscribe((changed) => {
-    if (changed === extension) listener();
+    if (changed === null || changed === extension) listener();
   });
 }

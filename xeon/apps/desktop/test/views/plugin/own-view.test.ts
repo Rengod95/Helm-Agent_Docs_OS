@@ -47,9 +47,9 @@ describe("a view link names a screen of its own extension that the playground li
 
 describe("an extension change reaches only the screens of that extension", () => {
   test("its own change calls the listener, another extension's does not, and unsubscribe ends it", () => {
-    const listeners: ((extension: string) => void)[] = [];
+    const listeners: ((extension: string | null) => void)[] = [];
     let unsubscribed = 0;
-    const subscribe = (listener: (extension: string) => void) => {
+    const subscribe = (listener: (extension: string | null) => void) => {
       listeners.push(listener);
       return () => {
         unsubscribed += 1;
@@ -66,5 +66,21 @@ describe("an extension change reaches only the screens of that extension", () =>
     expect(calls).toBe(2);
     off();
     expect(unsubscribed).toBe(1);
+  });
+
+  test("a null signal (re-read after a reconnect) reaches the screen, and it counts once per signal", () => {
+    const listeners: ((extension: string | null) => void)[] = [];
+    const subscribe = (listener: (extension: string | null) => void) => {
+      listeners.push(listener);
+      return () => {};
+    };
+    const seen: number[] = [];
+    onExtensionChanged(subscribe, "kanban", () => {
+      seen.push(1);
+    });
+    listeners[0]?.(null);
+    expect(seen).toEqual([1]);
+    listeners[0]?.("notes");
+    expect(seen).toEqual([1]);
   });
 });

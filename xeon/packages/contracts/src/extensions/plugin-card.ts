@@ -378,6 +378,11 @@ export interface InjectInventory {
   readonly replaces: readonly string[];
   /** 매니페스트 `scripts`의 스크립트 칸(설계 B [제안]). 선택 필드라 `scripts`가 없는 옛 카드도 파싱된다. 검토 카드는 "승인하면 실행될 명령"으로 보인다 */
   readonly scripts?: readonly CardScript[];
+  /**
+   * 플러그인이 "자기 데이터만 바꿈"(`ExtMethodDecl.ownDataOnly`)이라 밝힌 쓰기 메서드. 화면이 부를 때 확인 줄이 뜨지 않으므로 사람이 승인 전에 본다.
+   * 선택 필드라 없는 옛 카드도 파싱된다. 없거나 비어 있으면 모든 쓰기가 매번 확인을 받는다 [결정: 2026-11-23 사용자, AGE-78 질문 5]
+   */
+  readonly ownDataMethods?: readonly { readonly verb: string; readonly label: string | null }[];
 }
 const InjectInventoryShape = Type.Object(
   {
@@ -412,6 +417,15 @@ const InjectInventoryShape = Type.Object(
     ui: Type.Array(PluginUiDeclShape, { maxItems: 64 }),
     replaces: Type.Array(Id, { maxItems: 16 }),
     scripts: Type.Optional(Type.Array(CardScriptShape, { maxItems: 64 })),
+    ownDataMethods: Type.Optional(
+      Type.Array(
+        Type.Object(
+          { verb: Id, label: Type.Union([Type.String({ maxLength: 48 }), Type.Null()]) },
+          { additionalProperties: false },
+        ),
+        { maxItems: 64 },
+      ),
+    ),
   },
   { additionalProperties: false },
 );

@@ -47,6 +47,8 @@ A plugin's `register(id, def, setup)` gives a `RegistrationApi`:
 
 A plugin group's `g` (`OrchestrationApi`, from `defineOrchestration`) adds: `settings()`, `delegate(spec, options?)`, `delegateStatus(requestId)`, `cancelDelegates(reason?)`, `metrics`, `registerTool(def)`, `registerCommand(name, def)`, `registerMethod(verb, def)` (the verb must be in `methods`), `registerProvider(name, config)`.
 
+A plain plugin that has no members (for example an app plugin with screen methods and model tools) uses `definePlugin` and `pluginManifest` instead and declares no `orchestration`. Its `g` has the same registration calls, and it is not classified as a Drive or member plugin.
+
 Replay rules for `on` handlers and drives (the same handler may run again after a crash):
 
 - `on` handlers may commit, record, post, delegate, and call idempotent capability methods that take an explicit key.
@@ -93,7 +95,7 @@ Group kinds in the templates: `policy` blocks tool calls from a `tool.call.befor
 
 ## Tools (`ToolResourceDef`)
 
-Register with `g.registerTool(def)` in a plugin group's `setup`.
+Register with `g.registerTool(def)` in `setup`, in a plugin group or in a `definePlugin` plugin.
 
 | Field | Rule |
 |---|---|

@@ -8,6 +8,8 @@ import {
   RESERVED_ORCHESTRATION_NAMES,
   defineOrchestration,
   defineOrchestrationMember,
+  definePlugin,
+  pluginManifest,
   orchestrationManifest,
   isOrchestrationModule,
   validateOrchestrationDef,
@@ -341,4 +343,31 @@ test("define-group.composition-block-with-unknown-plugin-surfaces-manifest-issue
   const manifest = orchestrationManifestOf({ name: "badblock", drives: true });
   const bad = { blocks: [{ id: "x", stage: "work", op: "drive" as const, plugin: "ghost" }] };
   expect(codes({ manifest, composition: bad })).toContain("composition_plugin_unknown");
+});
+
+function plainManifestOf(name: string): ExtensionManifest {
+  const { orchestration: _declared, ...rest } = orchestrationManifestOf({ name, builtin: false });
+  return rest;
+}
+
+test("define-plugin.makes-a-module-from-a-manifest-without-orchestration", () => {
+  const manifest = plainManifestOf("plain-app");
+  const module = definePlugin({ manifest, setup() {} });
+  expect(module.manifest).toEqual(manifest);
+  expect(module.manifest.orchestration).toBeUndefined();
+  expect(isOrchestrationModule(module)).toBe(false);
+  expect(pluginManifest(manifest)).toEqual(manifest);
+});
+
+test("define-plugin.refuses-an-orchestration-declaration-and-a-missing-root", () => {
+  expect(() =>
+    definePlugin({
+      manifest: orchestrationManifestOf({ name: "has-block", builtin: false }),
+      setup() {},
+    }),
+  ).toThrow(/plugin_orchestration_declared/);
+  expect(() => definePlugin({ manifest: pluginManifestOf("no-root"), setup() {} })).toThrow(
+    /plugin_root_missing/,
+  );
+  expect(() => pluginManifest({ ...pluginManifestOf("no-root-json") })).toThrow(Bug);
 });

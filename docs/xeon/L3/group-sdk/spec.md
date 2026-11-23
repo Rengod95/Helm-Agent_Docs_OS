@@ -71,7 +71,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 ### 3.1 진입점과 import
 
 ```text
-@fresnel/orchestration-sdk           defineOrchestration, defineOrchestrationMember, validateOrchestrationDef, orchestrationManifest, isOrchestrationModule, OrchestrationDef, OrchestrationMember, OrchestrationApi, OrchestrationModule, RunScriptOptions,
+@fresnel/orchestration-sdk           defineOrchestration, defineOrchestrationMember, definePlugin, pluginManifest, validatePluginDef, validateOrchestrationDef, orchestrationManifest, isOrchestrationModule, OrchestrationDef, OrchestrationMember, OrchestrationApi, OrchestrationModule, RunScriptOptions,
                           DelegateSpec, DelegateToolPolicy, DelegateLimits, DelegateFork, DelegateReceipt,
                           DelegateResult, OrchestrationService, OrchestrationServiceName,
                           OrchestrationStatus, 명령·상태줄 함수, OrchestrationMetrics, PromotionReport, 설정 정의
@@ -283,6 +283,10 @@ export default defineOrchestration<DemoState>({
   },
 });
 ```
+
+#### 3.2.1 definePlugin (구성원이 없는 보통 플러그인) [결정: 2026-11-23, AGE-78 기본값]
+
+화면용 읽기·쓰기 메서드와 모델 도구를 함께 내는 앱 플러그인은 `orchestration` 선언 없이 만든다. `definePlugin(def)`는 `defineOrchestration`과 같은 `setup(g)`(`registerMethod`, `registerTool`, `registerCommand`, `state`, `commit`)를 주되 `members`와 `composition`을 받지 않고, `PluginModule`(매니페스트에 `orchestration`이 없는 `OrchestrationModule`)을 돌려준다. `pluginManifest(plugin.json 값)`는 매니페스트를 검증하고 `orchestration` 선언이 있거나 id 없는 L3 루트 플러그인이 없으면 Bug를 던진다. 검사 코드는 `plugin_orchestration_declared`, `plugin_root_missing`이고 `validatePluginDef`가 값으로 돌려준다. 매니페스트에 `orchestration`이 없으므로 `isOrchestrationExtension`이 거짓이고(목록의 `isOrchestration`, 캔버스의 합치기 분류), 기록과 상태 접두는 `x`다. Drive, 구성원, 구성 선언이 필요한 플러그인은 계속 `defineOrchestration`이다. 시험: `packages/orchestration-sdk/test/define-group.test.ts`(`define-plugin.*`), `packages/core-authoring/test/example-kanban.test.ts`.
 
 ### 3.3 정적 검증
 

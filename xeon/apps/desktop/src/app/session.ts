@@ -32,6 +32,8 @@ export type SessionDeps = {
 export interface Session {
   /** 지금 열려 있는 연결. 엔진이 running이 아니면 null */
   connection(): HostConnection | null;
+  /** 연결이 새로 열릴 때마다 부른다(재연결 포함). 반환값은 구독 해제 함수 */
+  onConnection(listener: (connection: HostConnection) => void): () => void;
   link(): EngineLink | null;
   /** 마지막으로 hello가 끝난 엔진의 버전 */
   engineVersion(): string | null;
@@ -67,6 +69,7 @@ export function startSession(deps: SessionDeps): Session {
   };
 
   const isStopped = (): boolean => current.stopped;
+  const openListeners = new Set<(connection: HostConnection) => void>();
 
   const report = (cause: unknown): void => {
     deps.logger.error("desktop.session.failed", {
@@ -143,6 +146,7 @@ export function startSession(deps: SessionDeps): Session {
     });
     current.connection = connection;
     current.link = link;
+    for (const listener of openListeners) listener(connection);
     const release = deps.onConnection?.(connection);
     const left = wait();
     const unlisten = relay.onState((state) => {
@@ -181,6 +185,12 @@ export function startSession(deps: SessionDeps): Session {
 
   return {
     connection: () => current.connection,
+    onConnection(listener) {
+      openListeners.add(listener);
+      return () => {
+        openListeners.delete(listener);
+      };
+    },
     link: () => current.link,
     engineVersion: () => current.engineVersion,
     reconnect: () => current.retry.open(),

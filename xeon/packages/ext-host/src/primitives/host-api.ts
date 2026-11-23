@@ -54,8 +54,10 @@ import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
 import {
   ambient,
+  inOwnDataMethod,
   inReadOnlyMethod,
   withAmbient,
+  withOwnDataMethod,
   withReadOnlyMethod,
   type Ambient,
 } from "./ambient.ts";
@@ -272,6 +274,16 @@ function assertWritable(record: RegistrationRecord): void {
   );
 }
 
+/** `ownDataOnly: true` 확장 메서드 처리기 안에서는 다른 확장이나 대화에 닿는 길을 쓰지 못한다(pgRe §4.2 3번) */
+function assertOwnDataOnly(record: RegistrationRecord, what: string): void {
+  if (!inOwnDataMethod()) return;
+  throw new PrimitiveError(
+    "own_data_method",
+    `an ownDataOnly method of ${record.extension} cannot use ${what}`,
+    { scopeId: record.id },
+  );
+}
+
 function assertOpen(record: RegistrationRecord, generation: Generation): void {
   if (generation.closed) {
     throw new PrimitiveError("registration_inactive", `scope ${record.id} generation is closed`, {
@@ -345,6 +357,7 @@ export function createRegistrationApi(
     },
     post(item: PostItem, options: PostOptions) {
       assertWritable(record);
+      assertOwnDataOnly(record, "post");
       return deps.post.post(record, generation, item, options);
     },
     drive(step, options?: DriveOptions) {
@@ -408,6 +421,7 @@ export function createRegistrationApi(
       return deps.state.recordPrivate(record, generation, kind, payload);
     },
     capability<Api>(key: ServiceKey<Api>): Api {
+      assertOwnDataOnly(record, "a capability");
       assertOpen(record, generation);
       const id = key.capability;
       const declared =
@@ -507,6 +521,7 @@ export function createRegistrationApi(
     },
     async requestEffect(request) {
       assertWritable(record);
+      assertOwnDataOnly(record, "requestEffect");
       assertOpen(record, generation);
       const declared =
         (plugin.decl.requires ?? []).some((entry) => entry.id === request.capability) ||
@@ -556,6 +571,7 @@ export function createRegistrationApi(
       }
     },
     startDrive(input) {
+      assertOwnDataOnly(record, "startDrive");
       // 문맥이 없으면 쓸 thread가 없다. 도구·명령·메서드 문맥의 thread에 이 scope를 시작 요청으로 넣는다
       const amb = ambient();
       if (amb === undefined) return Promise.resolve(err({ kind: "no_context" }));
@@ -687,10 +703,16 @@ export function createRegistrationApi(
               () => def.handler(params, ctx),
             );
       // readOnly 선언은 threadId 유무와 상관없이 처리기 흐름 전체에 표지를 단다
-      const handler = declared.readOnly
+      const marked = declared.readOnly
         ? (params: unknown, ctx: ExtMethodCallContext, gate: HandlerGate): Promise<unknown> =>
             withReadOnlyMethod(() => open(params, ctx, gate))
         : open;
+      // ownDataOnly 선언은 쓰기 메서드의 흐름 전체에 표지를 단다. 상태와 기록은 되고 다른 확장이나 대화에 닿는 길은 막힌다
+      const handler =
+        declared.ownDataOnly === true
+          ? (params: unknown, ctx: ExtMethodCallContext, gate: HandlerGate): Promise<unknown> =>
+              withOwnDataMethod(() => marked(params, ctx, gate))
+          : marked;
       const entry = methodEntryOf(declared, handler);
       if (!entry.ok) {
         throw new PrimitiveError(
@@ -726,6 +748,7 @@ export function createRegistrationApi(
       return core.ports.get(SETTINGS_READ_PORT)?.value(key);
     },
     port<Api>(key: PortKey<Api>): Api {
+      assertOwnDataOnly(record, "a port");
       assertOpen(record, generation);
       requirePortAccess();
       const port = core.ports.get(key);

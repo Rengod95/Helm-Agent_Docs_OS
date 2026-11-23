@@ -67,7 +67,6 @@ function manifestText(values: AppSkeletonValues): string {
     purpose: `${values.title}을(를) 화면에서 보고 고치고, 모델도 같은 도구로 고친다`,
     entry: "./src/index.ts",
     plugins: [{ layer: "L3", hooks: [] }],
-    orchestration: {},
     defaultEnabled: false,
     trust: { level: "user" },
     tools: [
@@ -84,6 +83,7 @@ function manifestText(values: AppSkeletonValues): string {
         result: RESULT_SHAPE,
         readOnly: false,
         label: "항목 추가",
+        ownDataOnly: true,
       },
     ],
     ui: {
@@ -113,10 +113,10 @@ function entryText(values: AppSkeletonValues): string {
   return [
     'import { parse } from "@fresnel/contracts";',
     "import {",
-    "  defineOrchestration,",
-    "  orchestrationManifest,",
+    "  definePlugin,",
+    "  pluginManifest,",
     "  type OrchestrationApi,",
-    "  type OrchestrationModule,",
+    "  type PluginModule,",
     '} from "@fresnel/orchestration-sdk";',
     'import { Type } from "typebox";',
     'import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };',
@@ -146,8 +146,8 @@ function entryText(values: AppSkeletonValues): string {
     "  return g.commit({ items: [...g.state().items, title] });",
     "}",
     "",
-    "const app: OrchestrationModule = defineOrchestration<AppState>({",
-    "  manifest: orchestrationManifest(manifestJson),",
+    "const app: PluginModule = definePlugin<AppState>({",
+    "  manifest: pluginManifest(manifestJson),",
     "  state: { schema: stateSchema, initial: initialState, version: 1 },",
     "  setup(g) {",
     '    g.registerMethod("list", {',
@@ -180,7 +180,7 @@ function entryText(values: AppSkeletonValues): string {
     "  },",
     "});",
     "",
-    'export const extension: OrchestrationModule["entry"] = app.entry;',
+    'export const extension: PluginModule["entry"] = app.entry;',
     "",
   ].join("\n");
 }

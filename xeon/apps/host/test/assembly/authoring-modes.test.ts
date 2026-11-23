@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { ok } from "@fresnel/contracts";
@@ -49,7 +49,12 @@ async function buildAndSubmit(
 const templates = locateTemplateDirs({});
 const MODES: readonly PluginMode[] = ["inject", "hook", "drive"];
 
-test("authoring modes: an Inject, a Hook and a Drive plugin each go to the review box with the craft thread as origin, and a fix of an approved hook is an update", async () => {
+/** 검토함과 제작 포트 한 벌을 세운다. 시험마다 새 임시 자리를 쓴다 */
+function craftRigOf(): {
+  readonly rig: ReturnType<typeof pluginRigOf>;
+  readonly configDir: string;
+  readonly port: ReturnType<typeof createDevkitPort>;
+} {
   if (templates === null) throw new Error("the plugin templates are missing");
   const rig = pluginRigOf();
   const configDir = join(rig.root, "config");
@@ -72,6 +77,11 @@ test("authoring modes: an Inject, a Hook and a Drive plugin each go to the revie
     }),
     { templates, submit: () => rig.review.submitPort },
   );
+  return { rig, configDir, port };
+}
+
+test("authoring modes: an Inject, a Hook and a Drive plugin each go to the review box with the craft thread as origin, and a fix of an approved hook is an update", async () => {
+  const { rig, configDir, port } = craftRigOf();
   const origin = fixedIdFactory(702).next("thr");
   const evidence: readonly [EvidenceRef] = [{ kind: "turn", threadId: origin, turnId: "t-1" }];
 
@@ -135,4 +145,20 @@ test("authoring modes: an Inject, a Hook and a Drive plugin each go to the revie
   ).toEqual([["update", "assistant", origin]]);
   // 다른 두 항목은 그대로 새 플러그인으로 남는다
   expect(after.value.items.filter((item) => item.kind === "new")).toHaveLength(2);
+});
+
+test("authoring modes: a Native plugin (one declarative screen, no orchestration) goes to the review box as a new plugin with its screen file", async () => {
+  const { rig, configDir, port } = craftRigOf();
+  const origin = fixedIdFactory(703).next("thr");
+  const evidence: readonly [EvidenceRef] = [{ kind: "turn", threadId: origin, turnId: "t-1" }];
+
+  const dir = join(configDir, "plugins", "demo-native");
+  expect(await buildAndSubmit(port, dir, "native", origin, evidence)).toBe(true);
+  expect(existsSync(join(dir, "ui", "native", "main.view.json"))).toBe(true);
+
+  const pending = await rig.review.list({ state: "pending" });
+  if (!pending.ok) throw new Error("the review list failed");
+  expect(
+    pending.value.items.map((item) => [item.name, item.kind, item.provenance, item.originThreadId]),
+  ).toEqual([["demo-native", "new", "assistant", origin]]);
 });

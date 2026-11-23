@@ -417,7 +417,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const scaffold = tool(
     "authoring_scaffold",
-    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module that watches or changes the conversation and cannot register tools; inject: an instructions file; drive: a drive step function in a group; app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function. If the plugin needs a model tool or its own screen, choose app or drive, a group, not hook) and the composition draft. The manifest needs purpose (one sentence, the user's words) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
+    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module that watches or changes the conversation and cannot register tools; inject: an instructions file; drive: a drive step function in a group; app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function; native: a plain plugin with one declarative screen file (ui/native/main.view.json) and one read method. If the plugin needs a model tool or its own screen, choose app or drive, a group, not hook) and the composition draft. The manifest needs purpose (one sentence, the user's words) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
     Type.Object(
       {
         ...sessionShape,

@@ -44,11 +44,13 @@ const EXPECTED: Readonly<Record<ScaffoldMode, Expected>> = {
     entry: false,
   },
   drive: { hooks: [], drives: true, instructions: [], group: true, entry: true },
-  // 앱 뼈대는 루트 플러그인 하나(훅 없음, 구동 없음)이고 그룹 모양이다(`orchestration: {}`). 화면과 메서드는 authoring.app-mode가 본다
-  app: { hooks: [], drives: false, instructions: [], group: true, entry: true },
+  // 앱 뼈대는 루트 플러그인 하나(훅 없음, 구동 없음)이고 `orchestration` 선언이 없는 보통 플러그인이다(definePlugin). 화면과 메서드는 authoring.app-mode가 본다
+  app: { hooks: [], drives: false, instructions: [], group: false, entry: true },
+  // 선언형 화면 뼈대도 보통 플러그인 하나다(구성원과 `orchestration` 없음, definePlugin). 화면 트리는 native-skeleton 시험이 본다
+  native: { hooks: [], drives: false, instructions: [], group: false, entry: true },
 };
 
-for (const mode of ["hook", "inject", "drive", "app"] as const) {
+for (const mode of ["hook", "inject", "drive", "app", "native"] as const) {
   test(`authoring.modes.${mode}: the ${mode} scaffold has the manifest fields of its mode, and validates with the replay discipline scan`, async () => {
     const name = `mode-${mode}`;
     const dir = root.path(name);

@@ -36,4 +36,25 @@ describe("session recovery after a failed target", () => {
     expect(seen.hellos).toBe(2);
     await app.stop();
   });
+
+  test("onConnection calls its listener on each reconnect, and an unsubscribed listener is not called", async () => {
+    const engine = engineFake();
+    const app = makeAppOver(engine.fake.ipc);
+    await until(() => app.session.connection() !== null, "first connection");
+    let opened = 0;
+    const off = app.session.onConnection(() => {
+      opened += 1;
+    });
+    engine.fake.emitState(FAILED);
+    await until(() => opened === 1, "reconnect announced");
+    expect(opened).toBe(1);
+    off();
+    engine.fake.emitState(FAILED);
+    await until(
+      () => engine.methods.filter((method) => method === "host.hello").length === 3,
+      "third hello",
+    );
+    expect(opened).toBe(1);
+    await app.stop();
+  });
 });

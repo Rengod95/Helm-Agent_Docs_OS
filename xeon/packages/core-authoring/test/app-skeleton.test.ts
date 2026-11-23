@@ -33,7 +33,6 @@ test("the manifest value: one app page, two methods (read and write), one model 
     purpose: "칸반을(를) 화면에서 보고 고치고, 모델도 같은 도구로 고친다",
     entry: "./src/index.ts",
     plugins: [{ layer: "L3", hooks: [] }],
-    orchestration: {},
     defaultEnabled: false,
     trust: { level: "user" },
     tools: [
@@ -76,6 +75,7 @@ test("the manifest value: one app page, two methods (read and write), one model 
         },
         readOnly: false,
         label: "항목 추가",
+        ownDataOnly: true,
       },
     ],
     ui: {
@@ -114,11 +114,17 @@ test("the model tool and the screen's write method share one function in the ent
   expect(entry.split("addItem(g, checked.value.title)")).toHaveLength(3);
 });
 
+test("the manifest has no orchestration declaration, so the app is not a Drive or member plugin", () => {
+  const manifest: unknown = JSON.parse(fileText(".fresnel-plugin/plugin.json"));
+  expect(manifest).not.toHaveProperty("orchestration");
+  expect(fileText("src/index.ts")).toContain("definePlugin<AppState>({");
+});
+
 test("the entry has one state with a schema and an initial value, at version 1", () => {
   const entry = fileText("src/index.ts");
   expect(entry).toContain("const initialState: AppState = { items: [] };");
   expect(entry).toContain("state: { schema: stateSchema, initial: initialState, version: 1 },");
-  expect(entry).toContain('export const extension: OrchestrationModule["entry"] = app.entry;');
+  expect(entry).toContain('export const extension: PluginModule["entry"] = app.entry;');
 });
 
 test("the screen loads its code from files, never inline (the frame CSP forbids inline scripts)", () => {

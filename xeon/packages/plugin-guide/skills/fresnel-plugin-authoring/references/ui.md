@@ -19,6 +19,8 @@ Default to `native` (declarative). Use `app` only when a row in the second table
 
 Choose per item. One plugin may have a native `card` and an app `page`.
 
+Scaffold modes: `native` (`authoring_scaffold` mode `native`) makes a plain plugin with one declarative page, for lists, tables, forms, and status that are small and stable. `app` (mode `app`) makes a page with its own HTML and JS, for drag and drop, a canvas, or custom drawing; it needs a reason in `app.reason`.
+
 ## Slots
 
 | `placement` | Where it shows | Modes | Limit per plugin |

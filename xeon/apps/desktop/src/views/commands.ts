@@ -1231,8 +1231,11 @@ interface PluginUiCommands {
   ): Promise<Result<T, CommandError>>;
   /** 지금 연결. 재연결 뒤에는 새 연결이다. 화면이 연결을 붙잡고 있으면 낡은 연결로 요청이 간다. 없으면 null */
   current(): HostConnection | null;
-  /** 알림 `ext.ui.changed`를 듣는다(확장 이름만 준다). 화면은 자기 확장 이름으로 거른다. 반환값은 구독 해제 */
-  onChanged(listener: (extension: string) => void): () => void;
+  /**
+   * 알림 `ext.ui.changed`를 듣는다(확장 이름만 준다). 화면은 자기 확장 이름으로 거른다. 재연결로 새 연결이 열리면
+   * 값 `null`을 한 번 준다(어느 확장이든 바뀌었을 수 있으니 다시 읽으라는 뜻). 반환값은 구독 해제
+   */
+  onChanged(listener: (extension: string | null) => void): () => void;
 }
 
 /**

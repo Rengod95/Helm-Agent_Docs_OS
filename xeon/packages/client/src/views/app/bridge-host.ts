@@ -691,13 +691,11 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       }
       case "call": {
         const grant = options.context().methods.get(action.verb);
-        const refused = await confirmGate(
-          "call",
-          action.verb,
-          grant?.label,
-          action.params,
-          action.approval,
-        );
+        // "자기 데이터만 바꿈"으로 밝힌 쓰기 메서드는 확인 줄 없이 실행한다. 표시는 검토 카드에서 사람이 승인했고 엔진이 다른 곳에 닿는 길을 막는다
+        const skipConfirm = grant?.ownDataOnly === true && !action.approval;
+        const refused = skipConfirm
+          ? undefined
+          : await confirmGate("call", action.verb, grant?.label, action.params, action.approval);
         if (refused !== undefined) return { ok: false, error: refused };
         const off = await gone();
         if (off !== undefined) return { ok: false, error: off };

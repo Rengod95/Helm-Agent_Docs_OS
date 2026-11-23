@@ -15,7 +15,7 @@ import {
   type Scheduler,
 } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
-import type { OverlayRef } from "@fresnel/contracts/wire";
+import type { HostConnection, OverlayRef } from "@fresnel/contracts/wire";
 import {
   buildDiagnostics,
   type AppVersions,
@@ -142,6 +142,34 @@ function failureReasonOf(cause: unknown): string {
     return typeof cause.kind === "string" ? cause.kind : "unknown";
   }
   return "unknown";
+}
+
+/**
+ * 확장 바뀜 알림(`ext.ui.changed`)을 듣는다. 재연결로 새 연결이 열리면 낡은 연결의 구독을 버리고 새 연결에 다시 걸고,
+ * 화면이 다시 읽도록 값 `null`을 한 번 부른다. 열린 연결이 없었으면 처음 열리는 연결이 `null`을 부른다.
+ * 반환값은 구독 해제(연결 구독과 세션 구독을 둘 다 끊는다)
+ */
+export function subscribePluginUiChanges(
+  session: Pick<Session, "connection" | "onConnection">,
+  listener: (extension: string | null) => void,
+): () => void {
+  let offNotice: (() => void) | null = null;
+  const listenOn = (connection: HostConnection): void => {
+    offNotice?.();
+    offNotice = connection.onNotification("ext.ui.changed", (params) => {
+      listener(params.extension);
+    });
+  };
+  const now = session.connection();
+  if (now !== null) listenOn(now);
+  const offOpen = session.onConnection((connection) => {
+    listenOn(connection);
+    listener(null);
+  });
+  return () => {
+    offOpen();
+    offNotice?.();
+  };
 }
 
 export function createCommands(
@@ -651,14 +679,7 @@ export function createCommands(
     pluginUi: {
       withConnection,
       current: () => session.connection(),
-      onChanged: (listener) => {
-        const connection = session.connection();
-        return connection === null
-          ? () => {}
-          : connection.onNotification("ext.ui.changed", (params) => {
-              listener(params.extension);
-            });
-      },
+      onChanged: (listener) => subscribePluginUiChanges(session, listener),
     },
     connection: connectionCommands,
     remote: remoteAdapterOf(withConnection),
