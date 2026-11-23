@@ -153,7 +153,7 @@ const knowledgeSettings = defineSettings("l2.knowledge", {
       widget: "list",
       order: 323,
       label: "Trusted approval evidence sources",
-      help: "<extension name>.<queue name> format",
+      help: "<plugin name>.<queue name> format",
     },
     since: "0.1.0",
   },
