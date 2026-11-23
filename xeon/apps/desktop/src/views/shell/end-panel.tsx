@@ -30,6 +30,7 @@ import type { EndTabDef, PluginEndTabDef, ShellRegistry, TabBadge } from "./regi
 import type { ActionId } from "./keybindings.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { WELL_DEFAULT_WIDTH } from "./toaster-slot.ts";
+import { useWellWide } from "./well-wide.ts";
 
 const WELL_MIN_WIDTH = 320;
 const WELL_MAX_WIDTH = 480;
@@ -61,8 +62,12 @@ export function tabTitleOf(label: string, badge: number | undefined): string {
   return badge === undefined || badge <= 0 ? label : `${label} ${badge}`;
 }
 
-/** 지금 탭의 well 폭(px). 선언 폭을 320~480으로 자른다 */
-export function wellWidthOf(tab: EndTabDef | undefined): number {
+/**
+ * 지금 탭의 well 폭(px). 선언 폭을 320~480으로 자른다. 그 탭을 넓게 폈고(`wideTab`) 탭이 넓은 폭을 두었으면 그 폭이다
+ * (창이 좁으면 well의 `max-w`가 창 안으로 자른다)
+ */
+export function wellWidthOf(tab: EndTabDef | undefined, wideTab: string | null = null): number {
+  if (tab !== undefined && wideTab === tab.id && tab.wideWidth !== undefined) return tab.wideWidth;
   const w = tab?.width ?? WELL_DEFAULT_WIDTH;
   return Math.min(WELL_MAX_WIDTH, Math.max(WELL_MIN_WIDTH, w));
 }
@@ -339,6 +344,7 @@ export function EndPanel(props: {
   const currentIsPlugin = current !== undefined && pluginTabs.some((x) => x.id === current.id);
   // 지금 탭의 스토어 배지는 탭 내용을 그리기 전에 읽는다(내용이 스토어를 다시 읽기 시작해도 머리 수가 흔들리지 않는다)
   const currentStored = useBadge(current?.badge);
+  const wideTab = useWellWide();
   const asideRef = useRef<HTMLElement>(null);
   const wellRef = useRef<HTMLDivElement>(null);
   // 무대 위에 뜬 well은 바깥을 누르면 닫는다. 2차 메뉴(포털)는 바깥이 아니다.
@@ -392,7 +398,7 @@ export function EndPanel(props: {
           aria-label={label}
           data-end-well={current.id}
           className="flex max-w-[calc(var(--app-vw)-4.5rem)] flex-col shadow-3 outline-none"
-          style={{ width: wellWidthOf(current) }}
+          style={{ width: wellWidthOf(current, wideTab) }}
         >
           {/* DP-193 머리 40: 제목 13/600 · 8 · 요약 12 tertiary(말줄임) · 접기 24. 머리 아래에는 선을 긋지 않는다: 바로 밑 본문 판(CardPanel)이
               제 1px 가장자리와 둥근 모서리로 머리와 본문을 가른다. 머리에 border-b를 더하면 판의 둥근 위 모서리 위로 곧은 선이 하나 더 지나간다
@@ -419,9 +425,14 @@ export function EndPanel(props: {
             </IconButton>
           </div>
           <CardPanel className="flex min-h-0 flex-1 flex-col gap-0 p-0">
-            <ScrollArea label={label} className="min-h-0 flex-1">
-              <div className="px-3 pt-3 pb-4">{current.render()}</div>
-            </ScrollArea>
+            {current.fill === true ? (
+              // 판 전체를 쓰는 탭(아티팩트 판): 스크롤과 안쪽 여백을 탭이 정한다
+              <div className="flex min-h-0 flex-1 flex-col">{current.render()}</div>
+            ) : (
+              <ScrollArea label={label} className="min-h-0 flex-1">
+                <div className="px-3 pt-3 pb-4">{current.render()}</div>
+              </ScrollArea>
+            )}
           </CardPanel>
         </Card>
       </Presence>

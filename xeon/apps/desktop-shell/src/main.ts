@@ -14,6 +14,7 @@ import {
   type BrowserWindowConstructorOptions,
   type WebContents,
 } from "electron";
+import { artifactNavigationAllowed } from "./main/artifact-scheme.ts";
 import { shouldQuitWhenWindowsClosed } from "./main/close-behavior.ts";
 import { createCommandRegistry } from "./main/commands.ts";
 import type { ShellContext, TabSender } from "./main/context.ts";
@@ -26,7 +27,7 @@ import { CHANNEL_KEY, SHELL_CHANNELS } from "./shared/channels.ts";
 
 const SCHEME = "app";
 /** 옛 Tauri 구현(커밋 424f338a)의 CSP와 같은 수준 */
-const CSP = "default-src 'self'; connect-src 'self'; frame-src fresnel-view:";
+const CSP = "default-src 'self'; connect-src 'self'; frame-src fresnel-view: fresnel-artifact:";
 const MIME: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -202,7 +203,12 @@ function createWindow(windows: Set<BrowserWindow>, hooks: WindowHooks): BrowserW
     if (!isUiUrl(url)) event.preventDefault();
   });
   win.webContents.on("will-frame-navigate", (event) => {
-    if (!event.isMainFrame) return;
+    if (!event.isMainFrame) {
+      // 아티팩트 프레임은 자기 토큰 주소 안에서만 움직인다(링크를 눌러도 밖으로 나가지 않는다).
+      // 다른 하위 프레임(플러그인 화면)은 예전처럼 두고, 갈 수 있는 스킴은 앱 문서 CSP의 frame-src가 정한다
+      if (!artifactNavigationAllowed(event.frame?.url ?? "", event.url)) event.preventDefault();
+      return;
+    }
     if (!isUiUrl(event.url)) event.preventDefault();
   });
   return win;

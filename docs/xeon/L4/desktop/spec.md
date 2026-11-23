@@ -930,3 +930,14 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - 옛 구현은 `git show 424f338a:xeon/apps/desktop/src-tauri/<path>`로 본다(예: `engine.rs`, `relay.rs`, `view_scheme.rs`, `secret_entry.rs`, `updater.rs`, `tray.rs`, `notify_os.rs`, `os_reauth.rs`, `desktop_settings.rs`, `window.rs`, `inspect/`).
 - §11.3의 실행 명령은 `just desktop-run`이다. Tauri용 `desktop-build`, `desktop-test`, `desktop-ipc-probe`, `desktop-notices`와 `desktop-run-electron`은 없어졌다.
 - `@tauri-apps/*` 의존, `tauri.conf.json`, `capabilities/default.json`, `mise.toml`의 Rust, cargo·rust-notices 스크립트는 저장소에서 빠졌다.
+
+### 11.12 아티팩트 프레임 `fresnel-artifact://` (artView, AGE-77)
+
+[결정: 2026-11-23 사용자 AGE-77 질문 1 가] 모델이 만든 HTML, SVG, 그림을 앱 안에서 그려 보는 길(`L4.desktop-ux.spec` §6.6.2)의 셸 쪽이다. 모델이 만든 HTML은 믿을 수 없는 내용으로 다룬다. `fresnel-view://`(플러그인 화면)는 확장 설치 폴더만 내주고 인라인 스크립트를 막으므로 그대로 쓰지 않고, 같은 경로 규칙을 쓰는 형제 스킴을 둔다(`apps/desktop-shell/src/main/artifact-scheme.ts`).
+
+- 주소: `fresnel-artifact://<토큰>/<상대 경로>`. 토큰은 32자 16진수 난수이고 프레임 하나(판 하나)마다 새로 만든다. 셸은 최근 64개만 기억한다. 스킴 권한은 `fresnel-view`와 같다(standard, secure, supportFetchAPI, corsEnabled. bypassCSP 없음).
+- 명령(메인 UI만, §11.2 발신 검사): `artifact_frame_open { root, entry, text, wrap }` → `{ token, url }`. `root`는 대화의 작업 폴더 절대 경로나 null, `entry`는 그 안의 상대 경로, `text`가 있으면 그 글을 `entry`의 본문으로 낸다(지난 판), `wrap: "image"`면 토큰 뿌리 주소가 `entry`를 `<img>`로 맞춰 보이는 작은 HTML이다. 거절 kind: `bad_entry`, `forbidden_type`, `not_absolute`, `not_a_directory`, `too_broad`(`/`, 홈, 홈을 품은 폴더, 마디 둘 미만), `no_source`, `too_large`(본문 8 MiB). `artifact_frame_status { token }` → `{ refused: [{ path, kind }] }`(그 프레임이 거절당한 자원, 최대 32). `artifact_reveal { token }`은 그 프레임의 `entry` 실제 경로를 OS 파일 관리자에서 보인다(`shell.showItemInFolder`, 폴더 안 파일일 때만).
+- 읽기 규칙: 퍼센트 디코딩 한 번, 빈 마디·`.`·`..`·역슬래시·NUL·앞 `/`·드라이브 문자 거절(400·403), 실제 경로(심볼릭 링크를 푼 것)가 작업 폴더 실제 경로 안인지 다시 확인(밖이면 403 `outside_root`), 확장자 허용 표(html, htm, css, js, mjs, json, txt, md, csv, svg, png, jpg, jpeg, gif, webp, ico, woff, woff2, ttf, otf) 밖은 403, 16 MiB 넘으면 413. `root`가 null이면 `entry` 하나만 낸다.
+- 응답 헤더: CSP `default-src 'none'; script-src <base> 'unsafe-inline'; style-src <base> 'unsafe-inline'; img-src <base> data: blob:; font-src <base> data:; media-src <base> data: blob:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; manifest-src 'none'`(`<base>`는 `fresnel-artifact://<토큰>/`), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `Permissions-Policy`(카메라, 마이크, 위치, 화면 공유, 클립보드, 결제, USB 끔). 인라인 스크립트는 열지만 프레임은 `sandbox="allow-scripts"`(불투명 출처)라 그 안에서만 돈다.
+- 앱 문서 CSP는 `frame-src fresnel-view: fresnel-artifact:`로 이 스킴만 더했다. 창의 `will-frame-navigate`는 아티팩트 프레임이 자기 토큰 주소 밖(https, 다른 토큰, `javascript:`, `data:`, `about:`)으로 가는 이동을 막는다(`artifactNavigationAllowed`). 앱은 새 주소마다 iframe을 새로 만든다.
+- 시험: `apps/desktop-shell/test/artifact-scheme.test.ts`(경로 탈출, 심볼릭 링크, 헤더와 CSP 글자, 지난 판 본문, 거절 기록, 이동 막기 표).

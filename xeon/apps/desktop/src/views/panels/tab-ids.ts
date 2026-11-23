@@ -9,3 +9,5 @@ export const RUNNING_TAB_ID = "running";
 export const CHANGES_TAB_ID = "changes";
 /** 컨텍스트 탭: 채움, 구성, 요약 기록, 사용량, 실린 것 */
 export const CONTEXT_TAB_ID = "context";
+/** 아티팩트 탭: 이 대화에서 모델이 만든 HTML, SVG, 그림, 마크다운의 판(artView) */
+export const ARTIFACT_TAB_ID = "artifact";

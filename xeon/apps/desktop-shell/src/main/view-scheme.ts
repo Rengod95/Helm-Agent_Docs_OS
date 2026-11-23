@@ -162,7 +162,7 @@ export function parseUri(uri: string): FrameUri | undefined {
 }
 
 /** 상대 경로 모양 검사. 마디로 나눠 돌려준다. 빈 문자열, 백슬래시, NUL, 앞 `/`, 드라이브 문자, 빈 마디, `.`, `..`은 undefined다 */
-function relativeSegments(relative: string): readonly string[] | undefined {
+export function relativeSegments(relative: string): readonly string[] | undefined {
   if (relative === "" || relative.includes("\\") || relative.includes("\0")) return undefined;
   if (relative.startsWith("/") || /^[A-Za-z]:/.test(relative)) return undefined;
   const segments = relative.split("/");
@@ -173,7 +173,7 @@ function relativeSegments(relative: string): readonly string[] | undefined {
 }
 
 /** 퍼센트 디코딩을 한 번만 한다. 깨진 부호열이나 UTF-8이 아니면 undefined다(`decodeURIComponent`가 두 경우 모두 던진다) */
-function decodeOnce(tail: string): string | undefined {
+export function decodeOnce(tail: string): string | undefined {
   const decoded = attempt(() => decodeURIComponent(tail));
   return decoded.ok ? decoded.value : undefined;
 }
@@ -188,7 +188,7 @@ function contentTypeOf(file: string): string | undefined {
 }
 
 /** `child`가 `base`와 같거나 `base` 안인가. 마디 단위로 본다(`/a/bc`는 `/a/b` 안이 아니다) */
-function isWithin(child: string, base: string): boolean {
+export function isWithin(child: string, base: string): boolean {
   return child === base || child.startsWith(base.endsWith(path.sep) ? base : `${base}${path.sep}`);
 }
 
@@ -198,7 +198,7 @@ function realpathOrUndefined(file: string): string | undefined {
   return real.ok ? real.value : undefined;
 }
 
-async function realpathAsync(file: string): Promise<string | undefined> {
+export async function realpathAsync(file: string): Promise<string | undefined> {
   const real = await attemptAsync(() => realpath(file));
   return real.ok ? real.value : undefined;
 }
@@ -311,7 +311,7 @@ function depthOf(real: string): number {
 }
 
 /** `/`, 홈 폴더, 홈 폴더를 품은 폴더, 너무 얕은 폴더(마디 둘 미만)인가. 홈은 실제 경로로 풀어 비교한다 */
-function tooBroad(real: string, home: string | undefined): boolean {
+export function tooBroad(real: string, home: string | undefined): boolean {
   if (depthOf(real) < 2) return true;
   const realHome = home === undefined ? undefined : realpathOrUndefined(home);
   return realHome !== undefined && isWithin(realHome, real);

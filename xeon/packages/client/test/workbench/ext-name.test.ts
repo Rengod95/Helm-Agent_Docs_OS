@@ -65,7 +65,7 @@ describe("기능 부품 이름", () => {
   test("cap·host 부품과 그룹이 한국어 이름을 쓴다", () => {
     expect(pick("cap-workspace", "Workspace tools")).toBe("작업 폴더 도구");
     expect(pick("cap-dialog", "Client Services")).toBe("클라이언트 서비스");
-    expect(pick("cap-artifacts", "Artifacts and reviews")).toBe("산출물과 검토");
+    expect(pick("cap-artifacts", "Artifacts and reviews")).toBe("아티팩트와 검토");
     expect(pick("host-dialog-bridge", "Ask Service Bridge")).toBe("애스크 서비스 브릿지");
     expect(pick("cap-work", "Work management")).toBe("작업 관리");
     expect(pick("cap-mcp", "MCP client")).toBe("MCP 연결");

@@ -74,6 +74,10 @@ export interface EndTabDef {
   readonly alwaysMounted?: ReactNode;
   /** well 폭(px). 없으면 352. 320~480으로 자른다 */
   readonly width?: number;
+  /** 넓게 편 well 폭(px, `well-wide.ts`). 없으면 이 탭은 넓어지지 않는다. 창이 좁으면 창 안으로 자른다 */
+  readonly wideWidth?: number;
+  /** 참이면 탭이 well 본문 판 전체를 쓴다(셸의 스크롤 영역과 안쪽 여백 없이) */
+  readonly fill?: boolean;
   /** 이 탭을 보일 화면 id. 없으면 영역의 모든 화면에서 보인다 */
   readonly screens?: readonly string[];
   /**

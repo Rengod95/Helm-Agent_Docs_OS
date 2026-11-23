@@ -488,7 +488,8 @@ export const ArtifactsRegistry: CapabilityDef<
       name: "artifact_create",
       label: "Create artifact",
       description:
-        "Registers work results (documents, tables, logs, etc.) as session artifacts. The user can find and open them later from the list. " +
+        "Registers work results (documents, tables, logs, etc.) as conversation artifacts. The user opens them in the artifact panel next to the conversation, which renders HTML (mediaType text/html), SVG (image/svg+xml), and Markdown. " +
+        "Files you write with the write tool (HTML, SVG, images, Markdown) already appear in that panel, so do not register them again. " +
         "Does not register short answers already given in the conversation.",
       method: "register",
       parameters: ArtifactCreateParams,
