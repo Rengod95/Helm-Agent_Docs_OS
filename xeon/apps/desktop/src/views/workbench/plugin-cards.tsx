@@ -6,7 +6,7 @@ import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import { useWorkbenchActions } from "../../state/workbench/index.ts";
 import { KindGlyph } from "../craft/canvas/cv6/glyphs.tsx";
-import { doesLeadOfCard } from "./overview-model.ts";
+import { cardLeadOf } from "./overview-model.ts";
 import { HealthCell, RowName, UseText } from "./plugin-cells.tsx";
 import { kindFaceStyle, kindWord, pluginKindOf } from "./plugin-kind.tsx";
 import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
@@ -23,8 +23,8 @@ function PluginCardItem(props: {
   const actions = useWorkbenchActions();
   const { row, card } = props;
   const kind = pluginKindOf(card);
-  // 하는 일의 첫 줄: 목적(도구 이름이 든 기본 문장이면 설명이나 도구 수 글)
-  const lead = card === null ? null : doesLeadOfCard(card);
+  // 하는 일의 첫 줄: 목적(도구 이름이 든 기본 문장이면 설명이나 도구 수 글), 목적이 없으면 설명의 첫 문장
+  const lead = card === null ? null : cardLeadOf(card);
   return (
     <li className="relative h-full min-w-0">
       {kind !== null && (
