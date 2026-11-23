@@ -125,6 +125,29 @@ test("the no-folder choice from the dialog creates without opening the picker", 
   expect(calls.created).toEqual([undefined]);
 });
 
+test("the no-folder choice from a thread in a folder opens the blank no-folder thread when there is one", async () => {
+  const blankNoFolder = summary({ threadId: thr(2), title: null, workspace: null });
+  const { deps, calls } = fixture({
+    threads: [summary({}), blankNoFolder],
+    selected: thr(1),
+    folderPick: () => Promise.reject(new Error("picker must not open")),
+  });
+  expect(await runNewThread(deps, null)).toEqual({ kind: "opened" });
+  expect(calls.selected).toEqual([thr(2)]);
+  expect(calls.created).toEqual([]);
+  expect(calls.composer).toBe(1);
+});
+
+test("the no-folder choice from a thread in a folder creates a folder-less thread, not one in that folder", async () => {
+  const { deps, calls } = fixture({
+    threads: [summary({})],
+    selected: thr(1),
+    folderPick: () => Promise.reject(new Error("picker must not open")),
+  });
+  expect(await runNewThread(deps, null)).toEqual({ kind: "created" });
+  expect(calls.created).toEqual([undefined]);
+});
+
 test("sidebar, ⌘N and palette (whenUnknown noFolder) create without a folder and never open the picker", async () => {
   const { deps, calls } = fixture({
     whenUnknown: "noFolder",
