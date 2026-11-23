@@ -340,6 +340,11 @@ describe("bash", () => {
     pinned = undefined;
     await shell.run({ command: "ls" }, { context });
     expect(sandbox.policies[1]?.readCarveOuts).toBeUndefined();
+    // 대화 자신의 작업 폴더 밖을 고정하면 예외가 없다
+    env.mkdir("/elsewhere");
+    pinned = "/elsewhere";
+    await shell.run({ command: "ls" }, { context });
+    expect(sandbox.policies[2]?.readCarveOuts).toBeUndefined();
   });
 
   test("secret references go to exec as references only", async () => {

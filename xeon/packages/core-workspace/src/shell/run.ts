@@ -3,7 +3,7 @@ import { WorkspaceShell, type CallContext, type SecretRef } from "@fresnel/contr
 import type { CancelScope, SecretEnvRequest, ShellApi } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
-import { resolveWorkspacePath, WRITE_ANYWHERE } from "../roots.ts";
+import { isWithin, resolveWorkspacePath, WRITE_ANYWHERE } from "../roots.ts";
 import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 import { unattendedTimeoutSec } from "./unattended.ts";
@@ -169,7 +169,11 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
                 // 쓰기 root에 `/`가 있으면 쓰기 범위 제한이 없다. 좁은 대화(플러그인 만들기 시험)는 지금처럼 작업 폴더와 허용한 루트만 쓴다
                 ...(roots.write.includes(WRITE_ANYWHERE) ? { writeEverywhere: true } : {}),
                 // 제작 세션이 고정한 대상 폴더는 Fresnel 데이터 폴더 안(기본 작업 폴더 아래)에 있어도 셸이 읽게 한다. 보호 경로 규칙은 그대로고 이 폴더 하나만 예외다
-                ...(pinned === undefined || !roots.write.includes(WRITE_ANYWHERE)
+                // 고정 폴더가 이 대화 자신의 작업 폴더(첫 root) 안일 때만이다. 모델이 절대 경로로 데이터 폴더의 다른 곳을 대상 폴더로 열어도 예외가 생기지 않는다
+                ...(pinned === undefined ||
+                !roots.write.includes(WRITE_ANYWHERE) ||
+                roots.read[0] === undefined ||
+                !isWithin(roots.read[0], pinned)
                   ? {}
                   : { readCarveOuts: [pinned] }),
               });
