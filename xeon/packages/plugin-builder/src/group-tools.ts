@@ -495,13 +495,23 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const key = errorKeyOf(report.issues);
       const base = { packaged: null, submitted: null };
       if (key === null) {
+        // 열린 시험 대화는 시작할 때의 초안 복사본을 읽는다. 고친 판을 시험하려면 기록을 지워 다음 authoring_trial이 새 초안으로 다시 읽게 한다 (U-06)
         await patch(env, {
           ...base,
           phase: state.phase === "replay" ? "replay" : "trial",
           lastErrorKey: null,
           sameErrorRuns: 0,
+          trial: null,
         });
-        return { ok: true, report: json(report) };
+        return {
+          ok: true,
+          report: json(report),
+          ...(state.trial === null
+            ? {}
+            : {
+                note: "the Test run that was open uses the copy of the folder from when it started, not this version: call authoring_trial to test this version in a new Test run (the user confirms it again)",
+              }),
+        };
       }
       const runs = key === state.lastErrorKey ? state.sameErrorRuns + 1 : 1;
       const limit = runs >= env.fixLoopLimit();

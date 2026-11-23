@@ -80,8 +80,8 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다. `resident`는 일반 대화에서만 모델이 넘긴 값을 쓴다. 테스트 대화(craft 표지)에서는 호스트가 상주로 정한다(아래, [제안]) | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
 | `authoring_scaffold` | `{ sessionId, mode?, description? }`(`mode`: `hook`, `inject`, `drive`, `app`, `native`. 목적은 대화의 목적 한 문장을, 설명은 입력을 매니페스트에 쓴다 [결정: 2026-11-23 사용자, AGE-31]) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
-| `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
-| `authoring_trial` | `{ sessionId }` | Test run 대화 id | Test run 생성(설치 없음) |
+| `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기. 검사가 통과하면서 열린 시험 대화가 있으면 그 기록을 지운다(다음 `authoring_trial`이 고친 폴더를 새 초안으로 다시 읽는다). 결과에 옛 시험 대화가 옛 판을 쓴다는 `note`를 싣는다 |
+| `authoring_trial` | `{ sessionId }` | Test run 대화 id | Test run 생성(설치 없음). 시험 대화는 시작할 때의 초안 복사본을 읽는다 |
 | `authoring_replay` | `{ sessionId, maxCommits? }` | `ReplayDriveReport`(개발 모드만) | 실행 |
 | `authoring_package` | `{ sessionId, out? }` | 패키지 경로, 내용 목록, 해시 | 쓰기 + 사람 확인 |
 | `authoring_submit` | `{ sessionId, purpose?, turnId? }` | 검토함에 올린 `{ draftId, itemId }`와 "검토함에서 승인해야 쓸 수 있다" 한 줄 | 검토 항목 생성(설치 없음, 확인 없음) |
