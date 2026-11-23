@@ -1340,6 +1340,7 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 - 경고(보이게): HTML·SVG 글에 바깥 주소(http, https)가 있으면 "바깥 주소 N곳은 막혀서 불러오지 않아요"와 호스트 목록, 폴더를 벗어나는 참조(`../`, `/`로 시작, `file:`)나 셸이 폴더 밖이라 거절한 자원이 있으면 "폴더 밖 파일 N개는 읽지 않아요"와 경로를 판 위에 둡니다. 셸의 거절은 프레임이 다 불러온 뒤 한 번 읽습니다.
 - 상태: 대화 없음, 불러오는 중(목록 skeleton), 아티팩트 없음("아직 아티팩트가 없어요" + 만드는 법 한 줄), 쓰는 중, 다시 만들 수 없음, 미리보기를 그릴 수 없음(원격, 웹), 폴더가 너무 넓음(`/`, 홈), 파일이 큼, 프레임을 열지 못함.
 - 구현: `views/artifact/`(`artifact-model.ts` 판 모으기와 편집 적용, `artifact-view-model.ts` 프레임 요청, `artifact-frames.ts` 셸 명령, `artifact-tab.tsx` 판, `artifact-card.tsx` 카드, `artifact-store.ts` 고른 판), `views/shell/well-wide.ts`(넓게 펴기, `EndTabDef.wideWidth`·`fill`), `views/convo/activity-group.tsx`(카드 자리), `views/panels/changes/changes-tab.tsx`("아티팩트로 열기").
+- 넓게 편 판의 자리 [결정: 기본값 적용, AGE-77 artView 남은 것]: 넓게 펴면 대화 열이 well 자리만큼 비킵니다(`wellBesideOf`). 열이 최소 폭(480) 아래로 좁아져야 하면(1440 창의 880) 비키지 않고, 이때 판은 무대 왼쪽 끝부터 막대까지 닿는 폭(`wellCoverWidthOf`, 무대 폭 − 66)으로 대화 열을 깔끔히 덮어 대화 글이 판 가장자리 밖으로 삐져 보이지 않습니다. 창 폭(`--app-vw − 4.5rem`)을 넘지는 않습니다.
 - 빠진 것: 마크다운 안의 그림(앱 CSP가 바깥 그림을 막아 대체 글로 보입니다), 명령(`bash`)이나 하위 에이전트가 만든 파일(대화 기록에 쓰기로 남지 않아 카드가 없습니다. 폴더에 있어도 판이 되지 않습니다), 내보내기와 공유, 판 따로 저장.
 
 ### 6.7 P-03 받은 요청과 승인 카드

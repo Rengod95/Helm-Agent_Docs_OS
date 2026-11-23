@@ -340,6 +340,11 @@ export function EndPanel(props: {
   readonly keyLabel?: KeyLabel;
   /** 참이면 화면이 well 자리를 비켜 well이 무대를 덮지 않는다(AGE-75, `well-beside.ts`). 그동안 바깥을 눌러도 닫지 않는다 */
   readonly beside?: boolean;
+  /**
+   * 넓게 편 탭이 비키지 못하고 무대 위에 뜰 때 well이 가져야 할 폭(`wellCoverWidthOf`). 이 폭이 넓은 폭보다 크면 이 폭을 쓴다.
+   * 없으면 탭이 정한 폭이다
+   */
+  readonly coverWidth?: number;
 }): ReactNode {
   const area = useShell((s) => s.area);
   const open = useShell((s) => s.endOpen);
@@ -408,7 +413,12 @@ export function EndPanel(props: {
           aria-label={label}
           data-end-well={current.id}
           className="flex max-w-[calc(var(--app-vw)-4.5rem)] flex-col shadow-3 outline-none"
-          style={{ width: wellWidthOf(current, wideTab) }}
+          style={{
+            width:
+              !beside && wideTab === current.id && current.wideWidth !== undefined
+                ? Math.max(wellWidthOf(current, wideTab), props.coverWidth ?? 0)
+                : wellWidthOf(current, wideTab),
+          }}
         >
           {/* DP-193 머리 40: 제목 13/600 · 8 · 요약 12 tertiary(말줄임) · 접기 24. 머리 아래에는 선을 긋지 않는다: 바로 밑 본문 판(CardPanel)이
               제 1px 가장자리와 둥근 모서리로 머리와 본문을 가른다. 머리에 border-b를 더하면 판의 둥근 위 모서리 위로 곧은 선이 하나 더 지나간다
