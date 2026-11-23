@@ -501,6 +501,20 @@ test("a user folder that disappears becomes a remove item, and a discarded remov
   expect(valueOf(await rig.review.scan()).queued).toEqual([]);
 });
 
+test("a plugin approved from a draft or an outside folder is not removed when no user folder holds it", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "work", "outside-kit");
+  writeFiles(folder, { ".fresnel-plugin/plugin.json": manifestOf("outside-kit", "Runs the tool") });
+  const draftId = valueOf(await rig.review.draftCreate(folder, undefined)).draftId;
+  const itemId = valueOf(await rig.review.submitDraft(draftId)).itemId;
+  expect(valueOf(await rig.review.decide(itemId, APPROVE)).item.state).toBe("approved");
+  expect(valueOf(await rig.store.current("outside-kit"))).not.toBeNull();
+
+  // 사용자 플러그인 폴더에는 없지만 초안에서 온 판이라 제거 항목이 생기지 않는다
+  expect(valueOf(await rig.review.scan()).queued).toEqual([]);
+  expect(valueOf(await rig.review.list({ state: "pending" })).items).toEqual([]);
+});
+
 test("sendBack keeps the reason on the item and sends it to the origin conversation", async () => {
   const rig = rigOf();
   const folder = join(rig.root, "work", "helper-kit");

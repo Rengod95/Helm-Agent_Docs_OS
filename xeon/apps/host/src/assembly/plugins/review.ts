@@ -897,7 +897,9 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
 
   /**
    * 원본 폴더가 사라진 사용자 플러그인은 제거 항목이다(M5c §4.7.1). 폴더가 있는데 읽지 못한 것은 진단일 뿐이다.
-   * 같은 이름의 제거 항목이 대기 중이거나 방금 버려졌으면 새로 만들지 않는다
+   * 같은 이름의 제거 항목이 대기 중이거나 방금 버려졌으면 새로 만들지 않는다.
+   * 현재 검토본을 승인한 항목이 초안(드래프트나 바깥 폴더에서 제출)에서 왔으면 원본 폴더는 처음부터 사용자 플러그인 폴더에 없으므로 사라진 것이 아니다
+   * [결정: 오케스트레이터 기본값, scnFix3 AGE-77. 초안이 항목을 가리키는 `submittedItemId`로 가린다. 초안을 버린 뒤에는 이 근거가 없어 사용자 폴더 출처로 본다]
    */
   async function scanGone(
     key: string,
@@ -908,6 +910,13 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const name = current.meta.name;
     if (sources.entries.some((entry) => entry.reviewKey === key)) return ok([]);
     if (sources.discoveredNames.includes(name)) return ok([]);
+    const drafts = await store.listDrafts();
+    if (!drafts.ok) {
+      log.error("plugin.review.drafts_failed", { name, kind: drafts.error.kind });
+      return ok([]);
+    }
+    if (drafts.value.some((info) => info.submittedItemId === current.meta.decisionId))
+      return ok([]);
     const items = await reloadItems();
     const named = oldestFirst(items.filter((item) => sameKey(item, key)));
     const removePending = named.some((item) => item.kind === "remove" && item.state === "pending");
