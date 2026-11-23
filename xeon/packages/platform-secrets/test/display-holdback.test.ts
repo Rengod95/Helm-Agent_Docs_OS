@@ -121,12 +121,22 @@ function samples(): readonly Sample[] {
     { label: "kv-bearer", secret: body(18, 24), lead: "Authorization: Bearer " },
     { label: "kv-short", secret: body(19, 8), lead: "token=" },
     { label: "userinfo", secret: body(20, 16), lead: "postgres://app:" },
+    { label: "kv-after-amp", secret: body(21, 20), lead: "token=qrstuvwx&Authorization: Bearer " },
+    { label: "kv-after-semi", secret: body(22, 20), lead: "token=qrstuvwx;Authorization: Bearer " },
+    { label: "kv-escaped-quote", secret: body(23, 20), lead: String.raw`\"api_key\": \"` },
+    {
+      label: "kv-double-escaped-quote",
+      secret: body(24, 20),
+      lead: String.raw`\\\"api_key\\\": \\\"`,
+    },
   ];
 }
 
 /** 시크릿 뒤에 붙는 글. 값 끝을 닫는 글자도 섞는다 */
 function tailFor(sample: Sample): string {
   if (sample.label === "userinfo") return "@db.internal/main";
+  if (sample.label === "kv-escaped-quote") return String.raw`\", \"next\": 1}`;
+  if (sample.label === "kv-double-escaped-quote") return String.raw`\\\", \\\"next\\\": 1}`;
   if (sample.lead.endsWith('"')) return '", "next": 1}';
   return "";
 }
