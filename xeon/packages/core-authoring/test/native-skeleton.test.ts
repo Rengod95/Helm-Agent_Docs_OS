@@ -34,33 +34,51 @@ test("the native skeleton makes exactly the manifest, the engine entry, and the 
   ]);
 });
 
-test("the manifest value: one native page, one read method, no tool, no orchestration", () => {
+test("the manifest value: one native page, a read method and a write method, two model tools, no orchestration", () => {
+  const result = {
+    type: "object",
+    properties: {
+      ok: { type: "boolean" },
+      items: { type: "array", items: { type: "string" }, maxItems: 500 },
+      today: { type: "string" },
+      reason: { type: "string" },
+    },
+    required: ["ok"],
+  };
   expect(JSON.parse(fileText(".fresnel-plugin/plugin.json"))).toEqual({
     schemaVersion: 2,
     name: "notes",
     version: "0.1.0",
     displayName: "메모",
     description: "메모 화면 플러그인. 선언형 화면이 항목 목록을 보여 준다",
-    purpose: "메모의 항목 목록을 화면에서 본다",
+    purpose: "메모의 항목 목록을 화면에서 보고, 모델도 같은 도구로 읽고 더한다",
     entry: "./src/index.ts",
     plugins: [{ layer: "L3", hooks: [] }],
     defaultEnabled: false,
     trust: { level: "user" },
+    tools: [
+      { name: "notes_list_items", description: "목록의 항목을 모두 보여 준다." },
+      { name: "notes_add_item", description: "목록에 항목 하나를 더한다." },
+    ],
     methods: [
       {
         verb: "list",
         params: { type: "object", properties: {}, additionalProperties: false },
-        result: {
-          type: "object",
-          properties: {
-            ok: { type: "boolean" },
-            items: { type: "array", items: { type: "string" }, maxItems: 500 },
-            today: { type: "string" },
-            reason: { type: "string" },
-          },
-          required: ["ok"],
-        },
+        result,
         readOnly: true,
+      },
+      {
+        verb: "add",
+        params: {
+          type: "object",
+          properties: { title: { type: "string", minLength: 1, maxLength: 200 } },
+          required: ["title"],
+          additionalProperties: false,
+        },
+        result,
+        readOnly: false,
+        label: "항목 추가",
+        ownDataOnly: true,
       },
     ],
     ui: {
@@ -110,16 +128,38 @@ test("the list result carries the local day (today), and no skeleton file turns 
   }
 });
 
-test("the entry is a plain plugin: definePlugin, one state, one read method, no model tool", () => {
+test("the entry is a plain plugin: definePlugin, one state, a read method, a write method, and two model tools", () => {
   const manifest: unknown = JSON.parse(fileText(".fresnel-plugin/plugin.json"));
   expect(manifest).not.toHaveProperty("orchestration");
   const entry = fileText("src/index.ts");
   expect(entry).toContain("const plugin: PluginModule = definePlugin<NativeState>({");
   expect(entry).toContain("state: { schema: stateSchema, initial: initialState, version: 1 },");
   expect(entry).toContain('g.registerMethod("list", {');
-  expect(entry).not.toContain("registerTool");
+  expect(entry).toContain('g.registerMethod("add", {');
+  expect(entry.split("g.registerTool({")).toHaveLength(3);
   expect(entry).not.toContain("registerCommand");
   expect(entry).toContain('export const extension: PluginModule["entry"] = plugin.entry;');
+});
+
+test("the native manifest declares the methods [list, add] and the tools [notes_list_items, notes_add_item]", () => {
+  const manifest: unknown = JSON.parse(fileText(".fresnel-plugin/plugin.json"));
+  expect(manifest).toMatchObject({
+    methods: [
+      { verb: "list", readOnly: true },
+      { verb: "add", readOnly: false },
+    ],
+    tools: [{ name: "notes_list_items" }, { name: "notes_add_item" }],
+  });
+});
+
+test("the native entry registers both model tools by name, and both share the functions of the methods", () => {
+  const entry = fileText("src/index.ts");
+  expect(entry).toContain('name: "notes_list_items",');
+  expect(entry).toContain('name: "notes_add_item",');
+  expect(entry).toContain("return listOutcome(g);");
+  expect(entry).toContain("return addItem(g, checked.value.title);");
+  // 메서드 add와 모델 도구 add가 같은 addItem을 부른다(정의는 "addItem(g: "라서 셈에 들지 않는다)
+  expect(entry.split("addItem(g, ")).toHaveLength(3);
 });
 
 test("the native skeleton passes validateExtensionDir with no error once its files are written", async () => {

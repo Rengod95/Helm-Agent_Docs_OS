@@ -508,6 +508,7 @@ export type AgentJudgedPayload = JudgeRecord;
 1. 없는 정의 이름: `agents.unknown_definition`(메시지에 `Available: <이름들>`을 붙인다). 도구 경로는 `isError: true` 결과로 모델에 돌아간다.
 2. 깊이 한도 초과: `agents.depth_exceeded`. 보통은 `agent` 도구가 광고되지 않아 생기지 않는다. 모델이 광고되지 않은 도구를 부르면 L1.tools.spec §5 사례 1이다.
 3. 부모 turn 취소(포그라운드): 취소 의도가 소유 트리를 따라 자식으로 전파된다. 자식의 열린 도구 호출이 정착하고, 자식 turn이 `aborted`로 끝나고, `agent.settled{ status: "aborted" }`가 커밋된 뒤에 부모 turn이 종결한다(eng.transactions.design §6.2 규칙 4·5). 백그라운드 자식은 계속된다(사용자 중지는 예외다, §4.7 3번).
+   - 정착 커밋이 실패하거나 거절되면(`already_settled` 제외) 그 자식은 기록에 "도는 중"으로 남으므로 호스트 로그에 `agents.settle_not_committed`(자식 id, 사유)를 남기고 `agents.unavailable` 오류로 돌려준다. 조용히 넘기지 않는다 [결정: 2026-11-24, scnEng7 W-10]. 재시작 뒤 정착 없이 남은 자식을 일괄로 닫는 길은 아직 없다(소유 scope의 `cancel`만 닫는다) [미결].
 4. 취소 의도가 커밋된 부모 turn 아래에서 새 spawn: `agents.parent_aborting`. 새 자식을 만들지 않는다.
 5. 자식 실행 중 프로세스 강제 종료: 재개 때 부모의 열린 `agent` 도구 호출은 `replay: "safe"`라 다시 실행되고 §4.5 멱등으로 같은 자식을 이어 받는다. 자식 대화는 자기 체크포인트에서 재개한다.
 6. 자식 모델 오류: 자식 turn `error` → `agent.settled{ status: "error" }` → 부모에 `[fresnel:subagent_error]` 블록.

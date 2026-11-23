@@ -190,6 +190,31 @@ test("throw releases and keeps handlers", async () => {
   expect(driveCalls).toBe(1);
 });
 
+test("a storage failure in a step releases the lease but does not mark the registration broken (W-09)", async () => {
+  const { t, thread } = await setup();
+  let driveCalls = 0;
+  await t.host.install(
+    makeOrchestrationUnit({ name: "drv-storage" }, (g) => {
+      g.drive(() => {
+        driveCalls += 1;
+        return Promise.reject(new PrimitiveError("storage_unavailable", "commit failed: busy"));
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  t.host.startDrive(thread, "drv-storage");
+  await t.settled();
+  expect(driveCalls).toBe(1);
+  const released = t.records.events(thread).find((event) => event.kind === "lease.released");
+  expect(released?.payload).toMatchObject({ reason: "error" });
+  expect(t.host.registrations()[0]?.drive).not.toBe("error");
+  // 다음 시작 요청은 거절되지 않고 새 프레임을 맡는다
+  const again = t.host.startDrive(thread, "drv-storage");
+  await t.settled();
+  expect(again).toMatchObject({ ok: true });
+  expect(driveCalls).toBe(2);
+});
+
 test("third turn rejected at turns 2", async () => {
   const { t, thread } = await setup();
   let issued = 0;

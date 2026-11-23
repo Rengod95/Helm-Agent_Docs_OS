@@ -232,6 +232,17 @@ test("authoring.target-dir: a relative dir resolves inside the working folder, a
   expect(rig.state().dir).toBe("/work/space/demo");
 });
 
+test("authoring.target-dir: kind and name without dir open a new plugin in a folder named after it under the working folder (W-01)", async () => {
+  const rig = await createOrchestrationRig({ workspaceOf: () => "/work/space" });
+  const started = await rig.call("authoring_start", {
+    kind: "single-plugin",
+    name: "shopping-list",
+  });
+  expect(started).toMatchObject({ ok: true, sessionId: "auth-shopping-list" });
+  expect(rig.state().dir).toBe("/work/space/shopping-list");
+  expect(rig.state().fromSource).toBe(false);
+});
+
 test("authoring.target-dir: without a working folder a relative dir opens no session and an absolute dir does", async () => {
   const rig = await createOrchestrationRig();
   const refused = await rig.call("authoring_start", {

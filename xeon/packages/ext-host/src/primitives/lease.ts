@@ -1458,6 +1458,17 @@ export function createLeaseBroker(
           message: "drive step ended with its plugin process; lease released with error",
           cause: error,
         });
+      } else if (error instanceof PrimitiveError && error.code === "storage_unavailable") {
+        // 저장소가 잠시 쓰기를 거절한 일(busy, 저장 실패)은 Drive의 결함이 아니다. 등록을 고장으로 표시하면 다음 시작 요청이
+        // 토글 전까지 `drive_error`로 막혀 사람이 풀 수 없다. 임대만 오류로 반납하고 다음 시작 요청이 새 프레임을 맡는다 (scnEng7 W-09)
+        core.deps.report({
+          level: "error",
+          code: error.code,
+          scopeId: lease.scopeId,
+          extension: record.extension,
+          message: "drive step could not write its state; lease released with error",
+          cause: error,
+        });
       } else {
         record.driveError = true;
         record.lastError = {

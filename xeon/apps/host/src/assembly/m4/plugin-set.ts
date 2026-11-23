@@ -421,6 +421,18 @@ export function createPluginSet(deps: PluginSetDeps): PluginSetHandle {
       if (mark.replaces !== undefined) sources.delete(mark.replaces);
     }
     if (craft) put(CRAFT_BUILDER_PLUGIN, "profile");
+    // 초안을 실은 시험 대화는 시험 중인 초안, 코어와 기본 플러그인만 싣는다. 같은 프로필의 사용자가 만든 플러그인은 도구가 섞여
+    // 모델이 엉뚱한 플러그인의 기록을 고치므로 싣지 않고, 새 빌더도 열리지 않게 빌더 도구도 싣지 않는다(scnEng7 W-03)
+    if (fixed.length > 0 && !craft) {
+      const kept = new Set<string>([
+        ...deps.forcedPlugins(),
+        ...deps.defaultPlugins(),
+        ...fixed.map((draft) => draft.plugin),
+      ]);
+      for (const name of sources.keys()) {
+        if (!kept.has(name) || name === CRAFT_BUILDER_PLUGIN) sources.delete(name);
+      }
+    }
     return { sources, resolved, pinned: new Set(craft ? [CRAFT_BUILDER_PLUGIN] : []) };
   }
 

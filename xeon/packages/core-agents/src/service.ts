@@ -1170,10 +1170,21 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     if (!released.ok) log.warn("agents.child_release_failed", { childThreadId });
     meta.delete(childThreadId);
     if (!committed.ok) {
+      // 정착이 기록되지 못하면 그 자식은 기록에 "도는 중"으로 남는다. 조용히 넘기지 않고 남긴다(scnEng7 W-10)
+      log.warn("agents.settle_not_committed", { childThreadId, reason: committed.error.kind });
       return failure(
         prepared.requestId,
         "agents.unavailable",
         `settle commit failed: ${committed.error.kind}`,
+        childThreadId,
+      );
+    }
+    if (committed.value.status === "rejected" && committed.value.code !== "already_settled") {
+      log.warn("agents.settle_not_committed", { childThreadId, reason: committed.value.code });
+      return failure(
+        prepared.requestId,
+        "agents.unavailable",
+        `settle commit rejected: ${committed.value.code}`,
         childThreadId,
       );
     }

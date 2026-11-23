@@ -52,7 +52,7 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 | Tool | Input | What it does | Refuses when | User confirms |
 |---|---|---|---|---|
 | `authoring_kinds` | `layer?`, `query?` | lists kinds, status, and decisions. Read-only | never | no |
-| `authoring_start` | `kind` (`single-plugin`), `name`, `dir`, `displayName?`, `purpose?` | opens a session. `dir` is absolute, or relative to the work folder | another session is open; kind blocked; name not allowed; relative `dir` with no work folder (`needs_folder`: ask the user for a folder) | kind and name. "No" closes the session |
+| `authoring_start` | `kind` (`single-plugin`), `name`, `dir?`, `displayName?`, `purpose?` | opens a session. Without `dir` the folder is `<work folder>/<name>`; `dir` is absolute, or relative to the work folder | another session is open; kind blocked; name not allowed; relative `dir` with no work folder (`needs_folder`: ask the user for a folder) | kind and name. "No" closes the session |
 | `authoring_compose` | `sessionId`, `composition` | checks and saves the composition draft (plugin groups) | kind and name not yet confirmed | no |
 | `authoring_scaffold` | `sessionId`, `description?` | writes the files into `dir`, with the session's `purpose` and `description?` in the manifest | the folder has files that differ from the skeleton (it names them; edit them in place instead). Calling again with another `mode` replaces untouched skeleton files | no |
 | `authoring_validate` | `sessionId` | runs manifest, composition, drive replay, and AU checks. A pass moves on to trial | no files yet (`not_scaffolded`) | no. After 3 runs in a row with the same error codes and paths, it asks whether to keep fixing; "no" ends the session |

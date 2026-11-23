@@ -26,12 +26,18 @@ function threadOf(text: string): ThreadId {
   return parsed.value;
 }
 
-/** 기준 프로필 `work`: 알파, 데모, 베타 순서다. 검토본 `zeta`는 프로필에 없다 */
+/** 기준 프로필 `work`: 알파, 데모, 베타 순서에 사용자가 만든 `mine`과 빌더 `authoring`이 든다. 검토본 `zeta`는 프로필에 없다. 기본 플러그인은 알파, 베타, 빌더다 */
 const WORK: Profile = {
   id: "work",
   title: "Work",
   builtin: false,
-  plugins: [{ name: "alpha" }, { name: "demo" }, { name: "beta" }],
+  plugins: [
+    { name: "alpha" },
+    { name: "demo" },
+    { name: "beta" },
+    { name: "mine" },
+    { name: "authoring" },
+  ],
   settings: [],
   startDrive: null,
   updatedAt: "2026-11-18T00:00:00.000Z",
@@ -80,7 +86,7 @@ function fixtureOf(): {
     registrations: () => [],
     loadedHash: () => undefined,
     forcedPlugins: () => [],
-    defaultPlugins: () => [],
+    defaultPlugins: () => ["alpha", "beta", "authoring"],
     stopped: () => false,
     settingsChanged: () => undefined,
     toggles,
@@ -166,7 +172,7 @@ test("an ordinary thread with no test run keeps the default set, even when it is
   const { set } = fixtureOf();
   await set.refresh();
   await set.setTestRunDrafts(PARENT, FIXED);
-  expect(set.port.resolve(PLAIN).plugins).toEqual([]);
+  expect(set.port.resolve(PLAIN).plugins).toEqual(["alpha", "beta", "authoring"]);
   expect(set.port.resolve(PLAIN).profileId).toBe("default");
 });
 
@@ -192,4 +198,14 @@ test("binding the same test run again without auto makes it ask, and a child the
   await set.setTestRunDrafts(PARENT, FIXED);
   expect(set.testRunApprovalOf(PARENT)).toBeUndefined();
   expect(set.testRunApprovalOf(CHILD)).toBeUndefined();
+});
+
+test("a test run with drafts carries only the drafts, core and default plugins: a user-made plugin and the builder stay out (W-03)", async () => {
+  const { set } = fixtureOf();
+  await set.refresh();
+  await set.setTestRunDrafts(PARENT, FIXED);
+  const plugins = set.port.resolve(PARENT).plugins;
+  expect(plugins).toEqual(["alpha", "ddrf1-demo", "beta", "ddrf2-zeta"]);
+  expect(plugins).not.toContain("mine");
+  expect(plugins).not.toContain("authoring");
 });

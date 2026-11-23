@@ -1,9 +1,10 @@
 // 선언형 화면 플러그인 뼈대(`authoring_scaffold` mode `native`, ADR-0021 §3.5). 본문은 문자열과 JSON 값이고 이 모듈의 함수는 순수하다.
 // 시험이 파일 목록과 내용을 값으로 비교하므로 파일을 읽거나 쓰지 않는다. 쓰기는 scaffold.ts가 한다.
 //
-// 뼈대의 짜임: 보통 플러그인 하나(`definePlugin`, 구성원과 `orchestration` 없음), 상태 하나(items), 읽기 메서드 list,
-// 선언형 화면 하나(`ui/native/main.view.json`). 데이터 문서의 뿌리 키는 읽기 전용 메서드 동사와 `host`이므로
-// list의 결과는 `/list/…` 경로로 읽는다. 화면에는 코드가 없어 플러그인 코드는 화면 안에서 돌지 않는다.
+// 뼈대의 짜임: 보통 플러그인 하나(`definePlugin`, 구성원과 `orchestration` 없음), 상태 하나(items), 읽기 메서드 list와 쓰기 메서드 add,
+// 같은 함수를 쓰는 모델 도구 둘(읽기 `<id>_list_items`, 쓰기 `<id>_add_item`), 선언형 화면 하나(`ui/native/main.view.json`).
+// 데이터 문서의 뿌리 키는 읽기 전용 메서드 동사와 `host`이므로 list의 결과는 `/list/…` 경로로 읽는다.
+// 화면에는 코드가 없어 플러그인 코드는 화면 안에서 돌지 않는다. 화면에서 add를 부르는 칸(추가 UI)은 뼈대에 없다.
 
 export interface NativeSkeletonValues {
   /** 플러그인 이름(확장 이름) */
@@ -30,9 +31,15 @@ const WIDGETS_RANGE = "^1.0.0";
 const ITEM_MAX = 500;
 const TITLE_MAX = 200;
 
+/** 모델 도구 이름 둘. 확장 이름의 `-`를 `_`로 바꾼 뒤 읽기는 `_list_items`, 쓰기는 `_add_item`을 붙인다(앱 뼈대와 같은 규칙) */
+function toolNames(id: string): { readonly list: string; readonly add: string } {
+  const base = id.replaceAll("-", "_");
+  return { list: `${base}_list_items`, add: `${base}_add_item` };
+}
+
 const EMPTY_OBJECT = { type: "object", properties: {}, additionalProperties: false };
 
-/** 읽기 메서드의 결과 모양. 성공이면 `ok`와 `items`, 실패면 `ok`와 `reason`이다 */
+/** 두 메서드(list와 add)의 결과 모양. 성공이면 `ok`와 `items`(와 `today`), 실패면 `ok`와 `reason`이다 */
 const RESULT_SHAPE = {
   type: "object",
   properties: {
@@ -44,19 +51,43 @@ const RESULT_SHAPE = {
   required: ["ok"],
 };
 
+const ADD_PARAMS = {
+  type: "object",
+  properties: {
+    title: { type: "string", minLength: 1, maxLength: TITLE_MAX },
+  },
+  required: ["title"],
+  additionalProperties: false,
+};
+
 function manifestText(values: NativeSkeletonValues): string {
+  const tools = toolNames(values.id);
   const manifest = {
     schemaVersion: 2,
     name: values.id,
     version: values.version,
     displayName: values.title,
     description: `${values.title} 화면 플러그인. 선언형 화면이 항목 목록을 보여 준다`,
-    purpose: `${values.title}의 항목 목록을 화면에서 본다`,
+    purpose: `${values.title}의 항목 목록을 화면에서 보고, 모델도 같은 도구로 읽고 더한다`,
     entry: "./src/index.ts",
     plugins: [{ layer: "L3", hooks: [] }],
     defaultEnabled: false,
     trust: { level: "user" },
-    methods: [{ verb: "list", params: EMPTY_OBJECT, result: RESULT_SHAPE, readOnly: true }],
+    tools: [
+      { name: tools.list, description: "목록의 항목을 모두 보여 준다." },
+      { name: tools.add, description: "목록에 항목 하나를 더한다." },
+    ],
+    methods: [
+      { verb: "list", params: EMPTY_OBJECT, result: RESULT_SHAPE, readOnly: true },
+      {
+        verb: "add",
+        params: ADD_PARAMS,
+        result: RESULT_SHAPE,
+        readOnly: false,
+        label: "항목 추가",
+        ownDataOnly: true,
+      },
+    ],
     ui: {
       schemaVersion: 1,
       widgets: WIDGETS_RANGE,
@@ -74,8 +105,11 @@ function manifestText(values: NativeSkeletonValues): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-/** 엔진 코드. 기록 하나와 읽기 메서드 list만 있다. 항목을 더하는 쓰기 메서드와 모델 도구는 뼈대에 없다 */
-function entryText(): string {
+/** 엔진 코드. 기록 하나, 읽기 메서드 list와 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구 둘을 둔다 */
+function entryText(values: NativeSkeletonValues): string {
+  const tools = toolNames(values.id);
+  const listTool = JSON.stringify(tools.list);
+  const addTool = JSON.stringify(tools.add);
   return [
     'import { parse } from "@fresnel/contracts";',
     "import {",
@@ -87,11 +121,10 @@ function entryText(): string {
     'import { Type } from "typebox";',
     'import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };',
     "",
-    "// 선언형 화면 플러그인 골격. 기록 하나(items)와 읽기 메서드 list를 둔다.",
-    '// 기록은 항상 플러그인 전용 저장소(g.pluginStore, 키 "items")에 둔다. 어느 대화에서 불려도 같은 한 목록을 읽는다.',
+    "// 선언형 화면 플러그인 골격. 기록 하나(items), 읽기 메서드 list와 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구 둘을 둔다.",
+    '// 기록은 항상 플러그인 전용 저장소(g.pluginStore, 키 "items")에 둔다. 어느 대화에서 불려도 같은 한 목록을 읽고 쓴다.',
     "// 대화마다 따로 가져야 하는 기록은 상태 문서(g.state, g.commit)에 둘 수 있다.",
-    "// 화면(ui/native/main.view.json)은 코드가 없는 트리라서 list의 결과를 `/list/items`로 읽어 목록으로 그린다.",
-    "// 항목을 더하는 쓰기 메서드와 모델 도구는 뼈대에 없다. 더할 때는 메서드를 registerMethod로 등록하고 manifest methods에 선언한다.",
+    "// 화면(ui/native/main.view.json)은 코드가 없는 트리라서 list의 결과를 `/list/items`로 읽어 목록으로 그린다. 화면에서 add를 부르는 칸은 뼈대에 없다.",
     "// 보드(열과 카드)와 끌어 순서를 바꾸는 목록도 native로 된다: 트리의 Board, SortableList가 move에 적은 쓰기 메서드를 부른다(examples/kanban-native).",
     "",
     "interface NativeState {",
@@ -106,13 +139,33 @@ function entryText(): string {
     "",
     'const ITEMS_KEY = "items";',
     "",
+    "const listParams = Type.Object({}, { additionalProperties: false });",
+    "const addParams = Type.Object(",
+    `  { title: Type.String({ minLength: 1, maxLength: ${TITLE_MAX} }) },`,
+    "  { additionalProperties: false },",
+    ");",
+    "",
+    "type NativeApi = OrchestrationApi<NativeState>;",
+    "",
+    "type ItemsOutcome =",
+    "  | { readonly ok: true; readonly items: readonly string[]; readonly today: string }",
+    "  | { readonly ok: false; readonly reason: string };",
+    "",
     "/** 목록을 플러그인 저장소에서 읽는다. 값이 없으면 빈 목록이고, 저장된 값이 목록 모양이 아니면 저장 데이터가 깨진 것이다 */",
-    "async function readItems(g: OrchestrationApi<NativeState>): Promise<readonly string[] | null> {",
+    "async function readItems(g: NativeApi): Promise<readonly string[] | null> {",
     "  const stored = await g.pluginStore.get(ITEMS_KEY);",
     "  if (!stored.ok) return null;",
     "  if (stored.value === null) return initialState.items;",
     "  const checked = parse(stateSchema, stored.value);",
     "  return checked.ok ? checked.value.items : null;",
+    "}",
+    "",
+    "/** 저장소 쪽의 읽고-고쳐-쓰기를 한 줄로 세운다. 줄이 없으면 같은 목록을 읽은 두 추가가 서로를 덮는다 */",
+    "let storeLine: Promise<unknown> = Promise.resolve();",
+    "function inStoreLine<T>(work: () => Promise<T>): Promise<T> {",
+    "  const run = storeLine.then(work);",
+    "  storeLine = run.then(() => undefined);",
+    "  return run;",
     "}",
     "",
     "// 날짜는 이 기기의 시간대로 쓴다. UTC 글로 바꾸면 자정 무렵 하루 어긋나므로 그렇게 쓰지 않는다",
@@ -122,16 +175,61 @@ function entryText(): string {
     '  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());',
     "};",
     "",
+    "/** 목록 읽기 결과. 날짜는 화면 트리의 글이 바인드를 받지 않아 결과로만 준다. 메서드 list와 모델 도구 list가 이 함수 하나를 쓴다 */",
+    "async function listOutcome(g: NativeApi): Promise<ItemsOutcome> {",
+    "  const items = await readItems(g);",
+    '  if (items === null) return { ok: false, reason: "storage_unavailable" };',
+    "  return { ok: true, items, today: today() };",
+    "}",
+    "",
+    "/** 항목 하나를 플러그인 저장소에 더한다. 메서드 add와 모델 도구 add가 이 함수 하나를 쓴다 */",
+    "async function addItem(g: NativeApi, title: string): Promise<ItemsOutcome> {",
+    "  return inStoreLine<ItemsOutcome>(async () => {",
+    "    const current = await readItems(g);",
+    '    if (current === null) return { ok: false, reason: "storage_unavailable" };',
+    `    if (current.length >= ${ITEM_MAX}) return { ok: false, reason: "full" };`,
+    "    const next = [...current, title];",
+    "    const put = await g.pluginStore.put(ITEMS_KEY, { items: next });",
+    "    return put.ok ? { ok: true, items: next, today: today() } : { ok: false, reason: put.error.kind };",
+    "  });",
+    "}",
+    "",
     "const plugin: PluginModule = definePlugin<NativeState>({",
     "  manifest: pluginManifest(manifestJson),",
     "  state: { schema: stateSchema, initial: initialState, version: 1 },",
     "  setup(g) {",
     '    g.registerMethod("list", {',
-    "      handler: async () => {",
-    "        // 날짜는 화면 트리의 글이 바인드를 받지 않아 결과로만 준다",
-    "        const items = await readItems(g);",
-    '        if (items === null) return { ok: false, reason: "storage_unavailable" };',
-    "        return { ok: true, items, today: today() };",
+    "      handler: () => listOutcome(g),",
+    "    });",
+    '    g.registerMethod("add", {',
+    "      handler: async (params) => {",
+    "        const checked = parse(addParams, params);",
+    '        if (!checked.ok) return { ok: false, reason: "invalid_params" };',
+    "        return addItem(g, checked.value.title);",
+    "      },",
+    "    });",
+    "    g.registerTool({",
+    `      name: ${listTool},`,
+    '      description: "목록의 항목을 모두 보여 준다.",',
+    "      parameters: listParams,",
+    '      replay: "unsafe",',
+    "      // risk를 생략한다. 외부 확장이 read나 write를 선언하면 등록이 거부되고, 생략하면 exec가 기본이다",
+    "      execute: async (args) => {",
+    "        const checked = parse(listParams, args);",
+    '        if (!checked.ok) return { ok: false, reason: "invalid_input" };',
+    "        return listOutcome(g);",
+    "      },",
+    "    });",
+    "    g.registerTool({",
+    `      name: ${addTool},`,
+    '      description: "목록에 항목 하나를 더한다.",',
+    "      parameters: addParams,",
+    '      replay: "unsafe",',
+    "      // risk를 생략한다. 외부 확장이 read나 write를 선언하면 등록이 거부되고, 생략하면 exec가 기본이다",
+    "      execute: async (args) => {",
+    "        const checked = parse(addParams, args);",
+    '        if (!checked.ok) return { ok: false, reason: "invalid_input" };',
+    "        return addItem(g, checked.value.title);",
     "      },",
     "    });",
     "  },",
@@ -162,7 +260,7 @@ function viewText(values: NativeSkeletonValues): string {
 export function nativeSkeletonFiles(values: NativeSkeletonValues): readonly SkeletonFile[] {
   return [
     { path: ".fresnel-plugin/plugin.json", text: manifestText(values) },
-    { path: "src/index.ts", text: entryText() },
+    { path: "src/index.ts", text: entryText(values) },
     { path: "ui/native/main.view.json", text: viewText(values) },
   ];
 }

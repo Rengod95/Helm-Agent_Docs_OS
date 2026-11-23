@@ -337,7 +337,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it on the Craft > Plugins screen; say the name of that screen in the user's language, as the app shows it). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
+    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it on the \"크래프트의 플러그인 화면\" screen; tell the user that screen name exactly as quoted). Open a build session (the returned sessionId is only for later tool calls: never say it or the folder path to the user). With name only, it opens the source folder of an existing plugin (fix it). With kind and name, it opens a new plugin in a folder named after it inside this conversation's working folder (dir is optional: never ask the user for a path), and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -364,14 +364,16 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const purpose = optStr(input, "purpose");
       // 상주는 호스트가 정한다(M5c §4.8.6). 테스트 대화이면 모델이 뭘 넘겼든 상주다. 일반 대화는 넘긴 값을 그대로 쓴다
       const resident = (await craftChatOf(env, threadId)) || input["resident"] === true;
-      // dir이 없으면 기존 플러그인이다: 이름만으로 원본 폴더를 연다
-      if (optStr(input, "dir") === undefined) return startFromSource(env, name, purpose, resident);
+      // kind도 dir도 없으면 기존 플러그인이다: 이름만으로 원본 폴더를 연다. kind만 있으면 새 플러그인이고 폴더는 대화의 작업 폴더 아래 이름 폴더다
+      const givenDir = optStr(input, "dir");
+      if (givenDir === undefined && optStr(input, "kind") === undefined)
+        return startFromSource(env, name, purpose, resident);
       const kindId = optStr(input, "kind") ?? "single-plugin";
       const entry = (await devkit.kinds()).find((found) => found.id === kindId);
       if (entry === undefined) return refusal("unknown_kind", `no kind ${kindId}`);
       if (entry.status === "blocked")
         return refusal("blocked_kind", entry.blockedReason ?? `${kindId} is blocked`);
-      const target = resolveTargetDir(str(input, "dir"), env.workspaceOf(threadId));
+      const target = resolveTargetDir(givenDir ?? name, env.workspaceOf(threadId));
       if (!target.ok)
         return target.kind === "needs_folder"
           ? refusal(
