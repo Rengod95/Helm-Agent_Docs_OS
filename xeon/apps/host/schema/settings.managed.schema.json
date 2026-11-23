@@ -7966,6 +7966,61 @@
           "widget": "toggle"
         }
       }
+    },
+    "x.ui.hidden": {
+      "default": [],
+      "items": {
+        "maxLength": 128,
+        "minLength": 3,
+        "type": "string"
+      },
+      "maxItems": 512,
+      "type": "array",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0"
+      }
+    },
+    "x.ui.order": {
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "panel": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 3,
+            "type": "string"
+          },
+          "maxItems": 512,
+          "type": "array"
+        },
+        "status": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 3,
+            "type": "string"
+          },
+          "maxItems": 512,
+          "type": "array"
+        }
+      },
+      "type": "object",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0"
+      }
     }
   },
   "type": "object",
