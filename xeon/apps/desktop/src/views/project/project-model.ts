@@ -205,20 +205,24 @@ export function capRows<T extends SidebarRow>(
 
 /**
  * 같은 작업 폴더에서 지금 도는 다른 대화(T7, U6). 알리기만 하고 막지 않는다. 테스트 런과 내부 대화는 부르는 쪽이 먼저 뺀다.
- * 이 대화가 띄운 하위 대화(`spawnedBy`가 이 대화)는 부모와 같은 폴더를 쓰는 것이 정상이라 뺀다(rerun3 T-07)
+ * 하위 대화는 부모와 같은 폴더를 쓰는 것이 정상이라 뺀다(rerun3 T-07). 이 대화가 띄운 하위 대화, 이 대화의 부모(연 대화가
+ * 하위 대화일 때), 같은 부모의 다른 하위 대화(형제)가 모두 여기에 든다. 부모를 뺀 것은 하위 대화를 열었을 때 부모 경고가 뜨지 않게 하려는 것이다(rerun4 T-07)
  */
 export function sameFolderRunningOf<
   T extends Pick<ThreadSummary, "threadId" | "workspace" | "status" | "spawnedBy">,
 >(
-  selected: Pick<ThreadSummary, "threadId" | "workspace"> | undefined,
+  selected: Pick<ThreadSummary, "threadId" | "workspace" | "spawnedBy"> | undefined,
   threads: readonly T[],
 ): readonly T[] {
   if (selected === undefined || selected.workspace === null) return [];
   const folder = trimEnd(selected.workspace);
+  const parent = selected.spawnedBy?.threadId;
   return threads.filter(
     (thread) =>
       thread.threadId !== selected.threadId &&
       thread.spawnedBy?.threadId !== selected.threadId &&
+      thread.threadId !== parent &&
+      (parent === undefined || thread.spawnedBy?.threadId !== parent) &&
       thread.status === "running" &&
       thread.workspace !== null &&
       trimEnd(thread.workspace) === folder,

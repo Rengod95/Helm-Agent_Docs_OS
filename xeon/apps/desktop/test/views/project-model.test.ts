@@ -197,6 +197,24 @@ describe("same folder and settings helpers", () => {
     ]);
   });
 
+  test("from a subthread, its running parent and its sibling subthreads are not named", () => {
+    const parent = summary(thr(1), { workspace: "/w/app", status: "running" });
+    const open = summary(thr(2), {
+      workspace: "/w/app",
+      spawnedBy: { threadId: thr(1), kind: "subagent" },
+    });
+    const sibling = summary(thr(3), {
+      workspace: "/w/app",
+      status: "running",
+      spawnedBy: { threadId: thr(1), kind: "subagent" },
+    });
+    const other = summary(thr(4), { workspace: "/w/app", status: "running" });
+    expect(sameFolderRunningOf(open, [parent, sibling])).toEqual([]);
+    expect(
+      sameFolderRunningOf(open, [parent, sibling, other]).map((thread) => thread.threadId),
+    ).toEqual([thr(4)]);
+  });
+
   test("names are trimmed and 1 to 128 characters", () => {
     expect(checkProjectName("  api  ")).toBe("api");
     expect(checkProjectName("   ")).toBeNull();
