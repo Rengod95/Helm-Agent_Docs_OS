@@ -464,11 +464,14 @@ export function definePlugin<S = never, const D extends OrchestrationSettingDefs
       `definePlugin(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
     );
   }
-  const entry: ExtensionEntry = ({ register }) => {
+  const entry: ExtensionEntry = ({ register, manifest: loaded }) => {
+    // 호스트가 준 이름으로 등록한다. 초안(Test run)은 내부 이름(`d<해시>-<이름>`)으로 실린다(defineOrchestration과 같다. F-10, F-47)
+    const liveDef =
+      loaded.name === def.manifest.name
+        ? def
+        : { ...def, manifest: { ...def.manifest, name: loaded.name } };
     const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
-    register(def.manifest.name, registrationDef, (api) =>
-      def.setup(wrap(api, def, realHostAccess)),
-    );
+    register(loaded.name, registrationDef, (api) => def.setup(wrap(api, liveDef, realHostAccess)));
   };
   const version = def.state?.version ?? 0;
   return {

@@ -359,6 +359,21 @@ test("define-plugin.makes-a-module-from-a-manifest-without-orchestration", () =>
   expect(pluginManifest(manifest)).toEqual(manifest);
 });
 
+test("define-plugin.registers-under-the-name-the-host-loaded-it-as", async () => {
+  // 초안(Test run)은 내부 이름으로 실린다. 파일의 이름으로 등록하면 로더가 엔트리를 거절한다(F-10, F-47)
+  const manifest = plainManifestOf("plain-app");
+  const module = definePlugin({ manifest, setup() {} });
+  const names: string[] = [];
+  await module.entry({
+    manifest: { ...manifest, name: "dabc123-plain-app" },
+    register: (id) => {
+      names.push(id);
+      return { id, status: "enabled", enable() {}, disable() {} };
+    },
+  });
+  expect(names).toEqual(["dabc123-plain-app"]);
+});
+
 test("define-plugin.refuses-an-orchestration-declaration-and-a-missing-root", () => {
   expect(() =>
     definePlugin({
