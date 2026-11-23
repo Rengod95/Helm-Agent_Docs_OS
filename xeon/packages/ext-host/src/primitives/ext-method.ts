@@ -13,8 +13,9 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtMethodDecl, ExtensionName, RegistrationId } from "@fresnel/contracts/extensions";
 import { Compile, type Validator } from "typebox/schema";
 import type { HandlerGate, HandlerRunOutcome } from "./dispatch-types.ts";
-import type { Generation, HostCore } from "./core.ts";
+import type { Generation, HostCore, RegistrationRecord } from "./core.ts";
 import type { ResourceRecord, ResourceRegistry } from "./resources.ts";
+import type { AppOpenResult } from "./registration.ts";
 
 /** 처리기가 받는 호출 맥락. threadId는 호출이 thread에 묶였을 때만 있다 */
 export interface ExtMethodCallContext {
@@ -252,31 +253,31 @@ function entryOf(def: unknown): ExtMethodEntry | undefined {
 }
 
 /**
- * 호출이 닿을 수 있는 세대. scope가 없거나 열려 있지 않거나(꺼지는 중, 꺼짐, 멈춤), threadId가 있을 때 그 thread에서
- * 꺼져 있으면 undefined다. threadId가 null이면 세대만 본다
+ * 호출이 닿을 수 있는 세대. scope가 없거나 열려 있지 않으면(꺼지는 중, 꺼짐, 멈춤) undefined다.
+ * 그 대화의 프로필에 없어도 세대가 열려 있으면 메서드는 돈다(AGE-78 질문 3). 이때 처리기는 대화 없이 불린다(`callThreadOf`).
+ * 도구, 훅, Drive는 이 함수를 거치지 않고 대화의 켜짐 집합(`thread.active`)으로 걸러진다
  */
-function openGenerationOf(
-  core: HostCore,
-  scopeId: RegistrationId,
-  threadId: ThreadId | null,
-): Generation | undefined {
+function openGenerationOf(core: HostCore, scopeId: RegistrationId): Generation | undefined {
   const generation = core.scopes.get(scopeId)?.generation ?? null;
   if (generation === null || !generation.open) return undefined;
-  if (threadId !== null && !core.activeIn(threadId, scopeId)) return undefined;
   return generation;
 }
 
-/** 등록된 기록이 없을 때. 매니페스트가 그 동사를 선언했고 확장의 scope가 모두 꺼졌으면 extension_off다 */
-function absentOutcome(
+/** 이 대화에서 그 scope가 켜져 있으면 대화를 그대로, 아니면(프로필에 없는 앱 호출) null이다 */
+function callThreadOf(
   core: HostCore,
-  extension: ExtensionName,
-  verb: string,
+  scopeId: RegistrationId,
   threadId: ThreadId | null,
-): ExtMethodOutcome {
+): ThreadId | null {
+  return threadId !== null && core.activeIn(threadId, scopeId) ? threadId : null;
+}
+
+/** 등록된 기록이 없을 때. 매니페스트가 그 동사를 선언했고 확장의 scope가 모두 꺼졌으면 extension_off다 */
+function absentOutcome(core: HostCore, extension: ExtensionName, verb: string): ExtMethodOutcome {
   const unit = core.units.get(extension);
   const declared = (unit?.manifest.methods ?? []).some((decl) => decl.verb === verb);
   if (unit === undefined || !declared) return { kind: "not_found" };
-  const someOn = unit.scopeIds.some((id) => openGenerationOf(core, id, threadId) !== undefined);
+  const someOn = unit.scopeIds.some((id) => openGenerationOf(core, id) !== undefined);
   return someOn ? { kind: "not_found" } : { kind: "extension_off" };
 }
 
@@ -287,6 +288,11 @@ export interface ExtMethodsDeps {
   readonly onMethodSettled: ((info: ExtMethodSettled) => void) | undefined;
   /** 처리기 실행기(ExtHostDeps.methodRun). 없으면 예산 없이 실행한다 */
   readonly methodRun: MethodRun | undefined;
+  /**
+   * 메서드를 등록한 세대가 닫혀 있으면 앱 화면 호출이 그 세대를 연다(어느 프로필에도 없는 앱, AGE-78 질문 3).
+   * 전체 끄기, 앞선 실패, 바쁨은 거절한다(`extension_off`). 없으면 열지 않는다
+   */
+  readonly openForApp?: ((record: RegistrationRecord) => Promise<AppOpenResult>) | undefined;
 }
 
 const NOOP = (): void => {};
@@ -364,14 +370,33 @@ export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
       const requested = rawInput.threadId;
       const threadOpen = requested === null || core.threads.has(requested);
       const input = threadOpen ? rawInput : { ...rawInput, threadId: null };
-      const found = registered().find(
-        ({ record }) => record.extension === input.extension && record.name === input.verb,
-      );
-      if (found === undefined)
-        return absentOutcome(core, input.extension, input.verb, input.threadId);
+      const findMethod = (): ReturnType<typeof registered>[number] | undefined =>
+        registered().find(
+          ({ record }) => record.extension === input.extension && record.name === input.verb,
+        );
+      let found = findMethod();
+      if (found === undefined && deps.openForApp !== undefined) {
+        // 선언은 있는데 등록된 처리기가 없다: 세대가 닫혀 있다. 앱 화면 호출이면 닫힌 scope를 열어 본다
+        const unit = core.units.get(input.extension);
+        const declared = (unit?.manifest.methods ?? []).some((decl) => decl.verb === input.verb);
+        if (unit !== undefined && declared) {
+          const open = deps.openForApp;
+          // 공급자가 먼저 열려야 하므로 로드 순서대로 하나씩 연다
+          await unit.scopeIds.reduce(async (previous, scopeId) => {
+            await previous;
+            const record = core.scopes.get(scopeId);
+            if (record === undefined || openGenerationOf(core, scopeId) !== undefined) return;
+            await open(record);
+          }, Promise.resolve());
+          found = findMethod();
+        }
+      }
+      if (found === undefined) return absentOutcome(core, input.extension, input.verb);
       const { record, entry } = found;
-      const keptThread = !threadOpen && entry.decl.readOnly ? requested : input.threadId;
-      const generation = openGenerationOf(core, record.scopeId, input.threadId);
+      // 프로필에 없는 앱 호출은 대화 없이 돈다. 읽기 전용 메서드의 열리지 않은 대화 규칙은 그 앞에서 정한다
+      const effectiveThread = callThreadOf(core, record.scopeId, input.threadId);
+      const keptThread = !threadOpen && entry.decl.readOnly ? requested : effectiveThread;
+      const generation = openGenerationOf(core, record.scopeId);
       if (generation === undefined) return { kind: "extension_off" };
       if (input.signal.aborted) return { kind: "aborted" };
       const report = (

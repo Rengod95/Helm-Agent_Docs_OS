@@ -787,6 +787,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     resources,
     onMethodSettled: deps.onMethodSettled,
     methodRun: deps.methodRun,
+    openForApp: (record) => scope.openForApp(record),
   });
   const kick: { directCommitted: (thread: ThreadRuntime, record: RegistrationRecord) => void } = {
     directCommitted: () => {},

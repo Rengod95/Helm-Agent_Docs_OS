@@ -178,6 +178,13 @@ export interface RegistrationRecord extends RegistrationDefinition {
   driveError: boolean;
   /** setup을 실행하는 중이다. 같은 scope의 setup이 겹치지 않게 한다 */
   busy: boolean;
+  /**
+   * 앱 화면이 불러 세대를 열어 둔 scope(pgRe §3.6, AGE-78 질문 3). 어느 대화의 프로필에도 없어도 메서드(와 저장)만 돌고,
+   * 훅, 도구, Inject, Drive는 대화의 켜짐 집합(`thread.active`)에 있을 때만 돈다. 전체 끄기와 설치 해제로 풀린다
+   */
+  appHeld: boolean;
+  /** 전체 끄기 요청(`threadId` 없는 toggle(false))을 받았다. 앱 화면도 열지 않는다. 다시 켜면 풀린다. 처음의 기본 꺼짐은 아니다 */
+  explicitOff: boolean;
 }
 
 // ── 주도권 스택과 시작 요청 ───────────────────────────────────────────────
