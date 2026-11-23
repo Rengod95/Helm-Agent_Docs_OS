@@ -49,6 +49,8 @@ export interface PluginFiles {
   readonly entry?: string;
   /** 매니페스트 `ui`(JSON 값). 생략하면 없다. 화면 파일은 호출자가 따로 쓴다 */
   readonly ui?: unknown;
+  /** 매니페스트 `methods`(JSON 값). 생략하면 없다 */
+  readonly methods?: unknown;
   /** 루트 플러그인의 `replaces`(내장 도구 대체 선언). 생략하면 없다 */
   readonly replaces?: readonly string[];
   /** 루트 플러그인의 `drives`. 참이면 매니페스트에 drives가 선언된다(격리 판정의 drives 행) */
@@ -100,6 +102,7 @@ export async function writePlugin(
     ...(files.group === true ? { orchestration: {} } : {}),
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
     ...(files.ui === undefined ? {} : { ui: files.ui }),
+    ...(files.methods === undefined ? {} : { methods: files.methods }),
     ...(files.isolation === undefined ? {} : { isolation: files.isolation }),
     ...(files.defaultEnabled === undefined ? {} : { defaultEnabled: files.defaultEnabled }),
   };

@@ -6,6 +6,7 @@ import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contract
 import type { SemVer } from "@fresnel/contracts/capabilities";
 import {
   BRIDGE_VERSION,
+  checkUiTreeActions,
   isEntryInsideRoot,
   validateUiTree,
   type AppDecl,
@@ -15,6 +16,7 @@ import {
   type Placement,
   type UiContribution,
   type UiDecl,
+  type UiMethodRef,
   type UiMode,
   type UiNode,
 } from "@fresnel/contracts/extensions";
@@ -25,8 +27,11 @@ import type { UiDiagnosticCode } from "./pipeline.ts";
 import { satisfiesRange } from "./semver.ts";
 import type { InstallSource } from "./trust/levels.ts";
 
-/** 호스트가 싣는 위젯 카탈로그 버전(ADR-0021 §3.4.1, v1 초안). `ui.widgets` 범위가 이 값을 포함해야 native 화면을 그린다 */
-export const HOST_WIDGETS_VERSION: string = "1.0.0";
+/**
+ * 호스트가 싣는 위젯 카탈로그 버전(ADR-0021 §3.4.1). `ui.widgets` 범위가 이 값을 포함해야 native 화면을 그린다.
+ * 1.1.0은 `Board`와 `SortableList`를 더했다(AGE-78 질문 7). 렌더러의 `WIDGET_CATALOG_VERSION`과 같은 값이다
+ */
+export const HOST_WIDGETS_VERSION: string = "1.1.0";
 
 /** 호스트 다리 API 버전. contracts의 `BRIDGE_VERSION`(정수 1)을 SemVer로 쓴다(ADR-0021 §3.4.2) */
 export const HOST_BRIDGE_VERSION: string = `${String(BRIDGE_VERSION)}.0.0`;
@@ -102,6 +107,8 @@ export interface UiEntryReport extends UiItemReport {
 export interface UiOwner extends Pick<ExtensionManifest, "orchestration" | "name"> {
   /** 매니페스트 플러그인들의 `readsRecordKinds`를 모은 것. 여기 덮인 kind는 카드로 그릴 수 있다 */
   readonly readsRecordKinds: readonly string[];
+  /** 매니페스트 `methods`의 동사와 읽기 전용 여부. 트리의 `Board`·`SortableList`가 이름으로 부르는 메서드를 맞춰 본다. 생략하면 선언한 메서드가 없다 */
+  readonly methods?: readonly UiMethodRef[];
 }
 
 export interface UiCheckInput {
@@ -218,14 +225,17 @@ async function readTree(ctx: Ctx, relative: string, at: string): Promise<TreeRea
   if (!json.ok)
     return { issues: [issueOf("error", "ui_invalid", at, `${relative} is not valid JSON`)] };
   const checked = validateUiTree(json.value);
-  if (!checked.ok) {
+  const found = checked.ok
+    ? checkUiTreeActions(checked.tree, ctx.owner.methods ?? [])
+    : checked.issues;
+  if (!checked.ok || found.length > 0) {
     return {
-      issues: checked.issues.map((found) =>
+      issues: found.map((issue) =>
         issueOf(
           "error",
-          found.code,
-          found.path === "" ? at : `${at}#${found.path}`,
-          `${relative}: ${found.message}`,
+          issue.code,
+          issue.path === "" ? at : `${at}#${issue.path}`,
+          `${relative}: ${issue.message}`,
         ),
       ),
     };

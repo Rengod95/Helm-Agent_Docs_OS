@@ -30,7 +30,7 @@ const APP: AppDecl = {
   reason: "canvas",
 };
 
-/** 화면 목록으로 매니페스트 `ui` 하나를 만든다. 위젯 범위의 기본값 `^1.0.0`은 호스트 위젯 버전 `1.0.0`을 포함한다 */
+/** 화면 목록으로 매니페스트 `ui` 하나를 만든다. 위젯 범위의 기본값 `^1.0.0`은 호스트 위젯 버전 `1.1.0`을 포함한다 */
 function uiOf(items: readonly UiContribution[], widgets = "^1.0.0"): UiDecl {
   return { schemaVersion: 1, items, widgets };
 }
@@ -129,6 +129,52 @@ test("ui: a schema violation in the tree is ui_invalid with a pointer into the f
         },
       ],
     ],
+  ]);
+});
+
+test("ui: a board naming declared write methods is ok, and the same board against other methods is invalid with readable issues", async () => {
+  const board =
+    '{"type":"Board","props":{"move":"move","add":"add"},"bind":{"columns":{"path":"/board/columns"},"cards":{"path":"/board/cards"}}}';
+  const owner: UiOwner = {
+    name: "demo",
+    readsRecordKinds: [],
+    methods: [
+      { verb: "board", readOnly: true },
+      { verb: "move", readOnly: false },
+      { verb: "add", readOnly: false },
+    ],
+  };
+  const good = await checkWith(uiOf([PAGE]), nativeTree(board), { owner });
+  expect(good.reports.map((report) => [report.state, report.issues])).toEqual([["ok", []]]);
+
+  const readOnlyMove: UiOwner = {
+    ...owner,
+    methods: [
+      { verb: "move", readOnly: true },
+      { verb: "add", readOnly: false },
+    ],
+  };
+  const bad = await checkWith(uiOf([PAGE]), nativeTree(board), { owner: readOnlyMove });
+  expect(bad.reports.map((report) => [report.state, report.tree, report.issues])).toEqual([
+    [
+      "invalid",
+      undefined,
+      [
+        {
+          severity: "error",
+          code: "ui_invalid",
+          path: "/ui/items/0/file#/props/move",
+          message:
+            'ui/page.json: Board.move names "move", a read method: name a write method (readOnly: false)',
+        },
+      ],
+    ],
+  ]);
+
+  const none = await checkWith(uiOf([PAGE]), nativeTree(board));
+  expect(none.reports[0]?.issues.map((issue) => issue.path)).toEqual([
+    "/ui/items/0/file#/props/move",
+    "/ui/items/0/file#/props/add",
   ]);
 });
 
@@ -420,7 +466,7 @@ test("ui: an unsatisfied widgets range makes every native item invalid with widg
     severity: "error",
     code: "widgets_unsupported",
     path: "/ui/widgets",
-    message: 'ui.widgets "^2.0.0" does not include host widgets 1.0.0',
+    message: 'ui.widgets "^2.0.0" does not include host widgets 1.1.0',
   };
   expect(reports.map((report) => [report.id, report.state, report.issues])).toEqual([
     ["page", "invalid", [widgetsIssue]],
