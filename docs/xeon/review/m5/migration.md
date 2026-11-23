@@ -291,12 +291,14 @@ Fresnel 쪽 용어는 ADR-0023과 M5c를 따른다: 플러그인, 프로필, Inj
 
 ```
 <이름>/
-  .fresnel-plugin/plugin.json      # 매니페스트: purpose, hooks[](위치 이름, decides), 필요한 userConfig
+  .fresnel-plugin/plugin.json      # 매니페스트: purpose, description(승인에 필요, AGE-31), hooks[](위치 이름, decides), 필요한 userConfig
   .fresnel-plugin/migration.json   # 출처 경로(홈은 ~), 원본 해시, rulesVersion, 이 플러그인의 보고서 줄
   plugin.js                        # 템플릿에서 생성한 어댑터(매처 평가, 입력 변환, 결정 변환)
   hooks.data.json                  # 정규화한 Hook 항목(이벤트, 매처, if, 핸들러, 시간 제한, 원본 위치)
   scripts/…                        # 원본 폴더 안에서 가리키던 스크립트의 복사본(검토 대상)
 ```
+
+매니페스트의 `description`은 검토 승인에 필요하다(`pluginReview.descriptionRequired`) [결정: 2026-11-23 사용자, AGE-31]. 스킬은 원본 `description` 전체(1024자까지)이고, 지침, 명령, 서브에이전트, MCP 서버, 훅은 무엇을 옮겼는지 적은 고정 문장이다(`propose.ts`).
 
 이벤트 대응:
 

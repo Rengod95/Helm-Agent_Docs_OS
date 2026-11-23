@@ -172,6 +172,7 @@ test("the plugin manifest has a fixed key order, and user config keys name the s
     "name",
     "version",
     "purpose",
+    "description",
     "userConfig",
   ]);
   expect(decode(emitted.get(".fresnel-plugin/plugin.json"))).toBe(
@@ -181,6 +182,7 @@ test("the plugin manifest has a fixed key order, and user config keys name the s
       '  "name": "mcp-github",',
       '  "version": "0.0.0",',
       '  "purpose": "`github` MCP 서버(Claude Code에서 가져옴)",',
+      '  "description": "Claude Code에 설정된 `github` MCP 서버를 옮긴 플러그인이다. 그 서버의 도구를 에이전트에게 준다.",',
       '  "userConfig": {',
       '    "GITHUB_TOKEN": {',
       '      "setting": "ext.mcp-github.GITHUB_TOKEN",',
@@ -228,6 +230,7 @@ test("a plan without migration metadata still gets a record with empty sources a
   const plan: PlannedPlugin = {
     name: "hand-made",
     purpose: "직접 만든 계획",
+    description: "손으로 만든 계획의 설명",
     derivedFrom: [],
     tree: new Map([["instructions/01-note.md", enc("메모\n")]]),
     pendingBuilder: [],
@@ -265,4 +268,23 @@ test("emitted plugin manifests (schemaVersion 2, no entry) pass validateManifest
     expect(result.manifest?.name).toBe(name);
     expect(result.manifest?.entry).toBeUndefined();
   }
+});
+
+test("emitted manifests carry the plan's description, so a migrated plugin can be approved (AGE-31)", () => {
+  const cases: readonly [SourceItem, string, string][] = [
+    [deployItem, "deploy", "Deploy the app to staging. Use when the user asks to ship a build."],
+    [
+      githubItem,
+      "mcp-github",
+      "Claude Code에 설정된 `github` MCP 서버를 옮긴 플러그인이다. 그 서버의 도구를 에이전트에게 준다.",
+    ],
+  ];
+  const got = cases.map(([item, name]) => {
+    const proposal = propose(scanOf([item]), BUNDLED_RULESETS, { answers: {} });
+    const manifest = parseJson(
+      decode(emit(plugin(proposal, name)).get(".fresnel-plugin/plugin.json")),
+    );
+    return manifest.ok ? validateManifest(manifest.value).manifest?.description : null;
+  });
+  expect(got).toEqual(cases.map(([, , description]) => description));
 });

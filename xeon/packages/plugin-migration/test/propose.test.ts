@@ -265,6 +265,9 @@ test("a well-formed skill is copied byte for byte and reported exact", () => {
     ),
   ).toBe(true);
   expect(plugin.purpose).toBe("Deploy the app to staging. Use when the user asks to ship a build.");
+  expect(plugin.description).toBe(
+    "Deploy the app to staging. Use when the user asks to ship a build.",
+  );
   const line = lineOf(proposal, deploySkillItem);
   expect(line.status).toBe("exact");
   expect(line.differences).toEqual([]);

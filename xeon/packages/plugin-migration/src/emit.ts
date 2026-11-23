@@ -208,6 +208,7 @@ function manifestOf(plan: PlannedPlugin): Record<string, unknown> {
     name: plan.name,
     version: "0.0.0",
     purpose: plan.purpose,
+    description: plan.description,
   };
   const withConfig =
     plan.userConfig.length === 0

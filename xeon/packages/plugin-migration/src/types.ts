@@ -429,6 +429,8 @@ export interface PlannedPlugin {
   readonly name: string;
   /** 한 문장. 없으면 검토에서 승인할 수 없다(M5c §4.7.6) */
   readonly purpose: string;
+  /** 카드 안쪽 면의 글. 없으면 검토에서 승인할 수 없다(`pluginReview.descriptionRequired`) [결정: 2026-11-23 사용자, AGE-31] */
+  readonly description: string;
   /** 이 플러그인이 나온 원본 항목들 */
   readonly derivedFrom: readonly string[];
   /** 폴더 트리. 경로는 플러그인 폴더 기준 상대 경로(`/` 구분)이고 값은 바이트다 */
