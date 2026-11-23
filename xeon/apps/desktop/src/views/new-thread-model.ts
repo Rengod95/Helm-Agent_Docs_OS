@@ -49,18 +49,22 @@ export interface RecentWorkspace {
   readonly count: number;
 }
 
-/** 대화 자신의 기본 폴더인가: 끝 이름이 그 대화의 id다 */
-function isOwnDefaultFolder(path: string, threadId: string): boolean {
-  const name = path
-    .replace(/[\\/]+$/, "")
-    .split(/[\\/]/)
-    .at(-1);
-  return name === threadId;
+/** 기본 폴더 설정이 빈 값일 때 데이터 폴더 아래의 폴더 이름(host `DEFAULT_PROJECT_FOLDER_NAME`과 같다) */
+const DEFAULT_FOLDER_DIR = "default-project";
+
+/**
+ * 프로젝트 없는 대화의 기본 폴더인가: 끝 이름이 그 대화의 id이거나, 바로 위 폴더가 `default-project`다.
+ * 대화 id를 모르면 위 폴더 이름만 본다
+ */
+export function isDefaultFolderPath(path: string, threadId?: string): boolean {
+  const parts = path.split(/[\\/]+/).filter((part) => part !== "");
+  if (threadId !== undefined && parts.at(-1) === threadId) return true;
+  return parts.at(-2) === DEFAULT_FOLDER_DIR;
 }
 
 /**
  * 최근 작업 폴더 후보. 대화 목록은 최근 활동 먼저이므로 폴더가 처음 나온 순서를 그대로 둔다.
- * 빈 글과 폴더 없음은 뺀다. 프로젝트 없는 대화의 기본 폴더(`<기본 폴더>/<대화 id>`, 엔진 `defaultWorkspace`)는 그 대화만의 폴더라 뺀다(AGE-77 R-07).
+ * 빈 글과 폴더 없음은 뺀다. 프로젝트 없는 대화의 기본 폴더(`<기본 폴더>/<대화 id>`, 엔진 `defaultWorkspace`)는 그 대화만의 폴더라 뺀다. `<데이터>/default-project/` 아래는 대화 id와 달라도 뺀다(AGE-77 R-07).
  * 대화 수는 그 폴더에 든 모든 대화다. 최대 5개다
  */
 export function recentWorkspacesOf(threads: readonly ThreadSummary[]): readonly RecentWorkspace[] {
@@ -68,7 +72,7 @@ export function recentWorkspacesOf(threads: readonly ThreadSummary[]): readonly 
   for (const thread of threads) {
     const path = thread.workspace;
     if (path === null || path.trim() === "") continue;
-    if (isOwnDefaultFolder(path, thread.threadId)) continue;
+    if (isDefaultFolderPath(path, thread.threadId)) continue;
     counts.set(path, (counts.get(path) ?? 0) + 1);
   }
   return [...counts].slice(0, RECENT_WORKSPACE_MAX).map(([path, count]) => ({ path, count }));
@@ -83,7 +87,12 @@ export function planNewThread(
   whenUnknown: WhenFolderUnknown = "noFolder",
 ): NewThreadPlan {
   const selected = threads.find((thread) => thread.threadId === selectedId);
-  const workspace = selected?.workspace ?? null;
+  // 선택한 대화가 기본 폴더에 있으면 그 폴더는 그 대화만의 것이다. 새 대화가 물려받지 않고 폴더 없는 대화로 본다(AGE-77)
+  const selectedFolder = selected?.workspace ?? null;
+  const workspace =
+    selectedFolder !== null && isDefaultFolderPath(selectedFolder, selected?.threadId)
+      ? null
+      : selectedFolder;
   if (workspace === null) {
     if (whenUnknown === "pick") return { kind: "pickFolder" };
     const blankNoFolder = blankThreadIn(threads, null);

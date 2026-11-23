@@ -46,6 +46,7 @@ import { useProjects } from "./project/project-source.tsx";
 import {
   folderLabel,
   folderPartsOf,
+  middleEllipsisOf,
   listedThreadsOf,
   sidebarGroupsOf,
   sidebarRowsOf,
@@ -393,7 +394,7 @@ function OtherFolder(props: {
         </>
       }
     >
-      <div className="grid gap-3">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
         {pickFailed ? (
           <Alert tone="danger" layout="inline" size="sm">
             {t("desktop.workspace.pickFailed")}
@@ -451,7 +452,9 @@ function OtherFolder(props: {
                     setPickFailed(false);
                   }}
                 >
-                  <span className="font-mono text-mono-sm">{recent.path}</span>
+                  <span className="block truncate font-mono text-mono-sm" title={recent.path}>
+                    {middleEllipsisOf(recent.path, 40)}
+                  </span>
                 </ListNavigationItem>
               ))}
             </ListNavigationGroup>

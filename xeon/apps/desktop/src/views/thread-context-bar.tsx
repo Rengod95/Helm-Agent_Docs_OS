@@ -135,7 +135,15 @@ function ThreadContextBarFor(props: { readonly threadId: ThreadId }): ReactNode 
   const clients = useHostClients();
   // 저장소 이름과 브랜치를 주는 엔진 명령이 아직 없다. 생기면 여기서 채운다(없으면 항목이 숨는다)
   const git: ContextGit | null = null;
-  const line = contextLineOf({ workspace, missing, target, webHost, clients, git });
+  const line = contextLineOf({
+    workspace,
+    threadId: props.threadId,
+    missing,
+    target,
+    webHost,
+    clients,
+    git,
+  });
   if (line === null) return null;
   return <ThreadContextBarView line={line} interactive />;
 }
@@ -170,12 +178,13 @@ function FolderItem(props: {
   readonly interactive: boolean;
 }): ReactNode {
   const { folder } = props;
+  const shownName = folder.isDefault ? t("desktop.threadContext.folder.none") : folder.name;
   const anchor = (
     <button
       type="button"
       data-missing={folder.missing ? "" : undefined}
       title={folder.path}
-      aria-label={t("desktop.threadContext.folder.change", { name: folder.name })}
+      aria-label={t("desktop.threadContext.folder.change", { name: shownName })}
       className={[
         "inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border-0 bg-transparent px-1.5 text-ui outline-none",
         "hover:bg-neutral-hover focus-visible:focus-ring data-[state=open]:bg-neutral-hover",
@@ -185,7 +194,7 @@ function FolderItem(props: {
       ].join(" ")}
     >
       {folder.missing ? <TriangleAlert className={ICON} /> : <Folder className={ICON} />}
-      <span className="truncate">{folder.name}</span>
+      <span className="truncate">{shownName}</span>
       {folder.missing ? (
         <span className="shrink-0">{t("desktop.threadContext.folder.missing")}</span>
       ) : null}

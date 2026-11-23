@@ -6,6 +6,7 @@ import {
   planNewThread,
   recentWorkspacesOf,
 } from "../../src/views/new-thread-model.ts";
+import { middleEllipsisOf } from "../../src/views/thread-groups.ts";
 import { thr, trn } from "../state/helpers.ts";
 
 function summary(patch: Partial<ThreadSummary>): ThreadSummary {
@@ -108,6 +109,8 @@ test("a thread's own default folder (<default>/<thread id>) is not a recent fold
     summary({ threadId: thr(1), workspace: `/home/u/.fresnel/threads/${thr(1)}` }),
     summary({ threadId: thr(2), workspace: `/home/u/.fresnel/threads/${thr(2)}/` }),
     summary({ threadId: thr(3), workspace: "/w/a" }),
+    // 다른 대화의 기본 폴더(대화 id와 다른 이름)도 뺀다
+    summary({ threadId: thr(7), workspace: `/home/u/.fresnel/default-project/${thr(8)}` }),
     // 다른 대화의 id와 같은 이름이어도 그 대화의 기본 폴더가 아니면 일반 폴더다
     summary({ threadId: thr(4), workspace: `/w/${thr(9)}` }),
   ];
@@ -115,4 +118,19 @@ test("a thread's own default folder (<default>/<thread id>) is not a recent fold
     { path: "/w/a", count: 1 },
     { path: `/w/${thr(9)}`, count: 1 },
   ]);
+});
+
+test("a new thread started from a no-project thread does not inherit its default folder (AGE-77)", () => {
+  const own = `/home/u/.fresnel/default-project/${thr(1)}`;
+  const used = summary({ threadId: thr(1), workspace: own, title: "x" });
+  expect(planNewThread([used], thr(1))).toEqual({ kind: "createNoFolder" });
+  const blank = summary({ threadId: thr(2), workspace: null });
+  expect(planNewThread([used, blank], thr(1))).toEqual({ kind: "open", threadId: thr(2) });
+});
+
+test("middleEllipsisOf keeps the start and the folder name", () => {
+  expect(middleEllipsisOf("/a/b", 40)).toBe("/a/b");
+  expect(middleEllipsisOf("/Users/me/Library/Application Support/x/default-project/abc", 20)).toBe(
+    "/Users/…-project/abc",
+  );
 });

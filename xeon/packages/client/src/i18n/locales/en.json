@@ -2465,6 +2465,7 @@
   "desktop.threadContext.label": "Context",
   "desktop.threadContext.folder.change": "Work folder {name}. New conversation in another folder",
   "desktop.threadContext.folder.missing": "Folder not found",
+  "desktop.threadContext.folder.none": "No folder",
   "desktop.threadContext.folder.menuHeading": "New conversation in another folder",
   "desktop.threadContext.folder.openOther": "Open another folder…",
   "desktop.threadContext.host.local": "This computer",

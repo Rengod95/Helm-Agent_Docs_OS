@@ -49,6 +49,15 @@ export function folderPartsOf(path: string): { readonly name: string; readonly p
   };
 }
 
+/** 긴 경로를 가운데 말줄임으로 줄인다(앞 폴더와 끝 이름을 남긴다). `max`보다 짧으면 그대로다 */
+export function middleEllipsisOf(path: string, max: number): string {
+  if (path.length <= max) return path;
+  const keep = Math.max(max - 1, 2);
+  const tail = Math.ceil(keep * 0.6);
+  const head = keep - tail;
+  return `${path.slice(0, head)}…${path.slice(path.length - tail)}`;
+}
+
 /** 엔진 내부 일(학습 검토 등)로 만든 대화인가. 목록·팔레트·받은 요청 선택에서 숨긴다(대화는 지우지 않는다) [결정: 오케스트레이터 기본값, rtE R-3] */
 function isInternalThread(thread: Pick<ThreadSummary, "spawnedBy">): boolean {
   return thread.spawnedBy?.kind === "internal";

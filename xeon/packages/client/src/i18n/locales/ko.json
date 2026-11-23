@@ -2465,6 +2465,7 @@
   "desktop.threadContext.label": "대화 맥락",
   "desktop.threadContext.folder.change": "작업 폴더 {name}. 다른 폴더에서 새 대화",
   "desktop.threadContext.folder.missing": "폴더를 찾을 수 없어요",
+  "desktop.threadContext.folder.none": "폴더 없음",
   "desktop.threadContext.folder.menuHeading": "다른 폴더에서 새 대화",
   "desktop.threadContext.folder.openOther": "다른 폴더 열기…",
   "desktop.threadContext.host.local": "이 컴퓨터",

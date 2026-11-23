@@ -1,6 +1,7 @@
 import { parseTargetAddress } from "@fresnel/client";
 import type { HostClientView } from "@fresnel/contracts/wire";
 import type { EngineTargetView } from "../state/ui/index.ts";
+import { isDefaultFolderPath } from "./new-thread-model.ts";
 
 // 대화 맥락 줄(DP-71)이 무엇을 보이고 숨기는지 정하는 순수 모델. 화면은 이 결과만 그린다.
 // 왼쪽은 작업 맥락(폴더, 저장소·브랜치), 오른쪽은 연결(호스트, 같은 엔진에 붙은 다른 클라이언트)이다.
@@ -31,6 +32,8 @@ export interface ContextGit {
 
 export interface ContextInput {
   readonly workspace: string | null;
+  /** 이 대화의 id. 기본 폴더인지 가리는 데 쓴다 */
+  readonly threadId?: string;
   /** `workspace.status`가 폴더가 없다고 답했으면 참. 모르면 거짓이다(경고하지 않는다) */
   readonly missing: boolean;
   readonly target: EngineTargetView;
@@ -45,6 +48,8 @@ export interface ContextFolder {
   readonly name: string;
   readonly path: string;
   readonly missing: boolean;
+  /** 프로젝트 없는 대화의 기본 폴더다. 이름 대신 "폴더 없음" 같은 말을 보인다 */
+  readonly isDefault: boolean;
 }
 
 /** 줄 한 개의 내용. 폴더가 없으면 `null`(줄을 그리지 않는다) */
@@ -107,7 +112,12 @@ export function contextLineOf(input: ContextInput): ContextLine | null {
   const workspace = input.workspace;
   if (workspace === null || workspace.trim() === "") return null;
   return {
-    folder: { name: folderNameOf(workspace), path: workspace, missing: input.missing },
+    folder: {
+      name: folderNameOf(workspace),
+      path: workspace,
+      missing: input.missing,
+      isDefault: isDefaultFolderPath(workspace, input.threadId),
+    },
     git: input.git,
     host: hostOf(input.target, input.webHost),
     clients: otherClientsOf(input.clients),
