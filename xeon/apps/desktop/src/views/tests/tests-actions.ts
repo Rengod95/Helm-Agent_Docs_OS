@@ -52,14 +52,6 @@ export async function startTest(
     : { ok: false, failure: testFailureOf(started.error) };
 }
 
-/** Test run 대화 만들기. 성공하면 대화 id를 돌려준다 */
-export async function createTestRunThread(
-  tests: TestCommands,
-  profileId?: string,
-): Promise<ActionOutcome<string>> {
-  return outcomeOf(await tests.createTestRun(profileId));
-}
-
 /**
  * Test run의 과제를 시험 대화의 첫 턴으로 보낸다. 대화를 열고(`selectThread`) 보낸다. 실패는 화면이 쓰는 실패 종류로 돌려준다.
  * 이미 만든 시험 대화와 기록은 지우지 않는다(대화에서 다시 보낼 수 있다).

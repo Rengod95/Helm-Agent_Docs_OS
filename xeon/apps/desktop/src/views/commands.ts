@@ -70,7 +70,6 @@ import type {
   SecretReferencesResult,
   SecretTestResult,
   ExtTestListResult,
-  MeasureDailyResult,
   MeasureTurnResult,
   ExtTestRunParams,
   ExtTestRunResult,
@@ -906,15 +905,13 @@ export interface StorageCommands {
   openDataDir(): Promise<boolean>;
 }
 
-/** 성능 측정 화면(P-20, §6.27). 측정 저장소 읽기만 한다. 측정이 꺼져 있으면 `enabled`가 거짓이다 */
+/** 측정 저장소 읽기(플러그인 상세 측정 탭, 메트릭의 턴 번호 곡선과 같이 쓰는 도구, §6.27.1). 측정이 꺼져 있으면 `enabled`가 거짓이다 */
 export interface MeasureCommands {
   /** `measure.turn`: 한 Turn의 측정 행(Turn, 호출, 훅, 요청 구성, 캐시 사건) */
   turn(threadId: string, turnId: string): Promise<Result<MeasureTurnResult, CommandError>>;
-  /** `measure.daily`: 종류와 지표 하나의 일별 집계 */
-  daily(kind: string, metric: string): Promise<Result<MeasureDailyResult, CommandError>>;
-  /** `group.promotion`: 승격 보고(읽기 전용). 대화가 없으면 인자 없이 보내 호스트가 가장 최근 대화를 고른다 */
+  /** `orchestration.promotion`: 같이 쓰는 도구 후보(읽기 전용). `null`이면 인자 없이 보내 호스트가 가장 최근 대화를 고르고, 목록이면 그 대화들을 본다 */
   promotion(
-    threadId: string | null,
+    threadIds: readonly string[] | null,
   ): Promise<Result<WireResult<"orchestration.promotion">, CommandError>>;
 }
 
@@ -1409,7 +1406,7 @@ export interface Commands {
   readonly workbench: WorkbenchCommands;
   /** 테스트 화면(P-19)의 시험 목록, 실행, Test run 제어 */
   readonly tests: TestCommands;
-  /** 성능 측정 화면(P-20)의 측정 읽기 */
+  /** 측정 읽기(`measure.turn`, `orchestration.promotion`) */
   readonly measure: MeasureCommands;
   /** Craft 메트릭·트레이스 화면(C9, C8)의 읽기와 인사이트 닫기 */
   readonly craftMetrics: CraftMetricsCommands;

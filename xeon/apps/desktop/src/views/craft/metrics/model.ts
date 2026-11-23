@@ -1,6 +1,7 @@
 // 메트릭 화면(C9)의 순수 모델. 엔진 값(`MetricValue`)을 칸으로 바꾸고, 플러그인 표·컨텍스트 분해·날별 흐름·인사이트 묶음을 만든다.
 // 규칙: 엔진이 값을 주지 않은 칸(`unavailable`, 행 없음)은 0이 아니라 "아직 기록되지 않음"이고, 표본이 적은 칸은 "표본 부족"이다(M5d 규칙 39).
 // 테스트 런과 테스트 챗의 기록은 기본 범위에서 빠진다(M5d §4.6 규칙 33). 사용자가 켤 때만 범위에 든다.
+import type { CurvePointVM } from "@fresnel/client/workbench";
 import type {
   EvidenceRef,
   Finding,
@@ -12,6 +13,7 @@ import type {
   MetricValue,
   MetricsQueryResult,
   ScopeKind,
+  WireResult,
 } from "@fresnel/contracts/wire";
 
 // ───────── 거르기 ─────────
@@ -638,4 +640,92 @@ export interface SampleStatus {
 
 export function sampleStatusOf(turns: number, min: number | null): SampleStatus {
   return { turns, min, short: min === null ? null : Math.max(0, min - turns) };
+}
+
+// ───────── 턴 번호 곡선 ─────────
+// 최근 턴 첫 쪽에서 대화 하나를 고른다: 기간에 턴이 가장 많은 대화(같으면 가장 최근에 움직인 대화). 그 턴을 시작 순서로 잇는다.
+
+/** 곡선이 한 대화에서 읽는 가장 최근 턴의 수 */
+export const CURVE_TURNS_MAX = 20;
+
+/** 곡선의 대화. `turnIds`는 시작 순서(오래된 것부터)이고, `capped`는 더 오래된 턴이 잘려 나갔다는 뜻이다 */
+export interface CurveThread {
+  readonly threadId: string;
+  readonly title: string | null;
+  readonly turnIds: readonly string[];
+  readonly capped: boolean;
+}
+
+/** 곡선 칸의 값. `off`는 기록이 꺼져 있음, `none`은 읽을 턴이 없음이다 */
+export type TurnCurve =
+  | { readonly kind: "off" }
+  | { readonly kind: "none" }
+  | {
+      readonly kind: "ready";
+      readonly threadId: string;
+      readonly title: string | null;
+      readonly capped: boolean;
+      readonly points: readonly CurvePointVM[];
+    };
+
+/** 턴이 가장 많은 대화를 고르고, 그 대화의 턴을 시작 순서로 최근 `max`개까지 낸다. 턴이 없으면 null */
+export function curveThreadOf(turns: readonly RecentTurn[], max: number): CurveThread | null {
+  const byThread = new Map<string, RecentTurn[]>();
+  for (const r of turns) {
+    const list = byThread.get(r.turn.threadId);
+    if (list === undefined) byThread.set(r.turn.threadId, [r]);
+    else list.push(r);
+  }
+  // 가장 많은 턴, 같으면 가장 늦게 시작한 턴이 있는 대화
+  let best: {
+    readonly threadId: string;
+    readonly list: RecentTurn[];
+    readonly newest: number;
+  } | null = null;
+  for (const [threadId, list] of byThread) {
+    const newest = Math.max(...list.map((r) => r.turn.startedAt));
+    if (
+      best === null ||
+      list.length > best.list.length ||
+      (list.length === best.list.length && newest > best.newest)
+    ) {
+      best = { threadId, list, newest };
+    }
+  }
+  if (best === null) return null;
+  const sorted = best.list.toSorted((a, b) => a.turn.startedAt - b.turn.startedAt);
+  const kept = sorted.slice(Math.max(0, sorted.length - max));
+  return {
+    threadId: best.threadId,
+    title: sorted[0]?.title ?? null,
+    turnIds: kept.map((r) => r.turn.turnId),
+    capped: sorted.length > max,
+  };
+}
+
+// ───────── 같이 쓰는 도구(승격 보고) ─────────
+
+/** 승격 보고는 엔진의 `orchestration.promotion` 결과 그대로다 */
+export type PromotionReport = WireResult<"orchestration.promotion">;
+export type PromotionCandidate = PromotionReport["candidates"][number];
+
+/** 승격 보고에 넘기는 대화 id의 상한(엔진 최대 200) */
+export const PROMOTION_THREADS_MAX = 200;
+
+/** 최근 턴이 없을 때의 보고(엔진을 부르지 않는다) */
+export const EMPTY_PROMOTION: PromotionReport = { throughSeq: 0, threads: 0, candidates: [] };
+
+/** 후보 가운데 좁혀 볼 플러그인이 주인이거나 쓰는 쪽인 것만. 좁히지 않았으면 전부 */
+/** 이 도구를 같이 쓰는 플러그인 수: 제공하는 플러그인과 가져다 쓰는 플러그인(겹치면 한 번) */
+export function sharingCountOf(candidate: PromotionCandidate): number {
+  return new Set([candidate.owner, ...candidate.consumers]).size;
+}
+
+export function promotionCandidatesOf(
+  candidates: readonly PromotionCandidate[],
+  plugin: string | null,
+): PromotionCandidate[] {
+  return candidates.filter(
+    (c) => plugin === null || c.owner === plugin || c.consumers.includes(plugin),
+  );
 }

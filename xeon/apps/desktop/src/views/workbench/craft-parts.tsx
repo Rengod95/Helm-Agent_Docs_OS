@@ -3,9 +3,8 @@
 import { t } from "@fresnel/client/i18n";
 import { extNameOf, keepOffOf, listLayersOf, type HookNotice } from "@fresnel/client/workbench";
 import { Alert, Button, Input, Select, SelectOption, Skeleton } from "@caustic/react";
-import { Bug } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
@@ -328,38 +327,6 @@ export function AutoOffNotice(props: {
     );
   }
   return null;
-}
-
-/** 알림의 답을 보내는 쪽. 개요 화면이 컨트롤러로 채우고, 선택 카드(`ExtNotice`)가 이 값으로 답한다 */
-interface AutoOffActions {
-  readonly keepOn: (name: string) => void;
-  readonly keepOff: (name: string) => void;
-}
-
-const AutoOffActionsContext: React.Context<AutoOffActions | null> =
-  createContext<AutoOffActions | null>(null);
-
-/**
- * 확장 하나의 알림을 개요의 선택 카드(플러그인·그룹)에 그린다. 항목은 스토어에서 이름으로 찾고, 답은 `AutoOffActionsContext`로 보낸다.
- * 항목이 없으면 아무것도 그리지 않는다. 항목이 있는데 답을 보낼 곳이 없으면 배선 오류다.
- */
-export function ExtNotice(props: { readonly name: string }): ReactNode {
-  const entry = useWorkbench((s) => s.entries.find((e) => e.name === props.name));
-  const actions = useContext(AutoOffActionsContext);
-  if (entry === undefined) return null;
-  if (actions === null) throw new Bug("AutoOffActionsContext provider is missing");
-  return (
-    <AutoOffNotice
-      key={entry.name}
-      entry={entry}
-      onKeepOn={() => {
-        actions.keepOn(entry.name);
-      }}
-      onKeepOff={() => {
-        actions.keepOff(entry.name);
-      }}
-    />
-  );
 }
 
 /** 알림이 있는 확장인가: 질문이 떠 있거나 자동으로 꺼졌다 */

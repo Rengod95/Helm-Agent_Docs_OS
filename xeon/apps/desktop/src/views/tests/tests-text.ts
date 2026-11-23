@@ -1,19 +1,18 @@
 // 테스트 화면의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다). 명령 오류는 화면이 쓰는 실패 종류로 줄인다.
 import { activeLocale, type MessageArgs, type MessageId } from "@fresnel/client/i18n";
-import {
-  durationOf,
-  type CutCell,
-  type EffectKey,
-  type NewTestError,
-  type NewTestKind,
-  type ReplayVerdict,
-  type RunControl,
-  type TestFailure,
-  type TestKind,
-  type TestKindFilter,
-  type TestState,
-  type TestStatusFilter,
-  type TestsNotice,
+import type {
+  CutCell,
+  EffectKey,
+  NewTestError,
+  NewTestKind,
+  ReplayVerdict,
+  RunControl,
+  TestFailure,
+  TestKind,
+  TestKindFilter,
+  TestState,
+  TestStatusFilter,
+  TestsNotice,
 } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import type { ReplayFailure } from "@fresnel/contracts/services";
@@ -94,21 +93,6 @@ export function newTestErrorTextOf(error: NewTestError): MessageId {
       return "desktop.tests.error.runs";
     default:
       return assertNever(error.field, "NewTestField");
-  }
-}
-
-/** 시간 칸의 글: 1초 밑은 밀리초, 1분 밑은 초, 그 밖은 분(구성기 시험 결과가 쓴다) */
-export function durationTextOf(ms: number): { readonly key: MessageId; readonly value: number } {
-  const duration = durationOf(ms);
-  switch (duration.unit) {
-    case "ms":
-      return { key: "desktop.tests.duration.ms", value: duration.value };
-    case "sec":
-      return { key: "desktop.tests.duration.sec", value: duration.value };
-    case "min":
-      return { key: "desktop.tests.duration.min", value: duration.value };
-    default:
-      return assertNever(duration.unit, "DurationVM");
   }
 }
 

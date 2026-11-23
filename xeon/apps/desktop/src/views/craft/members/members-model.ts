@@ -10,7 +10,7 @@ import { PluginDeclSchema } from "@fresnel/contracts/extensions";
 import type { DevkitIssue, MemberInfo, PluginMode } from "@fresnel/contracts/services";
 import type { ExtListEntry, ReviewItem } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
-import { hookLabelOf } from "../detail-flow.tsx";
+import { hookLabelOf } from "../hook-labels.ts";
 
 /** 뿌리를 뺀 구성원 상한. 매니페스트 `plugins[]`는 뿌리를 포함해 16개까지다 */
 export const MEMBER_LIMIT = 15;

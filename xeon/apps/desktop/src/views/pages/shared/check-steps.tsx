@@ -8,7 +8,7 @@ import { ThinkingIndicator } from "../../thinking-indicator.tsx";
 
 // 점검 줄(L4.desktop-ux DP-85 [결정: 2026-11-11 사용자]). "넣기 → 시험 → 결과"를 보이는 앱 공용 부품이다.
 // 모델 제공자 키, 시크릿, 원격 연결 wizard, MCP 연결 시험, 샌드박스 자가 점검이 같은 모양을 쓴다. 순수 표시 부품이고 데이터와 동작은 props다.
-//   CheckSteps  여러 단계 세로 목록. 줄 = 상태 아이콘(16칸) · 이름 13/500 · 원인 13 secondary ……… 걸린 시간 12 tertiary.
+//   CheckSteps  여러 단계 세로 목록. 줄 = 상태 아이콘(16칸), 이름 13/500, 구분 글(있으면 12 tertiary), 원인 13 secondary ……… 걸린 시간 12 tertiary.
 //               실패 줄 아래 들여서 고치는 법(13 tertiary)과 동작 단추 하나. 머리에 "N개 중 M개 통과"와 "다시 시험"을 둘 수 있다.
 //   CheckInline 한 단계. [시험] 단추 옆에 결과 한 줄, 실패면 아래에 고치는 법과 동작 단추.
 // 바탕·테두리·그림자가 없다. 넣는 카드의 면을 쓴다. 상태 색은 아이콘에만 주고 글은 secondary다(색만으로 뜻을 주지 않고 낭독기 글이 따로 있다).
@@ -23,6 +23,8 @@ export interface CheckStep {
   readonly id: string;
   /** 이름(짧게, "키 저장") */
   readonly label: string;
+  /** 이름 바로 뒤의 짧은 구분 글(12 tertiary, "필수"·"선택"). 없으면 그리지 않는다 */
+  readonly tag?: string | null;
   readonly state: CheckState;
   /** 한 줄 원인이나 결과("41바이트", "키가 저장소에 없어요"). 없으면 null */
   readonly detail?: string | null;
@@ -107,6 +109,12 @@ function StepRow(props: { readonly step: CheckStep; readonly disabled: boolean }
           >
             {step.label}
           </span>
+          {step.tag === undefined || step.tag === null ? null : (
+            <>
+              {" "}
+              <span className="text-ui-sm text-text-tertiary">{step.tag}</span>
+            </>
+          )}
           {step.detail === undefined || step.detail === null ? null : (
             <>
               {" "}

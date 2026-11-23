@@ -27,6 +27,7 @@ export const DETAIL_TABS = [
   "overview",
   "members",
   "dependencies",
+  "composition",
   "hooks",
   "settings",
   "metrics",

@@ -36,7 +36,7 @@ const TAG_TONE = {
   danger: "bg-danger-soft text-danger-text",
 } as const;
 
-export type TagTone = keyof typeof TAG_TONE;
+type TagTone = keyof typeof TAG_TONE;
 
 /** 판정과 상태의 작은 표지. 색은 caustic 토큰 클래스로만 준다(`Badge`의 `tone`은 쓰지 않는다) */
 function Tag(props: { readonly tone: TagTone; readonly children: ReactNode }): ReactNode {
@@ -135,7 +135,7 @@ function ReplaySummary(props: { readonly report: ReplayReport }): ReactNode {
  * replay 결과 한 장: 판정, 절단 띠, 첫 차이, 효과 수(참고), 실패 종류, "JSON 복사". Tests 화면과 구성기 시험 실행이 같이 쓴다.
  * `limitInfo`가 참이면 한계 한 줄을 판정 옆 설명 아이콘 뒤에 둔다(구성기와 테스트 화면은 설명을 아이콘 뒤에 둔다).
  */
-export function ReplayResult(props: {
+function ReplayResult(props: {
   readonly report: ReplayReport;
   readonly onCopy: (report: ReplayReport) => void;
   readonly limitInfo?: boolean;

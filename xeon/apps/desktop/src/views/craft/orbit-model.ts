@@ -88,20 +88,6 @@ export function shownOnMap(snapshot: CanvasSnapshot, contrib: readonly Contrib[]
   return snapshot.plugins.filter((p) => keepsContrib(p, contrib));
 }
 
-/** 그룹 호와 이름표를 그릴지: 구성원 가운데 지도에 남는 것이 하나라도 있어야 한다 */
-export function groupShown(
-  snapshot: CanvasSnapshot,
-  gid: string,
-  contrib: readonly Contrib[],
-): boolean {
-  return (
-    groupOf(snapshot, gid)?.members.some((id) => {
-      const p = snapshot.plugins.find((x) => x.id === id);
-      return p !== undefined && keepsContrib(p, contrib);
-    }) === true
-  );
-}
-
 /** 찾기 글과 맞나. 이름, 한 줄 설명, 훅 id, 기능, 구성 요소 이름을 본다. 빈 글은 전부 맞는다 */
 export function matchesQuery(p: CanvasPlugin, query: string): boolean {
   const needle = query.trim().toLowerCase();

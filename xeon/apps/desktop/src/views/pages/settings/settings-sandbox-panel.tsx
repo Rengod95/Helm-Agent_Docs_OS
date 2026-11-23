@@ -91,6 +91,8 @@ export function sandboxCheckStepsOf(check: SandboxCheck): readonly CheckStep[] {
     return {
       id: name,
       label: name,
+      // 필수/선택은 옛 엔진 화면의 외부 도구 표에만 있던 열이다(AGE-69)
+      tag: t(`desktop.settings.sandbox.check.need.${row.need}`),
       state: row.ok ? "passed" : "failed",
       detail: row.ok ? row.note : row.impact,
       fix: row.ok ? null : row.note,

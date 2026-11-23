@@ -42,7 +42,7 @@ export function isMotionReduced(): boolean {
 }
 
 /** 움직임 줄이기 값이 바뀔 때 부른다(앱 설정 속성, OS 설정). 돌려준 함수로 끊는다 */
-export function subscribeMotionReduced(onChange: () => void): () => void {
+function subscribeMotionReduced(onChange: () => void): () => void {
   if (typeof document === "undefined") return () => {};
   // 시험의 흉내 창에는 관찰자나 미디어 쿼리 구독이 없을 수 있다. 없으면 그 쪽은 듣지 않는다
   const observer = typeof MutationObserver === "function" ? new MutationObserver(onChange) : null;

@@ -257,6 +257,10 @@ function DeleteDialog(props: {
   );
 }
 
+/**
+ * 프로필 패널. 구성기 화면을 지운 뒤(AGE-69) 그리는 곳이 없지만, 옮길 자리를 정할 때까지 지우지 않고 둔다.
+ * @public
+ */
 export function ProfilePanel(props: {
   readonly link: TabLink;
   readonly entries: readonly ExtListEntry[];

@@ -22,7 +22,7 @@ import {
 import { useMotionReduced } from "../../../../lib/motion-presets.tsx";
 import { ProgressOrb } from "../../../effects/progress-orb.tsx";
 import { InfoTip } from "../../info-tip.tsx";
-import { useCraftTheme } from "../../orbit.tsx";
+import { useCraftTheme } from "../../craft-theme.ts";
 import { Icon, KIND_COLOR, KindTile } from "./glyphs.tsx";
 import { RAIL_HALF, layoutProfile, type ProfileLayout, type Rect } from "./layout.ts";
 import { dotGrid, dotShift, GLOW_REACH, openViewOf } from "./floor.ts";

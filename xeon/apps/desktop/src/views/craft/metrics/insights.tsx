@@ -17,8 +17,11 @@ import {
   dailyOf,
   insightFiguresOf,
   insightGroupsOf,
+  promotionCandidatesOf,
+  sharingCountOf,
   sampleStatusOf,
   type ImpactUnit,
+  type PromotionCandidate,
 } from "./model.ts";
 import { Gate } from "./parts.tsx";
 import { useRailAvoid } from "../../shell/rail-avoid.ts";
@@ -435,6 +438,62 @@ function InsightRow(props: { readonly finding: Finding; readonly onOpen: () => v
   );
 }
 
+/**
+ * 같이 쓰는 도구 한 장(승격 보고 후보). 인사이트 카드와 같은 판과 간격이다. 읽기 전용이라 단추와 근거 줄이 없다.
+ * 큰 숫자는 이 도구를 쓰는 플러그인 수이고, 이름-값 줄은 쓰는 플러그인 이름과 직접 부른 횟수다
+ */
+function PromotionCard(props: { readonly candidate: PromotionCandidate }): ReactNode {
+  const c = props.candidate;
+  const sharing = sharingCountOf(c);
+  const title = t("desktop.craft.metrics.promotion.count", { n: countText(sharing) });
+  return (
+    <li className="grid min-w-0 grid-cols-1 rounded-2xl border border-border-subtle bg-surface-base">
+      <div className="grid min-w-0 grid-cols-1 gap-4 ps-4 pt-3.5 pe-4 pb-4">
+        <div data-rail-avoid="" className="flex min-w-0 items-center gap-3">
+          <KindTile kind="tool" />
+          <div className="grid min-w-0 flex-1 grid-cols-1">
+            <div title={title} className="truncate text-ui-strong text-text-primary">
+              {title}
+            </div>
+            <div className="flex min-w-0 items-baseline gap-2 text-ui-sm text-text-tertiary">
+              <span className="truncate">{c.owner}</span>
+              <span className="truncate">{c.tool}</span>
+            </div>
+          </div>
+        </div>
+        <div className="grid min-w-0 grid-cols-1 gap-2">
+          <div data-rail-avoid="" className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="text-title-feature font-semibold text-text-primary">
+                {countText(sharing)}
+              </span>
+              <span className="truncate text-ui text-text-secondary">
+                {t("desktop.craft.metrics.promotion.unit")}
+              </span>
+            </div>
+          </div>
+          <dl className="m-0 grid grid-cols-1 gap-1 text-ui-sm">
+            <div data-rail-avoid="" className="flex min-w-0 items-baseline gap-3">
+              <dt className="shrink-0 text-text-tertiary">
+                {t("desktop.craft.metrics.promotion.consumers")}
+              </dt>
+              <dd className="m-0 min-w-0 flex-1 truncate text-right text-text-secondary">
+                {c.consumers.join(", ")}
+              </dd>
+            </div>
+            <div data-rail-avoid="" className="flex min-w-0 items-baseline gap-3">
+              <dt className="min-w-0 flex-1 truncate text-text-tertiary">
+                {t("desktop.craft.metrics.promotion.userCalls")}
+              </dt>
+              <dd className="m-0 shrink-0 text-text-secondary">{countText(c.userCalls)}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 /** 닫은 인사이트(숨김 칸). 펼치면 한 줄씩 보인다 */
 function Dismissed(props: { readonly findings: readonly Finding[] }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -588,6 +647,11 @@ export function InsightPanel(props: {
   // 띠와 겹치는 줄(`[data-rail-avoid]`)만 비킨다. 폭을 끝 바깥 여백으로 쓰는 규칙은 `viz.css`의 `.cm-insights [data-under-rail]`이다.
   // 비킬 줄끼리 겹쳐 싸지 않는다(안팎이 두 번 줄지 않게). 좁은 창의 서랍(`onClose`가 있다)은 띠를 덮으므로 비키지 않는다
   useRailAvoid(scroller, "");
+  // 같이 쓰는 도구는 승격 보고가 읽혔을 때만 그린다(못 읽었으면 이 묶음만 빠지고 인사이트는 그대로다)
+  const shared =
+    data.promotion.kind === "ready"
+      ? promotionCandidatesOf(data.promotion.value.candidates, focus)
+      : [];
   const count =
     data.findings.kind === "ready"
       ? data.findings.value.findings.filter((f) => focus === null || f.subject.plugin === focus)
@@ -640,7 +704,10 @@ export function InsightPanel(props: {
             let index = 0;
             return (
               <div className="grid grid-cols-1 gap-6">
-                {findings.length === 0 ? <NoInsights data={data} focus={focus} /> : null}
+                {/* 같이 쓰는 도구가 있으면 "볼 인사이트가 없어요"는 그 카드와 어긋나므로 두지 않는다 */}
+                {findings.length === 0 && shared.length === 0 ? (
+                  <NoInsights data={data} focus={focus} />
+                ) : null}
                 {groups.map((group) => (
                   <section
                     key={group.unit}
@@ -696,6 +763,25 @@ export function InsightPanel(props: {
                     </ul>
                   </section>
                 ))}
+                {shared.length === 0 ? null : (
+                  <section
+                    className="grid grid-cols-1 gap-2.5"
+                    aria-label={t("desktop.craft.metrics.promotion.title")}
+                  >
+                    <div
+                      data-rail-avoid=""
+                      className="flex items-center gap-1.5 text-ui-sm text-text-tertiary"
+                    >
+                      <span>{t("desktop.craft.metrics.promotion.title")}</span>
+                      <span>{countText(shared.length)}</span>
+                    </div>
+                    <ul className="m-0 grid grid-cols-1 gap-3 p-0">
+                      {shared.map((c) => (
+                        <PromotionCard key={`${c.owner}:${c.tool}`} candidate={c} />
+                      ))}
+                    </ul>
+                  </section>
+                )}
                 {data.dismissed.kind === "ready" ? (
                   <Dismissed
                     findings={data.dismissed.value.findings.filter(
