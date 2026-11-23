@@ -286,7 +286,7 @@ describe("autoTitleThread", () => {
     const result = await autoTitleThread(depsOf(h, model.port), forkId);
 
     expect(result).toEqual(ok({ status: "titled", title: "포크 제목" }));
-    // 포크는 자기 turn이 없다. 첫 텍스트는 출처 history에서 와야 한다(없으면 no_user_text가 된다)
+    // 포크는 자기 turn이 없다. 첫 텍스트는 출처 history에서 와야 한다
     expect(model.calls[0]?.user).toContain("원본의 첫 질문");
     expect(model.calls[0]?.user).toContain("원본의 첫 답");
     expect(model.calls[0]?.user).not.toContain("원본의 둘째 질문");
@@ -354,25 +354,51 @@ describe("autoTitleThread", () => {
     expect(titleOf(h, threadId)).toBe(FIRST_INPUT_TITLE);
   });
 
-  test("skips without calling the model when there is no user or assistant text", async () => {
+  test("skips without calling the model when there is no assistant text", async () => {
     const h = await openHarness();
     const empty = newThread(h, FIRST_INPUT_TITLE).threadId;
     const userOnly = newThread(h, FIRST_INPUT_TITLE).threadId;
     recordTurn(h, userOnly, "입력만 있다", null);
-    const imageOnly = newThread(h, FIRST_INPUT_TITLE).threadId;
-    recordTurn(h, imageOnly, [{ type: "image", data: "AAAA", mimeType: "image/png" }], "답");
     const model = fakeModel(ok("쓰이면 안 되는 제목"));
 
     expect(await autoTitleThread(depsOf(h, model.port), empty)).toEqual(
-      ok({ status: "skipped", reason: "no_user_text" }),
+      ok({ status: "skipped", reason: "no_assistant_text" }),
     );
     expect(await autoTitleThread(depsOf(h, model.port), userOnly)).toEqual(
       ok({ status: "skipped", reason: "no_assistant_text" }),
     );
-    expect(await autoTitleThread(depsOf(h, model.port), imageOnly)).toEqual(
-      ok({ status: "skipped", reason: "no_user_text" }),
-    );
     expect(model.calls).toHaveLength(0);
+  });
+
+  test("a thread without user text (started by a command or plugin) is titled from the assistant reply", async () => {
+    const h = await openHarness();
+    const imageOnly = newThread(h, FIRST_INPUT_TITLE).threadId;
+    recordTurn(
+      h,
+      imageOnly,
+      [{ type: "image", data: "AAAA", mimeType: "image/png" }],
+      "탐구 결과 보고",
+    );
+    const model = fakeModel(ok("탐구 결과 정리"));
+
+    expect(await autoTitleThread(depsOf(h, model.port), imageOnly)).toEqual(
+      ok({ status: "titled", title: "탐구 결과 정리" }),
+    );
+    expect(model.calls[0]?.user).toContain("(none: started by a command or plugin)");
+    expect(model.calls[0]?.user).toContain("탐구 결과 보고");
+  });
+
+  test("the request forbids the middle dot and language labels, and the reply is cleaned of both", async () => {
+    const h = await openHarness();
+    const threadId = threadWithTurn(h, FIRST_INPUT_TITLE, "회의록 정리", "정리했어요");
+    const model = fakeModel(ok("회의록 한 장 정리 및 결정·할 일 요약 (korean)"));
+
+    const result = await autoTitleThread(depsOf(h, model.port), threadId);
+
+    expect(result).toEqual(ok({ status: "titled", title: "회의록 한 장 정리 및 결정 할 일 요약" }));
+    expect(titleOf(h, threadId)).toBe("회의록 한 장 정리 및 결정 할 일 요약");
+    expect(model.calls[0]?.system).toContain("middle dot");
+    expect(model.calls[0]?.system).toContain("(korean)");
   });
 
   test("image blocks are left out of the model input", async () => {

@@ -893,3 +893,25 @@ test("a listener that throws does not stop the engine from recording the run", a
   expect(h.service.runs(entry.id)[0]).toMatchObject({ status: "failed", reason: "start_failed" });
   expect(reports).toContain("schedule.run_finished_listener_failed");
 });
+
+test("an interval or at schedule can be run now and the run is recorded under its own trigger kind (F-31)", async () => {
+  const h = await started(createHarness());
+  const interval = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: 3600 },
+    prompt: "report",
+  });
+  const fired = await h.service.fire(interval.id);
+  expect(fired.ok && fired.value).toMatchObject({
+    scheduleId: interval.id,
+    firedBy: "interval",
+    status: "started",
+  });
+  expect(h.runner.started).toHaveLength(1);
+  expect(h.runner.started[0]?.request.prompt).toBe("report");
+  const at = await created(h.service, {
+    trigger: { kind: "at", atMs: h.clock.now + 3_600_000 },
+    prompt: "once",
+  });
+  const firedAt = await h.service.fire(at.id);
+  expect(firedAt.ok && firedAt.value).toMatchObject({ firedBy: "at", status: "started" });
+});

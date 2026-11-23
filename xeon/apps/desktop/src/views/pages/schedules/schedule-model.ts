@@ -216,13 +216,16 @@ export function scheduleRunSignatureOf(threads: readonly ThreadSummary[]): strin
     .join("|");
 }
 
+/** 지금 한 번 실행을 받는 트리거 종류(엔진 `fire`와 같다) */
+const FIRE_NOW_KINDS: ReadonlySet<string> = new Set(["remote", "interval", "at"]);
+
 export interface RowMenuItem {
   readonly action: RowAction;
   readonly disabled: boolean;
 }
 
 /**
- * 행 메뉴의 항목과 잠금. 마지막 실행 대화 열기는 대화가 있을 때만 나오고 목록에 없으면 잠근다. 지금 실행은 원격 트리거
+ * 행 메뉴의 항목과 잠금. 마지막 실행 대화 열기는 대화가 있을 때만 나오고 목록에 없으면 잠근다. 지금 한 번 실행은 켜진 원격, 간격, 시각
  * 행만, 취소는 켜진 행만 나온다. 복제는 늘 나온다. `acting`이 거짓이면(연결 없음, 다른 명령 중) 모든 항목을 잠근다.
  */
 export function rowMenuOf(
@@ -234,7 +237,10 @@ export function rowMenuOf(
   const threadId = row.lastRun?.threadId ?? null;
   if (threadId !== null) items.push({ action: "openThread", disabled: !acting || !openable });
   if (!row.enabled) items.push({ action: "reenable", disabled: !acting });
-  if (row.triggerKind === "remote") items.push({ action: "fire", disabled: !acting });
+  // 지금 한 번 실행은 켜진 원격, 간격, 시각 예약에 나온다(F-31). 반복 예약과 파일 감시는 스스로 이어져 뺀다
+  if (row.enabled && FIRE_NOW_KINDS.has(row.triggerKind)) {
+    items.push({ action: "fire", disabled: !acting });
+  }
   items.push({ action: "runs", disabled: !acting });
   items.push({ action: "edit", disabled: !acting });
   if (row.enabled) items.push({ action: "cancel", disabled: !acting });

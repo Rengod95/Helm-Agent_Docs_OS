@@ -5,7 +5,7 @@ import type { PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
 import type { SetupSnapshot } from "@fresnel/client/settings";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { useLinkPhase, useThread } from "../state/engine/index.ts";
+import { useAppliedProfile, useLinkPhase, useThread } from "../state/engine/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";
 import {
   bypassAllowedOf,
@@ -444,6 +444,9 @@ export function useThreadPermissionMode(threadId: ThreadId): {
   } | null>(null);
   // 고르기가 이기면 올려 다시 읽게 한다. 호스트가 준 값(관리 설정이 덮을 수 있다)을 그대로 보인다
   const [reads, setReads] = useState(0);
+  // 프로필이 바뀌면(대화가 가리키는 프로필, 단계 경계에서 실제로 적용된 프로필) 프로필이 정한 값도 바뀌므로 다시 읽는다(F-35)
+  const assignedProfile = useThread(threadId)?.profileId ?? null;
+  const appliedProfile = useAppliedProfile(threadId)?.profileId ?? null;
   useEffect(() => {
     if (phase !== "live") return undefined;
     let stale = false;
@@ -473,7 +476,7 @@ export function useThreadPermissionMode(threadId: ThreadId): {
       stale = true;
       stop();
     };
-  }, [commands, phase, threadId, reads]);
+  }, [commands, phase, threadId, reads, assignedProfile, appliedProfile]);
   const readNow = async (): Promise<{
     readonly mode: PermissionMode | null;
     readonly origin: ModeOrigin;

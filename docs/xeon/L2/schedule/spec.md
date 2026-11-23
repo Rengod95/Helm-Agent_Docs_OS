@@ -1393,6 +1393,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `at` | 지정한 시각 한 번 | 지난 시각은 `at_in_past`. 실행하거나 건너뛴 뒤 꺼진다 |
 | `file_watch` | 기한 없음. 경로가 바뀐 뒤 디바운스가 지나면 다음 틱에서 실행 | 틱 주기보다 짧은 디바운스는 틱 주기로 처리된다. 감시자가 이 프로세스에 있으므로 대기 예약 수에 센다 |
 | `remote` | 기한 없음. `fire` 호출 때만 | 대기 예약 수에 세지 않는다 |
+
+`fire`(지금 한 번 실행)는 원격 트리거 외에 켜진 `interval`, `at` 예약도 받는다. 실행은 그 예약의 트리거 종류로 남고 기한 계산은 바뀌지 않으며(`at`은 기한에도 한 번 돈다), 겹침, 최소 간격, 시간당 상한 검사는 그대로 적용한다. `repeat`와 `file_watch`는 스스로 이어지는 흐름이라 `not_remote`다 [결정: 오케스트레이터 기본값, AGE-77 scnFix F-31]. cron·`schedule.timers`는 이 저장소에 구현이 없고 모델 도구 `schedule_create`는 간격과 한 번(`at`)만 받는다: 스펙 §3.5와의 차이로 보고했고 만들지 않았다(F-30).
 | `repeat` | 실행이 정착한 뒤 간격 뒤에 다시 실행(옛 이름 `loop`, ADR-0022 §3.6) | `maxIterations`와 `expiresAtMs`가 필수다. 대기 예약이 아니라 live task로 센다(`liveSchedulerTasks`, M3-10) |
 
 - 상태 파일(`<dirs.state>/schedule/state.json`)은 `version: 2`다. `version: 1` 파일은 읽을 때 `upgradeScheduleState`(`packages/cap-schedule/src/migrate.ts`)가 `trigger.kind`와 run의 `firedBy`의 `loop`를 `repeat`로 바꿔 한 번 올린다. 저장은 항상 `version: 2`다 [결정: 2026-11-01 사용자, 저장된 예약 정의는 이전 단계 하나를 둔다].

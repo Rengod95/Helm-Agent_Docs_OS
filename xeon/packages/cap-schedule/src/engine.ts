@@ -743,16 +743,21 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       if (!opened.ok) return opened;
       const entry = entryOf(scheduleId);
       if (entry === undefined) return err<FireError>({ kind: "not_found" });
-      if (entry.trigger.kind !== "remote") return err({ kind: "not_remote" });
+      // 원격 트리거는 `fire`로만 돌고, 간격·시각 예약도 지금 한 번 돌릴 수 있다(AGE-77 F-31). 실행은 그 예약의 트리거 종류로 남는다.
+      // 반복 예약(`repeat`)과 파일 감시는 스스로 이어지는 흐름이라 손으로 끼어들지 않는다(`not_remote`)
+      const kind = entry.trigger.kind;
+      if (kind !== "remote" && kind !== "interval" && kind !== "at") {
+        return err({ kind: "not_remote" });
+      }
       if (!entry.enabled) return err({ kind: "disabled" });
       const now = deps.clock.now();
       const blocked = gateOf(entry, now);
       if (blocked !== null) {
-        const skipped = skippedRun(entry, "remote", now, now, blocked, 1);
+        const skipped = skippedRun(entry, kind, now, now, blocked, 1);
         const saved = await commit(withRun(skipped));
         return saved.ok ? ok(skipped) : saved;
       }
-      return ok(await claimAndBegin(entry, "remote", now, false, now, state));
+      return ok(await claimAndBegin(entry, kind, now, false, now, state));
     },
 
     async start() {

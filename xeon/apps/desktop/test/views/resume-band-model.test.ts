@@ -126,8 +126,9 @@ test("held counts only visible input that can start a turn on its own (DP-156)",
     sourceType: "extension",
     preview: { kind: "label", labelKey: "helm" },
   });
-  expect(chipInputs([helm]).length).toBe(1);
-  expect(heldCountOf(idle, chipInputs([helm]))).toBe(0);
+  // 칩에도 오르지 않고(F-42) 보내기를 기다리는 수에도 들지 않는다
+  expect(chipInputs([helm]).length).toBe(0);
+  expect(heldCountOf(idle, [helm])).toBe(0);
   expect(heldCountOf(idle, [input({ mode: "aside" })])).toBe(0);
   expect(heldCountOf(idle, [input({ mode: "steer" }), input({ mode: "followUp" })])).toBe(2);
 });

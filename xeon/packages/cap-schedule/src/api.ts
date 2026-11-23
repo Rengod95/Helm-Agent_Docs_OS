@@ -301,7 +301,11 @@ export function createScheduleApi(
         case "not_found":
           throw reject("fire", "not_found", "No such schedule.");
         case "not_remote":
-          throw reject("fire", "not_remote", "The schedule is not a remote trigger.");
+          throw reject(
+            "fire",
+            "not_remote",
+            "Only remote, interval and at schedules can be run now.",
+          );
         case "disabled":
           throw reject("fire", "disabled", "The schedule is off.");
         case "store_failed":

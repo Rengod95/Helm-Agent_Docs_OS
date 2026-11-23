@@ -1,3 +1,4 @@
+import { windowErrorLogOf } from "./app/window-error.ts";
 import { activeLocale, t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { toast } from "@caustic/react";
@@ -236,9 +237,8 @@ if (container === null) {
     } satisfies PluginShellPort,
   };
   window.addEventListener("error", (event) => {
-    app.log.logger.error("desktop.window.error", {
-      name: event.error instanceof Error ? event.error.name : "unknown",
-    });
+    const log = windowErrorLogOf(event);
+    if (log !== null) app.log.logger.error("desktop.window.error", { ...log });
   });
   window.addEventListener("unhandledrejection", (event) => {
     app.log.logger.error("desktop.window.unhandled_rejection", {

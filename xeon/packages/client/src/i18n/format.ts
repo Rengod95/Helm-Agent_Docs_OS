@@ -145,6 +145,7 @@ function render(
   locale: string,
   args: MessageArgs,
   hash: number | undefined,
+  zone: string | undefined,
 ): string {
   let out = "";
   for (const node of nodes) {
@@ -171,8 +172,8 @@ function render(
           out += new Intl.DateTimeFormat(
             locale,
             node.type === "date"
-              ? { dateStyle: style, timeZone: "UTC" }
-              : { timeStyle: style, timeZone: "UTC" },
+              ? { dateStyle: style, ...(zone === undefined ? {} : { timeZone: zone }) }
+              : { timeStyle: style, ...(zone === undefined ? {} : { timeZone: zone }) },
           ).format(when);
         }
         break;
@@ -186,13 +187,13 @@ function render(
           node.cases.get(new Intl.PluralRules(locale).select(n)) ??
           node.cases.get("other") ??
           [];
-        out += render(chosen, locale, args, n);
+        out += render(chosen, locale, args, n, zone);
         break;
       }
       case "select": {
         const value = args[node.name];
         const chosen = node.cases.get(String(value ?? "")) ?? node.cases.get("other") ?? [];
-        out += render(chosen, locale, args, hash);
+        out += render(chosen, locale, args, hash, zone);
         break;
       }
       default:
@@ -233,8 +234,11 @@ function numberText(locale: string, style: string, n: number): string {
   return new Intl.NumberFormat(locale).format(n);
 }
 
-/** 기본 포트: `Intl.NumberFormat`·`DateTimeFormat`·`PluralRules`만 쓴다. 날짜와 시각은 UTC로 보인다(ADR-0016 §3.1 4) */
-export function createIntlFormat(): MessageFormatPort {
+/**
+ * 기본 포트: `Intl.NumberFormat`·`DateTimeFormat`·`PluralRules`만 쓴다. 날짜와 시각은 `zone`(IANA 이름)으로 보이고, 생략하면 사용자 지역 시간이다.
+ * 예약과 메트릭 화면이 지역 시간이라 대화 화면도 맞춘다(AGE-77 F-32, 옛 ADR-0016 §3.1 4의 UTC 고정을 바꿈). 시험은 `"UTC"`를 줘서 기계와 무관하게 만든다
+ */
+export function createIntlFormat(zone?: string): MessageFormatPort {
   const cache = new Map<string, readonly Node[]>();
   return {
     format(locale, message, args) {
@@ -243,7 +247,7 @@ export function createIntlFormat(): MessageFormatPort {
         nodes = new Parser(message).parse();
         cache.set(message, nodes);
       }
-      return render(nodes, locale, args, undefined);
+      return render(nodes, locale, args, undefined, zone);
     },
   };
 }

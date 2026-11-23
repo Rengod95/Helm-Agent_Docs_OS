@@ -158,9 +158,12 @@ export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | n
 }
 
 /**
- * 규칙 id를 사람 말로 풀 문구의 키. `mcp.default`(MCP 도구의 기본 물음)만 풀고, 모르는 id는 일반 문장(규칙 이름 그대로)이다.
+ * 규칙 id를 사람 말로 풀 문구의 키. `mcp.default`(MCP 도구의 기본 물음)와 `default.bash-ask`(명령 실행 물음)만 풀고, 모르는 id는 일반 문장(규칙 이름 그대로)이다.
  * 풀이 문구는 내부 이름을 괄호로 함께 보인다.
  */
 export function ruleTextIdOf(ruleId: string): MessageId {
-  return ruleId === "mcp.default" ? "desktop.approvals.rule.mcpDefault" : "desktop.approvals.rule";
+  if (ruleId === "mcp.default") return "desktop.approvals.rule.mcpDefault";
+  // 기본 규칙 `default.bash-ask`는 규칙 이름 대신 사람이 읽을 이유로 푼다(AGE-77 F-18)
+  if (ruleId === "default.bash-ask") return "desktop.approvals.rule.bashAsk";
+  return "desktop.approvals.rule";
 }

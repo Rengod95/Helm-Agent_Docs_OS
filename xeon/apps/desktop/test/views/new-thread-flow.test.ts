@@ -124,3 +124,31 @@ test("the no-folder choice from the dialog creates without opening the picker", 
   expect(await runNewThread(deps, null)).toEqual({ kind: "created" });
   expect(calls.created).toEqual([undefined]);
 });
+
+test("sidebar, ⌘N and palette (whenUnknown noFolder) create without a folder and never open the picker", async () => {
+  const { deps, calls } = fixture({
+    whenUnknown: "noFolder",
+    folderPick: () => Promise.reject(new Error("picker must not open")),
+  });
+  expect(await runNewThread(deps, undefined)).toEqual({ kind: "created" });
+  expect(calls.created).toEqual([undefined]);
+  expect(calls.composer).toBe(1);
+});
+
+test("from a thread without a folder the new thread also has no folder when noFolder is asked", async () => {
+  const { deps, calls } = fixture({
+    whenUnknown: "noFolder",
+    threads: [summary({ workspace: null })],
+    selected: thr(1),
+  });
+  expect(await runNewThread(deps, undefined)).toEqual({ kind: "created" });
+  expect(calls.created).toEqual([undefined]);
+});
+
+test("a Helm-driven thread (only a slash command) does not hand the click back to itself", async () => {
+  const helm = summary({ title: null, preview: "/helm start 탐구", queuedInputs: 1 });
+  const { deps, calls } = fixture({ threads: [helm], selected: thr(1) });
+  expect(await runNewThread(deps, undefined)).toEqual({ kind: "created" });
+  expect(calls.selected).toEqual([]);
+  expect(calls.created).toEqual(["/w/a"]);
+});

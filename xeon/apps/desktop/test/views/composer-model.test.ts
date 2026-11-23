@@ -202,7 +202,7 @@ describe("queued input chips", () => {
     expect(chipInputs(list).map((c) => c.inputId)).toEqual([evt(1), evt(2)]);
   });
 
-  test("an internal instruction (display false) is not a chip, a shown Helm notice is named", () => {
+  test("an internal instruction (display false) is not a chip, and neither is a shown Helm notice (it attaches to the next turn by itself, F-42)", () => {
     const list = [
       chip({
         inputId: evt(1),
@@ -215,7 +215,7 @@ describe("queued input chips", () => {
         preview: { kind: "label", labelKey: "helm" },
       }),
     ];
-    expect(chipInputs(list).map((c) => c.inputId)).toEqual([evt(2)]);
+    expect(chipInputs(list)).toEqual([]);
     expect(queuedPreviewText({ kind: "label", labelKey: "helm" })).toBe("Helm 안내");
   });
 

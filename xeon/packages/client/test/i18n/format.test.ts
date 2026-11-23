@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createIntlFormat } from "../../src/i18n/index.ts";
 
-const fmt = createIntlFormat();
+const fmt = createIntlFormat("UTC");
 
 test("simple arguments and missing arguments", () => {
   expect(fmt.format("en", "Hello {name}!", { name: "Ann" })).toBe("Hello Ann!");
@@ -31,7 +31,16 @@ test("nested plural inside text keeps surrounding text", () => {
   ).toBe("Found 2 matches in src");
 });
 
-test("number, date and time use Intl and UTC", () => {
+test("date and time follow the zone given, and the default is the user's local zone (F-32)", () => {
+  const when = new Date(Date.UTC(2026, 9, 29, 23, 30));
+  const seoul = createIntlFormat("Asia/Seoul");
+  expect(seoul.format("en", "{d, time, short}", { d: when })).toBe("8:30 AM");
+  expect(seoul.format("en", "{d, date, long}", { d: when })).toBe("October 30, 2026");
+  const local = new Intl.DateTimeFormat("en", { timeStyle: "short" }).format(when);
+  expect(createIntlFormat().format("en", "{d, time, short}", { d: when })).toBe(local);
+});
+
+test("number, date and time use Intl and the given zone", () => {
   expect(fmt.format("en", "{n, number}", { n: 1234567.5 })).toBe("1,234,567.5");
   expect(fmt.format("en", "{n, number, integer}", { n: 2.6 })).toBe("3");
   expect(fmt.format("en", "{n, number, percent}", { n: 0.25 })).toBe("25%");

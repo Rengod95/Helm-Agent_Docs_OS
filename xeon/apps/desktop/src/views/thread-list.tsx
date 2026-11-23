@@ -35,7 +35,7 @@ import { useCommands } from "./commands.ts";
 import { SIDE_ROW } from "./side-row.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
-import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
+import { isBlankThread, recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import {
   FolderPath,
   NESTED_CHILD_ROW,
@@ -506,12 +506,16 @@ export function ThreadList(props: {
 }): ReactNode {
   const commands = useCommands();
   // 테스트 런 대화는 보통 목록에 없다(테스트 화면에서 연다, lcM6e)
-  const threads = listedThreadsOf(useThreadSummaries());
+  const selected = useSelectedThreadId();
+  // 아무것도 보내지 않은 빈 대화는 지금 보고 있을 때만 목록에 둔다(다른 대화로 가면 사라지고, 같은 폴더의 새 대화가 다시 쓴다)
+  const threads = listedThreadsOf(useThreadSummaries()).filter(
+    (thread) => !isBlankThread(thread) || thread.threadId === selected,
+  );
   const status = useThreadsStatus();
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const startThread = useStartNewThread(props.folderPick);
+  const startThread = useStartNewThread(props.folderPick, "noFolder");
   /** `path`: 글은 그 폴더, `undefined`는 보던 폴더(없으면 고르기), `null`은 대화 상자의 "폴더 없이 만들기" */
   const create = async (path: string | null | undefined): Promise<void> => {
     setError(null);
@@ -541,7 +545,6 @@ export function ThreadList(props: {
   const shown =
     query.trim() === "" ? threads : threads.filter((thread) => threadMatches(thread, query));
   const { load: projects } = useProjects();
-  const selected = useSelectedThreadId();
   // 프로젝트를 읽었으면 프로젝트 패널(C10), 읽는 중이거나 엔진에 `project.*`가 없으면 예전 작업 폴더 묶음이다
   const placed = sidebarRowsOf(shown);
   const groups = projects.status === "ready" ? [] : sidebarGroupsOf(shown);
