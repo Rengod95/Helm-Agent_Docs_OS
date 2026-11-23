@@ -248,8 +248,18 @@ function rigOf(options: RigOptions): Rig {
   };
   const loader: Pick<
     ExtensionLoader,
-    "list" | "uiEntries" | "reload" | "reloadFromReviewed" | "loadInstalled" | "unload"
+    | "list"
+    | "uiEntries"
+    | "reload"
+    | "reloadFromReviewed"
+    | "loadInstalled"
+    | "unload"
+    | "ensureLoaded"
   > = {
+    ensureLoaded: (name) => {
+      calls.push(`ensureLoaded ${name}`);
+      return Promise.resolve(loaded(name, "active", "user", "0.2.0"));
+    },
     // 이 시험은 설치와 지우기를 부르지 않는다
     loadInstalled: () => Promise.resolve(err({ kind: "not_found", diagnostics: [] })),
     reloadFromReviewed: () => Promise.resolve(err({ kind: "unknown_extension" })),
@@ -570,6 +580,56 @@ test("uiPost passes the thread to ExtHost.ui and accepts", async () => {
   });
   expect(result).toEqual({ ok: true, value: { accepted: true } });
   expect(rig.calls).toEqual(["post thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/panel/refresh"]);
+});
+
+// W-05: 재시작 직후 미뤄 둔 확장(`lazy_deferred`)은 꺼진 것이 아니다. 화면이 열리고, 확장에 말을 걸 때 싣는다.
+const DEFERRED: LoadedExtensionInfo = {
+  ...loaded("helm", "disabled", "user", "0.2.0"),
+  diagnostics: [
+    {
+      extension: "helm",
+      source: "user",
+      stage: "set",
+      severity: "info",
+      code: "lazy_deferred",
+      message: "deferred until a conversation uses it",
+      generation: 1,
+    },
+  ],
+};
+
+test("a plugin deferred at startup lists as openable and loads when its app posts", async () => {
+  const rig = rigOf({
+    infos: [DEFERRED],
+    scopes: [],
+    entries: [entryOfUi("helm", "tab", "ok", [], "Tab", "page")],
+  });
+  expect(rig.port.uiList({}).items.map((item) => item.state)).toEqual(["ok"]);
+  await rig.port.uiPost({
+    extension: "helm",
+    ui: "tab",
+    threadId: "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ",
+    name: "list",
+  });
+  expect(rig.calls).toEqual([
+    "ensureLoaded helm",
+    "post thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/tab/list",
+  ]);
+});
+
+test("a plugin the user turned off (no deferred note) still lists as disabled and is not loaded", async () => {
+  const rig = rigOf({
+    infos: [loaded("helm", "disabled", "user", "0.2.0")],
+    entries: [entryOfUi("helm", "tab", "ok", [], "Tab", "page")],
+  });
+  expect(rig.port.uiList({}).items.map((item) => item.state)).toEqual(["disabled"]);
+  await rig.port.uiPost({
+    extension: "helm",
+    ui: "tab",
+    threadId: "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ",
+    name: "list",
+  });
+  expect(rig.calls).toEqual(["post thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/tab/list"]);
 });
 
 test("uiRequestApproval returns the approval id and rejects a malformed thread id", async () => {
