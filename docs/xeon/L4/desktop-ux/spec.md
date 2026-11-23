@@ -523,7 +523,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | O-05 | 재인증 | `Dialog kind="alert"` | 시크릿 값 보기 |
 | O-06 | 삭제 확인 | `Dialog kind="alert"` | 대화·시크릿·예약 삭제 |
 | O-07 | 새 대화 | `Dialog` | ⌘N, "새 대화" |
-| O-08 | 예약 편집 | `Sheet side="right"` | P-07 "새 예약" |
+| O-08 | 예약 편집 | `Sheet side="right"` | P-07 "새 예약" 매일 반복 [결정: 오케스트레이터 기본값, scnFix3 AGE-78]: 간격 트리거에 `firstAtMs`가 있고 간격이 86400초면 표의 트리거 칸은 "24시간 간격" 대신 "매일 09:00"(지역 시각)이다. 만들기 시트의 간격 종류에 "매일 시각" 칸(`time` 입력)이 있어 채우면 간격 칸이 빠지고 `{ kind: "interval", everySeconds: 86400, firstAtMs: 다음 그 시각 }`을 만든다(`TriggerDraft.dailyTime`, `triggerOfDraft`). 복제는 같은 값으로 연다. CLI는 그대로다 |
 | O-09 | 바로 가기 키 도움말 | `Dialog` `[gap:C-11]` | ⌘/ |
 
 ### 4.5 명령 팔레트(S-02)

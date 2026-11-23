@@ -48,6 +48,7 @@ function defaultTrigger(nowMs: number): TriggerDraft {
   return {
     kind: "interval",
     intervalSeconds: String(DEFAULT_INTERVAL_SECONDS),
+    dailyTime: "",
     atMs: null,
     paths: [],
     debounceMs: String(DEFAULT_DEBOUNCE_MS),
@@ -65,7 +66,16 @@ export function emptyDraft(nowMs: number): ScheduleDraft {
 function triggerDraftOf(trigger: ScheduleTrigger, base: TriggerDraft): TriggerDraft {
   switch (trigger.kind) {
     case "interval":
-      return { ...base, kind: "interval", intervalSeconds: String(trigger.everySeconds) };
+      return {
+        ...base,
+        kind: "interval",
+        intervalSeconds: String(trigger.everySeconds),
+        // 첫 실행 시각이 있는 하루 간격은 복제해도 "매일 시각"으로 연다
+        dailyTime:
+          trigger.firstAtMs !== undefined && trigger.everySeconds === DAY_MS / 1000
+            ? clockInputOf(trigger.firstAtMs)
+            : "",
+      };
     case "at":
       return { ...base, kind: "at", atMs: trigger.atMs };
     case "file_watch":
@@ -197,6 +207,12 @@ export function localInputOf(ms: number | null): string {
   if (Number.isNaN(at.getTime())) return "";
   const date = `${String(at.getFullYear())}-${padTwo(at.getMonth() + 1)}-${padTwo(at.getDate())}`;
   return `${date}T${padTwo(at.getHours())}:${padTwo(at.getMinutes())}`;
+}
+
+/** epoch ms를 `time` 입력 값(`HH:MM`, 지역 시각)으로 */
+function clockInputOf(ms: number): string {
+  const at = new Date(ms);
+  return `${padTwo(at.getHours())}:${padTwo(at.getMinutes())}`;
 }
 
 /** 만료 칸의 글자(epoch ms 문자열)를 `datetime-local` 값으로 */

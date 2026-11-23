@@ -544,6 +544,18 @@ describe("message keys", () => {
     expect(Object.keys(SCHEDULE_ERROR_ID)).toHaveLength(8);
   });
 
+  test('a daily interval with a first run shows "daily at" with the local clock time', () => {
+    const firstAtMs = new Date(2026, 10, 24, 9, 0, 0).getTime();
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 86_400, firstAtMs }, "ko")).toEqual({
+      id: "desktop.schedules.summary.daily",
+      args: { time: "09:00" },
+    });
+    // 첫 실행 시각이 없으면 예전처럼 24시간 간격이다
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 86_400 }, "ko").args).toEqual({
+      count: 24,
+    });
+  });
+
   test("trigger summaries are data with a message key and its arguments", () => {
     expect(triggerSummaryOf({ kind: "interval", everySeconds: 600 }, "ko")).toEqual({
       id: "desktop.schedules.summary.everyMinutes",

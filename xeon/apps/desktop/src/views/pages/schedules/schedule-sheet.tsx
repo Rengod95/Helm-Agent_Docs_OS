@@ -271,16 +271,32 @@ function TriggerInputs(props: {
 }): ReactNode {
   const { draft, error, onChange } = props;
   switch (draft.kind) {
-    case "interval":
+    case "interval": {
+      const daily = (draft.dailyTime ?? "") !== "";
       return (
-        <IntervalSecondsField
-          value={draft.intervalSeconds}
-          error={error("intervalSeconds")}
-          onChange={(intervalSeconds) => {
-            onChange({ intervalSeconds });
-          }}
-        />
+        <>
+          {daily ? null : (
+            <IntervalSecondsField
+              value={draft.intervalSeconds}
+              error={error("intervalSeconds")}
+              onChange={(intervalSeconds) => {
+                onChange({ intervalSeconds });
+              }}
+            />
+          )}
+          <Field label={t("desktop.schedules.form.dailyAt")} size="sm" error={error("dailyTime")}>
+            <Input
+              size="sm"
+              type="time"
+              value={draft.dailyTime ?? ""}
+              onValueChange={(dailyTime) => {
+                onChange({ dailyTime });
+              }}
+            />
+          </Field>
+        </>
       );
+    }
     case "at":
       return (
         <Field label={t("desktop.schedules.form.at")} size="sm" error={error("atMs")}>
