@@ -107,6 +107,27 @@ function approvalLabelOf(trail: ApprovalTrail): string {
   return t("desktop.convo.tag.approval.allowed", { scope });
 }
 
+/**
+ * 승인 꼬리표의 제목(접근성 이름에도 들어간다). 엔진이 영어로 고정한 도구와 질문 승인 제목은 승인 카드와 같은 한국어 문장으로 바꾼다(AGE-77 F-19).
+ * 모르는 제목은 그대로, 빈 제목은 일반 이름이다
+ */
+export function approvalTitleOf(
+  trail: Pick<ApprovalTrail, "title" | "bodyKind" | "toolName">,
+): string {
+  if (trail.title === "") return t("desktop.convo.tag.approval.title");
+  if (
+    trail.bodyKind === "tool" &&
+    trail.toolName !== null &&
+    trail.title === `Allow tool "${trail.toolName}"?`
+  ) {
+    return t("desktop.approvals.title.tool", { tool: trail.toolName });
+  }
+  if (trail.bodyKind === "question" && trail.title === "Answer the questions") {
+    return t("desktop.approvals.title.question");
+  }
+  return trail.title;
+}
+
 function approvalTag(trail: ApprovalTrail): InterventionTag | null {
   // 사람이 고른 것만 기록으로 남긴다(취소·만료·대체는 줄의 상태가 말한다)
   if (trail.resolvedBy !== "user" && trail.resolvedBy !== "noninteractive") return null;
@@ -119,7 +140,7 @@ function approvalTag(trail: ApprovalTrail): InterventionTag | null {
     icon: "approval",
     tone: "neutral",
     label: approvalLabelOf(trail),
-    title: trail.title === "" ? t("desktop.convo.tag.approval.title") : trail.title,
+    title: approvalTitleOf(trail),
     body: by,
     extension: trail.caller.startsWith("ext:") ? trail.caller.slice(4) : null,
   };

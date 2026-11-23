@@ -257,6 +257,6 @@ describe("rule text", () => {
   test("the default MCP rule gets its own sentence, and any other rule keeps the generic sentence with its name", () => {
     expect(ruleTextIdOf("mcp.default")).toBe("desktop.approvals.rule.mcpDefault");
     expect(ruleTextIdOf("mcp.qa.echo")).toBe("desktop.approvals.rule");
-    expect(ruleTextIdOf("default.bash-ask")).toBe("desktop.approvals.rule");
+    expect(ruleTextIdOf("default.bash-ask")).toBe("desktop.approvals.rule.bashAsk");
   });
 });
