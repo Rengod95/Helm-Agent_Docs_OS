@@ -140,6 +140,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},
+      onProfilesChanged: () => () => {},
       installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
       addInstruction: () => Promise.resolve(err({ kind: "unsupported" })),
@@ -155,6 +156,14 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       retry: () => Promise.resolve(ok(null)),
       stop: () => Promise.resolve(ok(null)),
       profiles: () => Promise.resolve(ok([])),
+      profileList: () =>
+        Promise.resolve(
+          ok({
+            profiles: [],
+            common: { plugins: [], settings: [], updatedAt: "1970-01-01T00:00:00.000Z", rev: 0 },
+            rev: 0,
+          }),
+        ),
       applyProfile: () =>
         Promise.resolve(ok({ position: { storeId: STORE, seq: 1 }, preview: {} })),
       putProfile: (profile) =>

@@ -37,6 +37,7 @@ import {
   SETTINGS_SECTIONS,
 } from "../pages/settings/settings-sections.ts";
 import { formatKey, resolveKeymap } from "../shell/keybindings.ts";
+import { screenShownOf, useSuggestState } from "../proposal-suggest.ts";
 import { usePaletteCommandEntries } from "../plugin/command-run.ts";
 import {
   availableCommands,
@@ -166,6 +167,8 @@ export function PaletteBody(props: PaletteProps): ReactNode {
   // 확장 명령은 꺼진 확장, 상태가 `ok`가 아닌 항목, 장부가 끈 화면의 것을 뺀다(보고 4)
   const pluginCommands = usePaletteCommandEntries();
   const area = useShell((s) => s.area);
+  // 꺼진 제안 플러그인의 화면 이동 행은 빼고, 켜질 때까지 기다린다(내비 줄과 같은 켜짐)
+  const suggest = useSuggestState();
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
   // 실행 횟수는 열 때 한 번 읽는다. 팔레트는 열 때마다 새로 마운트되므로 실행 뒤 다음 열기에 새 값이 보인다
   const [uses] = useState<PaletteUses>(() => commands.paletteUses());
@@ -239,7 +242,9 @@ export function PaletteBody(props: PaletteProps): ReactNode {
   });
   // 열린 대화가 없으면 묶음이 보이지 않는다(`visibleGroupsOf`)
   const pluginItems: PaletteItem[] = pluginCommandItemsOf(pluginCommands);
-  const screenItems: PaletteItem[] = screenTargetsOf(area).map((target) => {
+  const screenItems: PaletteItem[] = screenTargetsOf(area, (screen) =>
+    screenShownOf(screen, suggest),
+  ).map((target) => {
     const spec = target.action === undefined ? null : keymap[target.action];
     return {
       value: screenValue(target.area, target.screen),

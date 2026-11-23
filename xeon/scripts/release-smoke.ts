@@ -65,6 +65,7 @@ export function requiredPaths(triple: string): readonly string[] {
     "orchestration-sdk/templates/index.json",
     "guide/skills/fresnel-plugin-authoring/SKILL.md",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
+    "default-plugins/suggest/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
     "SHA256SUMS",
   ];

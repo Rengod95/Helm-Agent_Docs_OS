@@ -758,7 +758,11 @@ describe("Driving by 구절(lcM6g)", () => {
 });
 
 describe("프로필 아이콘 변주와 기본 이름(lcM6c)", () => {
-  const ready = { kind: "ready", profiles: [] } as const;
+  const ready = {
+    kind: "ready",
+    profiles: [],
+    common: { plugins: [], settings: [], updatedAt: "2026-11-24T00:00:00.000Z", rev: 0 },
+  } as const;
   const viewOf = (over: { applied?: string; requested?: string | null } = {}) =>
     profileChipViewOf({
       applied: over.applied ?? "review",

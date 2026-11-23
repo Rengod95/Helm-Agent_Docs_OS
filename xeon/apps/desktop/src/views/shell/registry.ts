@@ -24,6 +24,11 @@ export interface ScreenDef {
    * 대화 영역은 "제안", Craft 영역은 "리뷰"다. 리뷰 줄의 표시는 같은 줄의 `Badge`가 읽은 수를 문맥으로 받는다(`review-badge.tsx`)
    */
   readonly Mark?: () => ReactNode;
+  /**
+   * 내비 줄을 보일지 정하는 훅(플러그인 켜짐을 따른다, 예: 제안은 `suggest` 플러그인이 켜졌을 때만). 없으면 늘 보인다.
+   * 거짓이면 내비 줄을 그리지 않는다(`start-panel.tsx`의 `NavAvailable`). 항목마다 부품 하나 안에서 부른다
+   */
+  readonly useAvailable?: () => boolean;
   /** 무대에 그릴 내용 */
   readonly render: () => ReactNode;
   /** 화면을 열 때 오른쪽 탭 기본값. 영역이 기억한 탭이 있으면 그것이 우선이다 */

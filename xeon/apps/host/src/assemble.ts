@@ -120,7 +120,11 @@ import {
   createHostOrchestrationService,
   isOrchestrationCatalogManifest,
 } from "./assembly/groups.ts";
-import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
+import {
+  createProposalPort,
+  suggestGateOf,
+  type KnowledgeWireHolder,
+} from "./assembly/proposals.ts";
 import {
   createHostSchedule,
   outsideWatchPathsOf,
@@ -154,6 +158,7 @@ import { turnStartedAtInLog } from "./assembly/measure/turn-log.ts";
 import type { MetricsSettingsValues } from "./assembly/measure/turn-read.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
+import { latePluginStorePort } from "./assembly/plugin-data-port.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
 import { createRewindIdFactory } from "./assembly/file-rewind.ts";
 import { createBacktestIsolation, type BacktestIsolation } from "./assembly/backtest/isolation.ts";
@@ -713,6 +718,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     methodRun: operations.runMethod,
     onMethodSettled: operations.onMethodSettled,
     settings: primitivesSource(settings),
+    // 플러그인 전용 저장소(`g.pluginStore`, X.primitives §4.6.7). 저장소가 열리기 전의 호출은 `storage_unavailable`이다
+    pluginStore: latePluginStorePort(() => opened.store?.pluginStore),
     // `fresnel.settings` 포트: 모든 플러그인의 settingValue와 플러그인 호출 경로 판정이 읽는다
     settingValue: (key) => settings.value(key),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
@@ -1693,6 +1700,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ...(fileRewind === undefined ? {} : { fileRewind: { service: fileRewind, newRewindId } }),
       defaultPluginsDir: bundleRoot,
       pluginStore,
+      pluginDataStore: store.value.pluginStore,
       localIds,
       homeDir: os.dirs.home,
       startupNotices,
@@ -1771,6 +1779,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       web,
       proposals: createProposalPort({
         knowledge: () => knowledgeWire.current,
+        // 제안 플러그인(`suggest`)의 켜짐은 등록이 `enabled`이고 어느 프로필(공통 묶음 포함)에든 든 것이다. 호출 때마다 프로필 목록을 읽는다.
+        // 포트는 조립 순서상 나중에 올라오므로 호출 때 찾는다(없으면 읽지 못한 것이라 닫힌다)
+        suggestEnabled: () =>
+          suggestGateOf({
+            registrations: () => ext.registrations(),
+            profiles: () =>
+              portsHandle?.ports.m4.profileTestRun.list() ??
+              Promise.resolve(err({ kind: "ports_not_ready" })),
+            report: (message, fields) => {
+              logger.warn(message, fields);
+            },
+          }),
         report: (message, fields) => {
           logger.warn(message, fields);
         },

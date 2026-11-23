@@ -34,6 +34,8 @@ import {
   type PluginEngineCallName,
   type PluginHostError,
   type PluginRegistrationDecl,
+  type PluginStoreEntry,
+  type PluginStoreError,
   type PluginToolDecl,
   type PortKey,
   type PostItem,
@@ -74,6 +76,8 @@ import type { ExtMethodResourceDef } from "../primitives/ext-method.ts";
 import { subscribedNames, subscribeWith, type DispatchContext } from "../primitives/subscribe.ts";
 import {
   parseOrchestrationRecords,
+  parsePluginStoreEntries,
+  parsePluginStoreValue,
   parsePostReceipt,
   parseScriptOutcome,
   parseStartDriveReply,
@@ -502,6 +506,47 @@ function makeApi(state: RegState, env: ChildEnv): RegistrationApi<AnyState> & Ch
     },
     async recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void> {
       await callEngine(env, state, "recordPrivate", jsonOf({ kind, payload }, "the record"));
+    },
+    pluginStore: {
+      // 저장소 연산은 엔진이 한다. 이름 공간과 쓰기 자격(메서드 표지)도 엔진이 정한다(X.primitives.spec §4.6.7)
+      async get(key: string): Promise<Result<JsonValue | null, PluginStoreError>> {
+        const reply = await callEngine(
+          env,
+          state,
+          "pluginStore",
+          jsonOf({ op: "get", key }, "the store request"),
+        );
+        return checked(parsePluginStoreValue(reply), "the store result");
+      },
+      async put(key: string, value: JsonValue): Promise<Result<void, PluginStoreError>> {
+        const reply = await callEngine(
+          env,
+          state,
+          "pluginStore",
+          jsonOf({ op: "put", key, value }, "the store request"),
+        );
+        const result = checked(parsePluginStoreValue(reply), "the store result");
+        return result.ok ? ok(undefined) : err(result.error);
+      },
+      async delete(key: string): Promise<Result<void, PluginStoreError>> {
+        const reply = await callEngine(
+          env,
+          state,
+          "pluginStore",
+          jsonOf({ op: "delete", key }, "the store request"),
+        );
+        const result = checked(parsePluginStoreValue(reply), "the store result");
+        return result.ok ? ok(undefined) : err(result.error);
+      },
+      async list(prefix?: string): Promise<Result<readonly PluginStoreEntry[], PluginStoreError>> {
+        const reply = await callEngine(
+          env,
+          state,
+          "pluginStore",
+          jsonOf({ op: "list", prefix: prefix ?? "" }, "the store request"),
+        );
+        return checked(parsePluginStoreEntries(reply), "the store result");
+      },
     },
     capability<Api>(key: ServiceKey<Api>): Api {
       return serviceAs(key, capabilityProxy(state, env, key));

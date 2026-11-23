@@ -7,6 +7,7 @@ import type {
   EventWire,
   InvocableEntry,
   Profile,
+  ProfileListResult,
   ProfilePreviewResult,
 } from "@fresnel/contracts/wire";
 import { parseHTML } from "linkedom";
@@ -122,6 +123,13 @@ const PROFILES: readonly Profile[] = [
   profile("review", "리뷰", { startDrive: "helm", plugins: [{ name: "helm" }] }),
   profile("yolo", "빠르게", { settings: [{ key: "l1.tools.permissionMode", value: "bypass" }] }),
 ];
+
+/** `profile.list`의 결과 모양. 프로필 목록은 `PROFILES`이고 공통 묶음은 비어 있다 */
+const PROFILE_LIST: ProfileListResult = {
+  profiles: PROFILES,
+  common: { plugins: [], settings: [], updatedAt: "2026-11-24T00:00:00.000Z", rev: 0 },
+  rev: 1,
+};
 
 function preview(issues: ProfilePreviewResult["issues"]): ProfilePreviewResult {
   return {
@@ -248,6 +256,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       <ChipProbe />,
       withWorkbench({
         profiles: () => Promise.resolve(ok(PROFILES)),
+        profileList: () => Promise.resolve(ok(PROFILE_LIST)),
         previewProfile: (id, threadId) => {
           asked.push({ id, threadId });
           return Promise.resolve(
@@ -278,6 +287,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       <ChipProbe />,
       withWorkbench({
         profiles: () => Promise.resolve(ok(PROFILES)),
+        profileList: () => Promise.resolve(ok(PROFILE_LIST)),
         applyProfile: (id, threadId) => {
           sent.push({ id, threadId });
           return Promise.resolve(
@@ -314,6 +324,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       <ChipProbe />,
       withWorkbench({
         profiles: () => Promise.resolve(ok(PROFILES)),
+        profileList: () => Promise.resolve(ok(PROFILE_LIST)),
         previewProfile: () => Promise.resolve(ok(preview([]))),
         applyProfile: () =>
           Promise.resolve(
@@ -351,6 +362,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       <ChipProbe />,
       withWorkbench({
         profiles: () => Promise.resolve(ok(PROFILES)),
+        profileList: () => Promise.resolve(ok(PROFILE_LIST)),
         previewProfile: () => Promise.resolve(ok(preview([]))),
         applyProfile: () =>
           Promise.resolve(
@@ -377,6 +389,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       <ChipProbe />,
       withWorkbench({
         profiles: () => Promise.resolve(ok(PROFILES)),
+        profileList: () => Promise.resolve(ok(PROFILE_LIST)),
         previewProfile: () => Promise.resolve(ok(preview([]))),
         applyProfile: () =>
           Promise.resolve(
@@ -412,6 +425,7 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       <ChipProbe />,
       withWorkbench({
         profiles: () => Promise.resolve(ok(PROFILES)),
+        profileList: () => Promise.resolve(ok(PROFILE_LIST)),
         applyProfile: () => Promise.resolve({ ok: false, error: { kind: "failed" } }),
       }),
     );
@@ -430,6 +444,13 @@ describe("프로필 칩: profile.list · profile.preview · thread.setProfile ·
       withWorkbench({
         profiles: () =>
           Promise.resolve(ok([...PROFILES, profile("secret", "숨김", { hidden: true })])),
+        profileList: () =>
+          Promise.resolve(
+            ok({
+              ...PROFILE_LIST,
+              profiles: [...PROFILES, profile("secret", "숨김", { hidden: true })],
+            }),
+          ),
         defaultProfileFor: (workspace) => {
           asked.push(workspace);
           return Promise.resolve(ok("yolo"));

@@ -54,9 +54,11 @@ import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
 import {
   ambient,
+  inExtMethod,
   inOwnDataMethod,
   inReadOnlyMethod,
   withAmbient,
+  withExtMethod,
   withOwnDataMethod,
   withReadOnlyMethod,
   type Ambient,
@@ -80,6 +82,7 @@ import type { StateMigration } from "./state-migration.ts";
 import { ambientDispatch, subscribedNames, subscribeWith } from "./subscribe.ts";
 import { awaitUser } from "./user-wait.ts";
 import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
+import type { PluginStoreService } from "./plugin-store.ts";
 
 export type { StateMigration } from "./state-migration.ts";
 
@@ -250,6 +253,8 @@ export function scopeInternalsOf<S>(g: RegistrationApi<S>): RegistrationInternal
 export interface RegistrationApiDeps {
   readonly core: HostCore;
   readonly state: StateService;
+  /** 플러그인 전용 저장소. 이름 공간은 g를 만든 등록 레코드의 확장 이름이다(X.primitives.spec §4.6.7) */
+  readonly pluginStore: PluginStoreService;
   readonly post: PostQueue;
   readonly bindings: CapabilityBindings;
   readonly resources: ResourceStore;
@@ -282,6 +287,28 @@ function assertOwnDataOnly(record: RegistrationRecord, what: string): void {
     `an ownDataOnly method of ${record.extension} cannot use ${what}`,
     { scopeId: record.id },
   );
+}
+
+/**
+ * 플러그인 전용 저장소의 쓰기(`put`, `delete`)는 확장 메서드 처리기 안에서만 된다. 훅, on 핸들러, drive, setup, 도구 `execute`, 명령 처리기처럼
+ * 재실행되거나 메서드가 아닌 문맥에서는 거부하고, `readOnly` 메서드에서도 거부한다(X.primitives.spec §4.6.7). `ownDataOnly` 메서드는 된다.
+ */
+function assertStoreWrite(record: RegistrationRecord): void {
+  const amb = ambient();
+  if ((amb !== undefined && amb.invocation !== "method") || !inExtMethod()) {
+    throw new PrimitiveError(
+      "store_outside_method",
+      `the plugin store of ${record.extension} can be written only inside an extension method handler`,
+      { scopeId: record.id },
+    );
+  }
+  if (inReadOnlyMethod()) {
+    throw new PrimitiveError(
+      "read_only_method",
+      `a readOnly method of ${record.extension} cannot write the plugin store`,
+      { scopeId: record.id },
+    );
+  }
 }
 
 function assertOpen(record: RegistrationRecord, generation: Generation): void {
@@ -404,6 +431,18 @@ export function createRegistrationApi(
     },
     state() {
       return stateAs(deps.state.state(record, generation));
+    },
+    pluginStore: {
+      get: (key) => deps.pluginStore.get(record.extension, key),
+      put: async (key, value) => {
+        assertStoreWrite(record);
+        return deps.pluginStore.put(record.extension, key, value);
+      },
+      delete: async (key) => {
+        assertStoreWrite(record);
+        return deps.pluginStore.delete(record.extension, key);
+      },
+      list: (prefix) => deps.pluginStore.list(record.extension, prefix ?? ""),
     },
     async commit(next) {
       assertWritable(record);
@@ -688,20 +727,23 @@ export function createRegistrationApi(
       }
       // threadId가 없는 호출은 쓸 thread가 없으므로 ambient를 열지 않는다(명령과 같다). 있으면 처리기 신호와 예산 장치를
       // ambient의 handler에 싣는다. hostOf(g).awaitUser가 그 gate로 예산 시계를 멈춘다(X.operations.spec §4.2.3)
+      // 메서드 처리기 흐름 전체에 메서드 표지를 단다(플러그인 전용 저장소의 쓰기 자격). threadId가 없어도 걸린다
       const open = (
         params: unknown,
         ctx: ExtMethodCallContext,
         gate: HandlerGate,
       ): Promise<unknown> =>
-        ctx.threadId === null
-          ? def.handler(params, ctx)
-          : withAmbient(
-              {
-                ...directAmbient(record.id, ctx.threadId, "method", ctx.callId),
-                handler: { signal: ctx.signal, gate },
-              },
-              () => def.handler(params, ctx),
-            );
+        withExtMethod(() =>
+          ctx.threadId === null
+            ? def.handler(params, ctx)
+            : withAmbient(
+                {
+                  ...directAmbient(record.id, ctx.threadId, "method", ctx.callId),
+                  handler: { signal: ctx.signal, gate },
+                },
+                () => def.handler(params, ctx),
+              ),
+        );
       // readOnly 선언은 threadId 유무와 상관없이 처리기 흐름 전체에 표지를 단다
       const marked = declared.readOnly
         ? (params: unknown, ctx: ExtMethodCallContext, gate: HandlerGate): Promise<unknown> =>

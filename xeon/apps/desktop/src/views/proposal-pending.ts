@@ -2,6 +2,7 @@ import type { Result } from "@fresnel/contracts";
 import type { NoticeKind } from "@fresnel/contracts/capabilities";
 import type { ProposalListParams } from "@fresnel/contracts/wire";
 import type { CommandError } from "./commands.ts";
+import type { SuggestState } from "./proposal-suggest.ts";
 
 // 대기 제안 수. 사이드바 "제안" 배지와 받은 요청의 제안 줄이 함께 쓴다(SC-06 1단계, P-03).
 // 수는 `proposal.list { status: ["pending"] }`의 행 수다. 출처와 종류는 거르지 않는다.
@@ -11,6 +12,19 @@ export const PENDING_PROPOSAL_LIMIT = 200;
 
 /** 연결이 살아 있는 동안의 주기 다시 읽기 간격(ms) [결정: 오케스트레이터 기본값, fxLM] */
 export const PENDING_REFRESH_MS = 30_000;
+
+/**
+ * 대기 수를 읽는 때: 제안 플러그인이 켜져 있을 때만이다. 꺼졌거나 못 읽었으면 호스트를 부르지 않는다(`unknown`은 연결이 끊긴 때도 드는 값이라
+ * 마지막 수를 둔다)
+ */
+export function pendingReadsOf(suggest: SuggestState): boolean {
+  return suggest === "on";
+}
+
+/** 화면에 보이는 대기 수. 제안 플러그인이 꺼졌으면 0이다(개발 표본의 바닥 값도 가리지 않는다) */
+export function pendingCountShownOf(suggest: SuggestState, count: number, floor: number): number {
+  return suggest === "off" ? 0 : Math.max(count, floor);
+}
 
 /** 대기 행만 읽는 질의. 출처와 종류는 거르지 않는다 */
 export function pendingListParams(): ProposalListParams {

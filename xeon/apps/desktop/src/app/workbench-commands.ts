@@ -63,6 +63,19 @@ export function subscribeExtChanges(
 }
 
 /**
+ * 프로필 파일이 바뀐 알림(`profile.changed`)마다 `listener`를 부른다. 확장 목록 알림(`subscribeExtChanges`)과 따로 둔다:
+ * 확장 목록 구독자는 확장 목록 전체를 다시 읽으므로, 프로필 목록만 다시 읽을 곳이 그 무게를 떠안지 않게 한다. 반환값은 구독 해제
+ */
+export function subscribeProfilesChanges(
+  connection: Pick<HostConnection, "onNotification">,
+  listener: () => void,
+): () => void {
+  return connection.onNotification("profile.changed", () => {
+    listener();
+  });
+}
+
+/**
  * 주도권 스택이 바뀐 알림(`drive.framesChanged`)이 이 대화의 것이면 `listener`를 부른다. 반환값은 구독 해제
  */
 export function subscribeDriveFrames(
@@ -98,6 +111,7 @@ export function createWorkbenchCommands(
   withConnection: WithConnection,
   subscribeChanges: (listener: (settled: boolean) => void) => () => void,
   subscribeDrive: (threadId: string, listener: () => void) => () => void,
+  subscribeProfiles: (listener: () => void) => () => void,
 ): WorkbenchCommands {
   // 미리 본 초안: 원본 폴더와 내용 해시 → draftId. `install`이 같은 초안을 검토함으로 보낸다
   const drafts = new Map<string, string>();
@@ -187,6 +201,11 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("profile.list", {}));
       return got.ok ? ok(got.value.profiles) : err(got.error);
     },
+    async profileList() {
+      const got = await withConnection((c) => c.request("profile.list", {}));
+      return got.ok ? ok(got.value) : err(got.error);
+    },
+    onProfilesChanged: subscribeProfiles,
     // `thread.setProfile`은 쓰기 소유자만 부른다. 앱은 첫 턴(`turn.start`) 전까지 대화를 관찰로만 열므로, 고르기 전에 쓰기로 연다
     // (`thread.open write`, 이미 쥐었으면 그대로다). 다른 프로세스가 쥐었으면 그 오류(locked)를 그대로 돌려준다
     applyProfile: (id, threadId) =>

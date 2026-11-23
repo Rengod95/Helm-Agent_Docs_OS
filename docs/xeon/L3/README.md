@@ -39,6 +39,7 @@ Drive 플러그인이 필요한 이유:
 |---|---|---|---|---|---|---|
 | orchestration-sdk | Drive 플러그인 기반 | L3-a | `xeon/packages/orchestration-sdk` | `L3.group-sdk.spec`, `L3.group-sdk.plan` | M1 테스트 플러그인(on·post·drive), M2 본체, 2차 재생 검사·승격·계측 | 제공(drive 락 정책). 자신은 쓰지 않는다. M1 테스트 플러그인은 쓴다 |
 | helm | Helm (기본 플러그인) | L3-b | `xeon/packages/plugin-helm` | `L3.helm.spec`, `L3.helm.plan` | M2 | 쓴다 |
+| suggest | 제안 (기본 플러그인, 보통 플러그인, 지식 대기열 목록과 개수) | L3 | `xeon/packages/plugin-suggest` | `L3.suggest.spec` | M3 | 쓰지 않는다 |
 | learning | 학습 플러그인 (빌트인에서 뺌, 2026-11-18. 재설계 재료) | L3-c | `xeon/packages/plugin-learning` | `L3.learning.spec`, `L3.learning.plan` | M3(Helm과 공존), 2차 큐레이터·학습 이력·스크립트 제안 | 쓰지 않는다 [결정] |
 | authoring | 플러그인 빌더 (내장 플러그인, 기본 켜짐·도구 지연) [결정: 2026-11-13 사용자] | - | `xeon/packages/plugin-builder` (파일 일은 `xeon/packages/core-authoring`, `L1.authoring.spec`) | `L3.authoring.spec` | M4 | 쓴다 |
 | guide | Fresnel Guide (내장 플러그인, 기본 꺼짐·개발 모드에서 켜짐) [결정: 2026-11-13 사용자] | - | `xeon/packages/plugin-guide` | `L3.guide.spec` | - | 쓰지 않는다 |

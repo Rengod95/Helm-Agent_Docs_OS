@@ -85,6 +85,33 @@ test("a bundled plugin is released on the first start and not released again on 
   ]);
 });
 
+test("the suggest plugin built from its own package is released as a bundled default, and kept on the second start", async () => {
+  const rig = rigOf();
+  // 실제 빌드 산출물(번들 스크립트가 쓴 plugin.json)을 검토 저장소에 넣는다. 검토 카드와 목적과 설명 검사를 같이 지난다
+  const built = Bun.spawnSync(
+    [
+      process.execPath,
+      join(import.meta.dir, "../../../../../packages/plugin-suggest/scripts/build-plugin.ts"),
+      join(rig.bundleDir, "suggest"),
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  expect(built.exitCode).toBe(0);
+  const first = await startup(rig, ["suggest"]);
+  expect(first.released).toEqual(["suggest"]);
+  const current = await rig.store.current("suggest");
+  expect(current.ok && current.value?.meta.origin).toBe("bundled");
+  expect(current.ok && current.value?.meta.card.review.state).toBe("approved");
+
+  const second = await startup(rig, ["suggest"]);
+  expect(second.released).toEqual([]);
+  expect(second.kept).toEqual(["suggest"]);
+  const log = await rig.store.readLog();
+  expect(log.ok && log.value.map((entry) => [entry.actor, entry.decision, entry.name])).toEqual([
+    ["release", "bundled", "suggest"],
+  ]);
+});
+
 test("an installed plugin is migrated when no reviewed copy holds its name, and its folder stays where it is", async () => {
   const rig = rigOf();
   manifestFolder(join(rig.installedDir, "kit"), "kit", "0.3.0");

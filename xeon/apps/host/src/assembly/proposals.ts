@@ -1,12 +1,17 @@
-import { attemptAsync, parse, parseJson, type LogFields } from "@fresnel/contracts";
+import { attemptAsync, parse, parseJson, type LogFields, type Result } from "@fresnel/contracts";
 import {
   isCapabilityError,
   KnowledgeLedger,
   KnowledgeLedgerKey,
   type CallOptions,
 } from "@fresnel/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import {
+  defineManifest,
+  type ExtensionEntry,
+  type RegistrationStatus,
+} from "@fresnel/contracts/extensions";
 import type {
+  ProfileListResult,
   ProposalDecideResult,
   ProposalListParams,
   ProposalListResult,
@@ -17,6 +22,7 @@ import { createKnowledgeProposalWire, type KnowledgeProposalWire } from "@fresne
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import type { ProposalPort } from "../types.ts";
+import { SUGGEST_PLUGIN_NAME } from "./default-plugins.ts";
 
 // M3-REQ-18. 승인 화면이 읽는 제안 대기열은 L2.knowledge 하나다. 학습 그룹은 빌트인에서 빠졌다(2026-11-18 사용자, AGE-49): 학습 출처(`source: "learning"`)의 목록은
 // 늘 `unavailable`이고 결정은 거절한다. 이 파일은 조립 루트 코드다(DR-14 예외 2).
@@ -30,7 +36,13 @@ const TIE_PAD = 50;
 export interface ProposalPortDeps {
   /** 지식 기능이 있으면 대기열 어댑터, 없으면 undefined */
   readonly knowledge: () => KnowledgeProposalWire | undefined;
-  /** 오류 기록(결정에 쓰지 않는 실패: 알 수 없는 오류 코드) */
+  /**
+   * 제안 플러그인(`suggest`)이 켜져 있는가(`suggestGateOf`). 등록이 `enabled`이고 어느 프로필(공통 묶음 포함)에든 있어야 참이다.
+   * 꺼졌거나, 프로필에서 뺐거나, 설치되지 않았거나, 프로필을 못 읽었으면 거짓이다. 거짓이면 목록의 지식 출처는 `unavailable`이고
+   * 결정은 `unavailable`이다. 다시 켜면 다음 호출부터 열린다(호출 때마다 읽는다)
+   */
+  readonly suggestEnabled: () => Promise<boolean>;
+  /** 오류 기록(결정에 쓰지 않는 실패: 알 수 없는 오류 코드, 프로필을 못 읽은 사유) */
   readonly report: (message: string, fields: LogFields) => void;
 }
 
@@ -75,6 +87,64 @@ function afterCursor(row: RowKey, cursor: RowKey | undefined): boolean {
   return cursor === undefined || compareKeys(row, cursor) > 0;
 }
 
+/** 등록 정보 가운데 켜짐 판정이 쓰는 두 칸 */
+export interface SuggestRegistration {
+  readonly id: string;
+  readonly status: RegistrationStatus;
+}
+
+/**
+ * 프로필 목록에 든 플러그인 이름의 집합. 프로필 전부와 공통 묶음(`common`)의 플러그인을 모두 센다. 제안 플러그인이 어디에든 있는지 가른다
+ */
+export function pluginNamesInProfiles(
+  list: Pick<ProfileListResult, "profiles" | "common">,
+): ReadonlySet<string> {
+  const names = new Set<string>(list.common.plugins.map((ref) => ref.name));
+  for (const profile of list.profiles) {
+    for (const ref of profile.plugins) names.add(ref.name);
+  }
+  return names;
+}
+
+/**
+ * 제안 플러그인이 켜져 있는가(순수 판정). 루트 등록(이름 `suggest`)의 상태가 `enabled`이고, 어느 프로필(공통 묶음 포함)에든
+ * 들어 있어야 참이다. 등록이 없으면(설치되지 않았음), `enabled`가 아니면 거짓이다. `pluginsInProfiles`는 `pluginNamesInProfiles`의 값이다
+ */
+export function suggestEnabledOf(
+  registrations: readonly SuggestRegistration[],
+  pluginsInProfiles: ReadonlySet<string>,
+): boolean {
+  if (!pluginsInProfiles.has(SUGGEST_PLUGIN_NAME)) return false;
+  return registrations.some((info) => info.id === SUGGEST_PLUGIN_NAME && info.status === "enabled");
+}
+
+/** `suggestGateOf`의 입력. 등록 목록과 프로필 목록을 호출 때마다 읽는 쪽이 준다 */
+export interface SuggestGateDeps {
+  readonly registrations: () => readonly SuggestRegistration[];
+  /** 프로필 목록(`profile.list`가 쓰는 포트와 같은 원천). 읽지 못하면 실패 값을 준다 */
+  readonly profiles: () => Promise<
+    Result<Pick<ProfileListResult, "profiles" | "common">, { readonly kind: string }>
+  >;
+  readonly report: (message: string, fields: LogFields) => void;
+}
+
+/**
+ * 제안 게이트의 값. 호출 때마다 등록과 프로필을 읽는다(캐시하지 않는다: 파일을 바깥에서 고쳐도 다음 호출에 반영된다).
+ * 프로필을 못 읽으면(실패 값이거나 던짐) 거짓으로 닫고 사유를 `proposal.suggest_gate_unreadable`로 남긴다. 이전 판정을 쓰지 않는다
+ */
+export async function suggestGateOf(deps: SuggestGateDeps): Promise<boolean> {
+  const read = await attemptAsync(deps.profiles);
+  if (!read.ok) {
+    deps.report("proposal.suggest_gate_unreadable", { reason: "threw" });
+    return false;
+  }
+  if (!read.value.ok) {
+    deps.report("proposal.suggest_gate_unreadable", { reason: read.value.error.kind });
+    return false;
+  }
+  return suggestEnabledOf(deps.registrations(), pluginNamesInProfiles(read.value.value));
+}
+
 /** 호스트(사용자)가 부른 호출 문맥. 결정과 목록은 사람의 일이다(`ledger.decide`는 호스트 호출만 받는다) */
 function hostCall(signal: AbortSignal): CallOptions {
   return { signal, context: { caller: { kind: "host" } } };
@@ -95,6 +165,7 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
     cursor: RowKey | undefined,
     signal: AbortSignal,
   ): Promise<readonly ProposalRow[] | undefined> {
+    if (!(await deps.suggestEnabled())) return undefined;
     const wire = deps.knowledge();
     if (wire === undefined) return undefined;
     const read = await attemptAsync(() =>
@@ -145,6 +216,9 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
     async decide(params, signal) {
       if (params.source === "learning") {
         return decideFailure("unavailable", "the learning plugin is not built in");
+      }
+      if (!(await deps.suggestEnabled())) {
+        return decideFailure("unavailable", "the suggest plugin is off");
       }
       const wire = deps.knowledge();
       if (wire === undefined)

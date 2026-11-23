@@ -1,4 +1,4 @@
-import { parse } from "@fresnel/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   definePlugin,
   pluginManifest,
@@ -10,7 +10,8 @@ import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 
 // 칸반 본보기. 상태 하나(카드 목록과 새 카드 번호), 읽기 메서드 board, 쓰기 메서드 move와 add,
 // 같은 함수를 쓰는 모델 도구 kanban_move_card와 kanban_add_card. 화면(ui/app)은 메서드를 부르고 모델은 도구를 부른다.
-// 둘 다 moveCard와 addCard 하나로 상태를 고치므로 같은 보드를 본다.
+// 상태가 놓이는 곳은 대화가 정한다. 대화가 열려 있으면 상태 문서(g.state, g.commit), 없으면 플러그인 저장소(g.pluginStore, 키 `board`)다.
+// 옮기기와 더하기 계산은 moveCard와 addCard 하나씩이고, 두 출처를 BoardSource로 받아 계산만 한 벌로 쓴다.
 
 const COLUMNS = ["todo", "doing", "done"] as const;
 type Column = (typeof COLUMNS)[number];
@@ -18,20 +19,25 @@ type Column = (typeof COLUMNS)[number];
 const CARD_MAX = 500;
 const TITLE_MAX = 200;
 const ID_MAX = 40;
+const BOARD_KEY = "board";
 
-interface Card {
+type Card = {
   readonly id: string;
   readonly title: string;
   readonly column: Column;
   /** 칸 안의 자리(0부터). 칸마다 0부터 다시 매긴다 */
   readonly order: number;
-}
+};
 
-interface BoardState {
-  readonly cards: readonly Card[];
+/**
+ * 상태의 모양. 플러그인 저장소에 그대로 쓰므로 JSON 값으로 받아야 한다. 인터페이스는 색인 시그니처를 암묵으로 받지 못하고
+ * readonly 배열은 JSON 배열에 닿지 않아서 객체 리터럴 타입과 가변 배열을 쓴다.
+ */
+type BoardState = {
+  readonly cards: Card[];
   /** 다음 카드 번호. 새 카드의 id는 `card-<번호>`다 */
   readonly seq: number;
-}
+};
 
 const columnSchema = Type.Union([
   Type.Literal("todo"),
@@ -77,17 +83,58 @@ type CardOutcome =
   | { readonly ok: false; readonly reason: string };
 
 /**
+ * 보드 상태의 출처. 실패는 값으로 돌려주고, 실패의 `error`는 이유 종류다(저장소 오류 종류 또는 `storage_unavailable`).
+ */
+interface BoardSource {
+  read(): Promise<Result<BoardState, string>>;
+  write(next: BoardState): Promise<Result<BoardState, string>>;
+}
+
+/** 대화가 열려 있을 때: 상태 문서를 읽고 g.commit으로 쓴다 */
+function threadBoard(g: BoardApi): BoardSource {
+  return {
+    read: () => Promise.resolve(ok(g.state())),
+    write: async (next) => ok(await g.commit(next)),
+  };
+}
+
+/**
+ * 대화가 없을 때: 플러그인 저장소의 `board` 키를 읽고 쓴다. 저장된 값이 보드 모양이 아니면 저장 데이터가 깨진 것이다.
+ */
+function storeBoard(g: BoardApi): BoardSource {
+  return {
+    read: async () => {
+      const stored = await g.pluginStore.get(BOARD_KEY);
+      if (!stored.ok) return err(stored.error.kind);
+      if (stored.value === null) return ok(initialState);
+      const checked = parse(stateSchema, stored.value);
+      return checked.ok ? ok(checked.value) : err("storage_unavailable");
+    },
+    write: async (next) => {
+      const put = await g.pluginStore.put(BOARD_KEY, next);
+      return put.ok ? ok(next) : err(put.error.kind);
+    },
+  };
+}
+
+/**
+ * 저장소 쪽의 읽고-고쳐-쓰기를 한 줄로 세운다. 저장소는 쓰기만 직렬화하므로(한도 검사 때문) 두 더하기가 같은 보드를 읽으면
+ * 같은 카드 번호를 쓰고 한쪽 카드가 사라진다. 대화 쪽은 g.commit이 맡는다.
+ */
+let storeLine: Promise<unknown> = Promise.resolve();
+function inStoreLine<T>(work: () => Promise<T>): Promise<T> {
+  const run = storeLine.then(work);
+  storeLine = run.then(() => undefined);
+  return run;
+}
+
+/**
  * 카드를 칸과 자리에 둔다. 나머지 카드는 그대로 두고, 칸마다 순서를 0부터 다시 매긴다.
  * `index`가 칸의 카드 수보다 크면 맨 끝에 둔다.
  */
-function placed(
-  cards: readonly Card[],
-  moving: Card,
-  column: Column,
-  index: number,
-): readonly Card[] {
+function placed(cards: readonly Card[], moving: Card, column: Column, index: number): Card[] {
   const rest = cards.filter((card) => card.id !== moving.id);
-  const inColumn = (name: Column): readonly Card[] =>
+  const inColumn = (name: Column): Card[] =>
     rest.filter((card) => card.column === name).toSorted((a, b) => a.order - b.order);
   const target = inColumn(column);
   const at = Math.min(index, target.length);
@@ -98,28 +145,41 @@ function placed(
 }
 
 /** 카드 하나를 옮긴다. 메서드 move와 모델 도구 kanban_move_card가 이 함수 하나를 쓴다 */
-async function moveCard(g: BoardApi, input: MoveInput): Promise<CardOutcome> {
-  const current = g.state();
-  const moving = current.cards.find((card) => card.id === input.id);
+async function moveCard(board: BoardSource, input: MoveInput): Promise<CardOutcome> {
+  const current = await board.read();
+  if (!current.ok) return { ok: false, reason: current.error };
+  const moving = current.value.cards.find((card) => card.id === input.id);
   if (moving === undefined) return { ok: false, reason: "not_found" };
-  const next = placed(current.cards, moving, input.column, input.index);
-  const committed = await g.commit({ cards: next, seq: current.seq });
-  return { ok: true, cards: committed.cards };
+  const next = placed(current.value.cards, moving, input.column, input.index);
+  const written = await board.write({ cards: next, seq: current.value.seq });
+  if (!written.ok) return { ok: false, reason: written.error };
+  return { ok: true, cards: written.value.cards };
 }
 
 /** 할 일 칸 맨 끝에 카드를 더한다. 메서드 add와 모델 도구 kanban_add_card가 이 함수 하나를 쓴다 */
-async function addCard(g: BoardApi, input: AddInput): Promise<CardOutcome> {
-  const current = g.state();
-  if (current.cards.length >= CARD_MAX) return { ok: false, reason: "full" };
+async function addCard(board: BoardSource, input: AddInput): Promise<CardOutcome> {
+  const current = await board.read();
+  if (!current.ok) return { ok: false, reason: current.error };
+  if (current.value.cards.length >= CARD_MAX) return { ok: false, reason: "full" };
   const card: Card = {
-    id: `card-${String(current.seq + 1)}`,
+    id: `card-${String(current.value.seq + 1)}`,
     title: input.title,
     column: "todo",
     order: 0,
   };
-  const next = placed(current.cards, card, "todo", CARD_MAX);
-  const committed = await g.commit({ cards: next, seq: current.seq + 1 });
-  return { ok: true, cards: committed.cards };
+  const next = placed(current.value.cards, card, "todo", CARD_MAX);
+  const written = await board.write({ cards: next, seq: current.value.seq + 1 });
+  if (!written.ok) return { ok: false, reason: written.error };
+  return { ok: true, cards: written.value.cards };
+}
+
+/** 고침 하나를 상태의 출처에 맞춰 돌린다. 대화가 열려 있으면 바로, 없으면 저장소 줄 위에서 돌린다 */
+function editBoard(
+  g: BoardApi,
+  open: boolean,
+  edit: (board: BoardSource) => Promise<CardOutcome>,
+): Promise<CardOutcome> {
+  return open ? edit(threadBoard(g)) : inStoreLine(() => edit(storeBoard(g)));
 }
 
 const board: PluginModule = definePlugin<BoardState>({
@@ -127,26 +187,27 @@ const board: PluginModule = definePlugin<BoardState>({
   state: { schema: stateSchema, initial: initialState, version: 1 },
   setup(g) {
     g.registerMethod("board", {
-      handler: (_params, ctx) => {
-        // 대화가 없거나 열려 있지 않으면 상태 문서가 없으므로 빈 보드를 준다
+      handler: async (_params, ctx) => {
         const open = ctx.threadId !== null && ctx.threadOpen !== false;
-        return Promise.resolve({ ok: true, cards: open ? g.state().cards : [] });
+        const source = open ? threadBoard(g) : storeBoard(g);
+        const read = await source.read();
+        return read.ok ? { ok: true, cards: read.value.cards } : { ok: false, reason: read.error };
       },
     });
     g.registerMethod("move", {
       handler: async (params, ctx) => {
-        if (ctx.threadId === null) return { ok: false, reason: "no_thread" };
         const checked = parse(moveParams, params);
         if (!checked.ok) return { ok: false, reason: "invalid_params" };
-        return moveCard(g, checked.value);
+        const open = ctx.threadId !== null && ctx.threadOpen !== false;
+        return editBoard(g, open, (source) => moveCard(source, checked.value));
       },
     });
     g.registerMethod("add", {
       handler: async (params, ctx) => {
-        if (ctx.threadId === null) return { ok: false, reason: "no_thread" };
         const checked = parse(addParams, params);
         if (!checked.ok) return { ok: false, reason: "invalid_params" };
-        return addCard(g, checked.value);
+        const open = ctx.threadId !== null && ctx.threadOpen !== false;
+        return editBoard(g, open, (source) => addCard(source, checked.value));
       },
     });
     g.registerTool({
@@ -158,7 +219,7 @@ const board: PluginModule = definePlugin<BoardState>({
         if (ctx.threadId === null) return { ok: false, reason: "no_thread" };
         const checked = parse(moveParams, args);
         if (!checked.ok) return { ok: false, reason: "invalid_input" };
-        return moveCard(g, checked.value);
+        return moveCard(threadBoard(g), checked.value);
       },
     });
     g.registerTool({
@@ -170,7 +231,7 @@ const board: PluginModule = definePlugin<BoardState>({
         if (ctx.threadId === null) return { ok: false, reason: "no_thread" };
         const checked = parse(addParams, args);
         if (!checked.ok) return { ok: false, reason: "invalid_input" };
-        return addCard(g, checked.value);
+        return addCard(threadBoard(g), checked.value);
       },
     });
   },

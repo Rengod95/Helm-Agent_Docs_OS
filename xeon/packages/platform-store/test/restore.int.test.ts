@@ -172,13 +172,13 @@ describe("restoreDatabase", () => {
     const db = new Database(join(f.backup, "fresnel.sqlite"));
     db.run(
       `INSERT INTO sys_migrations (owner, version, checksum, applied_at, engine_version)
-       VALUES ('sys', 4, '${"1".repeat(64)}', 1, '9.9.9')`,
+       VALUES ('sys', 5, '${"1".repeat(64)}', 1, '9.9.9')`,
     );
     db.close();
     const restored = restoreDatabase({ dbPath: f.dbPath, backupDir: f.backup, clock: f.clock });
     expect(restored).toEqual({
       ok: false,
-      error: { kind: "future_version", backupVersion: 4, codeVersion: 3 },
+      error: { kind: "future_version", backupVersion: 5, codeVersion: 4 },
     });
     expect(rowsOf(f.dbPath)).toEqual([{ body: "current" }]);
     expect(existsSync(join(f.root, "data", "restore-previous"))).toBe(false);

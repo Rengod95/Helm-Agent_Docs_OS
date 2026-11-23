@@ -1118,6 +1118,10 @@ export interface WorkbenchCommands {
   stop(name: string): Promise<Result<null, CommandError>>;
   /** `profile.list`: 저장된 프로필 목록 */
   profiles(): Promise<Result<readonly Profile[], CommandError>>;
+  /** `profile.list`의 결과 전부: 프로필 목록과 공통 묶음. 제안 플러그인의 켜짐은 공통 묶음에 든 것도 본다 */
+  profileList(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** 프로필 파일이 바뀌었다는 알림(`profile.changed`)마다 부른다. 반환값은 구독 해제 */
+  onProfilesChanged(listener: () => void): () => void;
   /** `thread.setProfile { threadId, profileId }`: 대화가 참조하는 프로필을 바꾼다(저장은 하지 않는다). 결과는 바뀜의 미리 보기다 */
   applyProfile(
     id: string,

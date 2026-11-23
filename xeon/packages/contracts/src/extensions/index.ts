@@ -23,6 +23,7 @@ export * from "./context-trace.ts";
 export * from "./plugin-call-trace.ts";
 export * from "./turn-record-sink.ts";
 export * from "./ports.ts";
+export * from "./plugin-store.ts";
 export * from "./validate.ts";
 export * from "./effects.ts";
 export * from "./isolation-protocol.ts";

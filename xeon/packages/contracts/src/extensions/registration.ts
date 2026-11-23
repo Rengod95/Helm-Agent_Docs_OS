@@ -3,6 +3,7 @@ import type { Result } from "../base/index.ts";
 import type { ServiceKey } from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
 import type { OrchestrationRecord, RecordKind, RecordSubject } from "./group-record.ts";
+import type { PluginStoreApi } from "./plugin-store.ts";
 import type { ExtensionManifest } from "./manifest.ts";
 import type { ExtensionOps } from "./ops.ts";
 import type { RegistrationId } from "./registration-id.ts";
@@ -40,6 +41,8 @@ export interface RegistrationApi<S> extends ExtensionOps<S> {
    * [결정(잠정): review.decisions-2 T-21]
    */
   recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void>;
+  /** 플러그인 전용 저장소(대화 없이도 쓴다). 이름 공간은 이 플러그인 하나다(X.primitives.spec §4.6.7) */
+  pluginStore: PluginStoreApi;
   /** 기능 서비스 API. key의 기능은 매니페스트 requires나 optional에 있어야 한다. 공급자 등록(provide)은 F에 두지 않고 X `hostOf(g).provide`다 [결정: M3-REQ-13] */
   capability<Api>(key: ServiceKey<Api>): Api;
   /** 비활성화나 언로드 때 실행할 정리 동작 */

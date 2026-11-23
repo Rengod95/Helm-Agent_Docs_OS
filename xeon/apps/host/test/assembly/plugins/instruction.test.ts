@@ -96,6 +96,7 @@ function hooksFor(edits: Edits): ApprovalHookDeps {
     },
     loader: () => undefined,
     refreshPluginSet: () => Promise.resolve(),
+    pluginDataStore: { clear: () => Promise.resolve(ok(undefined)) },
     facts: () => [],
     log: SILENT,
   };

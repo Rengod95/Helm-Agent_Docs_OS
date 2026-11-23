@@ -173,6 +173,8 @@ export interface ExtHostDeps {
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 선언 없는 쓰기 요청 워커(§4.10). 없으면 X의 기본 워커 [제안] */
   readonly effectWorker?: EffectWorkerPort;
+  /** 플러그인 전용 저장소 포트(§4.6.7). 없으면 저장소 연산은 `storage_unavailable`이다 */
+  readonly pluginStore?: PluginStorePort;
   /** 확장 메서드 호출이 처리기에 닿았을 때 한 번 부른다(§4.12). 없으면 보고하지 않는다 [제안, M4 T-XV] */
   readonly onMethodSettled?: (info: ExtMethodSettled) => void;
   /**
@@ -922,7 +924,8 @@ export type PrimitiveErrorCode =
   | "capability_undeclared" | "capability_unavailable" | "capability_ambiguous"
   | "service_reserved" | "tool_risk_reserved" | "resource_conflict" | "resource_name_invalid" | "method_schema_invalid"
   | "read_only_method"
-  | "own_data_method";
+  | "own_data_method"
+  | "store_outside_method" | "store_value_invalid";
 
 export class PrimitiveError extends Error {
   readonly code: PrimitiveErrorCode;
@@ -1615,6 +1618,21 @@ recordPrivate(kind, payload):
 - 출력: 명령 처리기가 돌려준 값(`CommandOutput`, 또는 `void`)은 `registerCommand`가 감싼 정의를 거쳐 호출한 쪽에 그대로 간다. X는 메시지를 만들거나 바꾸지 않는다. 화면에 낼지는 호출한 쪽(L4)이 정한다.
 - 도구 `execute`의 `ctx.caller`(`CallerInfo`)는 L1.tools가 채운다. `caller.afterUntrusted`는 이번 turn이 웹·MCP 도구 결과를 읽었는지다(M3-REQ-100, L1.tools.spec §4.3). X는 값을 건드리지 않고 정의에 그대로 넘긴다.
 - `onDispose`와 다른 곳에서 부르는 `shortcut` 처리기는 ambient를 받지 않는다 [결정: L3.learning.spec이 `onDispose`에서 하는 일은 `g.cancelDelegates`뿐이라 기록·상태 쓰기가 필요 없다]. 필요가 생기면 요구를 먼저 정한다.
+
+#### 4.6.7 플러그인 전용 저장소 [결정: 2026-11-24 설계, AGE-78 후속]
+
+대화에 묶이지 않는 플러그인별 JSON 키-값 저장소다. `g.state()`는 대화에 묶여 있어 대화가 없으면 `no_thread`가 난다. 대화 없이 여는 확장 메서드(`ctx.threadId === null`)가 쓸 곳이 따로 필요해서 둔다.
+
+- API: `g.pluginStore`(F `RegistrationApi.pluginStore`, 타입 `PluginStoreApi`). `get(key)`는 `Result<JsonValue | null, PluginStoreError>`, `put(key, value)`와 `delete(key)`는 `Result<void, PluginStoreError>`, `list(prefix?)`는 `Result<readonly {key, value}[], PluginStoreError>`다. 모두 비동기다. `list`는 키 오름차순이다. 없는 키를 지우는 것은 실패가 아니다.
+- 한도(F `PLUGIN_STORE_LIMITS`): 키는 `^[a-z0-9][a-z0-9._-]{0,63}$`다. 목록 접두는 `^[a-z0-9._-]{0,64}$`(비어 있을 수 있다). 값은 JSON 텍스트의 UTF-8 바이트 수로 재서 64 KiB(65536) 이하다. 플러그인당 키는 256개 이하, 값 총량은 1 MiB(1048576바이트) 이하다. 덮어쓰기는 옛 값의 바이트를 빼고 센다.
+- 오류: 던지지 않고 값으로 돌려준다. `{kind}`의 종류는 `store_key_invalid`(형식 위반), `store_value_too_large`(64 KiB 초과), `store_full`(키 수나 총량 초과), `storage_unavailable`(포트가 없거나 포트가 실패했거나 저장된 값이 JSON이 아니다)이다. 원인은 `cause`에 둔다. 격리 프로토콜에는 종류만 싣는다.
+- 쓰기 규칙: `put`과 `delete`는 확장 메서드 처리기 안에서만 된다. 처리기 흐름에 메서드 표지(`withExtMethod`)가 있어야 하고, ambient가 있으면 그 `invocation`이 `"method"`여야 한다. 훅, on 핸들러, drive, setup 본문, 도구 `execute`, 명령 처리기에서 부르면 `store_outside_method`(`PrimitiveError`)로 던지고 아무것도 쓰지 않는다. `readOnly: true` 메서드에서 부르면 `read_only_method`(`PrimitiveError`)로 던진다. `ownDataOnly` 쓰기 메서드와 일반 쓰기 메서드는 된다. `get`과 `list`는 문맥과 상관없이 읽는다(§4.6.1의 `state()` 읽기와 같다).
+- 이름 공간과 격리: 이름 공간은 `g`를 만든 등록 레코드의 확장 이름 하나다. 플러그인 입력은 이름 공간을 고르지 못한다. 다른 확장의 키는 읽지도 쓰지도 못한다. 격리 자식은 `engine.call`의 `pluginStore`(params `{op: "get" | "put" | "delete" | "list", key?, value?, prefix?}`)로 같은 연산을 보내고, 엔진 라우터(`engine-calls.ts`)가 같은 `g.pluginStore`로 옮긴다. 쓰기 자격은 엔진이 판정한다. 요청이 확장 메서드의 것이면 그 표지(`EngineMethodScope`: `readOnly`, `ownData`)를 `methodScopeOf`로 받아 처리기 흐름에 싣고, 훅이나 drive의 요청에는 표지가 없어 쓰기가 거부된다. 돌려 보기(후보 실행기) 문맥에서 쓰기는 버리고 성공으로 답하며, 읽기는 빈 값(`null`, 빈 목록)으로 답한다.
+- 쓰기 직렬화: 같은 확장의 `put`과 `delete`는 확장마다 한 줄로 세운다. 한도 검사와 쓰기 사이에 다른 쓰기가 끼어 한도를 넘지 않게 하려는 것이다.
+- 포트: `ExtHostDeps.pluginStore?: PluginStorePort`(F `extensions/plugin-store.ts`). 메서드는 `get(extension, key)`, `put(extension, key, valueJson)`, `delete(extension, key)`, `list(extension, prefix)`, `usage(extension) -> {keys, bytes}`, `clear(extension)`이고 모두 `Promise<Result<…, PluginStoreError>>`다. ext-host는 키 형식, 값 크기, 키 수, 총량을 포트를 부르기 앞에서 강제한다. 포트가 돌려준 값도 다시 검사하며(행의 키가 접두 밖이거나 값이 JSON이 아니면 `storage_unavailable`), 포트의 한도를 믿지 않는다. 포트가 없으면 형식이 맞는 연산도 `storage_unavailable`이다. 실제 구현은 L0.store.spec §3.3(sys v4, `sys_plugin_store`)의 `OpenedStore.pluginStore`이고, 조립 루트(`apps/host/src/assemble.ts`)가 `createExtHost`에 늦은 위임 포트로 넘긴다. 저장소가 열리기 전의 호출은 `storage_unavailable`이다.
+- 지우면 같이 지워진다: 플러그인을 제거하면 그 이름 공간을 포트의 `clear(extension)`으로 모두 지운다. 제거 경로는 조립 루트가 부른다. 제거 승인이 커밋된 뒤 승인 훅의 `reflect`(`apps/host/src/assembly/plugins/approval.ts`, 제거 분기)가 한 번 부르고, 실패하면 제거는 되돌리지 않고 `plugin.review.plugin_data_failed`로 로그에만 남긴다. 제거 미리 보기 카드(`ReviewItemRemoval.removes`)는 이 저장소를 싣는 칸이 없어 `records`와 `state`로 나타내지 않는다 [미결] [근거: packages/contracts/src/wire-settings/wire/plugin-review.ts의 `ReviewItemRemovalShape`].
+- 시험: `packages/ext-host/test/primitives/plugin-store.test.ts`(대화 없는 메서드와 대화 있는 메서드의 왕복, 두 플러그인의 같은 키 격리, readOnly와 ownDataOnly와 일반 쓰기, setup과 on 핸들러의 거부, 형식과 64 KiB 경계, 257번째 키, 1 MiB 총량과 덮어쓰기, 포트 부재와 포트 장애, 목록), `packages/ext-host/test/isolation/plugin-store-route.test.ts`(라우터 왕복과 거부), `packages/ext-host/test/isolation/plugin-store-isolated.test.ts`(실제 자식 런타임을 거친 왕복과 readOnly 거부), `packages/orchestration-sdk/test/plugin-store.test.ts`(SDK 경로). 시험용 포트는 `memoryPluginStore()`(`ext-host/src/primitives/testing/ports.ts`)다.
+- [미결] `get`과 `list`를 훅과 drive에서 어디까지 허용할지. 재실행되는 drive가 저장소의 바뀐 값을 읽으면 재생 결과가 달라질 수 있다. 지금은 `state()`처럼 제한하지 않는다 [근거: packages/ext-host/src/primitives/host-api.ts의 `pluginStore.get`·`list`는 문맥을 보지 않는다].
 
 ### 4.7 post
 

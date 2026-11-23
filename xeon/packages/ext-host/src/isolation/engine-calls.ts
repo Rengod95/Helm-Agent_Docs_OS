@@ -41,6 +41,7 @@ import {
   type PluginHostError,
   type PluginHostErrorOrigin,
   type PluginScriptPort,
+  type PluginStoreError,
   type RecordQuery,
   type RegistrationApi,
   type ReportedFileChange,
@@ -49,7 +50,13 @@ import {
   type ToolChangeReport,
 } from "@fresnel/contracts/extensions";
 import { stateAs } from "../erase.ts";
-import { type Ambient, withAmbient, withOwnDataMethod } from "../primitives/ambient.ts";
+import {
+  type Ambient,
+  withAmbient,
+  withExtMethod,
+  withOwnDataMethod,
+  withReadOnlyMethod,
+} from "../primitives/ambient.ts";
 import { PrimitiveError } from "../primitives/errors.ts";
 import type { AnyState } from "../primitives/erased-types.ts";
 import { EFFECT_KEY_MAX } from "../primitives/effect-worker.ts";
@@ -85,6 +92,7 @@ const EngineCallParamsSchema = Type.Object({
     Type.Literal("updateState"),
     Type.Literal("awaitUser"),
     Type.Literal("runScript"),
+    Type.Literal("pluginStore"),
   ]),
   registration: Type.String({ minLength: 1 }),
   requestId: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
@@ -170,6 +178,21 @@ const RequestEffectSchema = Type.Object({
 });
 
 /**
+ * `pluginStore`의 params: 플러그인 전용 저장소 연산 하나. 이름 공간은 연결한 플러그인이라 params에 없다(X.primitives.spec §4.6.7).
+ * 형식과 한도 검사는 호스트 서비스가 한다. 여기서는 모양만 본다
+ */
+const PluginStoreCallSchema = Type.Union([
+  Type.Object({ op: Type.Literal("get"), key: Type.String({ maxLength: 256 }) }),
+  Type.Object({
+    op: Type.Literal("put"),
+    key: Type.String({ maxLength: 256 }),
+    value: JsonValueSchema,
+  }),
+  Type.Object({ op: Type.Literal("delete"), key: Type.String({ maxLength: 256 }) }),
+  Type.Object({ op: Type.Literal("list"), prefix: Type.Optional(Type.String({ maxLength: 256 })) }),
+]);
+
+/**
  * `runScript`의 params(설계 B). 이름은 매니페스트 `scripts`의 이름 문법이다. 표준 입력은 없으면 빈 문자열이고
  * 상한(`SCRIPT_LIMITS.stdinBytes`)은 바이트로 본다(라우터가 본다)
  */
@@ -207,6 +230,17 @@ export interface EngineCallRouterDeps {
    * 확장마다 `createScriptRunner`로 만들어 준다
    */
   readonly scripts?: PluginScriptPort;
+  /**
+   * 호출을 낳은 요청이 확장 메서드 처리기의 요청이면 그 표지(`readOnly`, `ownDataOnly`). 메서드가 아니면 undefined다.
+   * 플러그인 전용 저장소의 쓰기는 이 값이 있을 때만 된다(X.primitives.spec §4.6.7)
+   */
+  readonly methodScopeOf?: (requestId: number | null) => EngineMethodScope | undefined;
+}
+
+/** 확장 메서드 처리기 요청의 표지. 자식 쪽 `method.call`이 흐르는 동안의 선언을 옮겨 둔다 */
+export interface EngineMethodScope {
+  readonly readOnly: boolean;
+  readonly ownData: boolean;
 }
 
 /** 요청 하나의 열린 사용자 대기 수. 라우터가 셈하고 대리 등록이 읽는다 */
@@ -223,6 +257,7 @@ interface RouteContext {
   readonly ambient: Ambient | undefined;
   readonly waits: OpenWaits | undefined;
   readonly scripts: PluginScriptPort | undefined;
+  readonly method: EngineMethodScope | undefined;
 }
 
 /** `engine.call` 하나를 처리한다. 값은 응답의 `result`이고 오류는 응답의 `error`다 */
@@ -480,6 +515,39 @@ async function route(
       }
       return ok(null);
     }
+    case "pluginStore": {
+      const parsed = parse(PluginStoreCallSchema, params);
+      if (!parsed.ok) return invalidParams(parsed.error);
+      const call = parsed.value;
+      // 돌려 보기에서는 쓰지 않고 성공으로 답한다(읽기는 아래에서 그대로 한다)
+      if (replay && (call.op === "put" || call.op === "delete")) {
+        return ok({ ok: true, value: null });
+      }
+      const store = g.pluginStore;
+      const reply = await inMethodScope(context.method, () => {
+        switch (call.op) {
+          case "get":
+            return store.get(call.key).then((result) => storeReplyOf(result, (value) => value));
+          case "put":
+            return store
+              .put(call.key, call.value)
+              .then((result) => storeReplyOf(result, () => null));
+          case "delete":
+            return store.delete(call.key).then((result) => storeReplyOf(result, () => null));
+          case "list":
+            return store
+              .list(call.prefix)
+              .then((result) =>
+                storeReplyOf(result, (entries) =>
+                  entries.map((entry) => ({ key: entry.key, value: entry.value })),
+                ),
+              );
+          default:
+            return assertNever(call, "PluginStoreCall");
+        }
+      });
+      return ok(reply);
+    }
     case "runScript": {
       const parsed = parse(RunScriptSchema, params);
       if (!parsed.ok) return invalidParams(parsed.error);
@@ -509,6 +577,22 @@ async function route(
   }
 }
 
+/** 저장소 결과를 `Result` 모양의 JSON 답으로 옮긴다. 오류는 종류만 싣는다(원인은 싣지 않는다) */
+function storeReplyOf<T>(
+  result: Result<T, PluginStoreError>,
+  toJson: (value: T) => JsonValue,
+): JsonValue {
+  return result.ok
+    ? { ok: true, value: toJson(result.value) }
+    : { ok: false, error: { kind: result.error.kind } };
+}
+
+/** 메서드 표지가 있으면 그 표지로 쓴다. 표지가 없으면(훅, drive, setup) 쓰기 검사가 거부한다 */
+function inMethodScope<T>(scope: EngineMethodScope | undefined, fn: () => T): T {
+  if (scope === undefined) return fn();
+  return withExtMethod(() => (scope.readOnly ? withReadOnlyMethod(fn) : fn()));
+}
+
 /** 실행기가 주입되지 않은 조립의 답. 띄우지 않고 닫힌 실패(`sandbox_unavailable`)로 준다 */
 const SCRIPTS_NOT_INJECTED: Result<ScriptRunResult, ScriptRunFailure> = err({
   kind: "sandbox_unavailable",
@@ -530,6 +614,7 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
       ambient: amb,
       waits: deps.waitsOf?.(params.requestId),
       scripts: deps.scripts,
+      method: deps.methodScopeOf?.(params.requestId),
     };
     const routeNow = (): ReturnType<typeof route> =>
       amb === undefined

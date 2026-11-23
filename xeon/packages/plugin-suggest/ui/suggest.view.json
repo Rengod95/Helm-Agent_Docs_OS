@@ -1,0 +1,8 @@
+{
+  "type": "Stack",
+  "props": { "gap": "md" },
+  "children": [
+    { "type": "Heading", "props": { "text": "suggest.page.title", "level": 2 } },
+    { "type": "Text", "props": { "text": "suggest.page.intro" } }
+  ]
+}

@@ -6,7 +6,7 @@ import type { EvidenceRef } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { locateTemplateDirs } from "@fresnel/core-authoring";
-import type { PluginMode } from "@fresnel/contracts/services";
+import type { PluginMode, ScaffoldMode } from "@fresnel/contracts/services";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import { createPluginService } from "../../src/assembly/plugins/index.ts";
@@ -23,7 +23,7 @@ afterAll(removeRigs);
 async function buildAndSubmit(
   port: ReturnType<typeof createDevkitPort>,
   dir: string,
-  mode: NonNullable<Parameters<ReturnType<typeof createDevkitPort>["scaffold"]>[0]["mode"]>,
+  mode: ScaffoldMode,
   origin: ThreadId,
   evidence: readonly [EvidenceRef],
 ): Promise<boolean> {

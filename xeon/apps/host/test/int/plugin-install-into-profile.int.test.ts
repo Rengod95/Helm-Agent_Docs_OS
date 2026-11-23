@@ -270,7 +270,7 @@ realTest(
     const model = recordingModels("install-default", ["one."], { contextWindow: 200_000 });
     const previousCwd = process.cwd();
     process.chdir(workspace);
-    // 번들 폴더가 비어 있어 공장 기본 프로필의 번들 플러그인(`helm`)이 이 엔진에 없다
+    // 번들 폴더가 비어 있어 공장 기본 프로필의 번들 플러그인(`helm`, `suggest`)이 이 엔진에 없다
     const host = await startHost(model);
     const connection = createHostConnection(host.client);
     try {
@@ -278,7 +278,7 @@ realTest(
       const collector = collectEvents(connection);
       await connection.request("events.subscribe", { from: "head" });
       const before = await connection.request("profile.get", { id: "default" });
-      expect(before.missingPlugins).toEqual(["helm"]);
+      expect(before.missingPlugins).toEqual(["helm", "suggest"]);
 
       const itemId = await install(connection, source);
       const decided = await connection.request("pluginReview.decide", {
@@ -287,11 +287,11 @@ realTest(
       });
       expect(decided.item.state).toBe("approved");
       expect(decided.appliedTo).toEqual(["default"]);
-      expect(decided.missingPlugins).toEqual(["helm"]);
+      expect(decided.missingPlugins).toEqual(["helm", "suggest"]);
       const stored = await connection.request("profile.get", { id: "default" });
       const names = stored.profile.plugins.map((ref) => ref.name);
       expect([names.includes("helm"), names.at(-1)]).toEqual([true, NAME]);
-      expect(stored.missingPlugins).toEqual(["helm"]);
+      expect(stored.missingPlugins).toEqual(["helm", "suggest"]);
 
       // 새로 넣는 플러그인 자체가 없으면 거절한다: 이미 있던 `helm`은 이름에 오르지 않는다
       const refused = await wireErrorOf(

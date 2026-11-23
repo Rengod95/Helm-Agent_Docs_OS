@@ -5,6 +5,7 @@ export * from "./version.ts";
 export * from "./cursor.ts";
 export * from "./notifications.ts";
 export * from "./proposals.ts";
+export * from "./proposal-rows.ts";
 export * from "./settings-files.ts";
 export * from "./status-notify.ts";
 export * from "./web-providers.ts";

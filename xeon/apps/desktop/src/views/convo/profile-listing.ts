@@ -1,18 +1,19 @@
 import { detach, rethrow } from "@fresnel/contracts";
-import type { Profile } from "@fresnel/contracts/wire";
+import type { CommonSet, Profile } from "@fresnel/contracts/wire";
 import { useCallback, useSyncExternalStore } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useCommands, type Commands } from "../commands.ts";
 
 // 대화 화면의 프로필 칩과 변화 표지가 같이 읽는 `profile.list`. 부품마다 따로 읽지 않고 명령 개체 하나에 저장소 하나를 둔다
-// (ext-listing.ts와 같은 모양). 구독자가 있는 동안 확장 목록 알림마다 다시 읽고, 칩 메뉴를 열 때도 다시 읽는다.
+// (ext-listing.ts와 같은 모양). 구독자가 있는 동안 확장 목록 알림과 프로필 변경 알림마다 다시 읽고, 칩 메뉴를 열 때도 다시 읽는다.
 
 /** 읽기 상태. 연결이 없으면 `offline`이다 */
 export type ProfilesRead =
   | { readonly kind: "offline" }
   | { readonly kind: "loading" }
   | { readonly kind: "failed" }
-  | { readonly kind: "ready"; readonly profiles: readonly Profile[] };
+  /** `common`은 전역 공통 묶음이다. 프로필 목록과 따로 읽히며, 켜짐 판정(제안 플러그인이 어디에든 있는가)이 함께 본다 */
+  | { readonly kind: "ready"; readonly profiles: readonly Profile[]; readonly common: CommonSet };
 
 interface Listing {
   read: ProfilesRead;
@@ -38,10 +39,15 @@ function load(commands: Commands, listing: Listing): void {
   listing.seq += 1;
   const mine = listing.seq;
   detach(
-    commands.workbench.profiles().then((result) => {
+    commands.workbench.profileList().then((result) => {
       if (mine !== listing.seq) return undefined;
       // 다시 읽다 실패해도 읽어 둔 목록은 그대로 둔다(칩이 깜빡이지 않는다). 처음 읽기만 실패로 보인다
-      if (result.ok) listing.read = { kind: "ready", profiles: result.value };
+      if (result.ok)
+        listing.read = {
+          kind: "ready",
+          profiles: result.value.profiles,
+          common: result.value.common,
+        };
       else if (listing.read.kind !== "ready") listing.read = { kind: "failed" };
       for (const listener of listing.listeners) listener();
       return undefined;
@@ -55,9 +61,16 @@ function subscribeListing(commands: Commands, listener: () => void): () => void 
   listing.listeners.add(listener);
   if (listing.stop === undefined) {
     load(commands, listing);
-    listing.stop = commands.workbench.onChanged(() => {
+    const offChanged = commands.workbench.onChanged(() => {
       load(commands, listing);
     });
+    const offProfiles = commands.workbench.onProfilesChanged(() => {
+      load(commands, listing);
+    });
+    listing.stop = () => {
+      offChanged();
+      offProfiles();
+    };
   }
   return () => {
     listing.listeners.delete(listener);

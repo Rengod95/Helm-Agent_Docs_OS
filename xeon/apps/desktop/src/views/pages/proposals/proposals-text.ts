@@ -111,6 +111,14 @@ export function doneNoticeOf(
   }
 }
 
+/**
+ * 띠로 알릴 읽지 못한 출처. 학습 플러그인은 빠졌으므로(AGE-74) 학습 출처의 "꺼져 있어요" 띠는 두지 않는다.
+ * 지식 출처의 띠는 그대로다. `unavailableTextIdOf`의 학습 줄은 쓰이지 않지만 뜻을 지우지 않는다
+ */
+export function bannerSourcesOf(unavailable: readonly ProposalSource[]): readonly ProposalSource[] {
+  return unavailable.filter((source) => source !== "learning");
+}
+
 /** 읽지 못한 출처의 문장. 문장은 `@fresnel/client/settings`의 것과 같은 id다 */
 export function unavailableTextIdOf(source: ProposalSource): MessageId {
   switch (source) {

@@ -256,7 +256,7 @@ const STORE_OPEN_ERRORS: Readonly<
     "corrupt",
   ],
   migration_future_version: [
-    { kind: "migration_future_version", owner: "sys", dbVersion: 9, codeVersion: 3 },
+    { kind: "migration_future_version", owner: "sys", dbVersion: 9, codeVersion: 4 },
     "storeFutureVersion",
     "future_version",
   ],

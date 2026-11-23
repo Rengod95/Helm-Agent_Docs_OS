@@ -4,11 +4,11 @@ import { SYS_OWNER } from "./prefix.ts";
 /**
  * owner "sys" 마이그레이션(L0.store.spec §3.3). 한 번 배포한 단계의 SQL은 고치지 않고 새 단계를 더한다(§4.6).
  * 단계는 구현 마일스톤과 같은 순서다: v1 sys_meta·sys_migrations·sys_migration_cursors·sys_prefixes(M0),
- * v2 sys_leases(M0), v3 sys_blobs·sys_blob_refs(M1).
+ * v2 sys_leases(M0), v3 sys_blobs·sys_blob_refs(M1), v4 sys_plugin_store(AGE-78, 플러그인 전용 저장소).
  */
 export const SYS_MIGRATION_SET: MigrationSet = {
   owner: SYS_OWNER,
-  version: 3,
+  version: 4,
   steps: [
     {
       version: 1,
@@ -75,6 +75,19 @@ export const SYS_MIGRATION_SET: MigrationSet = {
   PRIMARY KEY (sha256, owner, ref_key)
 ) STRICT`,
         "CREATE INDEX sys_blob_refs_by_key ON sys_blob_refs (owner, ref_key)",
+      ],
+    },
+    {
+      version: 4,
+      sql: [
+        `CREATE TABLE sys_plugin_store (
+  extension  TEXT NOT NULL,
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  bytes      INTEGER NOT NULL CHECK (bytes >= 0),
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (extension, key)
+) STRICT`,
       ],
     },
   ],

@@ -379,6 +379,8 @@ export function wrap<S, D extends OrchestrationSettingDefs>(
       counter.bump("records");
     },
     readRecords: (query) => api.readRecords(query),
+    // 플러그인 전용 저장소는 엔진의 g가 쓰기 자격과 이름 공간을 정하므로 그대로 넘긴다(X.primitives.spec §4.6.7)
+    pluginStore: api.pluginStore,
     recordPrivate: (kind, payload) => api.recordPrivate(kind, payload),
     capability: <Api>(key: ServiceKey<Api>): Api => api.capability(key),
     onDispose: (fn) => {

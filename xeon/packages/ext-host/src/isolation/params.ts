@@ -4,7 +4,12 @@
 // 명령과 메서드는 대화 밖에서도 불리므로 null을 받는다.
 import { Type } from "typebox";
 import { err, ok, parse, type ParseError, type Result } from "@fresnel/contracts";
-import { JsonValueSchema, ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import {
+  JsonValueSchema,
+  ThreadIdSchema,
+  type JsonValue,
+  type ThreadId,
+} from "@fresnel/contracts/conversation";
 import {
   DriveFrameInfoSchema,
   DriveLimitsSchema,
@@ -21,6 +26,8 @@ import {
   type DriveStepReply,
   type EventNotifyParams,
   type OrchestrationRecord,
+  type PluginStoreEntry,
+  type PluginStoreError,
   type HookInvokeParams,
   type HostDisposeParams,
   type HostInitParams,
@@ -341,4 +348,46 @@ export function parseScriptOutcome(
   value: unknown,
 ): Result<Result<ScriptRunResult, ScriptRunFailure>, ParseError> {
   return parse(scriptOutcomeSchema, value);
+}
+
+const pluginStoreErrorSchema = Type.Object({
+  kind: Type.Union([
+    Type.Literal("store_key_invalid"),
+    Type.Literal("store_value_too_large"),
+    Type.Literal("store_full"),
+    Type.Literal("storage_unavailable"),
+  ]),
+});
+
+const pluginStoreValueReplySchema = Type.Union([
+  Type.Object({ ok: Type.Literal(true), value: JsonValueSchema }),
+  Type.Object({ ok: Type.Literal(false), error: pluginStoreErrorSchema }),
+]);
+
+const pluginStoreEntriesReplySchema = Type.Union([
+  Type.Object({
+    ok: Type.Literal(true),
+    value: Type.Array(Type.Object({ key: Type.String(), value: JsonValueSchema })),
+  }),
+  Type.Object({ ok: Type.Literal(false), error: pluginStoreErrorSchema }),
+]);
+
+/** 엔진이 답한 `pluginStore`(get, put, delete) 결과. 실패는 값으로 온다 */
+export function parsePluginStoreValue(
+  value: unknown,
+): Result<Result<JsonValue, PluginStoreError>, ParseError> {
+  const checked = parse(pluginStoreValueReplySchema, value);
+  if (!checked.ok) return checked;
+  const reply = checked.value;
+  return ok(reply.ok ? ok(reply.value) : err({ kind: reply.error.kind }));
+}
+
+/** 엔진이 답한 `pluginStore`(list) 결과 */
+export function parsePluginStoreEntries(
+  value: unknown,
+): Result<Result<readonly PluginStoreEntry[], PluginStoreError>, ParseError> {
+  const checked = parse(pluginStoreEntriesReplySchema, value);
+  if (!checked.ok) return checked;
+  const reply = checked.value;
+  return ok(reply.ok ? ok(reply.value) : err({ kind: reply.error.kind }));
 }

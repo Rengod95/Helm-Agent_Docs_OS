@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { eachAsync } from "@fresnel/contracts";
 import type { CallOptions, Proposal } from "@fresnel/contracts/capabilities";
-import {
-  proposalRowOf,
-  createKnowledgeProposalWire,
-  knowledgeStatusesOf,
-} from "../src/approval/wire.ts";
+import { knowledgeStatusesOf, proposalRowOf } from "@fresnel/contracts/wire";
+import { createKnowledgeProposalWire } from "../src/approval/wire.ts";
 import { asHost, threadIdOf } from "./support/helpers.ts";
 import { contextOf } from "./support/plans.ts";
 import {

@@ -167,7 +167,10 @@ describe("migration runner", () => {
     const rows = store.root.read((tx) =>
       tx.all("SELECT version FROM sys_migrations WHERE owner = 'sys' ORDER BY version"),
     );
-    expect(rows).toEqual({ ok: true, value: [{ version: 1 }, { version: 2 }, { version: 3 }] });
+    expect(rows).toEqual({
+      ok: true,
+      value: [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }],
+    });
   });
 
   test("chunked migrations are not available before M2", async () => {

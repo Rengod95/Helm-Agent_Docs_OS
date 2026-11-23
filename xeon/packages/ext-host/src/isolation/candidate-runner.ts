@@ -256,6 +256,18 @@ const RequestEffectSchema = Type.Object({
   key: Type.String({ minLength: 1, maxLength: EFFECT_KEY_MAX }),
 });
 
+/** `pluginStore`의 params(engine-calls.ts와 같은 모양). 돌려 보기는 저장소를 읽지 않으므로 모양만 본다 */
+const PluginStoreCallSchema = Type.Union([
+  Type.Object({ op: Type.Literal("get"), key: Type.String({ maxLength: 256 }) }),
+  Type.Object({
+    op: Type.Literal("put"),
+    key: Type.String({ maxLength: 256 }),
+    value: JsonValueSchema,
+  }),
+  Type.Object({ op: Type.Literal("delete"), key: Type.String({ maxLength: 256 }) }),
+  Type.Object({ op: Type.Literal("list"), prefix: Type.Optional(Type.String({ maxLength: 256 })) }),
+]);
+
 const KIND_REGEX = new RegExp(RECORD_KIND_PATTERN);
 const READ_KIND_REGEX = new RegExp(RECORD_KIND_READ_PATTERN);
 
@@ -324,6 +336,14 @@ function answerEngineCall(
         kind: "replay_mode_denied",
         message: "a capability call cannot run in a replay",
       });
+    }
+    case "pluginStore": {
+      const parsed = parse(PluginStoreCallSchema, call.params);
+      if (!parsed.ok) return err(invalidParamsOf(parsed.error));
+      // 저장소는 읽지 않는다(readRecords와 같다). 쓰기는 버리고 성공으로 답한다
+      if (parsed.value.op === "get") return ok({ ok: true, value: null });
+      if (parsed.value.op === "list") return ok({ ok: true, value: [] });
+      return ok({ ok: true, value: null });
     }
     case "runScript":
       // 스크립트는 바깥에 부작용을 내므로 돌려 보기에서는 띄우지 않는다(기능 호출과 같이 거부하고 셈에 든다)

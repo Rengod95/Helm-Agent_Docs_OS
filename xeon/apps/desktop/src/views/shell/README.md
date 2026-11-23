@@ -27,7 +27,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 
 | 슬롯 | 누가 채우나 | 어떻게 |
 |---|---|---|
-| 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, Badge?, render })`(`desktop-registry.tsx`에 더함). `Badge`는 개수를 읽어 `render`로 넘기는 부품이라 값이 바뀌면 내비 줄이 따라 바뀐다. `id`는 내비 항목 id(`nav.ts`)와 같다 |
+| 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, Badge?, useAvailable?, render })`(`desktop-registry.tsx`에 더함). `useAvailable`이 거짓이면 내비 줄을 그리지 않는다(제안은 `suggest` 플러그인 켜짐을 따른다). `Badge`는 개수를 읽어 `render`로 넘기는 부품이라 값이 바뀌면 내비 줄이 따라 바뀐다. `id`는 내비 항목 id(`nav.ts`)와 같다 |
 | 오른쪽 탭 | 화면 트랙 | `registry.registerEndTab({ id, area, label, icon, badge?, Count?, Summary?, shortcut?, alwaysMounted?, width?, screens?, render })`. `badge`는 `TabBadge`(`read`, `subscribe`)이고 `Count`는 칸 수를 훅으로 읽는 부품(둘 다 있으면 `Count`). `Summary`는 well 머리 제목 옆 한 줄 요약, `shortcut`은 툴팁에 보일 동작 id. `alwaysMounted`는 탭을 열지 않아도 막대와 함께 그리는 부품. 막대에는 고정 탭만 서고 넘침 메뉴는 없다(DP-192) |
 | 플러그인 패널 | 플러그인, 호스트 상태 화면 | `registry.registerPluginEndTab({ ...EndTabDef, description, source: "plugin" \| "host" })`. 막대의 "플러그인" 단추 하나가 여는 2차 메뉴에 `source`별로 묶여 서고(플러그인 패널 → 이 대화의 플러그인), 고른 탭은 일반 탭처럼 well에 열린다. id는 막대 탭과 같은 이름 공간이라 겹치면 `Bug`(DP-194) |
 | 왼쪽 대화 목록 | 대화 트랙 | `Shell`의 `threadList` 속성 |

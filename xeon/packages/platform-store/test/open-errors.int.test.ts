@@ -74,13 +74,13 @@ describe("open errors", () => {
     const newer = new Database(path);
     newer.run(
       `INSERT INTO sys_migrations (owner, version, checksum, applied_at, engine_version)
-       VALUES ('sys', 4, '${"1".repeat(64)}', 1, '9.9.9')`,
+       VALUES ('sys', 5, '${"1".repeat(64)}', 1, '9.9.9')`,
     );
     newer.close();
     const opened = await openStore(directOptions(path).options);
     expect(opened).toEqual({
       ok: false,
-      error: { kind: "migration_future_version", owner: "sys", dbVersion: 4, codeVersion: 3 },
+      error: { kind: "migration_future_version", owner: "sys", dbVersion: 5, codeVersion: 4 },
     });
   });
 

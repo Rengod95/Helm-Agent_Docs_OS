@@ -559,6 +559,10 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 - [가정] `RegistrationApi.commit`의 저장은 X.primitives.spec이 구현한다. orchestration-sdk의 상태 어댑터(`state.ts`)는 그 저장에 넣을 규칙만 제공한다: 커밋 전 검사(`checkStateCommit`), 이벤트 payload 모양, 투영 행 모양, 업캐스터. X가 이 함수들을 호출하는 방식(F 타입으로 넘길지, orchestration-sdk이 `wrap`에서 먼저 검사할지)은 X.primitives.spec과 맞춘다. [제안] 기본은 `wrap`의 `commit`이 `checkStateCommit`을 먼저 부르고 통과한 값만 X `commit`에 넘기는 방식이다.
 - 비공개 상태는 다른 플러그인이 읽지 않는다(F.extensions.spec §3.6). 다른 플러그인의 `x_<그룹>_*` 테이블을 쿼리하면 `eng.context-map.design` CM-02 위반이다.
 
+#### 3.6.1 플러그인 전용 저장소 (`g.pluginStore`)
+
+대화 없이 여는 확장 메서드(`ctx.threadId === null`)가 쓰는 플러그인별 JSON 키-값 저장소다. API는 `get(key)`, `put(key, value)`, `delete(key)`, `list(prefix?)`이고 모두 비동기다. `get`은 없으면 `null`, `list`는 `{key, value}[]`를 키 오름차순으로 돌려준다. 실패는 던지지 않고 `{kind}` 값으로 돌려준다(`store_key_invalid`, `store_value_too_large`, `store_full`, `storage_unavailable`). 한도와 격리와 쓰기 규칙은 X.primitives.spec §4.6.7이 정한다. 플러그인은 `put`과 `delete`를 확장 메서드 처리기 안에서만 부를 수 있고, `readOnly` 메서드에서는 부를 수 없다. 플러그인을 제거하면 그 저장소는 같이 지워진다.
+
 ### 3.7 플러그인 간 통신
 
 허용:
@@ -1096,7 +1100,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 - orchestration-sdk 자체는 훅을 선언하지 않고 `on` 핸들러도 걸지 않는다. 훅 선언은 F.extensions.spec §3.4다.
 - `OrchestrationApi.on`은 F `RegistrationApi.on`을 감싼다. 핸들러 시그니처와 fold는 그대로다. 래퍼는 계측 집계만 더한다(§4.9).
-- `post`, `commit`, `record`, `readRecords`, `capability`, `onDispose`는 그대로 전달한다. `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`로 전달한다(§3.2).
+- `post`, `commit`, `record`, `readRecords`, `pluginStore`, `capability`, `onDispose`는 그대로 전달한다. `pluginStore`는 엔진의 g가 이름 공간과 쓰기 자격을 정하므로 감싸지 않는다(X.primitives.spec §4.6.7). `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`로 전달한다(§3.2).
 - `drive` 등록은 그대로 전달한다. 주도권은 시작 요청(사용자 명령, 프로필, 맡기기)으로만 받는다(§3.5).
 - `delegate`는 L1-g 서비스 래퍼다. 훅 목록에 들어가지 않는다. 위임 자식 thread의 훅 발화와 플러그인 핸들러 적용 범위는 [미결]이다(`_research/notes/L3-1.md` §6 마지막 항목).
 

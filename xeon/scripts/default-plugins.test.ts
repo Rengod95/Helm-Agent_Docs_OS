@@ -20,9 +20,9 @@ test("defaultPluginsOf rejects a wrong shape or a name that leaves its folder", 
   expect(defaultPluginsOf({ defaultPlugins: [{ name: "../a", buildScript: "s" }] })).toBeNull();
 });
 
-test("the committed release bundle names helm", () => {
+test("the committed release bundle names helm and suggest, in that order", () => {
   const config: unknown = JSON.parse(
     readFileSync(`${import.meta.dir}/release-bundle.json`, "utf8"),
   );
-  expect(defaultPluginsOf(config)?.map((p) => p.name)).toEqual(["helm"]);
+  expect(defaultPluginsOf(config)?.map((p) => p.name)).toEqual(["helm", "suggest"]);
 });
