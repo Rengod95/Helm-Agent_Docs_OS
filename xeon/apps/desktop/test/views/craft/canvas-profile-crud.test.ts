@@ -1,4 +1,4 @@
-// 프로필 화면(C3) 왼쪽 패널 메뉴의 새 프로필, 복사, 이름 바꾸기, 지우기(craft-flows §6.10, pfCrud).
+// 프로필 화면(C3) 왼쪽 패널의 새 프로필(+ 단추, pfMode2)과 ⋯ 메뉴의 복사, 이름 바꾸기, 지우기(craft-flows §6.10, pfCrud).
 // 이름에서 id를 만드는 규칙과 저장 값은 순수 함수로, 엔진에 쓰고 다시 읽는 흐름은 메모리 안의 가짜 엔진으로 값을 비교한다.
 import { beforeEach, describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
@@ -19,7 +19,15 @@ import {
   renamedInput,
   withModeInput,
 } from "../../../src/views/craft/canvas/cv6/live.ts";
-import { profileWriteErrorText } from "../../../src/views/craft/canvas/cv6/profile-menu.tsx";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { parseHTML } from "linkedom";
+import { CommandsContext } from "../../../src/views/commands.ts";
+import {
+  ProfileHead,
+  profileWriteErrorText,
+} from "../../../src/views/craft/canvas/cv6/profile-menu.tsx";
+import { fakeCommands as fakeViewCommands } from "../fake-commands.ts";
 import {
   cloneProfile,
   createProfile,
@@ -434,5 +442,46 @@ describe("프로필의 실행 방식", () => {
     const work = snapshot().live?.saved["work"];
     expect(work?.rev).toBe(9);
     expect(work === undefined ? null : profileModeOf(work, COMMON)).toBe("bypass");
+  });
+});
+
+/** 엔진 목록을 읽은 뒤의 머리를 그린 문서 */
+function head(): Document {
+  const markup = renderToString(
+    createElement(
+      CommandsContext,
+      { value: fakeViewCommands({ profileCanvas: commands }) },
+      createElement(ProfileHead, {
+        current: "work",
+        choices: [
+          { id: "default", title: "default" },
+          { id: "work", title: "일" },
+        ],
+        onProfile: () => {},
+      }),
+    ),
+  );
+  return parseHTML(`<!doctype html><html><body>${markup}</body></html>`).document;
+}
+
+describe("프로필 머리의 + 단추 (pfMode2, AGE-71)", () => {
+  test("고르기, +, ⋯ 순서로 한 줄에 서고 셋 다 높이 control-md다", () => {
+    const row = head().querySelector("div > div");
+    // 보이는 단추만 본다(고르기 옆의 숨은 기본 select는 뺀다)
+    const buttons = [...(row?.children ?? [])].filter((el) => el.tagName === "BUTTON");
+    expect(
+      buttons.map((el) => ({
+        slot: el.getAttribute("data-slot"),
+        label: el.getAttribute("aria-label"),
+        isNew: el.hasAttribute("data-profile-new"),
+        // 데스크톱 밀도에서 field-md와 control-md는 둘 다 32다
+        md: el.className.split(" ").some((c) => c === "size-control-md" || c === "h-field-md"),
+      })),
+    ).toEqual([
+      { slot: "select-trigger", label: "프로필", isNew: false, md: true },
+      { slot: "tooltip-trigger", label: "새 프로필", isNew: true, md: true },
+      { slot: "icon-button", label: "프로필 메뉴: 일", isNew: false, md: true },
+    ]);
+    expect(row?.className).toBe("flex items-center gap-1");
   });
 });

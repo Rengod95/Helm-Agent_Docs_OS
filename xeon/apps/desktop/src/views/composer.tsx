@@ -55,7 +55,12 @@ import {
   type BusyInputMode,
   type CommandError,
 } from "./commands.ts";
-import { ModelChip, PermissionModeChip, ThinkingChip } from "./composer-chips.tsx";
+import {
+  ModelChip,
+  PermissionModeChip,
+  ThinkingChip,
+  type ProfileModeLineProps,
+} from "./composer-chips.tsx";
 import {
   busyModeOfEnter,
   chipInputs,
@@ -77,7 +82,8 @@ import {
   useThreadPermissionMode,
   useThreadThinking,
 } from "./model-usage.ts";
-import { permissionChipViewOf } from "./permission-mode-model.ts";
+import { permissionChipViewOf, profileModeRowOf } from "./permission-mode-model.ts";
+import { profileRowLookOf } from "./convo/profile-chip-model.ts";
 import { thinkingSelectableOf } from "./thinking-level-model.ts";
 import {
   appSlashOf,
@@ -325,6 +331,35 @@ function ComposerFor(props: {
     running,
   });
   const driveStop = useDriveStop(props.threadId, props.engineGone);
+  // 승인 모드 칩 메뉴의 고정 줄(DP-231): 프로필이 정한 값이면 "프로필이 정함", 대화가 따로 고른 값이면 "프로필 값으로 되돌리기"
+  const modeProfileView = profileModeRowOf({
+    read: permission.read,
+    origin: permission.origin,
+    profileMode:
+      permission.profileMode?.profileId === profileChip.view.currentId
+        ? permission.profileMode.mode
+        : null,
+  });
+  const modeProfileLine: ProfileModeLineProps | null =
+    modeProfileView === null
+      ? null
+      : {
+          view: modeProfileView,
+          profile: profileChip.view.title,
+          look: profileRowLookOf({
+            id: profileChip.view.currentId,
+            startDrive: profileChip.view.startDrive,
+          }),
+          onRevert: () => {
+            detach(
+              permission.clear().then((result) => {
+                if (!result.ok) setError(modeErrorText(result.error));
+                return undefined;
+              }),
+              rethrow,
+            );
+          },
+        };
   // Drive 띠가 보이는 동안 입력창 빛은 꺼지고 띠의 윗변이 같은 빛을 낸다(lcM6c). 띠가 없으면 입력창 빛은 전과 같다
   const approvals = useThreadApprovals(props.threadId);
   const driveBeam = driveBandBeamOf({
@@ -995,6 +1030,12 @@ function ComposerFor(props: {
                 note={permissionChip.note}
                 bypassAllowed={permission.bypassAllowed}
                 disabled={props.disabledReason !== null}
+                profile={modeProfileLine}
+                onOpen={() => {
+                  // 따로 고른 값이 있으면 되돌아갈 프로필 값을 메뉴를 열 때 읽는다(없으면 지금 값이 곧 프로필 값이다)
+                  if (permission.origin === "thread")
+                    permission.readProfile(profileChip.view.currentId);
+                }}
                 onRetry={permission.retry}
                 onChange={(next) => {
                   detach(

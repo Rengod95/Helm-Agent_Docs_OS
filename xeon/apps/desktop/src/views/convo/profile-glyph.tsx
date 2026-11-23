@@ -69,12 +69,12 @@ function partsOf(look: ProfileLook): ReactNode {
 }
 
 /**
- * 프로필 아이콘 하나. 칩은 16, 메뉴 줄은 20. 크기는 부모의 아이콘 크기 규칙보다 앞서도록 style로 준다.
+ * 프로필 아이콘 하나. 칩은 16, 메뉴 줄은 20, 실행 방식 메뉴의 "프로필이 정함" 설명 줄(12 글)은 12. 크기는 부모의 아이콘 크기 규칙보다 앞서도록 style로 준다.
  * 선은 직접 그린 아이콘의 한 벌(`LINE_GLYPH`, AGE-34): 20으로 커져도 화면 1px다(전에는 칸 1이라 20에서 1.25px)
  */
 export function ProfileGlyph(props: {
   readonly look: ProfileLook;
-  readonly size: 16 | 20;
+  readonly size: 12 | 16 | 20;
   readonly className?: string;
 }): ReactNode {
   const px = `${String(props.size)}px`;

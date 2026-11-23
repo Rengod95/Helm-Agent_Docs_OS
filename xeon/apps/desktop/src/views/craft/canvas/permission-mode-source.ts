@@ -9,6 +9,6 @@ export {
 export {
   bypassAllowedOf,
   PERMISSION_MODE_KEY,
-  permissionModeOf,
   permissionModeToneOf,
+  profileModeFrom,
 } from "../../permission-mode-model.ts";

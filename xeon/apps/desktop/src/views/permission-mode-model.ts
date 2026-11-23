@@ -154,3 +154,66 @@ export function modeEventConcerns(
     return payload.ok && payload.value.key === PERMISSION_MODE_KEY;
   });
 }
+
+/**
+ * 이 대화의 권한 모드 값을 누가 정했나(`settings.get`의 `source.scope`). `launch`는 이 대화에서 따로 고른 값이고, `profile`은 대화의
+ * 프로필(공통 묶음 포함)이 정한 값이다. 그 밖(관리 잠금, 사용자 파일, 기본값)은 `other`다 [결정: 2026-11-23 사용자, AGE-71]
+ */
+export type ModeOrigin = "thread" | "profile" | "other";
+
+export function modeOriginOf(scope: unknown): ModeOrigin {
+  if (scope === "launch") return "thread";
+  if (scope === "profile") return "profile";
+  return "other";
+}
+
+/** 프로필이 실행 방식을 정하지 않았을 때 엔진이 쓰는 값("모두 허용", 호스트 `FACTORY_PERMISSION_MODE`) */
+const PROFILE_MODE_FALLBACK: PermissionMode = "bypass";
+
+/** 설정 줄 하나(프로필과 공통 묶음의 `settings` 원소) */
+interface SettingLine {
+  readonly key: string;
+  readonly value?: unknown;
+}
+
+/**
+ * 한 프로필을 쓰는 대화의 실행 방식. 엔진의 `profile` 층과 같은 규칙이다: 프로필 값이 공통 묶음 값을 이기고(같은 키는 마지막 값),
+ * 둘 다 없으면 "모두 허용"이다 [결정: 2026-11-23 사용자, AGE-71 질문 3]. 엔진이 모르는 값이면 null이다
+ */
+export function profileModeFrom(
+  own: readonly SettingLine[],
+  shared: readonly SettingLine[],
+): PermissionMode | null {
+  const found =
+    own.findLast((setting) => setting.key === PERMISSION_MODE_KEY) ??
+    shared.findLast((setting) => setting.key === PERMISSION_MODE_KEY);
+  return found === undefined ? PROFILE_MODE_FALLBACK : permissionModeOf(found.value);
+}
+
+/**
+ * 입력창 칩 메뉴의 구분선 아래 고정 줄(AGE-71). 대화에서 따로 고른 값이 없으면 `applied`: 프로필이 정한 지금 값을 골라진 줄로 보이고
+ * 위의 세 줄에는 체크가 없다. 따로 고른 값이 있으면 `revert`: 누르면 그 값을 지우고 프로필 값으로 돌아간다(`mode`는 프로필 값, 모르면 null).
+ * 값을 모르거나(읽는 중, 실패, 모르는 값) 관리 잠금처럼 프로필도 대화도 정하지 않은 값이면 줄이 없다
+ */
+export type ProfileModeRowView =
+  | { readonly kind: "applied"; readonly mode: PermissionMode }
+  | { readonly kind: "revert"; readonly mode: PermissionMode | null };
+
+export function profileModeRowOf(input: {
+  readonly read: PermissionModeRead;
+  readonly origin: ModeOrigin;
+  /** 대화의 프로필이 정한 값(따로 고른 값이 있을 때 메뉴를 열며 읽는다). 모르면 null */
+  readonly profileMode: PermissionMode | null;
+}): ProfileModeRowView | null {
+  if (input.read.kind !== "known") return null;
+  switch (input.origin) {
+    case "profile":
+      return { kind: "applied", mode: input.read.mode };
+    case "thread":
+      return { kind: "revert", mode: input.profileMode };
+    case "other":
+      return null;
+    default:
+      return assertNever(input.origin, "ModeOrigin");
+  }
+}

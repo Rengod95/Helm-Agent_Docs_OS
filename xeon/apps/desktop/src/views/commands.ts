@@ -22,6 +22,7 @@ import type {
   InstallPreview,
   KindEntry,
   PackResult,
+  PermissionMode,
   ScaffoldResult,
   SelfTestReport,
 } from "@fresnel/contracts/services";
@@ -1308,8 +1309,23 @@ export interface Commands {
    * 같은 값을 `ToolService.setMode`가 쓰는 세션 층에 쓰므로 `mode(threadId)`가 그 값을 읽는다. 쓰기 소유를 요구하므로 잠기면 `locked`다
    */
   setThreadMode(threadId: ThreadId, mode: SwitchMode): Promise<Result<null, CommandError>>;
-  /** `settings.get { keys: ["l1.tools.permissionMode"], threadId }`의 값을 검사 없이 돌려준다. 네 모드인지는 `permissionModeOf`가 본다 */
-  readThreadMode(threadId: ThreadId): Promise<Result<unknown, CommandError>>;
+  /**
+   * `settings.get { keys: ["l1.tools.permissionMode"], threadId }`의 값과 그 값을 정한 범위(`source.scope`)를 검사 없이 돌려준다.
+   * 세 모드인지는 `permissionModeOf`가, 누가 정했는지는 `modeOriginOf`가 본다. 값이 없으면 둘 다 undefined다
+   */
+  readThreadMode(
+    threadId: ThreadId,
+  ): Promise<Result<{ readonly value: unknown; readonly scope: unknown }, CommandError>>;
+  /**
+   * `settings.reset { key: "l1.tools.permissionMode", scope: "launch", threadId }`: 이 대화에서 따로 고른 권한 모드를 지워 프로필 값으로
+   * 돌아간다(AGE-71). 쓰기 소유를 요구하므로 잠기면 `locked`다
+   */
+  clearThreadMode(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /**
+   * `profile.list`에서 그 프로필이 정한 실행 방식(`profileModeFrom`: 프로필 값 > 공통 묶음 값 > 모두 허용). 프로필이 없거나 엔진이 모르는
+   * 값이면 null이다. 칩 메뉴의 "프로필 값으로 되돌리기" 줄이 메뉴를 열 때 읽는다
+   */
+  readProfileMode(profileId: string): Promise<Result<PermissionMode | null, CommandError>>;
   /** `settings.get { keys: ["l1.tools.bypassAllowed"], threadId }`의 값을 검사 없이 돌려준다. 참일 때만 칩 메뉴에 "모두 허용"이 나온다 */
   readBypassAllowed(threadId: ThreadId): Promise<Result<unknown, CommandError>>;
   /**

@@ -1,4 +1,5 @@
-// 왼쪽 패널 맨 위의 프로필 고르기와 그 옆 ⋯ 메뉴(craft-flows §6.10, pfCrud): 새 프로필, 복사, 이름 바꾸기, 지우기.
+// 왼쪽 패널 맨 위의 프로필 고르기와 그 옆 + 단추(새 프로필, pfMode2 [결정: 2026-11-23 사용자, AGE-71]), ⋯ 메뉴(craft-flows §6.10, pfCrud):
+// 복사, 이름 바꾸기, 지우기. 순서는 고르기, +, ⋯이고 셋 다 높이 control-md(32)이며 사이는 4다. 고르기 상자만 줄어든다.
 // 메뉴, 확인 창, 입력은 대화 줄 ⋯ 메뉴(`thread-row-menu.tsx`)와 같은 caustic 부품이다. 이름을 받는 셋(새로, 복사, 이름 바꾸기)은
 // 고르기 상자 자리에서 같은 높이(control-md)의 입력으로 바뀐다: Enter는 저장, Esc는 취소, 밖을 누르면 고친 이름을 저장한다.
 // 엔진이 거절하면 그 자리 아래에 까닭이 보인다. 지우기는 확인 창을 거치고, 엔진이 지우지 않는 `default`는 메뉴에서 막고 까닭을 적는다.
@@ -18,8 +19,9 @@ import {
   Select,
   SelectOption,
   toast,
+  Tooltip,
 } from "@caustic/react";
-import { Ellipsis } from "@caustic/react/icons";
+import { Ellipsis, Plus } from "@caustic/react/icons";
 import { useEffect, useId, useRef, useState, type ReactElement } from "react";
 import { profileErrorText } from "../../../compose/compose-text.ts";
 import { isCommitEnter, useProfileCommands, type CommandError } from "../profile-source.ts";
@@ -99,6 +101,7 @@ export function ProfileHead(props: {
   const [failure, setFailure] = useState<MessageId | null>(null);
   const [deleting, setDeleting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const newRef = useRef<HTMLButtonElement | null>(null);
   const failureId = useId();
   const builtinId = useId();
   const saved = store.live?.saved[props.current];
@@ -106,9 +109,10 @@ export function ProfileHead(props: {
   // 엔진이 지우지 않는 것: `default`(내장, `builtin`). 숨은 `craft`는 목록에 오지 않는다
   const protectedProfile = saved?.builtin === true || props.current === "default";
 
-  const restoreFocus = (): void => {
+  /** 입력을 닫으면 연 단추로 초점을 돌린다(새 프로필은 +, 나머지는 ⋯) */
+  const restoreFocus = (from: NameEdit | null = null): void => {
     queueMicrotask(() => {
-      triggerRef.current?.focus();
+      (from === "new" ? newRef : triggerRef).current?.focus();
     });
   };
   useEffect(() => {
@@ -128,9 +132,10 @@ export function ProfileHead(props: {
     );
   };
   const stop = (): void => {
+    const from = edit;
     setEdit(null);
     setFailure(null);
-    restoreFocus();
+    restoreFocus(from);
   };
   const commit = (): void => {
     if (edit === null || busy) return;
@@ -189,6 +194,22 @@ export function ProfileHead(props: {
             ))}
           </Select>
           {store.live === null ? null : (
+            <Tooltip side="bottom" content={t("desktop.craft.canvas.cv9.profileMenu.new")}>
+              <IconButton
+                ref={newRef}
+                size="md"
+                variant="ghost"
+                data-profile-new=""
+                label={t("desktop.craft.canvas.cv9.profileMenu.new")}
+                onClick={() => {
+                  start("new");
+                }}
+              >
+                <Plus aria-hidden />
+              </IconButton>
+            </Tooltip>
+          )}
+          {store.live === null ? null : (
             <Menu
               size="sm"
               align="end"
@@ -204,13 +225,6 @@ export function ProfileHead(props: {
                 </IconButton>
               }
             >
-              <MenuItem
-                onSelect={() => {
-                  start("new");
-                }}
-              >
-                {t("desktop.craft.canvas.cv9.profileMenu.new")}
-              </MenuItem>
               <MenuItem
                 disabled={saved === undefined}
                 onSelect={() => {

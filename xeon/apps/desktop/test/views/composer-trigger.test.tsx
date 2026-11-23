@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { CommandRowVM } from "@fresnel/client/settings";
+import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
+import { Menu } from "@caustic/react";
+import { parseHTML } from "linkedom";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
   SlashRow,
@@ -14,6 +17,7 @@ import {
 import {
   ModelChip,
   PermissionModeChip,
+  PermissionModeMenuBody,
   ThinkingChip,
   modelChipText,
   permissionModeChipText,
@@ -161,6 +165,111 @@ describe("permission mode chip", () => {
     expect(bypass.classes).toContain("text-danger-text");
     expect(normal.classes).toContain("text-text-tertiary");
     expect(normal.classes).not.toContain("text-danger-text");
+  });
+});
+
+/** 메뉴를 펼쳐 그린 문서. 줄은 `role^=menuitem` 요소다 */
+function menuOf(node: ReactNode): Document {
+  return parseHTML(
+    `<!doctype html><html><body>${renderToString(
+      <Menu inline open size="sm">
+        {node}
+      </Menu>,
+    )}</body></html>`,
+  ).document;
+}
+const rowsOf = (doc: Document) =>
+  [...doc.querySelectorAll('[role^="menuitem"]')].map((row) => ({
+    profile: row.getAttribute("data-mode-profile"),
+    checked: row.getAttribute("aria-checked"),
+    text: row.textContent,
+  }));
+const line = (
+  view: { kind: "applied"; mode: "acceptEdits" } | { kind: "revert"; mode: "bypass" | null },
+) => ({
+  view,
+  profile: "코딩",
+  look: "ready" as const,
+  onRevert: noop,
+});
+
+describe("permission mode menu: the fixed profile row (DP-231, AGE-71)", () => {
+  const HINT = {
+    default: t("desktop.composer.mode.default.hint"),
+    acceptEdits: t("desktop.composer.mode.acceptEdits.hint"),
+    bypass: t("desktop.composer.mode.bypass.hint"),
+  };
+  const hint = (id: keyof typeof HINT): string => HINT[id];
+
+  test("without a chat value: no check above, a separator, then the profile's mode marked as chosen", () => {
+    const doc = menuOf(
+      <PermissionModeMenuBody
+        mode="acceptEdits"
+        note={null}
+        bypassAllowed
+        profile={line({ kind: "applied", mode: "acceptEdits" })}
+        onChange={noop}
+      />,
+    );
+    expect(rowsOf(doc)).toEqual([
+      { profile: null, checked: "false", text: `실행마다 묻기${hint("default")}` },
+      { profile: null, checked: "false", text: `편집 자동 허용${hint("acceptEdits")}` },
+      { profile: null, checked: "false", text: `모두 허용${hint("bypass")}` },
+      { profile: "applied", checked: "true", text: "편집 자동 허용코딩 프로필이 정함" },
+    ]);
+    expect(doc.querySelectorAll('[role="separator"]').length).toBe(1);
+    expect(
+      doc.querySelector('[data-mode-profile="applied"] [data-profile-glyph="ready"]'),
+    ).not.toBeNull();
+  });
+
+  test("with a chat value: the chosen mode is checked and the row below goes back to the profile's value", () => {
+    const doc = menuOf(
+      <PermissionModeMenuBody
+        mode="default"
+        note={null}
+        bypassAllowed
+        profile={line({ kind: "revert", mode: "bypass" })}
+        onChange={noop}
+      />,
+    );
+    expect(rowsOf(doc).map((row) => [row.profile, row.checked])).toEqual([
+      [null, "true"],
+      [null, "false"],
+      [null, "false"],
+      ["revert", null],
+    ]);
+    expect(rowsOf(doc)[3]?.text).toBe("모두 허용코딩 프로필 값으로 되돌리기");
+  });
+
+  test("before the profile's value is read, the revert row says only where it goes back to", () => {
+    const doc = menuOf(
+      <PermissionModeMenuBody
+        mode="default"
+        note={null}
+        bypassAllowed={false}
+        profile={line({ kind: "revert", mode: null })}
+        onChange={noop}
+      />,
+    );
+    expect(rowsOf(doc).at(-1)?.text).toBe("코딩 프로필 값으로 되돌리기");
+  });
+
+  test("the profile screen's menu (no profile row) keeps the three rows only, with the check", () => {
+    const doc = menuOf(
+      <PermissionModeMenuBody
+        mode="default"
+        note={null}
+        bypassAllowed={false}
+        profile={null}
+        onChange={noop}
+      />,
+    );
+    expect(rowsOf(doc).map((row) => [row.profile, row.checked])).toEqual([
+      [null, "true"],
+      [null, "false"],
+    ]);
+    expect(doc.querySelectorAll('[role="separator"]').length).toBe(0);
   });
 });
 

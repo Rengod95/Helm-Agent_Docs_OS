@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { WIRE_ERRORS, type EventWire } from "@fresnel/contracts/wire";
+import {
+  WIRE_ERRORS,
+  type EventWire,
+  type Profile,
+  type ProfileListResult,
+} from "@fresnel/contracts/wire";
 import { evt, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, tick, until, type EngineExtra } from "./support.ts";
 
@@ -20,10 +25,10 @@ const paramsOf = (params: readonly { method: string; params: unknown }[], method
   params.filter((entry) => entry.method === method).map((entry) => entry.params);
 
 /** `settings.get`·`settings.set`이 돌려주는 유효 값 한 줄. 필드는 wire 모양 그대로다 */
-const setting = (value: unknown) => ({
+const setting = (value: unknown, scope = "launch") => ({
   key: KEY,
   value,
-  source: { scope: "launch" },
+  source: { scope },
   locked: false,
   shadowed: [],
   runtimeChange: "live",
@@ -47,6 +52,18 @@ const settingsEvent = (seq: number, threadId: ThreadId, key = KEY): EventWire =>
   correlationId: "c",
   payload: { key, scope: "launch", value: "acceptEdits" },
   redactions: [],
+});
+
+/** `profile.list`의 프로필 한 줄 */
+const profileRow = (id: string, settings: Profile["settings"]): Profile => ({
+  id,
+  title: id,
+  builtin: false,
+  plugins: [],
+  settings,
+  startDrive: null,
+  updatedAt: "2026-11-23T10:00:00Z",
+  rev: 1,
 });
 
 describe("thread permission mode commands", () => {
@@ -104,14 +121,66 @@ describe("thread permission mode commands", () => {
       results: { "settings.get": { settings: [setting("plan")] } },
     });
     const got = await app.commands.readThreadMode(thr(1));
-    expect(got).toEqual({ ok: true, value: "plan" });
+    expect(got).toEqual({ ok: true, value: { value: "plan", scope: "launch" } });
     expect(paramsOf(params, "settings.get")).toContainEqual({ keys: [KEY], threadId: thr(1) });
+    await app.stop();
+  });
+
+  test("readThreadMode passes on which scope set the value (profile when the chat chose nothing)", async () => {
+    const { app } = await liveApp({
+      results: { "settings.get": { settings: [setting("acceptEdits", "profile")] } },
+    });
+    expect(await app.commands.readThreadMode(thr(1))).toEqual({
+      ok: true,
+      value: { value: "acceptEdits", scope: "profile" },
+    });
     await app.stop();
   });
 
   test("readThreadMode gives undefined when the host sends no value for the key", async () => {
     const { app } = await liveApp({ results: { "settings.get": { settings: [] } } });
-    expect(await app.commands.readThreadMode(thr(1))).toEqual({ ok: true, value: undefined });
+    expect(await app.commands.readThreadMode(thr(1))).toEqual({
+      ok: true,
+      value: { value: undefined, scope: undefined },
+    });
+    await app.stop();
+  });
+
+  test("clearThreadMode resets the launch scope of that thread only", async () => {
+    const { app, params } = await liveApp({
+      results: { "settings.reset": { setting: setting("bypass", "profile") } },
+    });
+    const done = await app.commands.clearThreadMode(thr(1));
+    expect(done).toEqual({ ok: true, value: null });
+    expect(paramsOf(params, "settings.reset")).toEqual([
+      { key: KEY, scope: "launch", threadId: thr(1) },
+    ]);
+    await app.stop();
+  });
+
+  test("readProfileMode follows the engine profile layer: profile value, then the common set, then allow all", async () => {
+    const { app } = await liveApp({
+      results: {
+        "profile.list": {
+          profiles: [
+            profileRow("own", [{ key: KEY, value: "default" }]),
+            profileRow("bare", []),
+            profileRow("odd", [{ key: KEY, value: "plan" }]),
+          ],
+          common: {
+            plugins: [],
+            settings: [{ key: KEY, value: "acceptEdits" }],
+            updatedAt: "2026-11-23T10:00:00Z",
+            rev: 0,
+          },
+          rev: 1,
+        } satisfies ProfileListResult,
+      },
+    });
+    expect(await app.commands.readProfileMode("own")).toEqual({ ok: true, value: "default" });
+    expect(await app.commands.readProfileMode("bare")).toEqual({ ok: true, value: "acceptEdits" });
+    expect(await app.commands.readProfileMode("odd")).toEqual({ ok: true, value: null });
+    expect(await app.commands.readProfileMode("gone")).toEqual({ ok: true, value: null });
     await app.stop();
   });
 
