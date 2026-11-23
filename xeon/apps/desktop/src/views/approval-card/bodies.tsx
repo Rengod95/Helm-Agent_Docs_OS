@@ -34,6 +34,7 @@ import {
   type ToolApprovalBody,
   type ToolApprovalView,
   type ToolReplaceView,
+  optionLabelOf,
 } from "../approval-form.ts";
 import { reviewTotalsOf, ruleTextIdOf } from "./card-model.ts";
 import { questionPagedOf } from "./question-pages.ts";
@@ -393,7 +394,7 @@ function QuestionField(props: {
               value={option.id}
               title={
                 <>
-                  {option.label}
+                  {optionLabelOf(option.label, option.recommended === true)}
                   {option.recommended === true ? (
                     <span className="text-ui text-text-secondary">
                       {" "}

@@ -617,3 +617,13 @@ export function approvalOriginView(
   if (caller.startsWith("ext:")) return { kind: "group", name: caller.slice(4) };
   return null;
 }
+
+/**
+ * 선택지 글에서 모델이 직접 붙인 끝의 "(추천)" 표시를 뗀다. 추천 표시는 화면이 `recommended`로 한 번만 붙인다(F-05).
+ * 추천이 아닌 선택지의 글은 그대로 둔다
+ */
+export function optionLabelOf(label: string, recommended: boolean): string {
+  if (!recommended) return label;
+  const stripped = label.replace(/\s*[(（](?:추천|recommended)[)）]\s*$/iu, "");
+  return stripped === "" ? label : stripped;
+}

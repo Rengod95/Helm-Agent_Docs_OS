@@ -6,6 +6,7 @@ import {
   mcpSourceViewOf,
   mcpStartViewOf,
   mcpToolViewOf,
+  optionLabelOf,
   setPickText,
   shellLineOf,
   shellWordOf,
@@ -580,5 +581,16 @@ describe("mcpToolViewOf", () => {
       server: "qa",
       declared: [],
     });
+  });
+});
+
+describe("F-05 recommended mark", () => {
+  test("a recommended option drops the model's own trailing mark so the screen shows it once", () => {
+    expect(optionLabelOf("완료 (추천)", true)).toBe("완료");
+    expect(optionLabelOf("Done (recommended)", true)).toBe("Done");
+    expect(optionLabelOf("완료", true)).toBe("완료");
+    // 추천이 아니면 모델이 쓴 글을 그대로 둔다
+    expect(optionLabelOf("완료 (추천)", false)).toBe("완료 (추천)");
+    expect(optionLabelOf("(추천)", true)).toBe("(추천)");
   });
 });
