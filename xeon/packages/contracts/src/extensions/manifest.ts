@@ -28,6 +28,7 @@ import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
 import { UiDeclSchema, type UiDecl } from "./ui.ts";
 import { SCRIPT_LIMITS } from "./plugin-script.ts";
+import { ExternalToolDeclSchema, type ExternalToolDecl } from "./external-tool.ts";
 
 export { EXTENSION_NAME_PATTERN, ExtensionNameSchema, type ExtensionName } from "./name.ts";
 
@@ -404,6 +405,7 @@ export const ExtensionManifestSchema: TObject<{
   orchestration: TOptional<typeof OrchestrationDeclSchema>;
   ui: TOptional<TUnsafe<UiDecl>>;
   methods: TOptional<TArray<TUnsafe<ExtMethodDecl>>>;
+  externalTool: TOptional<TUnsafe<ExternalToolDecl>>;
   isolation: TOptional<TUnion<[TLiteral<"none">, TLiteral<"process">]>>;
   trust: TOptional<typeof TrustRequestSchema>;
 }> = Type.Object(
@@ -448,6 +450,8 @@ export const ExtensionManifestSchema: TObject<{
     ui: Type.Optional(UiDeclSchema),
     /** 확장 메서드 `ext.<확장 이름>.<verb>`. Plugin UI와 따로 선언할 수 있다 */
     methods: Type.Optional(Type.Array(ExtMethodDeclSchema, { maxItems: 64 })),
+    /** 도구 종류 플러그인 선언(AGE-76 질문 2): 이 플러그인은 외부 도구 하나를 나타낸다. 엔진이 선언된 실행 파일을 점검해 카드에 상태를 싣는다 */
+    externalTool: Type.Optional(ExternalToolDeclSchema),
     isolation: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("process")])),
     trust: Type.Optional(TrustRequestSchema),
   },
