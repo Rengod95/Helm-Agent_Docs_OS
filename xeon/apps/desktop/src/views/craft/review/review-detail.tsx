@@ -49,6 +49,7 @@ import {
   kindsOf,
   primaryKindOf,
   purposeDraftOf,
+  ownCodeOf,
   runLinesOf,
   shortHash,
   type HookOriginLine,
@@ -889,10 +890,26 @@ function RunRow(props: { readonly line: RunLine }): ReactNode {
 
 function RunsSection(props: { readonly card: PluginCard }): ReactNode {
   const lines = runLinesOf(props.card);
+  const own = ownCodeOf(props.card);
   return (
     <Section title="desktop.craft.review.section.runs" id="runs">
+      {own === null ? null : (
+        <p className="m-0 text-ui text-text-primary" data-slot="review-own-code">
+          {[
+            t("desktop.craft.review.run.ownCode"),
+            ...(own.hooks > 0
+              ? [t("desktop.craft.review.run.ownHooks", { count: own.hooks })]
+              : []),
+            ...(own.tools > 0
+              ? [t("desktop.craft.review.run.ownTools", { count: own.tools })]
+              : []),
+          ].join(" ")}
+        </p>
+      )}
       {lines.length === 0 ? (
-        <p className={MUTED}>{t("desktop.craft.review.run.none")}</p>
+        own === null ? (
+          <p className={MUTED}>{t("desktop.craft.review.run.none")}</p>
+        ) : null
       ) : (
         <ul className="m-0 grid gap-2 p-0">
           {lines.map((line) => (

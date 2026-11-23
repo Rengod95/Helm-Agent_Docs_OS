@@ -7,6 +7,7 @@ import {
   approveOutcomeOf,
   baseItemOf,
   codeNoticeOf,
+  ownCodeOf,
   costViewOf,
   decideFailureOf,
   defaultTargetOf,
@@ -169,6 +170,15 @@ describe("what runs when approved", () => {
     );
     expect(codeNoticeOf(NOTES.card)).toBeNull();
     expect(codeNoticeOf(RULE.card)).toBeNull();
+  });
+
+  test("own code (runs.code) is read from the same fact as the code notice: hooks and tools are counted", () => {
+    expect(ownCodeOf(NOTES.card)).toBeNull();
+    expect(ownCodeOf(LINT.card)).toEqual({
+      hooks: LINT.card.does.hook?.hooks.length ?? 0,
+      tools: LINT.card.does.inject?.tools.length ?? 0,
+    });
+    expect(ownCodeOf({ ...LINT.card, runs: { code: false, isolated: null } })).toBeNull();
   });
 
   test("warnings: a missing purpose, project code and an admin lock (a new item has no enforcement change); cost is not a warning", () => {
