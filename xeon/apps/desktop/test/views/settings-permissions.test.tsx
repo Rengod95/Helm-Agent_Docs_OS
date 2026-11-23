@@ -16,6 +16,7 @@ import {
   sandboxSelfTestStepsOf,
   selfTestViewOfLast,
 } from "../../src/views/pages/settings/settings-sandbox-panel.tsx";
+import { CheckSteps } from "../../src/views/pages/shared/check-steps.tsx";
 import { ListEditor } from "../../src/views/pages/shared/list-editor.tsx";
 import { VerdictTable, type VerdictRow } from "../../src/views/pages/shared/verdict-table.tsx";
 import { defOf, fieldIn, settingOf, viewOf } from "./settings-fixtures.ts";
@@ -287,6 +288,31 @@ describe("sandboxCheckStepsOf", () => {
     ]);
     expect(steps[1]?.detail).toBe("검색이 느려요");
     expect(steps[1]?.fix).toBe("brew install ripgrep");
+    // 옛 엔진 화면의 "필수/선택" 열은 도구 줄의 구분 글로 온다(AGE-69). 운영체제 줄에는 없다
+    expect(steps.map((step) => step.tag ?? null)).toEqual([
+      null,
+      t("desktop.settings.sandbox.check.need.required"),
+    ]);
+  });
+
+  test("an optional tool shows the optional tag, and the row draws it after the name", () => {
+    const steps = sandboxCheckStepsOf({
+      kind: "done",
+      elapsedMs: 3,
+      binaries: {
+        platform: "darwin",
+        ready: true,
+        rows: [
+          { name: "rg", need: "optional", usedBy: "sandbox", ok: true, impact: "", note: "14.1" },
+        ],
+      },
+    });
+    expect(steps[1]?.tag).toBe(t("desktop.settings.sandbox.check.need.optional"));
+    const html = renderToString(<CheckSteps label="check" steps={steps} />);
+    const tag = `>${t("desktop.settings.sandbox.check.need.optional")}<`;
+    expect(html.indexOf(">rg<")).toBeGreaterThan(-1);
+    expect(html.indexOf(">rg<")).toBeLessThan(html.indexOf(tag));
+    expect(html.indexOf(tag)).toBeLessThan(html.indexOf(">14.1<"));
   });
 
   test("Linux checks rg, bwrap and socat; a tool missing from the report is skipped", () => {

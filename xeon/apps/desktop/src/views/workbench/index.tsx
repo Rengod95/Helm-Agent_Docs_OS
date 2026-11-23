@@ -1,4 +1,4 @@
-// 크래프트 화면 묶음(프로필·리뷰·플러그인·테스트·메트릭, 목적 화면 트레이스, 내비 없는 측정·구성·엔진). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
+// 크래프트 화면 묶음(프로필·리뷰·플러그인·테스트·메트릭, 목적 화면 트레이스, 내비 없는 측정·구성). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
 import { lazy, Suspense, useMemo, type ReactNode } from "react";
 import {
   useWorkbench,
@@ -6,7 +6,6 @@ import {
   type WorkbenchStore,
 } from "../../state/workbench/index.ts";
 import { ComposeScreen } from "../compose/compose-screen.tsx";
-import { EngineScreen } from "./engine-screen.tsx";
 import { ExtensionsScreen } from "./extensions-screen.tsx";
 import type { EndTabDef, ShellRegistry, TabBadge } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
@@ -92,7 +91,7 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     icon: <Spline />,
     render: () => <CraftMetricsScreen />,
   });
-  // 내비 줄이 없는 화면 셋: 그 화면에서만 되던 일(성능 측정의 턴 다시 보기, 구성의 새 그룹과 흐름, 엔진의 외부 도구 점검)이 남아 있어 코드는 둔다
+  // 내비 줄이 없는 화면 둘: 옮길 기능이 남아 있어 아직 둔다(AGE-69)
   registry.registerScreen({
     id: "metrics",
     area: "workbench",
@@ -106,13 +105,6 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     label: "desktop.shell.nav.compose",
     icon: <SquareStack />,
     render: () => scoped(store, <ComposeScreen />),
-  });
-  registry.registerScreen({
-    id: "engine",
-    area: "workbench",
-    label: "desktop.shell.nav.engine",
-    icon: <Plug />,
-    render: () => scoped(store, <EngineScreen />),
   });
   // 트레이스(C8)는 목적 화면이다. 내비 줄 없이 메트릭의 근거 줄과 대화의 "이 턴 기록"이 연다(`craft/trace/target.ts`)
   registry.registerScreen({
