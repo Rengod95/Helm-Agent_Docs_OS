@@ -474,6 +474,12 @@ export interface PluginCard {
   readonly version?: string;
   /** 목적 한 문장. 없으면 검토에서 승인할 수 없다(`pluginReview.purposeRequired`) */
   readonly purpose: string | null;
+  /**
+   * 하는 일을 사용자 눈높이로 적은 설명(매니페스트 `description`, 앞뒤 공백을 뗀 값). 캔버스 판의 안쪽 면 글이다.
+   * 없으면 검토에서 승인할 수 없다(`pluginReview.descriptionRequired`). 선택 필드라 없는 옛 카드도 파싱되고, 화면은 없으면 "설명이 없어요"를 보인다
+   * [결정: 2026-11-23 사용자, AGE-31 "설명과 목적 등을 필수값으로"] 이름 `description`은 매니페스트 필드 그대로다
+   */
+  readonly description?: string;
   readonly does: {
     readonly inject: InjectInventory | null;
     readonly hook: { readonly hooks: readonly CardHook[] } | null;
@@ -541,6 +547,7 @@ const PluginCardShape = Type.Object(
     displayName: Type.String({ minLength: 1, maxLength: 64 }),
     version: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     purpose: Type.Union([Type.String({ maxLength: 200 }), Type.Null()]),
+    description: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
     does: Type.Object(
       {
         inject: Type.Union([InjectInventoryShape, Type.Null()]),

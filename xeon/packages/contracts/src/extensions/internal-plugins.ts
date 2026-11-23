@@ -75,11 +75,45 @@ export function internalLayerTextKey(layer: InternalPluginLayer): string {
   return `plugin.internal.layer.${layer}`;
 }
 
-/** 내부 부품 텍스트의 두 칸 */
-export type InternalPluginTextField = "name" | "purpose";
+/**
+ * 내장 플러그인 텍스트의 세 칸: 이름, 목적 한 문장(카드 머리 아래 한 줄), 설명(카드 안쪽 면의 글).
+ * 설명 칸은 [결정: 2026-11-23 사용자, AGE-31 "빌트인된 플러그인들도 반드시 이런 값들을 포함하게"]에서 더했다
+ */
+export type InternalPluginTextField = "name" | "purpose" | "description";
 
 /** 클라이언트 카탈로그 키: `core-loop`의 이름은 `plugin.internal.coreLoop.name`, 하는 일은 `plugin.internal.coreLoop.purpose` */
 export function internalPluginTextKey(name: string, field: InternalPluginTextField): string {
-  const camel = name.replace(/-([a-z0-9])/g, (_match, char: string) => char.toUpperCase());
-  return `plugin.internal.${camel}.${field}`;
+  return `plugin.internal.${camelOf(name)}.${field}`;
+}
+
+function camelOf(name: string): string {
+  return name.replace(/-([a-z0-9])/g, (_match, char: string) => char.toUpperCase());
+}
+
+/**
+ * 내장이지만 사용자가 켜고 끄는 그룹(내부 부품이 아니다). 엔진이 스스로 싣는 카드(`origin.kind`가 `builtin`)는
+ * 내부 부품과 이 둘이 전부다(호스트 int 시험이 실제 엔진의 목록과 맞춘다)
+ */
+export const BUILTIN_GROUP_NAMES = ["authoring", "guide"] as const;
+export type BuiltinGroupName = (typeof BUILTIN_GROUP_NAMES)[number];
+
+/** 엔진이 스스로 싣는 플러그인 전부: 내부 부품과 내장 그룹 */
+export const BUILTIN_PLUGIN_NAMES: readonly (InternalPluginName | BuiltinGroupName)[] = [
+  ...INTERNAL_PLUGIN_NAMES,
+  ...BUILTIN_GROUP_NAMES,
+];
+
+const BUILTIN_GROUP_SET: ReadonlySet<string> = new Set(BUILTIN_GROUP_NAMES);
+
+/**
+ * 내장 플러그인 텍스트의 클라이언트 카탈로그 키. 내부 부품은 `internalPluginTextKey`와 같고,
+ * 내장 그룹은 `plugin.builtin.<camel>.<칸>`(예: `plugin.builtin.authoring.description`)이다. 내장이 아닌 이름은 `undefined`다 [제안] 키 모양
+ */
+export function builtinPluginTextKey(
+  name: string,
+  field: InternalPluginTextField,
+): string | undefined {
+  if (isInternalPluginName(name)) return internalPluginTextKey(name, field);
+  if (BUILTIN_GROUP_SET.has(name)) return `plugin.builtin.${camelOf(name)}.${field}`;
+  return undefined;
 }

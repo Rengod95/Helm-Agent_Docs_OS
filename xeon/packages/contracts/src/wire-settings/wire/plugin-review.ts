@@ -13,7 +13,7 @@ import { closed, m4, request, type Io, type M4Spec, type Req } from "./schema-ki
 
 // M5c-1 검토 wire(docs/xeon/review/m5/profile-project-loader.md §3.1, §3.4, §3.6, §4.7). 이 파일은 레지스트리(methods.ts)에 등록하지 않는다.
 // 이름 공간은 `pluginReview.*`다. 기존 `review.get`(dialog-area.ts)과 겹치지 않으려고 접두를 따로 뒀다.
-// 오류 이름은 3650~3669 구간이다(pluginReview.notFound, notPending, pathInvalid, handEditNotAllowed, purposeRequired, profileInvalid).
+// 오류 이름은 3650~3669 구간이다(pluginReview.notFound, notPending, pathInvalid, handEditNotAllowed, purposeRequired, profileInvalid, descriptionRequired).
 
 const Name = Type.String({ minLength: 1, maxLength: 96 });
 const Id = Type.String({ minLength: 1, maxLength: 128 });
