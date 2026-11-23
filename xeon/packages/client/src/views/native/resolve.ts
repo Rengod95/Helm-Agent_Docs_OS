@@ -75,6 +75,8 @@ export interface ResolveInput {
   readonly doc: unknown;
   readonly locale: string;
   readonly nowMs: number;
+  /** dateTime 서식의 시간대(IANA 이름). 없으면 실행 환경의 지역 시간대 */
+  readonly timeZone?: string;
   readonly limits?: { readonly nodes?: number; readonly depth?: number };
   /** 확장 메시지 카탈로그. 정적 글 prop이 키이면 현재 로케일, 영어, 키 자체 순으로 푼다(ADR-0021 §3.8). 바인드한 값은 풀지 않는다 */
   readonly messages?: ExtMessages;
@@ -84,6 +86,7 @@ interface Walk {
   readonly locale: string;
   readonly messages: ExtMessages | undefined;
   readonly nowMs: number;
+  readonly timeZone: string | undefined;
   readonly nodeLimit: number;
   readonly depthLimit: number;
   nodes: number;
@@ -100,6 +103,7 @@ export function resolveTree(tree: UiNode, input: ResolveInput): ResolvedTree {
     locale: input.locale,
     messages: input.messages,
     nowMs: input.nowMs,
+    timeZone: input.timeZone,
     nodeLimit: input.limits?.nodes ?? UI_LIMITS.treeNodes,
     depthLimit: input.limits?.depth ?? UI_LIMITS.treeDepth,
     nodes: 0,
@@ -286,7 +290,7 @@ function boundValue(binding: UiBinding, read: PointerRead, walk: Walk): UiScalar
   const value: UiScalar | undefined =
     binding.format === undefined
       ? scalarOf(read.value)
-      : formatValue(binding.format, read.value, walk.locale, walk.nowMs);
+      : formatValue(binding.format, read.value, walk.locale, walk.nowMs, walk.timeZone);
   if (value === null) return undefined;
   return value;
 }

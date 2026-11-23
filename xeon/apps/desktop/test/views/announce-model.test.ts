@@ -92,7 +92,7 @@ describe("approval announcement", () => {
     });
   });
 
-  test("a question approval is announced with its request title as is", () => {
+  test("a question is announced with its own sentence, not the English request title", () => {
     const request = toolRequest("Answer the questions");
     expect(
       approvalAnnouncement({
@@ -106,6 +106,6 @@ describe("approval announcement", () => {
           },
         },
       }),
-    ).toEqual({ id: "desktop.announce.approval", params: { what: "Answer the questions" } });
+    ).toEqual({ id: "desktop.announce.question" });
   });
 });

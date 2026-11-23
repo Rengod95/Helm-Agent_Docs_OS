@@ -1,6 +1,6 @@
-import { Button } from "@caustic/react";
+import { Button, toast } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ItemId, ItemRecord, JsonObject, ThreadId } from "@fresnel/contracts/conversation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../../state/engine/index.ts";
 import { fileChangeViewOfArgs, type FileChangeView } from "../approval-form.ts";
 import { engineGoneOf } from "../composer-model.ts";
+import { useDesktopShell, type DesktopShell } from "../desktop-shell-context.ts";
 import { useOpenExtensionRecords } from "../extension-records-link.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
 import type { HookDenialView } from "../hook-denial-model.ts";
@@ -25,6 +26,7 @@ import type { SandboxBlockView } from "../sandbox-block-model.ts";
 import { WEB_TOOLS, webSourcesOf } from "../tool-extras-model.ts";
 import { useTranscriptDetail } from "../transcript-detail.ts";
 import { interventionTagsOf } from "./intervention-model.ts";
+import { revealFullOutput } from "./reveal-full-output.ts";
 import { SourceChips } from "./source-chips.tsx";
 import { ToolLine, useDisclosure, type LineStatus } from "./tool-line.tsx";
 import { failureLineOf } from "./activity-model.ts";
@@ -149,6 +151,7 @@ export function OutputBox(props: {
   readonly cut?: ToolResultView["cut"] | undefined;
   readonly leading?: ToolResultView["leading"] | undefined;
 }): ReactNode {
+  const shell = useDesktopShell();
   return (
     <>
       {props.leading === undefined || props.leading === null ? null : (
@@ -160,6 +163,9 @@ export function OutputBox(props: {
               <span className="min-w-0 break-all font-mono select-text">
                 {props.leading.fullOutputPath}
               </span>
+              {shell === null ? null : (
+                <RevealFullOutputButton shell={shell} path={props.leading.fullOutputPath} />
+              )}
             </p>
           )}
         </div>
@@ -175,6 +181,40 @@ export function OutputBox(props: {
         </p>
       )}
     </>
+  );
+}
+
+/** "전체 출력" 경로 옆의 "폴더에서 보기" 단추. 웹처럼 셸이 없으면 부르는 쪽이 그리지 않는다 */
+function RevealFullOutputButton(props: {
+  readonly shell: Pick<DesktopShell, "invoke">;
+  readonly path: string;
+}): ReactNode {
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      className="flex-none"
+      onClick={() => {
+        detach(
+          revealFullOutput(props.shell, props.path).then((result) => {
+            if (result !== "revealed") {
+              toast({
+                tone: "danger",
+                title: t(
+                  result === "missing"
+                    ? "desktop.item.output.revealMissing"
+                    : "desktop.item.output.revealFailed",
+                ),
+              });
+            }
+            return undefined;
+          }),
+          rethrow,
+        );
+      }}
+    >
+      {t("desktop.item.output.reveal")}
+    </Button>
   );
 }
 

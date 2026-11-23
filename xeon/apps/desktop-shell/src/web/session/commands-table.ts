@@ -60,6 +60,7 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   artifact_frame_open: HIDDEN,
   artifact_frame_status: HIDDEN,
   artifact_reveal: HIDDEN,
+  reveal_path: HIDDEN,
 
   // 알림과 트레이
   notify_permission: BROWSER,

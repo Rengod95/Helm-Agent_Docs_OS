@@ -22,6 +22,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { adoptCss } from "../../lib/adopt-css.ts";
 import { isMotionReduced, useMotionReduced } from "../../lib/motion-presets.tsx";
 import { cssZoomOf } from "../../lib/zoom.ts";
 import {
@@ -359,8 +360,20 @@ export function BeamLine(props: { readonly active: boolean }): ReactNode {
   const reduced = useMotionReduced();
   const look: BeamLook = props.active ? (reduced ? "still" : "run") : "off";
   const tune = LINE_TUNE[scheme];
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  // border-beam은 CSS를 style 요소로 내보내는데 보안 정책이 그 요소를 막는다. 글을 읽어 CSSOM 시트로 적용한다(AGE-77 F-40)
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (root === null) return undefined;
+    const releases = [...root.querySelectorAll(":scope > style")].map((element) =>
+      adoptCss(element.textContent),
+    );
+    return () => {
+      for (const release of releases) release();
+    };
+  });
   return (
-    <div aria-hidden className="fx-line" data-look={look}>
+    <div ref={rootRef} aria-hidden className="fx-line" data-look={look}>
       <BorderBeam
         size="line"
         active={look === "run"}

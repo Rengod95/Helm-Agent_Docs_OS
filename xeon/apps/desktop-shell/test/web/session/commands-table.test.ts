@@ -100,6 +100,7 @@ describe("spec 6.1 rows match the table", () => {
     open_external: "browser",
     open_data_dir: "hidden",
     open_log_dir: "hidden",
+    reveal_path: "hidden",
     notify_permission: "browser",
     notify_request_permission: "browser",
     notify_os: "browser",

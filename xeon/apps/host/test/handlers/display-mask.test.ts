@@ -233,7 +233,7 @@ test("a part whose text grows past the tracking limit turns unverified and stays
   expect(masker.delta("prt_small", "delta", "abc")).toEqual({
     verified: true,
     len: 3,
-    visible: 0,
+    visible: 2,
     ranges: [],
   });
 });
@@ -246,4 +246,25 @@ test("the thread.read entries carry leaf masks by item id and never the value", 
   expect(entries.map((entry) => entry.itemId)).toEqual([dirty.itemId]);
   expect(JSON.stringify(entries)).not.toContain(SECRET);
   expect(itemLeafMasks(redactor, clean)).toBeUndefined();
+});
+
+test("a long argument with no whitespace keeps showing while it streams, and a secret inside stays hidden", () => {
+  const masker = createPartMasker(createRedactor());
+  const body = "0123456789abcdef".repeat(200);
+  const text = `{"path":"a.ts","content":"${body}${PATTERN_TOKEN}${body}","mode":"w"}`;
+  const tokenAt = text.indexOf(PATTERN_TOKEN);
+  masker.delta("prt_flow", "start", "");
+  let previous = 0;
+  for (let n = 40; n <= text.length; n += 40) {
+    const mask = masker.delta("prt_flow", "delta", text.slice(n - 40, n));
+    if (!mask.verified) throw new Error("part must stay verified");
+    expect(mask.len).toBe(n);
+    // 보이는 앞부분은 짧은 열린 꼬리만 빼고 따라온다(시크릿이 다 오면 가림 구간이 덮는다)
+    if (n < tokenAt) expect(n - mask.visible).toBeLessThanOrEqual(4);
+    if (n > tokenAt + PATTERN_TOKEN.length + 4) expect(n - mask.visible).toBeLessThanOrEqual(4);
+    expect(mask.visible).toBeGreaterThanOrEqual(previous);
+    previous = mask.visible;
+    const shown = maskPartText(text.slice(0, n), mask);
+    expect(shown).not.toContain(PATTERN_TOKEN.slice(0, 8));
+  }
 });

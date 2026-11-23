@@ -2,6 +2,7 @@ import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type { RedactionHit, SecretName } from "@fresnel/contracts/capabilities";
 import type { LeafMask, MaskRange } from "@fresnel/contracts/conversation";
 import type { RegisterKnownError, Redactor } from "@fresnel/contracts/services";
+import { patternOpenStart } from "./holdback.ts";
 import {
   findJwts,
   findPrivateKeyBlocks,
@@ -211,22 +212,10 @@ interface FoundRange {
   readonly rank: number;
 }
 
-/** 마지막 공백 문자 다음 위치. 공백이 없으면 0 */
-function lastWhitespaceEnd(text: string): number {
-  for (let i = text.length - 1; i >= 0; i -= 1) {
-    if (/\s/.test(text.charAt(i))) return i + 1;
-  }
-  return 0;
-}
-
 /** RFC 6901 토큰 이스케이프 */
 function pointerToken(key: string): string {
   return key.replaceAll("~", "~0").replaceAll("/", "~1");
 }
-
-const PEM_BEGIN = "-----BEGIN";
-/** PEM 블록의 끝 줄(`-----END …-----`). 보이는 앞부분에 있어야 블록이 온전하다. 어떤 종류의 블록이든 같다 */
-const PEM_CLOSED = /-----END [A-Z ]*-----/;
 
 export interface RedactorImpl extends Redactor {
   /** 스트림 하나당 마스커 하나. 값이 청크에 걸쳐도 가린다(SEC-03) */
@@ -431,16 +420,51 @@ export function createRedactor(): RedactorImpl {
     return merged;
   }
 
+  /** 알려진 값 변형의 앞부분이 text 끝까지 이어지는 가장 이른 자리. 없으면 text.length */
+  function knownOpenStart(text: string): number {
+    const total = text.length;
+    let found = total;
+    for (const { variant } of ordered) {
+      const first = variant.charAt(0);
+      let at = text.indexOf(first, Math.max(0, total - variant.length + 1));
+      while (at !== -1 && at < found) {
+        if (variant.startsWith(text.slice(at))) {
+          found = at;
+          break;
+        }
+        at = text.indexOf(first, at + 1);
+      }
+    }
+    return found;
+  }
+
   /**
-   * 진행 중 텍스트에서 보여도 되는 앞부분 길이. 공백 뒤의 낱말은 아직 끝나지 않았을 수 있다.
-   * 접두 패턴, 키-값 값, 접속 문자열은 공백을 담지 않으므로 공백 뒤에서 자르면 일치가 잘리지 않는다.
-   * 알려진 값 변형은 공백을 담을 수 있어 `safeCut`으로 한 번 더 뺀다. PEM 키는 시작 뒤 끝 줄이 올 때까지 시작부터 뺀다.
+   * 진행 중 텍스트에서 보여도 되는 앞부분 길이(L0.secrets.spec §3.5.1). 보류하는 것은 뒤에 이어 올 글과 합쳐져 시크릿이 될 수 있는
+   * 열린 꼬리뿐이다: 알려진 값 변형의 앞부분, 접두 패턴과 키-값, 접속 문자열, JWT의 앞부분, 닫히지 않은 PEM 블록(`holdback.ts`).
+   * 이미 패턴이 된 구간은 가림 구간이 덮으므로 보류하지 않는다. 열린 꼬리가 이미 일치한 구간의 안쪽에서 시작하면 그 구간의 시작까지 뺀다.
+   * 낱말이나 공백과는 상관이 없어서 공백 없는 긴 글도 끝까지 보인다.
    */
   function visibleLengthOf(text: string): number {
-    let cut = safeCut(text, lastWhitespaceEnd(text));
-    // 보이는 앞부분 안에서 PEM 블록이 닫히지 않았으면 시작부터 뺀다. 끝 줄이 뒤에 있어도 앞부분만 본다
-    const begin = text.lastIndexOf(PEM_BEGIN);
-    if (begin !== -1 && begin < cut && !PEM_CLOSED.test(text.slice(begin, cut))) cut = begin;
+    const total = text.length;
+    let cut = Math.min(patternOpenStart(text), knownOpenStart(text));
+    if (cut < total) {
+      const ranges = rangesOfText(text);
+      // 끝이 text 끝인 구간 안에서 시작한 열린 꼬리는 지금 보이는 글에서 이미 가려져 있다(구간이 꼬리의 끝까지 덮는다).
+      // 가장 이른 후보가 그 안이면 뒤의 후보도 모두 그 안이므로 전부 보인다. 뒤에 글이 오면 그때 다시 본다
+      if (ranges.some((range) => range.start < cut && cut < range.end && range.end === total)) {
+        return total;
+      }
+      let moved = true;
+      while (moved) {
+        moved = false;
+        for (const range of ranges) {
+          if (range.start < cut && cut < range.end) {
+            cut = range.start;
+            moved = true;
+          }
+        }
+      }
+    }
     return cut;
   }
 

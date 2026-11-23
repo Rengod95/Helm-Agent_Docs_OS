@@ -207,7 +207,7 @@ binds: [xeon/apps/desktop-shell/src/web/**]
 | `pick_folder_open` | 플러그인 화면의 폴더 고르기 | 웹에서는 아직 두지 않는다(경로로 핸들을 만드는 명령이 필요하다). W4 범위 밖이다 [미결: 후속] [근거: apps/desktop-shell/src/web/session/commands-table.ts FOLDER_PICKER_GAP] | - |
 | `folder_list`, `folder_read` | 선택한 폴더 안 읽기 | 그대로. 핸들은 (탭 연결, 화면 scope)별이다 | origin |
 | `open_external` | OS 기본 앱으로 열기 | `window.open(url, "_blank", "noopener,noreferrer")`. 허용 스킴(http, https, mailto)은 그대로 shim도 검사한다 | 브라우저 |
-| `open_data_dir`, `open_log_dir` | 파인더로 열기 | 숨긴다. 대신 경로 문자열과 복사 버튼을 보인다 | - |
+| `open_data_dir`, `open_log_dir`, `reveal_path` | 파인더로 열기(`reveal_path`는 긴 출력의 전체 출력 파일을 파인더에서 고른다) | 숨긴다. 대신 경로 문자열과 복사 버튼을 보인다 | - |
 | `notify_permission`, `notify_request_permission`, `notify_os` | OS 알림 | 브라우저 Notification API. 권한 요청은 사용자 제스처 안에서만. 알림 클릭은 탭을 앞으로 가져와 `openThread` 의도를 낸다 | 브라우저 |
 | `shell_take_intents`, `notify_take_target` | 트레이·알림 의도 | 탭 안 의도 큐(셸 의도 큐와 같은 동작, 탭별) | 게이트웨이 |
 | `tray_update` | 트레이 메뉴 | 무동작(`ok`). 열린 탭의 제목 접두("(2) Fresnel")로 진행 중 개수를 보인다 [제안] | 브라우저 |

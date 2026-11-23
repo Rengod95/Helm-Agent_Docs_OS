@@ -2,7 +2,7 @@ import { assertNever, attempt } from "@fresnel/contracts";
 import type { UiFormat } from "@fresnel/contracts/extensions";
 
 // 바인드 서식(ADR-0021 §3.4.1, format: "duration" 등). 서식에 맞지 않는 값이나 쓸 수 없는 locale이면 undefined다.
-// duration과 bytes는 locale과 무관한 고정 표기("." 소수점)다. dateTime은 UTC로 그린다(호스트 시간대를 모른다).
+// duration과 bytes는 locale과 무관한 고정 표기("." 소수점)다. dateTime은 사용자 지역 시간으로 그린다. `timeZone`(IANA 이름)을 주면 그 시간대로 그린다(시험, 다른 시간대 보기).
 
 type RelativeUnit = "day" | "hour" | "minute" | "second";
 
@@ -24,6 +24,7 @@ export function formatValue(
   value: unknown,
   locale: string,
   nowMs: number,
+  timeZone?: string,
 ): string | undefined {
   switch (format) {
     case "duration":
@@ -40,7 +41,7 @@ export function formatValue(
       return typeof value === "number" && isRatio(value) ? formatPercent(value, locale) : undefined;
     case "dateTime": {
       const date = toDate(value);
-      return date === undefined ? undefined : formatDateTime(date, locale);
+      return date === undefined ? undefined : formatDateTime(date, locale, timeZone);
     }
     default:
       return assertNever(format, "formatValue");
@@ -103,12 +104,17 @@ function formatPercent(ratio: number, locale: string): string | undefined {
   );
 }
 
-function formatDateTime(date: Date, locale: string): string | undefined {
+function formatDateTime(
+  date: Date,
+  locale: string,
+  timeZone: string | undefined,
+): string | undefined {
+  // timeZone을 빼면 Intl이 실행 환경의 지역 시간대를 쓴다
   return intl(() =>
     new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "UTC",
+      ...(timeZone === undefined ? {} : { timeZone }),
     }).format(date),
   );
 }

@@ -1,4 +1,5 @@
-import type { MessageId } from "@fresnel/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
 import type { LiveApprovalRequest } from "../../state/engine/input.ts";
 import { mcpStartViewOf } from "../approval-form.ts";
 
@@ -127,22 +128,23 @@ const WRITE_OP_ID: Readonly<Record<string, MessageId>> = {
 const WEB_TITLE = /^Allow web access to (.+)\?$/;
 const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
-export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | null {
-  const { body } = request;
-  // 기동 승인은 저장된 영어 제목 대신 인자의 서버 이름으로 그린다(인자 모양이 맞지 않으면 원문)
-  const mcp = body.kind === "tool" ? mcpStartViewOf(body.tool) : null;
-  if (mcp !== null)
-    return { id: "desktop.approvals.title.mcpStart", params: { server: mcp.server } };
-  if (body.kind === "tool" && request.title === `Allow tool "${body.tool.toolName}"?`) {
-    return { id: "desktop.approvals.title.tool", params: { tool: body.tool.toolName } };
+/** 승인 제목 원문과 종류만으로 정해지는 제목 풀이. 기동 승인(인자가 필요하다)은 `cardTitleViewOf`가 먼저 본다 */
+export function cardTitleViewOfText(input: {
+  readonly title: string;
+  readonly bodyKind: string;
+  readonly toolName: string | null;
+}): CardTitleView | null {
+  const { title, bodyKind, toolName } = input;
+  if (bodyKind === "tool" && toolName !== null && title === `Allow tool "${toolName}"?`) {
+    return { id: "desktop.approvals.title.tool", params: { tool: toolName } };
   }
   // 질문 승인의 제목은 엔진이 영어로 고정한 글이다(core-tools `ask/approvals` QUESTION_TITLE)
-  if (body.kind === "question" && request.title === "Answer the questions") {
+  if (bodyKind === "question" && title === "Answer the questions") {
     return { id: "desktop.approvals.title.question", params: {} };
   }
-  const web = body.kind === "tool" ? WEB_TITLE.exec(request.title) : null;
+  const web = bodyKind === "tool" ? WEB_TITLE.exec(title) : null;
   if (web !== null) return { id: "desktop.approvals.title.web", params: { host: web[1] ?? "" } };
-  const write = body.kind === "tool" ? WRITE_TITLE.exec(request.title) : null;
+  const write = bodyKind === "tool" ? WRITE_TITLE.exec(title) : null;
   const opId = write === null ? undefined : WRITE_OP_ID[write[1] ?? ""];
   if (write !== null && opId !== undefined) {
     const skill = write[2];
@@ -155,6 +157,35 @@ export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | n
     };
   }
   return null;
+}
+
+export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | null {
+  const { body } = request;
+  // 기동 승인은 저장된 영어 제목 대신 인자의 서버 이름으로 그린다(인자 모양이 맞지 않으면 원문)
+  const mcp = body.kind === "tool" ? mcpStartViewOf(body.tool) : null;
+  if (mcp !== null)
+    return { id: "desktop.approvals.title.mcpStart", params: { server: mcp.server } };
+  return cardTitleViewOfText({
+    title: request.title,
+    bodyKind: body.kind,
+    toolName: body.kind === "tool" ? body.tool.toolName : null,
+  });
+}
+
+/** 제목 풀이를 현재 언어의 글로 적는다 */
+export function cardTitleTextOf(view: CardTitleView): string {
+  switch (view.id) {
+    case "desktop.approvals.title.tool":
+    case "desktop.approvals.title.web":
+    case "desktop.approvals.title.mcpStart":
+    case "desktop.approvals.title.question":
+      return t(view.id, view.params);
+    case "desktop.approvals.title.write.memory":
+    case "desktop.approvals.title.write.skill":
+      return t(view.id, { name: view.params.name, op: t(view.params.opId) });
+    default:
+      return assertNever(view, "CardTitleView");
+  }
 }
 
 /**
