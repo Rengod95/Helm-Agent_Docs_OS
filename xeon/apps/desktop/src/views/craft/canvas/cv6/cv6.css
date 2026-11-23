@@ -46,7 +46,7 @@
     --cv6-line-soft: color-mix(in srgb, var(--cs-color-text-primary) 10%, transparent);
     --cv6-chrome: color-mix(in oklab, var(--cs-color-surface-raised) 94%, transparent);
     /* 종류 색: 앱의 선명한 한 벌(`src/chroma.css`, spec DP-229) 그대로이고 두 테마가 같다. 이 화면만의 색 값은 없다.
-       빛·선·점(--cv6-<종류>)은 표지, 탭과 아이콘 타일의 면(-tab)과 그 위 그림·글(-ink)은 면 + 먹 짝,
+       빛, 선, 점(--cv6-<종류>)은 표지, 탭과 아이콘 타일의 면(-tab)과 그 위 그림과 글(-ink)은 채운 면 + 그 위 글 짝,
        바탕 위 글(-text)은 바탕 위 글 값(라이트는 밝은 바탕에 4.5 이상, 다크는 표지)이다.
        색상: Inject cobalt(H260), Hook 노랑(H88), Drive 보라(H288), 도구 초록(H150) */
     --cv6-inject: var(--fr-vivid-cobalt);
@@ -57,14 +57,17 @@
     --cv6-hook-text: var(--fr-vivid-yellow-text);
     --cv6-drive-text: var(--fr-vivid-purple-text);
     --cv6-tool-text: var(--fr-vivid-green-text);
-    --cv6-inject-tab: var(--fr-vivid-cobalt-face);
-    --cv6-hook-tab: var(--fr-vivid-yellow-face);
-    --cv6-drive-tab: var(--fr-vivid-purple-face);
-    --cv6-tool-tab: var(--fr-vivid-green-face);
-    --cv6-inject-ink: var(--fr-vivid-cobalt-ink);
-    --cv6-hook-ink: var(--fr-vivid-yellow-ink);
-    --cv6-drive-ink: var(--fr-vivid-purple-ink);
-    --cv6-tool-ink: var(--fr-vivid-green-ink);
+    /* 탭과 타일 [결정: 2026-11-23 사용자, AGE-31 "라벨 색들은 너무 파스텔톤같아. 더 채도가 있어야겠는데"]: 옅은 면(-face, C 0.11~0.16)과
+       먹(-ink) 짝을 버리고 선명한 벌의 채운 면(-solid, C 0.15~0.2)과 그 위 글(-on)을 쓴다. 두 테마 같은 값이고 섞지 않는다.
+       글 대 면: Inject 4.57, Hook 5.04, Drive 4.50, 도구 5.23(모두 4.5 이상) */
+    --cv6-inject-tab: var(--fr-vivid-cobalt-solid);
+    --cv6-hook-tab: var(--fr-vivid-yellow-solid);
+    --cv6-drive-tab: var(--fr-vivid-purple-solid);
+    --cv6-tool-tab: var(--fr-vivid-green-solid);
+    --cv6-inject-ink: var(--fr-vivid-cobalt-on);
+    --cv6-hook-ink: var(--fr-vivid-yellow-on);
+    --cv6-drive-ink: var(--fr-vivid-purple-on);
+    --cv6-tool-ink: var(--fr-vivid-green-on);
     --cv6-bundle-tab: color-mix(
       in srgb,
       var(--cs-color-text-primary) 13%,
@@ -483,7 +486,7 @@
   .cv6-card {
     position: absolute;
     inset: 0;
-    border-radius: 10px;
+    border-radius: var(--cv6-card-r);
     background: var(--cv6-plate);
     box-shadow:
       inset 0 0 0 1px var(--cv6-plate-edge),
@@ -504,21 +507,40 @@
     outline-offset: -1px;
   }
 
-  /* 책갈피(탭): 카드 왼쪽 변과 같은 자리에서 시작해 윗변 위로 20 솟는다(가까이). 위 모서리 반경 6.
-     아래 12는 카드 뒤로 들어간다. 면은 종류 토큰을 바탕에 섞은 진한 색, 글·아이콘은 종류의 글 토큰(12/500) */
+  /* 판이 보는 크기 한 벌 [결정: 2026-11-23 사용자, AGE-31]. 값은 "100%의 값"과 "화면 눈금 × 확대의 역수(--cv6-inv, 캔버스가 판 위
+     상자에 쓴다)" 가운데 큰 것이다. 85%쯤 위에서는 참고 그림의 카드가 그대로 커지고, 그 아래에서는 화면 크기가 눈금에 머문다:
+     이름과 목적 12/16(footnote), 탭 글 11(caption), 안 여백 8(space-2), 카드 반경 8. 탭이 솟는 높이는 TAB_ROOM(36)을 넘지 않는다 */
+  .cv6-plate,
+  .cv6-pedestal,
+  .cv6-pile {
+    --cv6-z: var(--cv6-inv, 1);
+    --cv6-pad: max(var(--cs-space-3), calc(var(--cs-space-2) * var(--cv6-z)));
+    --cv6-card-r: max(var(--cs-space-2_5), calc(var(--cs-space-2) * var(--cv6-z)));
+    --cv6-tab-rise: min(36px, max(20px, calc(17px * var(--cv6-z))));
+    --cv6-tab-type: max(12px, calc(11px * var(--cv6-z)));
+    --cv6-type: max(14px, calc(12px * var(--cv6-z)));
+    --cv6-line: max(20px, calc(16px * var(--cv6-z)));
+  }
+
+  /* 책갈피(탭): 카드 왼쪽 변과 같은 자리에서 윗변 위로 솟는다(100%에서 20, 낮은 배율에서 화면 17, TAB_ROOM 36까지).
+     아래는 카드 반경만큼 카드 뒤로 들어가 둥근 모서리 사이로 탭 색이 보인다. 그림과 글은 보이는 부분의 세로 가운데(100%에서 위 4).
+     면은 선명한 종류 색(-solid), 글과 그림은 그 위 글 색(-on), 12/500(낮은 배율에서 화면 11) */
   .cv6-tab {
     position: absolute;
     left: 0;
-    bottom: calc(100% - var(--cs-space-3));
+    bottom: calc(100% - var(--cv6-card-r));
     display: inline-flex;
-    align-items: flex-start;
-    gap: var(--cs-space-1_25);
-    height: 32px;
-    padding: var(--cs-space-1) var(--cs-space-2) 0;
-    border-radius: 6px 6px 0 0;
+    align-items: center;
+    gap: max(var(--cs-space-1_25), calc(var(--cs-space-1) * var(--cv6-z)));
+    height: calc(var(--cv6-tab-rise) + var(--cv6-card-r));
+    padding: 0 max(var(--cs-space-2), calc(var(--cs-space-1_5) * var(--cv6-z))) var(--cv6-card-r);
+    border-radius: max(6px, calc(5px * var(--cv6-z))) max(6px, calc(5px * var(--cv6-z))) 0 0;
     background: var(--cv6-k-tab);
     color: var(--cv6-k-ink);
-    font: 500 12px/12px var(--cs-font-ui);
+    font-family: var(--cs-font-ui);
+    font-size: var(--cv6-tab-type);
+    font-weight: 500;
+    line-height: var(--cv6-tab-type);
     white-space: nowrap;
     pointer-events: none;
   }
@@ -527,67 +549,42 @@
     flex: none;
   }
 
-  .cv6-tab[data-lod="mid"] {
-    gap: var(--cs-space-1_75);
-    height: 40px;
-    padding: var(--cs-space-1_5) var(--cs-space-3) 0;
-    border-radius: 8px 8px 0 0;
-    font-size: 16px;
-    line-height: 16px;
+  .cv6-tab > svg {
+    width: var(--cv6-tab-type);
+    height: var(--cv6-tab-type);
   }
 
-  .cv6-tab[data-lod="far"] {
-    height: 48px;
-    padding: var(--cs-space-1_5) var(--cs-space-3) 0;
-    border-radius: 9px 9px 0 0;
+  /* 멀리: 종류 그림만. 솟은 36 안에 위아래 4씩 남긴다 */
+  .cv6-tab[data-lod="far"] > svg {
+    width: min(28px, calc(11px * var(--cv6-z)));
+    height: min(28px, calc(11px * var(--cv6-z)));
   }
 
-  /* 묶음의 탭: 종류가 아니라 "묶음"이라 무채색. 받침판·더미는 면이 탭을 덮지 않으므로 윗변에 바로 선다 */
+  /* 묶음의 탭: 종류가 아니라 "묶음"이라 무채색. 받침판, 더미는 면이 탭을 덮지 않으므로 윗변에 바로 선다 */
   .cv6-pedestal > .cv6-tab,
   .cv6-pile-top > .cv6-tab {
     bottom: 100%;
-    height: 20px;
-    padding-top: var(--cs-space-1);
+    height: var(--cv6-tab-rise);
+    padding-bottom: 0;
     color: var(--cs-color-text-secondary);
     background: var(--cv6-bundle-tab);
   }
 
-  .cv6-pedestal > .cv6-tab[data-lod="mid"],
-  .cv6-pile-top > .cv6-tab[data-lod="mid"] {
-    height: 28px;
-    padding-top: var(--cs-space-1_5);
-  }
-
-  .cv6-pedestal > .cv6-tab[data-lod="far"],
-  .cv6-pile-top > .cv6-tab[data-lod="far"] {
-    height: 36px;
-  }
-
-  /* 나가는 점(참고 그림의 핸들): 지름 8, 어두운 회색 안 + 1px 밝은 테. 가운데가 카드 변 위에 선다.
-     레일 쪽 변 가운데(Inject·도구는 아래 변, Hook은 위 변), Drive의 핸드오프는 오른쪽 변.
-     같은 자리에 여럿이면 점 대신 호출 순서 번호를 단 같은 모양의 동그라미 */
+  /* 나가는 점(참고 그림의 핸들): 지름 8(낮은 배율에서도 화면 8), 어두운 회색 안 + 1px 밝은 테. 가운데가 카드 변 위에 선다.
+     레일 쪽 변 가운데(Inject, 도구는 아래 변, Hook은 위 변), Drive의 핸드오프는 오른쪽 변.
+     같은 자리에 여럿이면 점 대신 호출 순서 번호를 단 같은 모양의 동그라미(100%에서 20, 낮은 배율에서 화면 18) */
   .cv6-pad {
     position: absolute;
     left: 50%;
     z-index: 1;
     display: grid;
     place-items: center;
-    width: 8px;
-    height: 8px;
+    width: max(8px, calc(8px * var(--cv6-z)));
+    height: max(8px, calc(8px * var(--cv6-z)));
     border-radius: 999px;
     background: var(--cv6-handle);
     box-shadow: inset 0 0 0 1px var(--cv6-handle-ring);
     pointer-events: none;
-  }
-
-  .cv6-pad[data-lod="mid"] {
-    width: 12px;
-    height: 12px;
-  }
-
-  .cv6-pad[data-lod="far"] {
-    width: 16px;
-    height: 16px;
   }
 
   .cv6-plate[data-mark="selected"] .cv6-pad,
@@ -614,26 +611,15 @@
 
   .cv6-pad[data-numbered] {
     width: auto;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 var(--cs-space-1_25);
-    font: 600 11px/20px var(--cs-font-ui);
+    min-width: max(20px, calc(18px * var(--cv6-z)));
+    height: max(20px, calc(18px * var(--cv6-z)));
+    padding: 0 max(var(--cs-space-1_25), calc(var(--cs-space-1) * var(--cv6-z)));
+    font-family: var(--cs-font-ui);
+    font-size: max(11px, calc(11px * var(--cv6-z)));
+    font-weight: 600;
+    line-height: max(20px, calc(18px * var(--cv6-z)));
     font-variant-numeric: tabular-nums;
     color: var(--cs-color-text-secondary);
-  }
-
-  .cv6-pad[data-numbered][data-lod="mid"] {
-    min-width: 28px;
-    height: 28px;
-    font-size: 15px;
-    line-height: 28px;
-  }
-
-  .cv6-pad[data-numbered][data-lod="far"] {
-    min-width: 38px;
-    height: 38px;
-    font-size: 21px;
-    line-height: 38px;
   }
 
   .cv6-dim {
@@ -644,7 +630,7 @@
   .cv6-edge-marks {
     position: absolute;
     top: 0;
-    right: var(--cs-space-3);
+    right: var(--cv6-pad);
     transform: translateY(-50%);
     z-index: 1;
     pointer-events: none;
@@ -655,24 +641,31 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 40%, transparent);
   }
 
-  /* 카드 몸(가까이): 사방 12. 칸 사이는 참고 그림대로 12 · 11 · 11 · 12 */
+  /* 카드 몸(가까이): 사방 12. 칸 사이는 참고 그림대로 12, 11, 11, 12. 낮은 배율에서는 여백 화면 8 */
   .cv6-plate-body {
     position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
-    padding: var(--cs-space-3);
+    padding: var(--cv6-pad);
     pointer-events: none;
   }
 
+  /* 머리: 그림 + 이름(한 줄 말줄임) + 상태 + 세로 점 셋. 그림과 이름은 줄 상자의 세로 가운데에 선다 */
   .cv6-head {
     display: flex;
     flex: none;
     align-items: center;
-    gap: var(--cs-space-2);
-    height: 20px;
+    gap: max(var(--cs-space-2), calc(var(--cs-space-1_5) * var(--cv6-z)));
+    height: var(--cv6-line);
     min-width: 0;
     color: var(--cs-color-text-primary);
+  }
+
+  .cv6-head > svg:first-child {
+    flex: none;
+    width: max(16px, calc(14px * var(--cv6-z)));
+    height: max(16px, calc(14px * var(--cv6-z)));
   }
 
   .cv6-name {
@@ -681,10 +674,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: var(--cv6-type);
+    line-height: var(--cv6-line);
     font-weight: 500;
     color: var(--cs-color-text-primary);
+  }
+
+  /* 설명이 없는 판의 경고 구슬(머리 끝). 화면 8 */
+  .cv6-head-orb {
+    width: max(8px, calc(8px * var(--cv6-z)));
+    height: max(8px, calc(8px * var(--cv6-z)));
   }
 
   /* 오른쪽 위의 세로 점 셋(참고 그림의 메뉴): 누르면 상세가 뜬다 */
@@ -714,12 +713,13 @@
     outline: 2px solid var(--cs-color-focus-ring);
   }
 
+  /* 목적 한 문장: 가까이 14/20 두 줄(자리는 늘 두 줄), 중간 화면 12/16 세 줄까지 */
   .cv6-desc {
     flex: none;
-    margin: var(--cs-space-3) 0 0;
-    min-height: 40px;
-    font-size: 14px;
-    line-height: 20px;
+    margin: max(var(--cs-space-3), calc(var(--cs-space-2) * var(--cv6-z))) 0 0;
+    min-height: calc(var(--cv6-line) * 2);
+    font-size: var(--cv6-type);
+    line-height: var(--cv6-line);
     color: var(--cv6-desc);
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -727,7 +727,12 @@
     overflow: hidden;
   }
 
-  /* 안쪽 면: 꼬리표(붙는 자리) + 그 설명. 남는 높이를 채워 알약과 푸터가 늘 바닥에 선다 */
+  .cv6-plate-body[data-lod="mid"] .cv6-desc {
+    min-height: 0;
+    -webkit-line-clamp: 3;
+  }
+
+  /* 안쪽 면(가까이만): 꼬리표(붙는 자리) + 설명. 남는 높이를 채워 알약과 사실 줄이 늘 바닥에 선다 */
   .cv6-card-well {
     display: flex;
     flex: 1 1 auto;
@@ -772,28 +777,42 @@
     overflow: hidden;
   }
 
-  /* 알약 칩: 겹친 판 아이콘 + 값 하나(14/500 흰). 값이 없어도 줄 높이는 남긴다 */
+  /* "설명이 없어요": 구슬(8)과 글이 한 줄의 세로 가운데에 선다 */
+  .cv6-well-text.cv6-missing {
+    display: flex;
+    align-items: center;
+    gap: var(--cs-space-2);
+    height: 20px;
+    color: var(--cs-color-text-secondary);
+  }
+
+  /* 알약 칩: 겹친 판 아이콘 + 값 하나(14/500 흰, 낮은 배율에서 화면 12). 값이 없어도 줄 높이는 남긴다. 중간에서는 카드 바닥에 선다 */
   .cv6-pill-row {
     display: flex;
     flex: none;
     align-items: center;
-    height: 24px;
+    height: max(24px, calc(20px * var(--cv6-z)));
     margin-top: var(--cs-space-3);
     min-width: 0;
+  }
+
+  .cv6-plate-body[data-lod="mid"] .cv6-pill-row {
+    margin-top: auto;
   }
 
   .cv6-chip-pill {
     display: inline-flex;
     align-items: center;
-    gap: var(--cs-space-1_25);
-    height: 24px;
+    gap: max(var(--cs-space-1_25), calc(var(--cs-space-1) * var(--cv6-z)));
+    height: 100%;
     max-width: 100%;
-    padding: 0 var(--cs-space-2) 0 var(--cs-space-1_75);
-    border-radius: 5px;
+    padding: 0 max(var(--cs-space-2), calc(var(--cs-space-1_5) * var(--cv6-z))) 0
+      max(var(--cs-space-1_75), calc(var(--cs-space-1_25) * var(--cv6-z)));
+    border-radius: max(5px, calc(4px * var(--cv6-z)));
     background: var(--cv6-pill);
     box-shadow: inset 0 0 0 1px var(--cv6-pill-edge);
-    font-size: 14px;
-    line-height: 24px;
+    font-size: var(--cv6-type);
+    line-height: 1;
     font-weight: 500;
     color: var(--cs-color-text-primary);
     white-space: nowrap;
@@ -802,6 +821,8 @@
 
   .cv6-chip-pill > svg {
     flex: none;
+    width: var(--cv6-type);
+    height: var(--cv6-type);
     color: var(--cv6-pill-icon);
   }
 
@@ -810,7 +831,7 @@
     text-overflow: ellipsis;
   }
 
-  /* 푸터: 흐린 수치. 왼쪽부터 늘 드는 토큰, 시계 + 최근 사용. 항목 사이 12, 아이콘과 글 사이 4 */
+  /* 사실 줄(가까이만): 흐린 수치. 왼쪽부터 늘 드는 토큰, 시계 + 최근 사용. 항목 사이 12, 아이콘과 글 사이 4 */
   .cv6-foot {
     display: flex;
     flex: none;
@@ -832,75 +853,9 @@
     gap: var(--cs-space-1);
   }
 
-  /* 중간(48~85%): 같은 칸을 크게. 푸터는 뺀다 */
-  .cv6-plate-body[data-lod="mid"] {
-    padding: var(--cs-space-4);
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-head {
-    gap: var(--cs-space-2_5);
-    height: 28px;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-name {
-    font-size: 20px;
-    line-height: 28px;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-desc {
-    min-height: 48px;
-    font-size: 17px;
-    line-height: 24px;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-card-well {
-    gap: var(--cs-space-1_5);
-    margin-top: var(--cs-space-3);
-    padding: var(--cs-space-2_5);
-    border-radius: 8px;
-  }
-
-  /* 안쪽 글이 없는 판: 안쪽 면을 그리지 않고 꼬리표만 머리 아래에 둔다(빈 상자를 남기지 않는다) */
-  .cv6-card-well[data-empty="true"],
-  .cv6-plate-body[data-lod="mid"] .cv6-card-well[data-empty="true"] {
-    flex: none;
-    padding: 0;
-    background: none;
-    box-shadow: none;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-tag {
-    height: 22px;
-    padding: 0 var(--cs-space-1_75);
-    font-size: 15px;
-    line-height: 22px;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-well-text {
-    font-size: 17px;
-    line-height: 24px;
-    -webkit-line-clamp: 2;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-pill-row {
-    height: 30px;
-    margin-top: var(--cs-space-3);
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-chip-pill {
-    gap: var(--cs-space-1_5);
-    height: 30px;
-    padding: 0 var(--cs-space-2_5) 0 var(--cs-space-2_25);
-    border-radius: 6px;
-    font-size: 17px;
-    line-height: 30px;
-  }
-
-  /* 멀리(48% 아래): 이름만 크게(두 줄까지) */
+  /* 멀리(48% 아래): 머리 한 줄만 카드 세로 가운데에 */
   .cv6-plate-body[data-lod="far"] {
     justify-content: center;
-    gap: var(--cs-space-3_5);
-    padding: var(--cs-space-5) var(--cs-space-6);
   }
 
   .cv6-plate-hit {
@@ -912,42 +867,31 @@
     cursor: pointer;
   }
 
-  /* 멀리서 보는 이름: 하이픈 뒤에서 두 줄까지 접힌다(잘라 내지 않는다) */
-  .cv6-name-wrap {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    hyphens: manual;
+  /* 상태 표: 가까이는 이름 줄 끝, 중간과 멀리는 카드 위 변 오른쪽에 걸친다. 100%에서 18(11/500), 낮은 배율에서 화면 16(11) */
+  .cv6-marks {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: max(var(--cs-space-1), calc(var(--cs-space-0_75) * var(--cv6-z)));
   }
 
   .cv6-mark {
     display: inline-flex;
     align-items: center;
     gap: var(--cs-space-0_75);
-    height: 18px;
-    padding: 0 var(--cs-space-1_5);
-    border-radius: 4px;
-    font-size: 11px;
+    height: max(18px, calc(16px * var(--cv6-z)));
+    padding: 0 max(var(--cs-space-1_5), calc(var(--cs-space-1_25) * var(--cv6-z)));
+    border-radius: max(4px, calc(4px * var(--cv6-z)));
+    font-size: max(11px, calc(11px * var(--cv6-z)));
     font-weight: 500;
     color: var(--cs-color-text-tertiary);
     box-shadow: inset 0 0 0 1px var(--cv6-tag-edge);
     white-space: nowrap;
   }
 
-  .cv6-mark-mid {
-    height: 24px;
-    padding: 0 var(--cs-space-1_75);
-    border-radius: 6px;
-    font-size: 14px;
-  }
-
-  .cv6-mark-big {
-    height: 34px;
-    padding: 0 var(--cs-space-2_5);
-    border-radius: 8px;
-    font-size: 19px;
+  .cv6-mark > svg {
+    width: max(11px, calc(11px * var(--cv6-z)));
+    height: max(11px, calc(11px * var(--cv6-z)));
   }
 
   .cv6-mark-error {

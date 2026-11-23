@@ -40,6 +40,7 @@ function inventory(part: Partial<InjectInventory>): InjectInventory {
 function card(part: Partial<PluginCard> & Pick<PluginCard, "name" | "displayName">): PluginCard {
   return {
     purpose: null,
+    description: "샘플 플러그인이에요. 리뷰 화면을 보여 주려고 만든 카드예요.",
     does: { inject: null, hook: null, drive: null },
     enforcement: "advisory",
     runs: { code: false, isolated: null },

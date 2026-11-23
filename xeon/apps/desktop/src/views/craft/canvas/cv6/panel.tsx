@@ -20,7 +20,7 @@ import type { PointHook } from "./live.ts";
 import { agoText } from "../shared-sample.ts";
 import { Icon, KIND_COLOR, KindGlyph, KindTile, PartGlyph } from "./glyphs.tsx";
 import { FOLD_WORD, foldsOf, pluginFacts, type Fact } from "./facts.ts";
-import { descriptionOf } from "./sample-ext.ts";
+import { cardDescription } from "./layout.ts";
 import {
   BUILDER,
   canNudge,
@@ -720,7 +720,7 @@ export function PluginDetail(props: {
     const v = meta.cost[k];
     return v === null ? [] : [[k, v] as const];
   });
-  const description = descriptionOf(p.name);
+  const description = cardDescription(p);
   const sourceWord =
     placed === undefined
       ? t("desktop.craft.canvas.cv3.source.out")
@@ -850,7 +850,7 @@ export function PluginDetail(props: {
           {purposeOf(meta)}
         </p>
         {description === null ? null : (
-          <p className="m-0 mt-2.5 text-ui-relaxed text-text-secondary">{t(description)}</p>
+          <p className="m-0 mt-2.5 text-ui-relaxed text-text-secondary">{description}</p>
         )}
       </Section>
 

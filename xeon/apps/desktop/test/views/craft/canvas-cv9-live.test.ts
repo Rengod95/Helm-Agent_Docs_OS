@@ -25,12 +25,13 @@ import {
   type CanvasProfile,
 } from "../../../src/views/craft/canvas/cv6/model.ts";
 import {
+  cardDescription,
   PLATE_H,
   PLATE_LEAN_H,
   plateHeightOf,
   purposeMissing,
 } from "../../../src/views/craft/canvas/cv6/layout.ts";
-import { purposeOf } from "../../../src/views/craft/canvas/shared-meta.ts";
+import { purposeOf, purposeTextOf } from "../../../src/views/craft/canvas/shared-meta.ts";
 
 function card(name: string, over: Partial<PluginCard> = {}): PluginCard {
   return {
@@ -178,6 +179,43 @@ describe("적은 판", () => {
       purposeMissing(told),
       plateHeightOf(told),
     ]).toEqual([true, PLATE_LEAN_H, false, PLATE_H]);
+  });
+
+  test("목적이 없어도 설명이 있으면 판이 다 선다. 카드의 설명은 안쪽 면의 글이다 (AGE-31)", () => {
+    const told = pluginOfCard(card("told", { purpose: null, description: "told description" }));
+    expect([purposeMissing(told), cardDescription(told), plateHeightOf(told)]).toEqual([
+      true,
+      "told description",
+      PLATE_H,
+    ]);
+  });
+});
+
+describe("내장 플러그인의 글 (AGE-31)", () => {
+  test("내장 카드는 매니페스트의 영어 글 대신 카탈로그의 목적과 설명을 쓴다", () => {
+    const schedule = pluginOfCard(
+      card("cap-schedule", {
+        purpose: "Runs a prompt at a time you choose.",
+        description: "manifest text",
+        origin: { kind: "builtin" },
+      }),
+    );
+    expect([purposeTextOf(schedule.meta), cardDescription(schedule)]).toEqual([
+      "프롬프트를 정한 때에 실행해요.",
+      "정한 때가 되면 사람 없이 도는 새 대화를 열어 프롬프트를 실행하며, 없으면 예약 실행이 일어나지 않아요.",
+    ]);
+  });
+
+  test("내장 그룹(빌더)도 카탈로그 글을 쓰고, 사용자 플러그인은 같은 이름이어도 카드 글을 쓴다", () => {
+    const builder = pluginOfCard(card("authoring", { origin: { kind: "builtin" } }));
+    const mine = pluginOfCard(
+      card("cap-schedule", { purpose: "my purpose", description: "my description" }),
+    );
+    expect([purposeTextOf(builder.meta), purposeTextOf(mine.meta), cardDescription(mine)]).toEqual([
+      "대화로 플러그인을 만들고 고쳐요.",
+      "my purpose",
+      "my description",
+    ]);
   });
 });
 

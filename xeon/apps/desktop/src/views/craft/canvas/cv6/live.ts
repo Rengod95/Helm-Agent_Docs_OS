@@ -93,6 +93,7 @@ function metaOfCard(card: PluginCard): PluginMeta {
     displayName: card.displayName,
     purpose: "desktop.craft.canvas.cv9.purposeNone",
     purposeText: card.purpose,
+    descriptionText: card.description ?? null,
     version: card.version ?? "",
     author: null,
     license: null,

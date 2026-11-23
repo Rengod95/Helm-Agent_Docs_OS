@@ -73,3 +73,9 @@ export function openViewOf(bounds: Box, avail: Box): OpenView {
     h <= avail.h ? avail.y + (avail.h - h) / 3 - bounds.y * zoom : avail.y - bounds.y * zoom;
   return { x, y, zoom, overflowRight };
 }
+
+/**
+ * React Flow의 오른쪽 아래 표시(라이브러리 이름 링크)를 숨긴다. 라이브러리는 MIT라 숨겨도 되고, 이름은 앱의 오픈소스 고지
+ * (묶은 앱의 `THIRD-PARTY-NOTICES-UI.txt`, 화면 번들 모듈에서 만든다)에 남는다 [결정: 2026-11-23 사용자, AGE-31 "react flow 표시 제거"]
+ */
+export const HIDE_ATTRIBUTION: { readonly hideAttribution: true } = { hideAttribution: true };

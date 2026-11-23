@@ -335,6 +335,7 @@ export function purposeDraftOf(card: PluginCard): PurposeDraft {
 export type Warning =
   | "handEdit"
   | "purposeMissing"
+  | "descriptionMissing"
   | "enforcedNow"
   | "projectCode"
   | "hookOriginUnknown"
@@ -357,6 +358,9 @@ export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warn
   if (isHandEdit(item)) out.push("handEdit");
   if (managedOff) out.push("managedOff");
   if (item.kind !== "remove" && (item.card.purpose ?? "").trim() === "") out.push("purposeMissing");
+  // 설명이 없으면 엔진이 승인하지 않는다(`pluginReview.descriptionRequired`) [결정: 2026-11-23 사용자, AGE-31]
+  if (item.kind !== "remove" && (item.card.description ?? "").trim() === "")
+    out.push("descriptionMissing");
   const change = item.diff.enforcementChange;
   if (change !== null && change.from === "advisory" && change.to === "enforced") {
     out.push("enforcedNow");
@@ -602,6 +606,7 @@ export type DecideFailure =
   | "notFound"
   | "handEdit"
   | "purposeRequired"
+  | "descriptionRequired"
   | "profileInvalid"
   | "dependency"
   | "failed";
@@ -612,6 +617,7 @@ const FAILURE_BY_CODE: ReadonlyMap<number, DecideFailure> = new Map([
   [3654, "handEdit"],
   [3655, "purposeRequired"],
   [3656, "profileInvalid"],
+  [3657, "descriptionRequired"],
   [3627, "dependency"],
 ]);
 

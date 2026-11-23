@@ -174,6 +174,15 @@ describe("what runs when approved", () => {
     expect(warningsOf(FETCH, false)).toEqual([]);
     expect(warningsOf(LINT, true)).toEqual(["managedOff", "projectCode"]);
   });
+
+  test("warnings: a card with no description or a blank one warns, a removal does not (AGE-31)", () => {
+    const { description: _unused, ...bare } = FETCH.card;
+    expect(warningsOf({ ...FETCH, card: bare }, false)).toEqual(["descriptionMissing"]);
+    expect(warningsOf({ ...FETCH, card: { ...FETCH.card, description: "  " } }, false)).toEqual([
+      "descriptionMissing",
+    ]);
+    expect(warningsOf({ ...REMOVE, card: bare }, false)).not.toContain("descriptionMissing");
+  });
 });
 
 describe("cost section (m6R5)", () => {
@@ -334,6 +343,7 @@ describe("deciding", () => {
   test("failures map from wire codes and connection state", () => {
     expect(decideFailureOf({ kind: "rejected", code: 3656 })).toBe("profileInvalid");
     expect(decideFailureOf({ kind: "rejected", code: 3652 })).toBe("notPending");
+    expect(decideFailureOf({ kind: "rejected", code: 3657 })).toBe("descriptionRequired");
     expect(decideFailureOf({ kind: "rejected", code: 9999 })).toBe("failed");
     expect(decideFailureOf({ kind: "offline" })).toBe("offline");
   });

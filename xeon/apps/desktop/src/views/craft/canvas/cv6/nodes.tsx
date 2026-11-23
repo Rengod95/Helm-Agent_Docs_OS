@@ -21,17 +21,16 @@ import {
 import { Icon, KIND_COLOR, KindGlyph, KindTile, PartGlyph, type PartIcon } from "./glyphs.tsx";
 import { lodOf, plateMarks, type Lod, type PlateMark } from "./lod.ts";
 import {
+  cardDescription,
   PILE_OFFSET,
-  purposeMissing,
   RAIL_HALF,
   type BundleGeo,
   type PlateGeo,
   type ProfileLayout,
 } from "./layout.ts";
 import { pluginOf, type Anchor, type Kind, type Plugin, type RelationKind } from "./model.ts";
-import { bundleMetaOf, purposeOf } from "../shared-meta.ts";
+import { bundleMetaOf, purposeTextOf } from "../shared-meta.ts";
 import { agoText } from "../shared-sample.ts";
-import { descriptionOf } from "./sample-ext.ts";
 import {
   anchorWord,
   BLOCK_WORD,
@@ -451,25 +450,21 @@ const MARK_CLASS: Readonly<Record<PlateMark, string>> = {
   base: "",
 };
 
-/** 상태 표시: 단계가 멀수록 크게. 베이스는 자물쇠 그림만(이름은 툴팁) */
+/** 상태 표시. 크기는 CSS가 확대의 역수로 정한다(낮은 배율에서도 화면에서 같은 크기). 베이스는 자물쇠 그림만(이름은 툴팁) */
 function Marks(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactNode {
   const marks = plateMarks(props.geo.placed);
   if (marks.length === 0) return null;
-  const size = props.lod === "far" ? "cv6-mark-big" : props.lod === "mid" ? "cv6-mark-mid" : "";
   // 멀리서는 가장 앞선 하나만(경고가 먼저 선다)
   const shown = props.lod === "far" ? marks.slice(0, 1) : marks;
   return (
-    <span className="flex shrink-0 items-center gap-1">
+    <span className="cv6-marks">
       {shown.map((m) =>
         m === "base" ? (
-          <span key={m} className={`cv6-mark ${size}`} title={t(MARK_WORD[m])}>
-            <PartGlyph
-              name="lock"
-              size={props.lod === "far" ? 17 : props.lod === "mid" ? 14 : 11}
-            />
+          <span key={m} className="cv6-mark" title={t(MARK_WORD[m])}>
+            <PartGlyph name="lock" size={11} />
           </span>
         ) : (
-          <span key={m} className={`cv6-mark ${size} ${MARK_CLASS[m]}`}>
+          <span key={m} className={`cv6-mark ${MARK_CLASS[m]}`}>
             {t(MARK_WORD[m])}
           </span>
         ),
@@ -479,9 +474,9 @@ function Marks(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactNode 
 }
 
 /**
- * 책갈피(탭): 카드 왼쪽 변과 같은 자리에서 윗변 위로 솟는다(가까이 20, 중간 28, 멀리 36). 위 모서리만 둥글고 아래는 카드 뒤로
- * 들어가, 카드의 둥근 왼쪽 위 모서리 사이로 탭 색이 보인다. 진한 종류 색 면 + 밝은 종류 색 글(종류 그림 + 종류 이름).
- * 멀리서는 그림만 크게(색 조각으로 읽힌다)
+ * 책갈피(탭): 카드 왼쪽 변과 같은 자리에서 윗변 위로 솟는다. 위 모서리만 둥글고 아래는 카드 뒤로 들어가, 카드의 둥근 왼쪽 위 모서리
+ * 사이로 탭 색이 보인다. 선명한 종류 색 면 + 그 위 글(종류 그림 + 종류 이름). 솟는 높이와 글은 CSS가 확대의 역수로 정하고
+ * (`TAB_ROOM`을 넘지 않는다), 멀리서는 그림만 둔다
  */
 function KindTab(props: {
   readonly kind: Kind | null;
@@ -489,14 +484,13 @@ function KindTab(props: {
   /** 종류 이름 대신 쓸 말(묶음) */
   readonly word?: MessageId;
 }): ReactElement {
-  const glyph = props.lod === "far" ? 24 : props.lod === "mid" ? 16 : 12;
   const word = props.word ?? (props.kind === null ? null : KIND_WORD[props.kind]);
   return (
     <span className="cv6-tab" data-lod={props.lod} aria-hidden="true">
       {props.kind === null ? (
-        <PartGlyph name="package" size={glyph} />
+        <PartGlyph name="package" size={12} />
       ) : (
-        <KindGlyph kind={props.kind} size={glyph} />
+        <KindGlyph kind={props.kind} size={12} />
       )}
       {props.lod === "far" || word === null ? null : <span>{t(word)}</span>}
     </span>
@@ -540,19 +534,30 @@ function headIcon(p: Plugin): PartIcon {
   return "package";
 }
 
-/**
- * 알약 칩의 값 하나(참고 그림의 모델 이름 자리): Hook은 하는 결정(막기·바꾸기·묻기), 도구는 MCP 서버 이름,
- * 그 밖에는 싣는 파일·스킬 이름(여럿이면 첫째 + 나머지 수). 표본에 없으면 null(칸은 비우고 줄은 남긴다)
- */
-function pillValue(p: Plugin): string | null {
-  const s = p.shared;
-  if (p.kind === "hook") return s.decision === undefined ? null : t(DECISION_WORD[s.decision]);
-  if (s.mcp !== undefined) return s.mcp.server;
-  const files = s.instructions.length > 0 ? s.instructions : s.memory;
-  const list = files.length > 0 ? files : s.skills;
+/** 목록의 첫째(여럿이면 "첫째 +나머지 수"). 비었으면 null */
+function firstOf(list: readonly string[]): string | null {
   const first = list[0];
   if (first === undefined) return null;
   return list.length > 1 ? `${first} +${String(list.length - 1)}` : first;
+}
+
+/**
+ * 알약 칩의 값 하나(참고 그림의 모델 이름 자리): Hook은 하는 결정(막기, 바꾸기, 묻기), 도구는 MCP 서버 이름(이름이 판 이름과 같으면
+ * 첫 도구 이름 + 나머지 수), 그 밖에는 싣는 파일, 스킬 이름(여럿이면 첫째 + 나머지 수). 그런 값이 없는 엔진 카드(내장 부품 따위)는
+ * 매니페스트 버전을 둔다(칸이 비어 아래가 휑하지 않게) [결정: 2026-11-23 사용자, AGE-31]. 표본에서 아무 값도 없으면 null
+ */
+function pillValue(p: Plugin): string | null {
+  const s = p.shared;
+  const own = (): string | null => {
+    if (p.kind === "hook") return s.decision === undefined ? null : t(DECISION_WORD[s.decision]);
+    if (s.mcp !== undefined)
+      return s.mcp.server !== p.name ? s.mcp.server : firstOf(s.mcp.tools.map((x) => x.name));
+    const files = s.instructions.length > 0 ? s.instructions : s.memory;
+    return firstOf(files.length > 0 ? files : s.skills);
+  };
+  const value = own();
+  if (value !== null) return value;
+  return p.meta.version === "" ? null : `v${p.meta.version}`;
 }
 
 /** 푸터의 흐린 수치(참고 그림의 "382 Tokens · 시계 0.0 sec"): 매니페스트에 적힌 늘 드는 토큰, 시계 + 최근 사용 */
@@ -571,60 +576,88 @@ function Foot(props: { readonly p: Plugin }): ReactElement {
   );
 }
 
+/** "설명이 없어요" 경고 구슬(필수가 되기 전에 설치되어 설명이 없는 플러그인) */
+function NoDescription(props: { readonly withText: boolean }): ReactElement {
+  const word = t("desktop.craft.canvas.cv6.descriptionNone");
+  return props.withText ? (
+    <p className="cv6-well-text cv6-missing">
+      <span aria-hidden="true" className="cv6-orb" data-tone="warn" />
+      <span>{word}</span>
+    </p>
+  ) : (
+    <span
+      className="cv6-orb cv6-head-orb"
+      data-tone="warn"
+      role="img"
+      aria-label={word}
+      title={word}
+    />
+  );
+}
+
 /**
- * 카드 몸. 가까이(100%)는 참고 그림의 카드 그대로: 머리(그림 + 이름 + 상태 + 세로 점 셋) → 설명 두 줄 → 안쪽 면(꼬리표: 붙는 자리,
- * 글: 매니페스트의 긴 설명 네 줄까지) → 알약 칩 → 푸터. 중간은 같은 칸을 크게(푸터 없이), 멀리는 이름만 크게(두 줄까지)
+ * 카드 몸. 가까이(85% 이상)는 참고 그림의 카드 그대로: 머리(그림 + 이름 + 상태 + 세로 점 셋) → 목적 두 줄 → 안쪽 면(꼬리표: 붙는 자리,
+ * 글: 설명) → 알약 → 사실 줄. 중간은 머리 → 목적 세 줄까지 → 알약, 멀리는 머리 한 줄만 카드 가운데에. 설명이 없으면 가까이는 안쪽 면에
+ * "설명이 없어요"를, 중간과 멀리는 머리 끝에 경고 구슬을 둔다
  */
 function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactNode {
   const actions = use(CanvasActionsContext);
   const p = props.geo.placed.plugin;
+  const near = props.lod === "near";
+  const purpose = purposeTextOf(p.meta);
+  const description = cardDescription(p);
+  const head = (
+    <div className="cv6-head">
+      <PartGlyph name={headIcon(p)} size={16} />
+      <span className="cv6-name">{p.name}</span>
+      {description === null && !near ? <NoDescription withText={false} /> : null}
+      {near ? <Marks geo={props.geo} lod={props.lod} /> : null}
+      {near ? (
+        <button
+          type="button"
+          data-slot="cv6-button"
+          className="cv6-menu"
+          tabIndex={-1}
+          aria-label={t("desktop.craft.canvas.cv3.panel.label", { name: p.name })}
+          onClick={() => {
+            actions.select(p.name);
+          }}
+        >
+          <Icon name="more" size={18} />
+        </button>
+      ) : null}
+    </div>
+  );
   if (props.lod === "far")
     return (
       <div className="cv6-plate-body" data-lod="far">
-        <span className="cv6-name-wrap text-[40px] leading-[48px] font-semibold tracking-[-0.01em] text-text-primary">
-          {p.name}
-        </span>
+        {head}
       </div>
     );
-  const description = descriptionOf(p.name);
   const pill = pillValue(p);
-  const icon = props.lod === "mid" ? 20 : 16;
   return (
     <div className="cv6-plate-body" data-lod={props.lod}>
-      <div className="cv6-head">
-        <PartGlyph name={headIcon(p)} size={icon} />
-        <span className="cv6-name">{p.name}</span>
-        {props.lod === "near" ? <Marks geo={props.geo} lod={props.lod} /> : null}
-        {props.lod === "near" ? (
-          <button
-            type="button"
-            data-slot="cv6-button"
-            className="cv6-menu"
-            tabIndex={-1}
-            aria-label={t("desktop.craft.canvas.cv3.panel.label", { name: p.name })}
-            onClick={() => {
-              actions.select(p.name);
-            }}
-          >
-            <Icon name="more" size={18} />
-          </button>
-        ) : null}
-      </div>
-      {/* 목적이 없으면 그 줄을 비운다(상세가 "목적이 적혀 있지 않아요"를 말한다). 안쪽 글이 없으면 안쪽 면 없이 꼬리표만 */}
-      {purposeMissing(p) ? null : <p className="cv6-desc">{purposeOf(p.meta)}</p>}
-      <div className="cv6-card-well" data-empty={description === null ? "true" : undefined}>
-        <span className="cv6-tag">{t(anchorWord(p.anchor))}</span>
-        {description === null ? null : <p className="cv6-well-text">{t(description)}</p>}
-      </div>
+      {head}
+      {purpose === null ? null : <p className="cv6-desc">{purpose}</p>}
+      {near ? (
+        <div className="cv6-card-well">
+          <span className="cv6-tag">{t(anchorWord(p.anchor))}</span>
+          {description === null ? (
+            <NoDescription withText />
+          ) : (
+            <p className="cv6-well-text">{description}</p>
+          )}
+        </div>
+      ) : null}
       <div className="cv6-pill-row">
         {pill === null ? null : (
           <span className="cv6-chip-pill">
-            <PartGlyph name="layers" size={props.lod === "mid" ? 17 : 14} />
+            <PartGlyph name="layers" size={14} />
             <span>{pill}</span>
           </span>
         )}
       </div>
-      {props.lod === "near" ? <Foot p={p} /> : null}
+      {near ? <Foot p={p} /> : null}
     </div>
   );
 }
