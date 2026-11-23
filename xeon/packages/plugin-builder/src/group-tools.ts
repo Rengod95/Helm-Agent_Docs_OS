@@ -337,7 +337,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it in the Craft list). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
+    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it on the Craft > Plugins screen; say the name of that screen in the user's language, as the app shows it). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -639,7 +639,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
   // 확인을 묻지 않는 까닭은 위 파일 머리 주석에 있다. 증거는 시험 대화의 턴 하나다(M5c §4.7.1: 담당 AI의 제출은 증거 한 개 이상).
   const submit = tool(
     "authoring_submit",
-    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial) in which the user has tried the plugin at least once. The evidence is the latest turn of the Test run thread; pass turnId only to choose another turn.",
+    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial) in which the user has tried the plugin at least once. The evidence is the latest turn of the Test run thread; pass turnId only to choose another turn. Tell the user only that the plugin waits in the review inbox: never say draft or review numbers, session names or tool names.",
     Type.Object(
       {
         ...sessionShape,
@@ -686,12 +686,9 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       await patch(env, {
         submitted: { draftId: sent.value.draftId, itemId: sent.value.itemId },
       });
-      // 사람에게 할 말을 앞세우고 내부 번호(초안, 검토 항목)는 details에만 둔다(U-04): 보고에 번호가 옮겨 가지 않게 한다
-      return {
-        ok: true,
-        notice: "검토함에서 승인해야 쓸 수 있다",
-        details: { draftId: sent.value.draftId, itemId: sent.value.itemId },
-      };
+      // 도구가 돌려준 값은 통째로 모델이 읽는다(`details`도 글에 들어간다). 그래서 내부 번호(초안, 검토 항목)는 상태 문서에만 두고 돌려주지 않는다(U-04).
+      // 모델은 다음 호출에 그 번호를 인자로 쓰지 않는다
+      return { ok: true, notice: "검토함에서 승인해야 쓸 수 있다" };
     },
   );
 
