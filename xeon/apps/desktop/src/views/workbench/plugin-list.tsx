@@ -142,7 +142,7 @@ function GroupHead(props: { readonly title: string; readonly count: number }): R
   );
 }
 
-/** 앱 핵심 묶음의 머리: 펴고 접는 단추와, 늘 보이는 자물쇠 문장 */
+/** 앱 핵심 묶음의 머리: 펴고 접는 단추(글은 다른 묶음 머리와 같은 자리에서 시작하고 화살표는 뒤에 둔다)와, 늘 보이는 자물쇠 문장 */
 function CoreHead(props: {
   readonly count: number;
   readonly open: boolean;
@@ -153,16 +153,16 @@ function CoreHead(props: {
       <button
         type="button"
         aria-expanded={props.open}
-        className="inline-flex items-center gap-1.5 rounded-sm text-ui-sm font-medium text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
+        className="m-0 inline-flex items-center gap-2 rounded-sm border-0 bg-transparent p-0 text-ui-sm font-medium text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
         onClick={props.onToggle}
       >
-        {props.open ? (
-          <ChevronDown aria-hidden className="size-icon-sm" />
-        ) : (
-          <ChevronRight aria-hidden className="size-icon-sm" />
-        )}
         <span>{t(GROUP_TITLE.core)}</span>
         <span className="tabular-nums text-text-tertiary">{props.count}</span>
+        {props.open ? (
+          <ChevronDown aria-hidden className="size-icon-sm text-text-tertiary" />
+        ) : (
+          <ChevronRight aria-hidden className="size-icon-sm text-text-tertiary" />
+        )}
       </button>
       <span className="inline-flex items-center gap-1.5 text-ui-sm text-text-tertiary">
         <Lock aria-hidden className="size-icon-sm" />
