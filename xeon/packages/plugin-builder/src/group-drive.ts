@@ -142,7 +142,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       "the user did not confirm the kind and the name: the session was closed",
     );
     await resume(state, "intent", "the user did not confirm: ask what they want to change");
-    return commitThen(INITIAL_AUTHORING_STATE);
+    return commitThen({ ...INITIAL_AUTHORING_STATE, askRound: state.askRound + 1 });
   };
 
   const fixStep = async (
@@ -283,6 +283,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     // 이름과 폴더는 아직 없다. 목적만 든 세션이고, 사용자에게 이름과 폴더를 정한 뒤 `authoring_start`로 시작한다
     const opened: AuthoringState = {
       ...INITIAL_AUTHORING_STATE,
+      askRound: state.askRound,
       phase: "intent",
       sessionId: `auth-handoff-${id ?? "purpose"}`,
       purpose,

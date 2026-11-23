@@ -381,7 +381,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         packaged: null,
         submitted: null,
         denied: null,
-        askRound: 0,
+        // 회차는 0으로 되돌리지 않는다: 세션을 닫을 때 올린 값을 이어 써서 새 세션의 확인 요청 id가 앞 세션의 기록된 답과 겹치지 않게 한다(F-08)
+        askRound: env.g.state().askRound,
         purpose: purpose ?? env.g.state().purpose,
         resident,
         fromSource: false,
@@ -713,7 +714,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       const wanted = optStr(input, "sessionId");
       if (wanted !== undefined && wanted !== state.sessionId)
         return refusal("unknown_session", `the open session is ${state.sessionId ?? "none"}`);
-      await env.g.commit({ ...INITIAL_AUTHORING_STATE });
+      await env.g.commit({ ...INITIAL_AUTHORING_STATE, askRound: state.askRound + 1 });
       return {
         ok: true,
         status: "closed",

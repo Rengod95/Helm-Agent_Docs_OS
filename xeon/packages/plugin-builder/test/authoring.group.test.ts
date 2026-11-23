@@ -574,3 +574,21 @@ test("authoring.submit-evidence: without a turnId the latest turn of the Test ru
     { kind: "turn", threadId: "thr_trial", turnId: "turn_latest" },
   ]);
 });
+
+test("authoring.F-08: a session reopened with the same name asks its confirmation card again", async () => {
+  const rig = await createOrchestrationRig();
+  await confirmedSession(rig);
+  expect(rig.approvals.created).toHaveLength(1);
+  await rig.call("authoring_stop", { sessionId: "auth-demo" });
+  // 같은 이름으로 다시 열면 확인 카드가 새로 뜬다(앞 세션의 기록된 답이 되돌아오지 않는다)
+  const again = await rig.call("authoring_start", {
+    kind: "single-plugin",
+    name: "demo",
+    dir: DIR,
+  });
+  expect(again).toMatchObject({ ok: true, sessionId: "auth-demo" });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  expect(rig.approvals.created).toHaveLength(2);
+  expect(rig.approvals.service.pending(rig.thread)).toHaveLength(1);
+});

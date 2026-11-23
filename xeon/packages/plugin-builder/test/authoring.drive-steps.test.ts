@@ -169,7 +169,8 @@ test("authoring.drive.d: the intent confirmation is an ask command, and the answ
   const no = await step(stepInput(INTENT, answered("no")));
   expect(no).toEqual({
     do: "commit",
-    state: INITIAL_AUTHORING_STATE,
+    // 닫은 세션의 회차를 이어 올려, 같은 이름으로 다시 열어도 확인 요청 id가 겹치지 않는다(F-08)
+    state: { ...INITIAL_AUTHORING_STATE, askRound: INTENT.askRound + 1 },
     next: { do: "done" },
   });
   // 사람이 거부한 경우도 "아니요"와 같다
