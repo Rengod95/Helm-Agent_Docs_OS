@@ -63,7 +63,11 @@ export type StopNotice = {
   readonly tone: "warning" | "quiet";
 };
 
-export function stopNoticeOf(turn: TurnSummary): StopNotice | null {
+/**
+ * 턴이 멈춘 까닭의 안내 줄. 대화가 아직 도는 중이면 "끊겼어요" 줄은 보이지 않는다: 도는 중에 열어 본 하위 대화는
+ * 앞 턴이 끝나고 다음 턴이 이어지는 사이라서 끊긴 것이 아니다(rerun5 V-03). 한도와 알림 줄은 그대로다
+ */
+export function stopNoticeOf(turn: TurnSummary, running = false): StopNotice | null {
   const end = turn.end;
   if (end?.kind === "limit") {
     return {
@@ -98,6 +102,7 @@ export function stopNoticeOf(turn: TurnSummary): StopNotice | null {
     };
   }
   if (end?.kind === "interrupted") {
+    if (running && end.code !== "user" && end.code !== null) return null;
     return {
       text:
         end.code === "user" || end.code === null

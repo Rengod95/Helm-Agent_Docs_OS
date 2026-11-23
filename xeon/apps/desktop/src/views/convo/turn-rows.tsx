@@ -88,7 +88,8 @@ export function TurnFoot(props: {
   const nameOf = useModelNameOf();
   const summary =
     props.turnId === null ? undefined : turns.find((turn) => turn.turnId === props.turnId);
-  const stop = summary === undefined ? null : stopNoticeOf(summary);
+  const running = useOpenThreadRunning();
+  const stop = summary === undefined ? null : stopNoticeOf(summary, running);
   const meta = summary === undefined ? [] : turnMetaOf(summary, nameOf);
   const lines = summary === undefined ? [] : turnDetailLinesOf(summary);
   const invoked = summary?.invoked.length ?? 0;

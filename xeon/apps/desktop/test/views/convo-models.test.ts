@@ -13,6 +13,7 @@ import {
   markerTextOf,
   newTokensOf,
   releaseTextOf,
+  stopNoticeOf,
   turnDetailLinesOf,
   turnMetaOf,
 } from "../../src/views/convo/turn-model.ts";
@@ -380,5 +381,25 @@ describe("turn foot", () => {
       "anthropic/claude-sonnet-5-5",
     ]);
     expect(turnDetailLinesOf(turnOf({}))).toEqual([]);
+  });
+});
+
+describe("stopNoticeOf while the thread is still running", () => {
+  const cut = turnOf({ end: { kind: "interrupted", code: "model_error" } });
+  test("shows the interrupted line when the thread is idle and hides it while the thread runs", () => {
+    expect(stopNoticeOf(cut, false)).toEqual({
+      text: "턴이 중간에 끊겼어요.",
+      canContinue: false,
+      tone: "quiet",
+    });
+    expect(stopNoticeOf(cut, true)).toBeNull();
+  });
+  test("a user stop and a step limit keep their lines while running", () => {
+    expect(stopNoticeOf(turnOf({ end: { kind: "interrupted", code: "user" } }), true)?.tone).toBe(
+      "quiet",
+    );
+    expect(
+      stopNoticeOf(turnOf({ end: { kind: "limit", limit: "step_limit" } }), true)?.canContinue,
+    ).toBe(true);
   });
 });
