@@ -30,7 +30,15 @@ async function scaffoldApp(name: string): Promise<string> {
   if (templates === null) throw new Error("the plugin templates are missing in the source tree");
   const dir = join(root, name);
   const made = await scaffoldExtension(
-    { kind: "single-plugin", name, dir, mode: "app" },
+    {
+      kind: "single-plugin",
+      name,
+      dir,
+      mode: "app",
+      // 목적과 설명은 필수다(AU-013, AGE-31). 뼈대에 넘겨 매니페스트에 쓰게 한다
+      purpose: "Keeps a short list.",
+      description: "Keeps a short list that the user and the agent can both add to.",
+    },
     { templates },
   );
   expect(made.ok).toBe(true);

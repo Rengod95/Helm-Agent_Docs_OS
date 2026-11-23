@@ -15,6 +15,7 @@ const root = tempRoot();
 const templates = templateDirs();
 const EVIDENCE_TURN = "turn_1";
 const SESSION = "auth-demo";
+const DESCRIPTION = "Keeps a short list that the user and the agent can both add to.";
 
 /** 실제 뼈대와 검사를 쓰는 제작 서비스. 테스트 대화와 제출은 `devkitProbe`의 기록 대역을 그대로 쓴다 */
 function appDevkit(): {
@@ -32,7 +33,13 @@ function appDevkit(): {
 
 /** 새 플러그인 세션을 열고 종류와 이름 확인에 예라고 답한다 */
 async function confirmedNewSession(rig: OrchestrationRig, dir: string): Promise<void> {
-  const started = await rig.call("authoring_start", { kind: "single-plugin", name: "demo", dir });
+  // 목적과 설명은 필수다(AU-013, AGE-31). 목적은 세션에, 설명은 뼈대 도구에 넘긴다
+  const started = await rig.call("authoring_start", {
+    kind: "single-plugin",
+    name: "demo",
+    dir,
+    purpose: "Keeps a short list.",
+  });
   expect(started).toMatchObject({ ok: true, sessionId: SESSION });
   await rig.t.boundary(rig.thread).turnSettled();
   await rig.t.settled();
@@ -54,7 +61,13 @@ test("app flow: scaffold(app) writes the app files, validate passes the app chec
   await confirmedNewSession(rig, dir);
 
   // 1. 뼈대: 앱 방식의 파일 여섯 개가 생긴다(매니페스트, 엔진 코드, 화면 파일 넷, 경로 순)
-  expect(await rig.call("authoring_scaffold", { sessionId: SESSION, mode: "app" })).toEqual({
+  expect(
+    await rig.call("authoring_scaffold", {
+      sessionId: SESSION,
+      mode: "app",
+      description: DESCRIPTION,
+    }),
+  ).toEqual({
     ok: true,
     dir,
     files: [
@@ -104,6 +117,7 @@ test("app flow: scaffold(app) writes the app files, validate passes the app chec
       dir,
       originThreadId: rig.thread,
       evidence: [{ kind: "turn", threadId: "thr_trial", turnId: EVIDENCE_TURN }],
+      purpose: "Keeps a short list.",
     },
   ]);
   expect(rig.state()).toMatchObject({
@@ -118,7 +132,13 @@ test("app flow: a missing app entry fails the app check, and the test run and th
   const rig = await createOrchestrationRig({ devkit });
   const dir = root.path("demo-broken");
   await confirmedNewSession(rig, dir);
-  expect(await rig.call("authoring_scaffold", { sessionId: SESSION, mode: "app" })).toMatchObject({
+  expect(
+    await rig.call("authoring_scaffold", {
+      sessionId: SESSION,
+      mode: "app",
+      description: DESCRIPTION,
+    }),
+  ).toMatchObject({
     ok: true,
   });
   rmSync(join(dir, "ui", "app", "index.html"));
