@@ -223,11 +223,24 @@ export function leaderNameOf(scopeId: string): string {
   return scopeId.replace(/^ext:/, "");
 }
 
+/** 화면에 보이는 한도 칸(턴, 토큰, 위임) 가운데 하나라도 다 찼는가 */
+function budgetSpentOf(lead: LeadSegment): boolean {
+  const { limits, used } = lead;
+  return (
+    (limits.maxTurns !== undefined && used.turns >= limits.maxTurns) ||
+    (limits.maxTokens !== undefined && used.tokens >= limits.maxTokens) ||
+    (limits.maxSpawns !== undefined && used.spawns >= limits.maxSpawns)
+  );
+}
+
 export function releaseTextOf(lead: LeadSegment): string {
   const name = leaderNameOf(lead.scopeId);
   switch (lead.releaseReason) {
     case "budget":
-      return t("desktop.convo.lead.release.budget", { name });
+      // 도구 명령 수 상한(엔진 상수)으로 반납되면 화면의 한도 칸은 아직 남아 있다. 칸과 모순되지 않게 까닭을 따로 말한다(F-12)
+      return budgetSpentOf(lead)
+        ? t("desktop.convo.lead.release.budget", { name })
+        : t("desktop.convo.lead.release.budgetTools", { name });
     case "idle":
       return t("desktop.convo.lead.release.idle", { name });
     case "waiting":

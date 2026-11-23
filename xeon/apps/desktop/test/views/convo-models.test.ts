@@ -266,7 +266,11 @@ describe("lead", () => {
   });
 
   test("반납 사유 글", () => {
-    expect(releaseTextOf(LEAD)).toBe(t("desktop.convo.lead.release.budget", { name: "helm" }));
+    // 한도 칸이 다 찼으면 한도를 다 썼다고, 칸이 남았는데 budget이면(도구 호출 상한) 도구 호출 한도라고 말한다(F-12)
+    const spent = { ...LEAD, used: { turns: 3, tokens: 50_000, spawns: 0 } };
+    expect(releaseTextOf(spent)).toBe(t("desktop.convo.lead.release.budget", { name: "helm" }));
+    expect(releaseTextOf(LEAD)).toBe(t("desktop.convo.lead.release.budgetTools", { name: "helm" }));
+    expect(releaseTextOf(LEAD)).toBe("helm Drive 끝: 도구 호출 한도를 다 씀");
     expect(releaseTextOf({ ...LEAD, releaseReason: "disabled" })).toBe(
       t("desktop.convo.lead.release.revoked", { name: "helm" }),
     );

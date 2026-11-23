@@ -219,6 +219,18 @@ describe("queued input chips", () => {
     expect(queuedPreviewText({ kind: "label", labelKey: "helm" })).toBe("Helm 안내");
   });
 
+  test("an extension context notice that only attaches (next) is not a chip, a startable one is (R-04)", () => {
+    const base = {
+      sourceType: "extension",
+      preview: { kind: "label", labelKey: "context" },
+    } as const;
+    const list = [
+      chip({ ...base, inputId: evt(1), mode: "next" }),
+      chip({ ...base, inputId: evt(2), mode: "followUp" }),
+    ];
+    expect(chipInputs(list).map((c) => c.inputId)).toEqual([evt(2)]);
+  });
+
   test("the mode is said in the chip's short words: steer after the next tool round, followUp when the turn ends, next with the next message, held when stopped", () => {
     expect(queuedModeText("steer")).toBe("다음 도구 라운드 뒤 들어가요");
     expect(queuedModeText("followUp")).toBe("이번 턴이 끝나면 들어가요");

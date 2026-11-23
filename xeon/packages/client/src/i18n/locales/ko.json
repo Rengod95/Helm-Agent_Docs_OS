@@ -2099,6 +2099,7 @@
   "desktop.convo.guard.bodyReason": "보호 규칙이 실행 전에 막았어요: {reason}",
   "desktop.convo.lead.past": "{name}의 Drive",
   "desktop.convo.lead.release.budget": "{name} Drive 끝: 한도를 다 씀",
+  "desktop.convo.lead.release.budgetTools": "{name} Drive 끝: 도구 호출 한도를 다 씀",
   "desktop.convo.lead.release.done": "{name} Drive 끝",
   "desktop.convo.lead.release.error": "{name} Drive 끝: 오류",
   "desktop.convo.lead.release.idle": "{name} Drive 끝: 할 일이 없음",

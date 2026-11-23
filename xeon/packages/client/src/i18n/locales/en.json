@@ -2099,6 +2099,7 @@
   "desktop.convo.guard.bodyReason": "A guard rule stopped this call before it ran: {reason}",
   "desktop.convo.lead.past": "{name}'s Drive",
   "desktop.convo.lead.release.budget": "{name} ended Drive: limit used up",
+  "desktop.convo.lead.release.budgetTools": "{name} ended Drive: tool call limit used up",
   "desktop.convo.lead.release.done": "{name} handed back control",
   "desktop.convo.lead.release.error": "{name} ended Drive after an error",
   "desktop.convo.lead.release.idle": "{name} ended Drive: nothing left to do",
