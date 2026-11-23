@@ -339,6 +339,54 @@ test("a joined purpose over 200 characters is cut to 200 with the info merge_pur
   expect(validateManifest(rawOf(outDir)).manifest?.purpose).toBe(String(purpose));
 });
 
+test("the merged description joins the folders' descriptions in declared order with a blank line, and skips the folders without one", async () => {
+  const alpha = await sourceOf("description", "alpha");
+  const beta = await sourceOf("description", "beta");
+  const gamma = await sourceOf("description", "gamma");
+  editManifest(alpha, (raw) => ({ ...raw, description: "알파 설명" }));
+  editManifest(gamma, (raw) => ({ ...raw, description: "감마 설명" }));
+  const outDir = join(root, "description", "joined");
+  const merged = must(
+    await mergeMembers({ dirs: [alpha, beta, gamma], outDir, name: "trio" }, OPTIONS),
+  );
+  expect(rawOf(outDir)["description"]).toBe("알파 설명\n\n감마 설명");
+  expect(validateManifest(rawOf(outDir)).manifest?.description).toBe("알파 설명\n\n감마 설명");
+  expect(merged.issues.map((issue) => issue.code)).not.toContain("merge_description_truncated");
+});
+
+test("a joined description over 1024 characters is cut to 1024 code points with the info merge_description_truncated", async () => {
+  const alpha = await sourceOf("long-description", "alpha");
+  const beta = await sourceOf("long-description", "beta");
+  editManifest(alpha, (raw) => ({ ...raw, description: "😀".repeat(600) }));
+  editManifest(beta, (raw) => ({ ...raw, description: "b".repeat(600) }));
+  const outDir = join(root, "long-description", "out");
+  const merged = must(await mergeMembers({ dirs: [alpha, beta], outDir, name: "pair" }, OPTIONS));
+  const description = rawOf(outDir)["description"];
+  expect(typeof description).toBe("string");
+  expect(Array.from(String(description))).toHaveLength(1024);
+  // 600 + 2(빈 줄) + 422 = 1024 코드 점. 자른 자리는 코드 점 사이다
+  expect(String(description)).toBe(`${"😀".repeat(600)}\n\n${"b".repeat(422)}`);
+  expect(merged.issues.filter((issue) => issue.code === "merge_description_truncated")).toEqual([
+    {
+      severity: "info",
+      code: "merge_description_truncated",
+      path: "/description",
+      message:
+        "원본들의 설명을 이어 붙이니 1024자를 넘어 잘랐다. 전체를 다시 쓰려면 매니페스트의 description을 손으로 고친다",
+    },
+  ]);
+  expect(validateManifest(rawOf(outDir)).manifest?.description).toBe(String(description));
+});
+
+test("when no folder has a description, or only a blank one, the merged manifest has none", async () => {
+  const alpha = await sourceOf("no-description", "alpha");
+  const beta = await sourceOf("no-description", "beta");
+  editManifest(alpha, (raw) => ({ ...raw, description: "   " }));
+  const outDir = join(root, "no-description", "out");
+  must(await mergeMembers({ dirs: [alpha, beta], outDir, name: "pair" }, OPTIONS));
+  expect(rawOf(outDir)).not.toHaveProperty("description");
+});
+
 test("a dependency on another folder of the merge is dropped with an info, and a dependency outside it is kept", async () => {
   const alpha = await sourceOf("deps", "alpha");
   const beta = await sourceOf("deps", "beta");

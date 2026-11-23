@@ -113,6 +113,7 @@ export async function detachMember(
     dependencyKind: input.dependencyKind ?? "soft",
     entry: wirable ? "./src/index.ts" : undefined,
     purpose: input.purpose ?? raw["purpose"],
+    description: raw["description"],
   });
   const checked = validateManifest(manifest);
   if (checked.manifest === undefined) return err(refusedOf(checked.issues));
@@ -216,11 +217,14 @@ interface NewManifestInput {
   readonly entry: string | undefined;
   /** 목적 한 문장. 입력이 있으면 입력이, 없으면 원본의 `purpose`가 온다. 둘 다 없으면 undefined다 */
   readonly purpose: unknown;
+  /** 원본의 `description`(그대로). 빈 글이거나 글이 아니면 싣지 않는다 */
+  readonly description: unknown;
 }
 
 /**
- * 새 매니페스트. 원본의 `schemaVersion`과 `version`, 목적 한 문장(`purpose`), 새 `name`, 구성원 선언(뿌리가 되도록 `id`와
- * `defaultEnabled`를 뗀 것 하나), 그 구성원의 구성 블록(`plugin`을 뗀 것)을 싣는다. `keepDependency`면 원래 이름에 거는 의존 한 줄을 더한다.
+ * 새 매니페스트. 원본의 `schemaVersion`과 `version`, 목적 한 문장(`purpose`)과 설명(`description`, 빈 글이 아닐 때만), 새 `name`,
+ * 구성원 선언(뿌리가 되도록 `id`와 `defaultEnabled`를 뗀 것 하나), 그 구성원의 구성 블록(`plugin`을 뗀 것)을 싣는다.
+ * `keepDependency`면 원래 이름에 거는 의존 한 줄을 더한다.
  */
 function newManifest(input: NewManifestInput): Record<string, unknown> {
   const root = Object.fromEntries(
@@ -243,6 +247,9 @@ function newManifest(input: NewManifestInput): Record<string, unknown> {
     name: input.name,
     version: input.raw["version"],
     ...(input.purpose === undefined ? {} : { purpose: input.purpose }),
+    ...(typeof input.description === "string" && input.description.trim() !== ""
+      ? { description: input.description }
+      : {}),
     ...(input.entry === undefined ? {} : { entry: input.entry }),
     plugins: [{ ...root, ...(dependsOn === undefined ? {} : { dependsOn }) }],
     ...(blocks.length === 0 ? {} : { orchestration: { composition: { blocks } } }),
