@@ -11,9 +11,17 @@ import { validateExtensionDir, type ValidateOptions } from "./validate.ts";
 // F 훅 표, 매니페스트 스키마가 바뀌어 템플릿이 깨지면 문제 목록에 그 파일 이름이 나온다.
 // 재생 규율(AU-012)까지 보려면 `options.scanDrive`를 넘긴다(시험이 `scanDriveSource`를 넘긴다).
 
-/** 항목 하나가 만드는 입력. 종류는 플러그인 하나라 뼈대도 하나다 */
+/** 항목 하나가 만드는 입력. 종류는 플러그인 하나라 뼈대도 하나다. 목적과 설명은 AU-013을 통과하도록 채운다 */
 function inputsOf(entry: KindEntry, dir: string): readonly ScaffoldInput[] {
-  return [{ kind: entry.id, name: "conf-single", dir }];
+  return [
+    {
+      kind: entry.id,
+      name: "conf-single",
+      dir,
+      purpose: "Checks that the catalog scaffold still validates.",
+      description: "A scaffold made only to check that the catalog template still validates.",
+    },
+  ];
 }
 
 /** 문제 문장 목록. 비어 있으면 적합하다 */

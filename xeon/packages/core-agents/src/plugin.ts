@@ -53,7 +53,9 @@ export function agentsManifest(): ExtensionManifest {
     name: AGENTS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Subagents",
-    description: "Child conversations, permission ceilings and result guarding (fresnel.agents).",
+    purpose: "Hands parts of the work to subagents.",
+    description:
+      "Lets the agent hand work to subagents in child conversations within its own permissions; without it, subagents do not run.",
     defaultEnabled: true,
     entry: "./src/index.ts",
     plugins: [

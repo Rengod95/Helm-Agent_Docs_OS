@@ -1,12 +1,15 @@
 import {
+  manifestTextGaps,
   pluginDeclsOf,
   validateComposition,
   type ExtensionManifest,
+  type ManifestTextField,
 } from "@fresnel/contracts/extensions";
 import type { CapabilityId } from "@fresnel/contracts/capabilities";
 import type { DevkitIssue } from "@fresnel/contracts/services";
+import { isRecord } from "./shared.ts";
 
-// L3.authoring.spec §3.5 제작 검사 AU-004, AU-008, AU-010, AU-011. 순수 함수다. validate.ts가 읽은 매니페스트와 소스 글자를 받는다.
+// L3.authoring.spec §3.5 제작 검사 AU-004, AU-008, AU-010, AU-011, AU-013. 순수 함수다. validate.ts가 읽은 매니페스트와 소스 글자를 받는다.
 // AU-010, AU-011은 소스 글자의 휴리스틱이다(구문 분석이 아니다). 경고라서 거짓 양성이 제작을 막지 않는다.
 
 export interface SourceText {
@@ -146,4 +149,31 @@ export function au011(sources: readonly SourceText[]): readonly DevkitIssue[] {
       file: declaring.file,
     });
   return found;
+}
+
+const TEXT_GAP_MESSAGES: Readonly<Record<ManifestTextField, string>> = {
+  purpose:
+    "purpose is empty: write one sentence in the user's words that says what the plugin does for them (up to 200 characters)",
+  description:
+    "description is empty: write one plain sentence a user reads on the plugin card that says what the plugin does and when (up to 1024 characters)",
+};
+
+/**
+ * AU-013(오류): 목적(`purpose`)과 설명(`description`)이 비어 있다. 빈 칸은 contracts `manifestTextGaps`가 정하고(앞뒤 공백만 있어도 빈 것),
+ * 칸마다 한 건을 낸다. `raw`는 원본 JSON이라 스키마 오류가 있어도 읽힌다. 문자열이 아닌 값은 없는 것으로 본다(타입 오류는 스키마 검사가 낸다).
+ */
+export function au013(raw: unknown): readonly DevkitIssue[] {
+  const root: Record<string, unknown> = isRecord(raw) ? raw : {};
+  const purpose = root["purpose"];
+  const description = root["description"];
+  const gaps = manifestTextGaps({
+    ...(typeof purpose === "string" ? { purpose } : {}),
+    ...(typeof description === "string" ? { description } : {}),
+  });
+  return gaps.map((field): DevkitIssue => ({
+    severity: "error",
+    code: "AU-013",
+    path: `/${field}`,
+    message: TEXT_GAP_MESSAGES[field],
+  }));
 }

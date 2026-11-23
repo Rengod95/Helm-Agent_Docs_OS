@@ -42,7 +42,9 @@ export const manifest: ExtensionManifest = defineManifest({
   name: "core-models",
   version: "0.1.0",
   displayName: "Model gateway",
-  description: "fresnel.models: pi-ai provider calls, role resolution, usage metering.",
+  purpose: "Calls the AI model and brings back its answer.",
+  description:
+    "Calls model providers, picks the model for each role and counts usage; without it, the agent cannot talk to any model.",
   defaultEnabled: true,
   entry: "./src/index.ts",
   plugins: [

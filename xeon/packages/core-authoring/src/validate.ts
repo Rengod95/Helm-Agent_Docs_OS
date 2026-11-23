@@ -17,7 +17,7 @@ import {
   type DevkitIssue,
   type ValidationReport,
 } from "@fresnel/contracts/services";
-import { au004, au008, au010, au011, type SourceText } from "./au-rules.ts";
+import { au004, au008, au010, au011, au013, type SourceText } from "./au-rules.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 
 // L3.authoring.spec §3.3 `validate`, §3.5 제작 검사. F 검사 함수(validateManifest, validateComposition)와
@@ -205,6 +205,8 @@ export async function validateExtensionDir(
         message: "a Plugin App view has no fallback native view",
       });
   }
+  // AU-013: 목적과 설명 빈 칸. 원본 JSON으로 본다(스키마 오류가 있어도 빈 칸을 알린다)
+  issues.push(...au013(parsed.value.raw));
 
   if (manifest !== undefined) {
     // AU-001: 이름 규칙(validateManifest의 name_reserved와 겹치지 않을 때만)
