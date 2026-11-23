@@ -286,7 +286,8 @@ test("authoring.drive.handoff-a: a closed session handed a purpose opens a purpo
       item: {
         kind: "context",
         customType: "grp.authoring.notice.status",
-        content: "[authoring] helm가 맡김, authoring_start로 시작: 로그 정리 도구",
+        content:
+          "[authoring] helm가 맡김, authoring_start로 시작(모델 도구나 자체 화면이 필요하면 뼈대는 app, 훅이 아님): 로그 정리 도구",
         display: true,
       },
       when: "followUp",
