@@ -207,6 +207,42 @@ test("the source's purpose moves to the new folder; a source without one gets no
   expect(manifestOf(join(root, "purpose-typed-out")).purpose).toBe("직접 쓴 목적");
 });
 
+test("the source's description moves to the new folder; a source without one, or with a blank one, gets none", async () => {
+  const kept = await sourceFolder("description-kept");
+  editManifest(kept, (raw) => ({ ...raw, description: "동기화 구성원을 맡는다" }));
+  must(
+    await detachMember(
+      { dir: kept, member: "sync", outDir: join(root, "description-kept-out") },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "description-kept-out"))["description"]).toBe("동기화 구성원을 맡는다");
+  expect(manifestOf(join(root, "description-kept-out")).description).toBe("동기화 구성원을 맡는다");
+
+  // 뼈대는 설명 칸을 빈 글자로 쓴다(AGE-31). 설명 칸이 없는 원본은 그 칸을 싣지 않는다
+  const bare = await sourceFolder("description-none");
+  editManifest(bare, (raw) =>
+    Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "description")),
+  );
+  must(
+    await detachMember(
+      { dir: bare, member: "sync", outDir: join(root, "description-none-out") },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "description-none-out"))).not.toHaveProperty("description");
+
+  const blank = await sourceFolder("description-blank");
+  editManifest(blank, (raw) => ({ ...raw, description: "  " }));
+  must(
+    await detachMember(
+      { dir: blank, member: "sync", outDir: join(root, "description-blank-out") },
+      OPTIONS,
+    ),
+  );
+  expect(rawOf(join(root, "description-blank-out"))).not.toHaveProperty("description");
+});
+
 test("the member's code goes to src/root.ts and the new entry registers the root with that setup", async () => {
   const source = await sourceFolder("code-wiring");
   const outDir = join(root, "code-wiring-out");

@@ -46,6 +46,10 @@ const SHARED_FIELDS: readonly string[] = [
 ];
 /** 목적 한 문장의 상한. `ExtensionManifestSchema`의 `purpose`(200자)와 같다 */
 const PURPOSE_LIMIT = 200;
+/** 설명의 상한. `ExtensionManifestSchema`의 `description`(1024자)과 같다 */
+const DESCRIPTION_LIMIT = 1024;
+/** 원본 설명들을 잇는 글. 빈 줄 하나다 */
+const DESCRIPTION_SEPARATOR = "\n\n";
 const NAME = new RegExp(EXTENSION_NAME_PATTERN);
 
 /** 합치기의 바깥 값. 설치된 이름은 새 이름의 충돌을 본다 */
@@ -332,11 +336,13 @@ function buildManifest(
     ...(input.title === undefined ? {} : { title: input.title }),
   };
   const purpose = purposeOf(input, sources);
+  const description = descriptionOf(sources);
   const manifest: Record<string, unknown> = {
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     name: input.name,
     version: first.version,
     ...(purpose.text === undefined ? {} : { purpose: purpose.text }),
+    ...(description.text === undefined ? {} : { description: description.text }),
     plugins: [root, ...members.map((member) => member.decl)],
     orchestration: { members: names },
   };
@@ -348,6 +354,14 @@ function buildManifest(
       path: "/purpose",
       message:
         "원본들의 목적을 이어 붙이니 200자를 넘어 잘랐다. 목적을 직접 주려면 purpose를 넘긴다",
+    });
+  if (description.truncated)
+    notes.push({
+      severity: "info",
+      code: "merge_description_truncated",
+      path: "/description",
+      message:
+        "원본들의 설명을 이어 붙이니 1024자를 넘어 잘랐다. 전체를 다시 쓰려면 매니페스트의 description을 손으로 고친다",
     });
   return { manifest, notes };
 }
@@ -369,6 +383,25 @@ function purposeOf(
   const chars = Array.from(purposes.join("; "));
   return chars.length > PURPOSE_LIMIT
     ? { text: chars.slice(0, PURPOSE_LIMIT).join(""), truncated: true }
+    : { text: chars.join(""), truncated: false };
+}
+
+/**
+ * 합친 설명. 원본들의 `description` 가운데 앞뒤 공백을 뗀 뒤에도 글이 남는 것을 선언 순서대로 빈 줄 하나로 잇고, 상한을 넘으면
+ * 코드 점 기준으로 자른다. 입력은 없다(설명은 원본에서만 온다). 원본에 하나도 없으면 설명을 만들지 않는다
+ */
+function descriptionOf(sources: readonly Source[]): {
+  readonly text: string | undefined;
+  readonly truncated: boolean;
+} {
+  const descriptions = sources.flatMap((source) => {
+    const description = source.raw["description"];
+    return typeof description === "string" && description.trim() !== "" ? [description] : [];
+  });
+  if (descriptions.length === 0) return { text: undefined, truncated: false };
+  const chars = Array.from(descriptions.join(DESCRIPTION_SEPARATOR));
+  return chars.length > DESCRIPTION_LIMIT
+    ? { text: chars.slice(0, DESCRIPTION_LIMIT).join(""), truncated: true }
     : { text: chars.join(""), truncated: false };
 }
 

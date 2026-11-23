@@ -8,7 +8,7 @@ import {
   type SharedPoint,
   type SharedProfileId,
 } from "../shared-sample.ts";
-import { metaOf, type PluginMeta } from "../shared-meta.ts";
+import { bundleMetaOf, metaOf, type BundleMeta, type PluginMeta } from "../shared-meta.ts";
 import { ATTACH_PLUGINS, ATTACH_PURPOSE, attachNames } from "./sample-ext.ts";
 
 export type Kind = "inject" | "hook" | "drive" | "tool";
@@ -89,9 +89,37 @@ interface Catalog {
   readonly live: boolean;
   readonly byName: ReadonlyMap<string, Plugin>;
   readonly installed: readonly Plugin[];
+  /** 엔진의 멤버 있는 플러그인(묶음): 이름 → 멤버 판 이름(`<이름>/<멤버 id>`, 매니페스트 순서)과 머리 값 */
+  readonly bundles: ReadonlyMap<string, LiveBundle>;
+  /** 리뷰를 기다리는 합치기·떼기 결과(반투명 판): 이름 → 리뷰 항목 id */
+  readonly pending: ReadonlyMap<string, string>;
+  /** 목록에 카드는 있지만 아직 승인되지 않은 이름(검토 폴더의 새 원본 따위). 리뷰 대기 판을 지우지 않는다 */
+  readonly unapproved: ReadonlySet<string>;
 }
 
-const SAMPLE: Catalog = { live: false, byName: SAMPLE_CATALOG, installed: SAMPLE_INSTALLED };
+/** 엔진의 묶음 하나(cvMerge, AGE-72): 사용자가 넣은 멤버 있는 플러그인. 프로필에는 이름 하나로 들고 판은 멤버마다 선다 */
+export interface LiveBundle {
+  readonly id: string;
+  readonly members: readonly string[];
+  readonly meta: BundleMeta;
+}
+
+/** 엔진 카탈로그에 더 끼우는 것: 멤버 판, 묶음, 리뷰 대기 판 */
+export interface LiveExtras {
+  readonly members: readonly Plugin[];
+  readonly bundles: readonly LiveBundle[];
+  /** 카드의 검토 칸이 승인이 아닌 이름. 합친·뗀 결과는 훑는 폴더에 쓰여 승인 전에도 목록에 카드로 서므로, 승인되어야 설치로 본다 */
+  readonly unapproved?: readonly string[];
+}
+
+const SAMPLE: Catalog = {
+  live: false,
+  byName: SAMPLE_CATALOG,
+  installed: SAMPLE_INSTALLED,
+  bundles: new Map(),
+  pending: new Map(),
+  unapproved: new Set(),
+};
 
 let catalog: Catalog = SAMPLE;
 
@@ -100,13 +128,86 @@ export function installSampleCatalog(): void {
   catalog = SAMPLE;
 }
 
-/** 엔진 카드에서 온 플러그인으로 바꿔 끼운다. 순서는 목록의 순서다 */
-export function installLiveCatalog(plugins: readonly Plugin[]): void {
-  catalog = { live: true, byName: new Map(plugins.map((p) => [p.name, p])), installed: plugins };
+/**
+ * 엔진 카드에서 온 플러그인으로 바꿔 끼운다. 순서는 목록의 순서다. 멤버 판은 이름으로 찾을 수 있지만 목록(`installedPlugins`)에는 서지 않는다.
+ * 리뷰 대기 판은 그대로 둔다(따로 읽는다)
+ */
+export function installLiveCatalog(
+  plugins: readonly Plugin[],
+  extras: LiveExtras = { members: [], bundles: [] },
+): void {
+  const byName = new Map(plugins.map((p) => [p.name, p]));
+  for (const m of extras.members) byName.set(m.name, m);
+  const unapproved = new Set(extras.unapproved ?? []);
+  const pending = catalog.live ? catalog.pending : new Map<string, string>();
+  for (const name of pending.keys()) {
+    const kept = catalog.byName.get(name);
+    if (kept !== undefined && !byName.has(name)) byName.set(name, kept);
+  }
+  catalog = {
+    live: true,
+    byName,
+    installed: plugins,
+    bundles: new Map(extras.bundles.map((b) => [b.id, b])),
+    pending: new Map(
+      [...pending].filter(
+        ([name]) => unapproved.has(name) || !plugins.some((p) => p.name === name),
+      ),
+    ),
+    unapproved,
+  };
+}
+
+/**
+ * 리뷰를 기다리는 판을 바꿔 끼운다(이름 → 리뷰 항목 id). 설치된 이름과 겹치는 것은 끼우지 않는다(승인되면 보통 판이 된다)
+ */
+export function installPending(
+  items: readonly { readonly itemId: string; readonly plugin: Plugin }[],
+): void {
+  const byName = new Map(catalog.byName);
+  for (const name of catalog.pending.keys()) {
+    const listed = catalog.installed.find((p) => p.name === name);
+    if (listed === undefined) byName.delete(name);
+    else byName.set(name, listed);
+  }
+  const pending = new Map<string, string>();
+  for (const item of items) {
+    const name = item.plugin.name;
+    if (!catalog.unapproved.has(name) && catalog.installed.some((p) => p.name === name)) continue;
+    byName.set(item.plugin.name, item.plugin);
+    pending.set(item.plugin.name, item.itemId);
+  }
+  catalog = { ...catalog, byName, pending };
 }
 
 export function pluginOf(name: string): Plugin | undefined {
   return catalog.byName.get(name);
+}
+
+/** 리뷰를 기다리는 판이면 그 리뷰 항목 id */
+export function pendingItemOf(name: string): string | null {
+  return catalog.pending.get(name) ?? null;
+}
+
+/** 리뷰를 기다리는 판의 이름 전부(캔버스가 프로필 끝에 덧붙여 그린다. 저장하지 않는다) */
+export function pendingNames(): readonly string[] {
+  return [...catalog.pending.keys()];
+}
+
+/** 엔진의 묶음(멤버 있는 플러그인)이면 그 멤버 판 이름. 아니면 null */
+export function liveBundleOf(name: string): LiveBundle | null {
+  return catalog.bundles.get(name) ?? null;
+}
+
+/** 멤버 판이면 그 묶음 id(엔진 값에서는 플러그인 이름) */
+export function bundleIdOfMember(name: string): string | null {
+  for (const b of catalog.bundles.values()) if (b.members.includes(name)) return b.id;
+  return null;
+}
+
+/** 묶음의 머리 값: 엔진 묶음이면 카드에서, 표본이면 표본 표에서 */
+export function bundleMetaFor(id: string): BundleMeta {
+  return catalog.bundles.get(id)?.meta ?? bundleMetaOf(id);
 }
 
 /** 목록에 보이는 설치된 플러그인 */
@@ -175,8 +276,14 @@ export function attachProfile(n: number): CanvasProfile {
 
 /** 묶음 표(표본에서 아는 묶음). 목록에서 구성원 하나를 넣으면 묶음째 든다 */
 function bundleOfPlugin(name: string): { id: string; members: readonly string[] } | null {
-  // 엔진 카드는 묶음을 알리지 않는다(프로필은 이름 목록뿐이다)
-  if (catalog.live) return null;
+  // 엔진 값: 멤버 있는 플러그인은 묶음째 든다(프로필에는 이름 하나)
+  if (catalog.live) {
+    const own = catalog.bundles.get(name);
+    if (own !== undefined) return { id: own.id, members: own.members };
+    const of = bundleIdOfMember(name);
+    const parent = of === null ? undefined : catalog.bundles.get(of);
+    return parent === undefined ? null : { id: parent.id, members: parent.members };
+  }
   for (const id of ["dev", "scale"] as const) {
     const g = SHARED_PROFILES[id].groups.find((x) => x.members.includes(name));
     if (g !== undefined) return { id: g.id, members: g.members };
@@ -240,7 +347,22 @@ export function placedOf(profile: CanvasProfile): readonly Placed[] {
 }
 
 export function inProfile(profile: CanvasProfile, name: string): boolean {
-  return effectiveNames(profile).includes(name);
+  return (
+    effectiveNames(profile).includes(name) ||
+    profile.entries.some((e) => e.type === "bundle" && e.id === name)
+  );
+}
+
+/**
+ * 그릴 모양: 리뷰를 기다리는 판(합치기·떼기 결과)을 프로필 끝에 덧붙인다. 저장하는 값이 아니다(캔버스의 배치와 관계에만 쓴다)
+ */
+export function withPending(profile: CanvasProfile, names: readonly string[]): CanvasProfile {
+  const extra = names.filter((name) => !inProfile(profile, name));
+  if (extra.length === 0) return profile;
+  return {
+    ...profile,
+    entries: [...profile.entries, ...extra.map((name): Entry => ({ type: "plugin", name }))],
+  };
 }
 
 /** 베이스에 든 플러그인은 이 프로필에서 뺄 수 없다 */

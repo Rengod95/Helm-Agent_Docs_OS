@@ -28,8 +28,15 @@ import {
   type PlateGeo,
   type ProfileLayout,
 } from "./layout.ts";
-import { pluginOf, type Anchor, type Kind, type Plugin, type RelationKind } from "./model.ts";
-import { bundleMetaOf, purposeTextOf } from "../shared-meta.ts";
+import {
+  bundleMetaFor,
+  pluginOf,
+  type Anchor,
+  type Kind,
+  type Plugin,
+  type RelationKind,
+} from "./model.ts";
+import { purposeTextOf } from "../shared-meta.ts";
 import { agoText } from "../shared-sample.ts";
 import {
   anchorWord,
@@ -56,6 +63,10 @@ function useLod(): Lod {
 
 export interface CanvasActions {
   select(id: string): void;
+  /** 판 메뉴를 연다(⋮ 단추, 마우스 오른쪽 단추). 화면 점은 메뉴가 설 자리 */
+  menu(name: string, at: { readonly x: number; readonly y: number }): void;
+  /** 리뷰 대기 판을 누르면 리뷰에서 그 항목을 연다 */
+  review(name: string): void;
   open(name: string): void;
   toggleBundle(id: string): void;
   pointerDown(name: string, e: PointerEvent<HTMLElement>): void;
@@ -64,6 +75,8 @@ export interface CanvasActions {
 
 const NOOP: CanvasActions = {
   select: () => undefined,
+  menu: () => undefined,
+  review: () => undefined,
   open: () => undefined,
   toggleBundle: () => undefined,
   pointerDown: () => undefined,
@@ -104,6 +117,10 @@ interface PlateData extends Record<string, unknown> {
   readonly mark: Mark;
   readonly arrive: number;
   readonly dim: boolean;
+  /** 판을 끄는 동안: 놓을 수 있는 판(강조). 놓을 수 없는 판은 `dim`으로 흐리다 */
+  readonly drop: "ok" | null;
+  /** 리뷰를 기다리는 합치기·떼기 결과(반투명, 구슬과 "리뷰 대기") */
+  readonly pending: boolean;
 }
 
 interface PedestalData extends Record<string, unknown> {
@@ -618,9 +635,10 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
           data-slot="cv6-button"
           className="cv6-menu"
           tabIndex={-1}
-          aria-label={t("desktop.craft.canvas.cv3.panel.label", { name: p.name })}
-          onClick={() => {
-            actions.select(p.name);
+          aria-label={t("desktop.craft.canvas.cvMerge.menu.label", { name: p.name })}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            actions.menu(p.name, { x: r.right, y: r.bottom });
           }}
         >
           <Icon name="more" size={18} />
@@ -663,7 +681,7 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
 }
 
 function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
-  const { geo, mark, arrive, dim } = props.data;
+  const { geo, mark, arrive, dim, drop, pending } = props.data;
   const actions = use(CanvasActionsContext);
   const lod = useLod();
   const p = geo.placed.plugin;
@@ -676,13 +694,21 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
       data-draft={draft}
       data-lod={lod}
       data-lip={geo.lip}
-      className={`cv6-plate${dim ? " cv6-dim" : ""}`}
+      data-drop={drop ?? undefined}
+      data-pending={pending ? "true" : undefined}
+      // 판을 끌 때 캔버스가 따라 움직이지 않게(React Flow는 끌 수 없는 노드 위에서도 바닥을 끈다) `nopan`
+      className={`cv6-plate nopan${dim ? " cv6-dim" : ""}`}
       style={{ width: geo.w, height: geo.h, color: KIND_COLOR[p.kind] }}
       onPointerDown={(e) => {
-        actions.pointerDown(p.name, e);
+        if (!pending) actions.pointerDown(p.name, e);
       }}
       onDoubleClick={() => {
-        actions.open(p.name);
+        if (!pending) actions.open(p.name);
+      }}
+      onContextMenu={(e) => {
+        if (pending) return;
+        e.preventDefault();
+        actions.menu(p.name, { x: e.clientX, y: e.clientY });
       }}
     >
       <KindTab kind={p.kind} lod={lod} />
@@ -691,21 +717,31 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
         <PlateBody geo={geo} lod={lod} />
       </div>
       {/* 중간·멀리: 상태는 카드 위 변 오른쪽에 걸친 표(이름 자리를 줄이지 않는다). 가까이는 이름 줄 끝에 */}
-      {lod === "near" ? null : (
+      {pending ? (
+        <span className="cv6-edge-marks">
+          <span className="cv6-mark cv6-mark-pending">
+            <span aria-hidden="true" className="cv6-orb" data-tone="warn" />
+            {t("desktop.craft.canvas.cvMerge.pending.word")}
+          </span>
+        </span>
+      ) : lod === "near" ? null : (
         <span className="cv6-edge-marks">
           <Marks geo={geo} lod={lod} />
         </span>
       )}
-      <LipPad geo={geo} lod={lod} />
+      {/* 리뷰 대기 판은 아직 프로필 순서에 들지 않아 레일 받침과 번호를 달지 않는다(번호 자리에 대기 표가 겹치지도 않는다) */}
+      {pending ? null : <LipPad geo={geo} lod={lod} />}
       {geo.handoffOut ? (
         <span className="cv6-pad" data-side="out" data-lod={lod} aria-hidden="true" />
       ) : null}
       <span className="sr-only">
-        {t("desktop.craft.canvas.cv3.a11y.plate", {
-          name: p.name,
-          kind: t(KIND_WORD[p.kind]),
-          where: t(anchorWord(p.anchor)),
-        })}
+        {pending
+          ? t("desktop.craft.canvas.cvMerge.pending.sr", { name: p.name })
+          : t("desktop.craft.canvas.cv3.a11y.plate", {
+              name: p.name,
+              kind: t(KIND_WORD[p.kind]),
+              where: t(anchorWord(p.anchor)),
+            })}
       </span>
       <button
         type="button"
@@ -714,7 +750,8 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
         aria-hidden="true"
         className="cv6-plate-hit"
         onClick={() => {
-          actions.select(p.name);
+          if (pending) actions.review(p.name);
+          else actions.select(p.name);
         }}
         onKeyDown={(e) => {
           actions.key(p.name, e);
@@ -739,7 +776,7 @@ function BundleHead(props: {
   readonly kinds?: boolean;
 }): ReactNode {
   const actions = use(CanvasActionsContext);
-  const meta = bundleMetaOf(props.geo.id);
+  const meta = bundleMetaFor(props.geo.id);
   const size = HEAD_SIZE[props.lod];
   const fold = props.geo.collapsed
     ? "desktop.craft.canvas.cv3.bundle.unfold"

@@ -22,8 +22,9 @@ import {
   requiredByOf,
   type CanvasProfile,
   type Kind,
+  bundleMetaFor,
 } from "./model.ts";
-import { bundleMetaOf } from "../shared-meta.ts";
+
 import { KIND_WORD } from "./words.ts";
 
 const ORDER: readonly Kind[] = ["drive", "inject", "hook", "tool"];
@@ -57,6 +58,8 @@ export interface PaletteProps {
   readonly onRemoveBundle: (id: string) => void;
   readonly onPointerDown: (name: string, e: ReactPointerEvent<HTMLElement>) => void;
   readonly onToggle: () => void;
+  /** 목록 맨 아래 "새로 만들기": 크래프트 테스트 챗에서 빌더로 새 플러그인을 만든다(cvMerge, AGE-72) */
+  readonly onCreate: () => void;
 }
 
 /** 위·아래 화살표: 패널 안의 다음 줄로. Enter·Space: 그 노드로 */
@@ -198,15 +201,16 @@ export function Palette(props: PaletteProps): ReactElement {
         </span>
       </div>
       <ul className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 pt-1 pb-4">
+        {/* 줄 목록은 한 칸(minmax(0, 1fr)): 긴 이름(합친 이름은 32자까지)이 칸을 넓혀 오른쪽 체크 칸을 밀어내지 않고 줄인다 */}
         {props.bundles.length > 0 ? (
           <li>
             <Heading
               word={t("desktop.craft.canvas.cv3.bundle.word")}
               count={props.bundles.length}
             />
-            <ul className="grid gap-1">
+            <ul className="grid grid-cols-1 gap-1">
               {props.bundles.map((b) => {
-                const name = bundleMetaOf(b.id).displayName;
+                const name = bundleMetaFor(b.id).displayName;
                 return (
                   <Row
                     key={b.id}
@@ -249,11 +253,14 @@ export function Palette(props: PaletteProps): ReactElement {
           </li>
         ) : null}
         {ORDER.map((kind) => {
-          const rows = installed.filter((p) => p.kind === kind);
+          // 프로필에 든 묶음(멤버 있는 플러그인)은 위 묶음 머리에 선다. 같은 이름을 종류 줄에 또 세우지 않는다
+          const rows = installed.filter(
+            (p) => p.kind === kind && !props.bundles.some((b) => b.id === p.name),
+          );
           return (
             <li key={kind}>
               <Heading word={t(KIND_WORD[kind])} count={rows.length} color={KIND_COLOR[kind]} />
-              <ul className="grid gap-1">
+              <ul className="grid grid-cols-1 gap-1">
                 {rows.map((p) => {
                   const inside = inProfile(props.profile, p.name);
                   const base = isBaseOf(props.profile, p.name);
@@ -329,6 +336,29 @@ export function Palette(props: PaletteProps): ReactElement {
             </li>
           );
         })}
+        <li>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              data-slot="cv6-button"
+              data-row=""
+              data-palette-create=""
+              title={t("desktop.craft.canvas.cvMerge.palette.newHint")}
+              className={ROW}
+              onClick={props.onCreate}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") rowKey(e, "", props);
+              }}
+            >
+              <span className="inline-grid size-icon-md shrink-0 place-items-center text-text-secondary">
+                <Icon name="plus" size={14} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-ui text-text-secondary">
+                {t("desktop.craft.canvas.cvMerge.palette.new")}
+              </span>
+            </button>
+          </div>
+        </li>
       </ul>
     </aside>
   );
