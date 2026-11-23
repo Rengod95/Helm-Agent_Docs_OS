@@ -8,6 +8,7 @@ import { Button, IconButton, Popover, ToneScopeContext, type ToneScope } from "@
 import { ChevronDown, ChevronRight, X } from "@caustic/react/icons";
 import { useRef, useState, type ReactNode } from "react";
 import type { CommandError } from "../../commands.ts";
+import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 import { isRequiredByCore } from "../core-required.ts";
 import { subjectRefText } from "../trace/place.ts";
 import { InfoTip } from "../info-tip.tsx";
@@ -209,7 +210,7 @@ function NextSteps(props: {
                     {holders.map((profile) => (
                       <li key={profile.id} className="flex h-8 items-center gap-2">
                         <span className="min-w-0 flex-1 truncate text-text-primary">
-                          {profile.title}
+                          {profileTitleOf(profile.id, profile.title)}
                         </span>
                         <Button
                           size="xs"

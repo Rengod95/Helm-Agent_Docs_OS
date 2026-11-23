@@ -186,7 +186,7 @@ export interface ModelService extends ModelsPort {
 export interface RoleOverrides {
   /** 호출자가 직접 지정한 참조. 서브에이전트 정의 파일의 model 필드(L1.agents.spec) */
   readonly ref?: ModelRefString;
-  /** 그룹 덮어쓰기 조회 키. 호출을 일으킨 scope(F.extensions.spec ScopeId) */
+  /** 플러그인 덮어쓰기 조회 키. 호출을 일으킨 scope(F.extensions.spec ScopeId) */
   readonly scopeId?: ScopeId;
   /** 레벨만 덮어쓴다. ref의 접미보다 우선한다 */
   readonly thinkingLevel?: ModelThinkingLevel;
@@ -278,7 +278,7 @@ export interface ContextUsageEstimate {
 | `subagent` | 서브에이전트(`L1.agents.spec`). 정의 파일의 `model` 필드가 `RoleOverrides.ref`로 들어와 덮어쓴다 | `l1.models.routing.subagent` | `main` | 설정값 |
 | `judge` | 목표 판정. `L1.agents.spec`이 판정 실행 경로에서 부른다(실행 횟수 상한은 그 문서) | `l1.models.routing.judge` | `review` → `main` | `none` |
 | `search` | 내장 검색 래퍼의 소형 모델 한 턴(`_research/foundation-plan.md` §1 결정 6 ②, `L2.web.spec`) | `l1.models.routing.search` | `summary` → `main` | `none` |
-| 그룹 덮어쓰기 | 플러그인이 일으킨 위 역할 호출 | `l1.models.groupRouting` (`{ [scopeId]: { [role]: ref } }`) | 해당 역할의 일반 해석 | 해당 역할 |
+| 플러그인 덮어쓰기 | 플러그인이 일으킨 위 역할 호출 | `l1.models.groupRouting` (`{ [scopeId]: { [role]: ref } }`) | 해당 역할의 일반 해석 | 해당 역할 |
 
 - [결정] 목표 판정은 별도 판정 모델과 실행 횟수 상한으로 한다(`_research/foundation-plan.md` §1 결정 4). 이 문서는 `judge` 역할로 모델만 고른다.
 - omp `modelRoles`(default, smol, slow, plan, commit 등 16종, `_research/settings.md` §2.5)는 참고만 했다. 역할 수를 6개로 줄인 이유는 L1 안에 실제 호출처가 있는 역할만 두기 위해서다 [제안].
@@ -411,7 +411,7 @@ export const ProviderConfigDefSchema: TUnsafe<ProviderConfigDef>;
 - `registerProvider`(포트 경로)는 `Result`를 돌려주지 않는다. `config`가 `ProviderConfigDefSchema`를 통과하지 않으면 `kind: "invalid_provider"`, 이름이 겹치면 `provider_conflict`인 `ModelError`를 던진다 [제안]. X는 이 예외를 등록 실패로 확장에 돌려준다.
 - 내장 provider(pi-ai `providers/all.ts`)의 기본값을 바꾸는 등록(pi 예: baseUrl만 바꾸기)은 `kind: "config"`에 `models` 없이 `baseUrl`만 주는 형태로 허용한다.
 - `kind: "runtime"`은 함수가 들어 있으므로 JSON 매니페스트로 선언할 수 없다. 그래서 포트 경로에는 넣지 않고 `addProvider`로만 받는다. F `ProviderResourceDef`는 `JsonValue` 그대로 둔다.
-- [미결] pi `registerVirtualModel`(가상 모델 라우터, `X.primitives.spec` §4.8 표)을 지원할지. 역할 표와 그룹 덮어쓰기로 대부분의 용도가 해결되므로 2차 이후로 미룬다 [제안].
+- [미결] pi `registerVirtualModel`(가상 모델 라우터, `X.primitives.spec` §4.8 표)을 지원할지. 역할 표와 플러그인 덮어쓰기로 대부분의 용도가 해결되므로 2차 이후로 미룬다 [제안].
 
 ### 3.8 오류
 
@@ -592,7 +592,7 @@ export function resolveRole(input: {
 1. `overrides.ref`가 있으면 그것을 쓴다. 출처 `explicit`.
 2. `overrides.scopeId`가 있고 `groupRouting[scopeId][role]`가 있으면 그것을 쓴다. 출처 `group:<scopeId>`.
 3. 역할이 `main`이 아니고 `routing[role]`이 있으면 그것을 쓴다. 출처 `role`.
-4. `ROLE_FALLBACK[role]`의 역할을 앞에서부터 차례로 2~3단계로 찾는다(그룹 덮어쓰기 포함). 출처 `role-fallback`.
+4. `ROLE_FALLBACK[role]`의 역할을 앞에서부터 차례로 2~3단계로 찾는다(플러그인 덮어쓰기 포함). 출처 `role-fallback`.
 5. `default`를 쓴다. 출처 `default`.
 6. 모두 없으면 `no_model_for_role`.
 
@@ -603,7 +603,7 @@ export function resolveRole(input: {
 - `denied` 패턴에 맞거나, `allowed`가 비어 있지 않은데 맞지 않음 → `model_denied`. 패턴은 `provider/modelId` 전체 일치 또는 `provider/*`다.
 - 추론 레벨: `overrides.thinkingLevel` → 참조 접미 → `table.thinkingLevel` 순으로 정하고 pi-ai `clampThinkingLevel(model, level)`로 모델이 지원하는 값으로 맞춘다(`models.ts:1235`). `model.reasoning`이 false면 `off`다.
 - 토큰 예산: 레벨이 `off`가 아니면 `table.thinkingBudgets[level]`. 호출 때 pi-ai `thinkingBudgets`로 넘기는 것은 `minimal`~`high` 네 키뿐이다(§3.1 포크 판정).
-- 그룹 덮어쓰기가 꺼진 scope의 값인지는 서비스 의존 `scopeEnabled(scopeId)`로 판정한다. 플러그인은 `ext.scopes()`의 상태가 `enabled`인 scope만 켜진 것으로 연결한다. 의존이 없으면 모든 scope가 켜진 것으로 본다 [구현: M2].
+- 플러그인 덮어쓰기가 꺼진 scope의 값인지는 서비스 의존 `scopeEnabled(scopeId)`로 판정한다. 플러그인은 `ext.scopes()`의 상태가 `enabled`인 scope만 켜진 것으로 연결한다. 의존이 없으면 모든 scope가 켜진 것으로 본다 [구현: M2].
 - `rebind`는 카탈로그 부재 외에 허용·차단 목록에 걸린 고정 모델도 `model_denied`로 거부한다. 고정 레벨은 clamp하지 않는다 [구현: M2].
 - 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > launch > 로컬 > 작업 폴더 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 대화 중 `/model` 변경은 `l1.models.default`의 launch 범위 값이다.
 
@@ -789,7 +789,7 @@ export function resolveRole(input: {
 | 참조 접미가 레벨 이름이 아님(`…-v1:0`) | modelId의 일부로 읽는다 |
 | 모델이 지원하지 않는 레벨 요청 | `clampThinkingLevel`로 낮춘다. `request.thinking.after`는 실제 쓰인 레벨로 발화한다 |
 | 체크포인트의 모델이 없어짐 | `rebind` 오류 → 새로 해석, `request.model.after`(`restore`) |
-| 그룹 덮어쓰기의 scopeId가 꺼진 플러그인 | 덮어쓰기를 무시한다. 꺼진 플러그인은 호출을 일으키지 않으므로 정상 경로에서는 생기지 않는다 |
+| 플러그인 덮어쓰기의 scopeId가 꺼진 플러그인 | 덮어쓰기를 무시한다. 꺼진 플러그인은 호출을 일으키지 않으므로 정상 경로에서는 생기지 않는다 |
 | 시크릿 참조 해석 실패 | `secret_unresolved` 오류 종결 메시지. 재시도하지 않는다 |
 | 기본 `anthropic` provider에 `sk-ant-oat` 키 | `oauth_token_on_default_provider`. 요청을 보내지 않는다 |
 | 같은 이름 provider 두 번 등록 | 두 번째가 `provider_conflict` |
@@ -891,7 +891,7 @@ export interface ThinkingLevelSelectPayload {
 ### 7.4 drive와의 관계
 
 - drive 락의 토큰 상한은 `UsageMeter.totals({ threadId, scopeId })`로 판정한다 [가정: X.primitives.spec이 이 값을 읽는다].
-- drive 함수가 `loop.spawn`으로 서브에이전트를 열 때 그룹 덮어쓰기가 적용되도록 core-agents가 `RoleOverrides.scopeId`를 넘긴다(`L1.agents.spec`).
+- drive 함수가 `loop.spawn`으로 서브에이전트를 열 때 플러그인 덮어쓰기가 적용되도록 core-agents가 `RoleOverrides.scopeId`를 넘긴다(`L1.agents.spec`).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -932,7 +932,7 @@ export interface ThinkingLevelSelectPayload {
 
 1. 같은 `RoutingTable`, `RoleOverrides`, 카탈로그로 `resolveRole`을 두 번 부르면 같은 `binding`과 `source`가 나온다. 입력 객체의 키 순서를 바꿔도 같다.
 2. `judge` 역할에 값이 없고 `review`에 값이 있으면 `review` 값으로 해석되고 출처는 `role-fallback`이다. 둘 다 없으면 `default`다.
-3. `overrides.scopeId = "helm"`이고 `groupRouting.helm.review`가 있으면 그 값이 `routing.review`보다 먼저 쓰인다. `overrides.ref`는 그룹 덮어쓰기보다 먼저 쓰인다.
+3. `overrides.scopeId = "helm"`이고 `groupRouting.helm.review`가 있으면 그 값이 `routing.review`보다 먼저 쓰인다. `overrides.ref`는 플러그인 덮어쓰기보다 먼저 쓰인다.
 4. `parseModelRef("bedrock/anthropic.claude-x-v1:0")`의 modelId는 `anthropic.claude-x-v1:0`이고 레벨은 null이다. `parseModelRef("anthropic/claude-x:high")`의 레벨은 `high`다.
 5. 테이프가 `error`(`reason: "aborted"`, `afterContent` 있음)를 낸 호출의 사용량이 `UsageMeter.totals`에 더해지고 `abortedCalls`가 1 늘어난다.
 6. 요청 로그, 훅 페이로드(`request.headers.before`, `request.provider.after`), 이벤트 DB, 오류 메시지 어디에도 `secret://`를 해석한 값이 나타나지 않는다. 테스트는 알려진 가짜 키 문자열을 모든 출력에서 찾는다.

@@ -5,11 +5,10 @@ import { EXIT } from "../src/exit-codes.ts";
 import { parseSlash } from "../src/slash.ts";
 import { summary } from "./support/m2.ts";
 import { approvalRequested, turnCompleted } from "./support/events.ts";
-import { createMemoryGroupFs } from "./support/group-fs.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { threadId, turnId } from "./support/ids.ts";
 
-// schedule, sessions, group new, chat, slash, 끊긴 turn의 문장을 영어 로케일에서 전체 문자열로 비교한다.
+// schedule, sessions, chat, slash, 끊긴 turn의 문장을 영어 로케일에서 전체 문자열로 비교한다.
 // 시험 프로세스의 로케일은 ko이므로 끝나면 되돌린다.
 
 const harnesses: Harness[] = [];
@@ -81,28 +80,6 @@ test("sessions ls marks each conversation with its flags in English", async () =
   expect(await h.run(["sessions", "ls", "--all"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe(
     "thr_00000000000000000000000001  2026-01-05T00:10:00.000Z  idle  (untitled)  [resumable, pending approvals: 2, queued inputs: 1]\n",
-  );
-});
-
-test("group new refuses a name that clashes with an installed extension, in English", async () => {
-  const index = JSON.stringify({
-    schemaVersion: 1,
-    templates: {
-      observe: { description: "d", files: ["common/package.json"], drives: false },
-      drive: { description: "d", files: ["common/package.json"], drives: true },
-      policy: { description: "d", files: ["common/package.json"], drives: false },
-    },
-  });
-  const fake = createMemoryGroupFs({ index, installed: ["helm"] });
-  const h = createHarness({
-    env: { NO_COLOR: "1" },
-    cwd: "/work/project",
-    groupTemplates: fake.port,
-  });
-  harnesses.push(h);
-  expect(await h.run(["group", "new", "helm"])).toBe(EXIT.usage);
-  expect(h.stderrText()).toBe(
-    'fresnel: "helm" overlaps with an installed extension name\n  Fix: Choose another name\n',
   );
 });
 

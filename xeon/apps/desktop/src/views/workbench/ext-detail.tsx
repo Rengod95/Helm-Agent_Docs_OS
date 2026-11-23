@@ -87,21 +87,8 @@ function DetailName(props: { readonly row: ExtRowVM }): ReactNode {
   );
 }
 
-/** 기능 연결의 관계를 사람 말로: 꼭 필요(requires), 있으면 씀(optional), 줌(provides). 모르는 값은 그대로 */
-const RELATION_TEXT: Readonly<Record<string, MessageId>> = {
-  requires: "desktop.workbench.detail.relation.requires",
-  optional: "desktop.workbench.detail.relation.optional",
-  provides: "desktop.workbench.detail.relation.provides",
-};
-
-function relationText(relation: string): string {
-  const id = Object.hasOwn(RELATION_TEXT, relation) ? RELATION_TEXT[relation] : undefined;
-  return id === undefined ? relation : t(id);
-}
-
-function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): ReactNode {
+function Overview(props: { readonly entry: ExtListEntry }): ReactNode {
   const { entry } = props;
-  const bindings = props.get.kind === "ready" ? props.get.result.bindings : [];
   return (
     <div className="grid gap-3">
       <ListDescription
@@ -114,23 +101,7 @@ function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): 
           {originText(entry.origin)}{" "}
           <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
         </ListDescriptionRow>
-        {/* 기능 줄은 첫 줄에만 "Capabilities" 글을 단다. 나머지 줄은 글 없이 이어진다 */}
-        {bindings.map((b, index) => (
-          <ListDescriptionRow
-            key={`${b.registrationId}:${b.relation}:${b.capability}`}
-            term={index === 0 ? t("desktop.workbench.detail.bindings") : ""}
-          >
-            <span className="inline-flex flex-wrap items-baseline gap-x-2">
-              <span className="text-text-tertiary">{relationText(b.relation)}</span>
-              <span className="font-mono text-mono-sm text-text-primary">{b.capability}</span>
-              <span className="text-text-tertiary">
-                {b.satisfied
-                  ? t("desktop.workbench.detail.binding.ok")
-                  : t("desktop.workbench.detail.binding.unmet")}
-              </span>
-            </span>
-          </ListDescriptionRow>
-        ))}
+        {/* 이 플러그인의 기능 연결 줄은 의존 탭 아래 기능 연결 표와 겹쳐 뺐다(AGE-76 plugMin 뒤 정리, uiTog) */}
       </ListDescription>
       {entry.diagnostics.length > 0 && (
         <section aria-label={t("desktop.workbench.detail.diagnostics")} className="grid gap-1">
@@ -513,7 +484,7 @@ export function ExtDetail(props: {
           <TabsTrigger value="versions">{t("desktop.workbench.detail.tab.versions")}</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
-          <Overview entry={entry} get={get} />
+          <Overview entry={entry} />
         </TabsContent>
         {withMembers && (
           <TabsContent value="members">

@@ -100,7 +100,7 @@ import {
   currentProfile,
   saveProfile,
   setCollapsed,
-  titleOf,
+  shownTitleOf,
   updateStore,
   useCanvasStore,
 } from "./store.ts";
@@ -1075,7 +1075,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
               bundles={bundleList}
               focused={selected}
               open={paletteOpen}
-              choices={store.order.map((id) => ({ id, title: titleOf(store, id) }))}
+              choices={store.order.map((id) => ({ id, title: shownTitleOf(store, id) }))}
               onProfile={(id) => {
                 setSelected(null);
                 setFailure(null);
@@ -1145,7 +1145,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
             {/* 위 왼쪽: 프로필 머리 */}
             <div className="glass glass-shadow-3 rounded-toolbar absolute top-3 left-3 z-10 flex h-10 items-center gap-3 ps-3.5 pe-3">
               <span className="text-[13px] font-semibold text-text-primary">
-                {titleOf(store, store.current) ?? t(sampleTitle(store.current))}
+                {shownTitleOf(store, store.current) ?? t(sampleTitle(store.current))}
               </span>
               <span className="flex items-center gap-3 text-[12px] text-text-tertiary tabular-nums">
                 <span>

@@ -22,7 +22,7 @@ import { createHostConnection } from "../../src/host-client.ts";
 import type { TerminalFacts } from "../../src/cli/command.ts";
 import { createConnectEngine, type ConnectEngine, type HostApi } from "../../src/engine.ts";
 import type { ExitCode } from "../../src/exit-codes.ts";
-import type { CliDeps, CliIo, CliSignal, GroupTemplatesPort } from "../../src/io.ts";
+import type { CliDeps, CliIo, CliSignal } from "../../src/io.ts";
 import { runCli } from "../../src/main.ts";
 import {
   createFakeStore,
@@ -32,7 +32,6 @@ import {
 } from "./fake-server.ts";
 import { materialize, type EventDraft } from "./events.ts";
 import { storeId } from "./ids.ts";
-import { createMemoryGroupFs } from "./group-fs.ts";
 import { createTransportPair } from "./memory-transport.ts";
 
 // 시험 도구: 가짜 CliIo(출력 수집, 입력 대본, 신호), 가짜 호스트 서버 위에서 도는 connectEngine, 임시 상태 파일.
@@ -93,8 +92,6 @@ export interface HarnessOptions {
   readonly dataDir?: string | null;
   /** 상태 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/os-state`(만들지 않아 로그는 0이다) */
   readonly stateDir?: string | null;
-  /** `group new`의 파일 작업 가짜. 없으면 템플릿이 없는 메모리 가짜다 */
-  readonly groupTemplates?: GroupTemplatesPort;
   /**
    * 서비스 접속을 흉내 낸다. "local"은 이 기기의 서비스(라우트 local, 값은 로컬 채널), "remote"는 원격 주소(값 통로 없음).
    * 가짜 서버가 서비스 역할을 하고, 시험의 처리기가 채널을 실제 소켓으로 다룬다. 없으면 in-process다
@@ -378,7 +375,6 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     resolveRemote: options.resolveRemote ?? (() => Promise.resolve({ kind: "none" })),
     bridgeStdio:
       options.bridgeStdio ?? (() => Promise.resolve({ code: 0, reason: "stdin_closed" })),
-    groupTemplates: options.groupTemplates ?? createMemoryGroupFs().port,
     clock,
     devWireRoundTrip: options.devWireRoundTrip ?? false,
     bunVersion: "1.4.3",

@@ -137,6 +137,7 @@ function metaOfCard(card: PluginCard): PluginMeta {
     launch: null,
     usedBy: card.usedBy,
     requiredBy: card.requiredByCore ?? [],
+    uiCount: card.does.inject?.ui.length ?? 0,
   };
 }
 

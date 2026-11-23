@@ -34,13 +34,13 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | 요구 | 내용 | 구현 | 시험 |
 |---|---|---|---|
 | M3-REQ-53 (L0.os) | 번들 바이너리를 자원 디렉터리에서 찾고, Linux의 bwrap·socat은 시스템 요구로 두어 doctor가 안내합니다 | `xeon/scripts/release.ts`(`binaries.lock.json` 작성, `lockBody`), `xeon/packages/platform-os/src/binaries/resolve.ts`(번들 후보, `installHint`) | `xeon/scripts/release.test.ts`(lockBody, requiredPaths), `xeon/packages/platform-os/test/binaries.test.ts`(Linux apt 안내), X11의 `lock.match`와 `run.doctor.bundled` |
-| M3-REQ-54 (L0.os, F.wire-settings) | 제품 이름에 묶인 값을 소비처에서 확인합니다 | 릴리즈 스크립트는 workspace 패키지를 import하지 않으므로 이름 `fresnel`을 스크립트에 적습니다(`release.ts`, `release-smoke.ts`, `release-smoke.sh`). 소비처 목록은 §8 미결 9 | X11의 `run.version`과 환경 변수 없는 `fresnel group new` |
+| M3-REQ-54 (L0.os, F.wire-settings) | 제품 이름에 묶인 값을 소비처에서 확인합니다 | 릴리즈 스크립트는 workspace 패키지를 import하지 않으므로 이름 `fresnel`을 스크립트에 적습니다(`release.ts`, `release-smoke.ts`, `release-smoke.sh`). 소비처 목록은 §8 미결 9 | X11의 `run.version` |
 | M3-26 | macOS의 sops·age·rg 번들과 서명, Linux의 bwrap·socat 시스템 요구와 doctor 안내 | `xeon/scripts/release-bundle.json`, `xeon/scripts/release.ts`(버전 확인과 복사), `xeon/scripts/release-sign.sh` | `xeon/scripts/release.test.ts`(설정 값, 버전 고정 일치, 고지), X11 |
 | M3-27 | 단일 아카이브 릴리즈, 서명과 공증, 업데이트 절차, 공급망과 고지 | §3, §4, §5, §6의 산출물. `release.ts`가 `SHA256SUMS`와 `.sha256`을 씁니다 | `xeon/scripts/release.test.ts`(sumsBody, noticesBody, archiveName), X11의 `archive.sha256`과 `sums.match` |
 | M3-new-22 | 기본 플러그인 번들을 `default-plugins/<이름>/`에 싣습니다 | `xeon/scripts/release.ts`(`packages/plugin-helm`의 build-plugin 실행. 계정 회전은 싣지 않는다 [결정: 2026-11-04 사용자]), `xeon/apps/host/src/state-paths.ts`(`defaultPluginsDir`) | `xeon/scripts/release.test.ts`(빌드 스크립트 경로 존재), X11의 `layout`(`.fresnel-plugin/plugin.json`) |
 | M3-30 | `.github/workflows/fresnel-*.yml`의 액션을 40자리 SHA로 고정하고 `# v<버전>` 주석을 붙입니다 | `.github/workflows/fresnel-ci.yml`, `fresnel-macos.yml`, `fresnel-release.yml` | `xeon/scripts/workflow-pins.test.ts`(실제 파일과 판정 함수) |
 | DR-07 `@swc/core` | 릴리즈 바이너리에 `@swc/core`가 들어가지 않습니다 | `xeon/scripts/release-smoke.ts`의 `swc.absent` 검사 | X11. 바이너리 안의 문자열을 확인합니다 |
-| 템플릿 패키징(`L4.cli.spec` §10 29번) | 컴파일 바이너리가 `fresnel group new`의 템플릿을 찾습니다 | `xeon/apps/cli/src/group/fs-port.ts`(`locateGroupTemplates`의 `resourceDir`), `xeon/apps/cli/src/runtime.ts` | `xeon/apps/cli/test/group-templates-locate.test.ts`, X11의 `run.group-new` |
+| 템플릿 패키징(`L4.cli.spec` §10 29번) | 컴파일 바이너리가 플러그인 빌더(`core-authoring`)의 템플릿을 찾습니다 | `xeon/packages/core-authoring/src/templates-dir.ts`(`locateTemplateDirs`의 `resourceDir`) | `xeon/packages/core-authoring/test/`의 시험(간접) |
 | rg 확인(M3b) | 번들 rg 15.2.0이 `--no-require-git`을 지원하고, 작업 공간 검색(`cap-workspace`)이 쓰는 값과 맞습니다 | `xeon/scripts/release-bundle.json`의 rg 15.2.0 | `xeon/packages/cap-workspace/test/rg.int.test.ts`(작성 시점 실측 12/12) |
 
 ## 3. 릴리즈 구성
@@ -52,7 +52,7 @@ fresnel-<버전>-<triple>/
 ├── fresnel                          컴파일된 엔진 (Windows는 fresnel.exe)
 ├── fresnel-web                      웹 게이트웨이 (Windows는 fresnel-web.exe). 서비스가 `fresnel` 옆에서 찾는다 (`L4.remote.spec` §5.1)
 ├── ui/                           게이트웨이가 내는 화면 번들 (`apps/desktop/dist/ui`)
-├── orchestration-sdk/templates/          `fresnel group new`의 템플릿과 index.json
+├── orchestration-sdk/templates/          플러그인 빌더(`core-authoring`)가 찾는 템플릿과 index.json
 ├── guide/skills/                 Fresnel Guide 스킬(`L3.guide.spec`). `locateGuideSkills`가 이 자리로 찾는다
 ├── default-plugins/
 │   └── helm/                     .fresnel-plugin/plugin.json과 엔트리 번들
@@ -74,9 +74,9 @@ fresnel-<버전>-<triple>/
 |---|---|---|---|
 | 번들 바이너리 목록 | `binaries.lock.json` | 번들 후보가 없으므로 시스템 후보를 찾습니다 | `xeon/packages/platform-os/src/binaries/resolve.ts` |
 | 기본 플러그인 | `default-plugins/<이름>/` | 설치하지 않고 `no_bundle`로 알립니다. 오류가 아닙니다 | `xeon/apps/host/src/assembly/default-plugins.ts`, `xeon/apps/host/src/assemble.ts`(`defaultPluginsDir`) |
-| 플러그인 템플릿 | `orchestration-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
+| 플러그인 템플릿 | `orchestration-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/packages/core-authoring/src/templates-dir.ts` |
 
-플러그인 템플릿의 탐색 순서는 `locateGroupTemplates`가 정합니다.
+플러그인 템플릿의 탐색 순서는 `core-authoring`의 `locateTemplateDirs`가 정합니다.
 
 1. 환경 변수 `FRESNEL_GROUP_TEMPLATES_DIR`. 빈 값은 없는 것으로 다룹니다.
 2. `<자원 디렉터리>/orchestration-sdk/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
@@ -160,12 +160,11 @@ fresnel-<버전>-<triple>/
 | `xeon/scripts/notices.test.ts` | 단위 | 고지 수집의 링크(저장소 형식, UPSTREAM.json), 저작권 줄(머리말만), 라이선스 정보와 파일이 없을 때의 실패, 라이선스별 절의 표준 전문 한 번 싣기와 다른 본문의 전문, Bun 항목 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
 | `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 UNSIGNED 상태, 태그에서의 실패, 값 미출력 | 같음 |
 | `xeon/scripts/electron-sign.test.ts`, `electron-smoke.test.ts`, `shell-notices.test.ts`, `ui-notices.test.ts`, `xeon/apps/desktop-shell/test/package-lib.test.ts`, `packaged-env.test.ts` | 단위 | Electron 서명 단계의 UNSIGNED 경로와 태그에서의 실패, 묶은 앱 스모크의 창 목록 해석과 위치 비교, 셸 npm 고지가 커밋된 파일과 같음, 화면 번들의 실제 모듈 목록에서 만든 고지가 번들된 패키지를 모두 싣고 허용 밖 라이선스를 거름, 로캘 정리와 크기 계산, 묶은 앱에서 개발용 환경 변수 제거 | fresnel-ci `root`와 `L4` 층 |
-| `xeon/apps/cli/test/group-templates-locate.test.ts` | 단위 | 템플릿 탐색 순서와 찾지 못했을 때 null | fresnel-ci `L4` 층 |
 | `xeon/packages/platform-os/test/binaries.test.ts` | 단위 | Linux에서 bwrap과 socat이 없을 때의 설치 안내 문구 | fresnel-ci `L0` 층, `fresnel-macos.yml`(`just test packages/platform-os`) |
 | `xeon/scripts/release-smoke.test.ts`(X11) | 종단 | `release-smoke.sh`가 이 기기의 아카이브를 만들고, §3.1 배치, 해시, 잠금, 실행, 템플릿, doctor 줄, `@swc/core` 부재를 확인합니다 | fresnel-ci `exit-tests`(Linux x86_64), `fresnel-macos.yml`의 `exit-tests`와 `release smoke`(macOS arm64), `fresnel-release.yml`(두 OS) |
 
 - X11 스모크는 `xeon/scripts/release-smoke.sh` 한 개를 두 OS가 같은 입력으로 돌립니다. macOS는 mise에서 찾은 고정 버전의 sops, age, rg를 `--binaries-dir`로 넘깁니다. Linux는 시스템의 도구를 씁니다.
-- 스모크의 검사는 다음과 같습니다. (1) 아카이브와 `.sha256`, (2) 배치와 `binaries.lock.json`의 유무(macOS에만), (3) `SHA256SUMS`와 잠금 항목의 해시, (4) `fresnel version`, 환경 변수 없는 `fresnel group new`, `fresnel doctor`의 외부 바이너리 줄, (5) 바이너리 안의 `@swc/core` 문자열 부재.
+- 스모크의 검사는 다음과 같습니다. (1) 아카이브와 `.sha256`, (2) 배치와 `binaries.lock.json`의 유무(macOS에만), (3) `SHA256SUMS`와 잠금 항목의 해시, (4) `fresnel version`, `fresnel doctor`의 외부 바이너리 줄, (5) 바이너리 안의 `@swc/core` 문자열 부재.
 - 서명 경로의 실행은 시험하지 않습니다. 시크릿이 있는 공증은 실기 확인 항목입니다([미결] §8).
 
 ## 8. 결정과 미결

@@ -13,7 +13,7 @@ import {
 } from "@fresnel/contracts/conversation";
 import { SettingKeySchema, type SettingKey, type SettingScope } from "@fresnel/contracts/settings";
 import { isCopyName } from "../commands/db-usage.ts";
-import { checkOrchestrationName, type GroupTemplateKind } from "../group/rules.ts";
+import { checkOrchestrationName } from "../group/rules.ts";
 import { titleProblem } from "../threads.ts";
 
 // L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 시크릿 값 argv 금지 같은 규칙을
@@ -90,16 +90,6 @@ export type ConfigCommand =
       readonly out: string | null;
       readonly coreOnly: boolean;
     };
-
-/** `fresnel group new <이름> [--drive|--policy] [--dir <폴더>] [--json]`(L3.slots.spec §3.3.6, L4.cli.spec §3.1) */
-export interface GroupNewCommand {
-  readonly kind: "group.new";
-  readonly name: string;
-  readonly template: GroupTemplateKind;
-  /** `--dir`의 원문. 없으면 null이고 작업 폴더 아래 `<이름>`을 쓴다. 절대 경로로 바꾸는 일은 명령이 한다 */
-  readonly dir: string | null;
-  readonly output: OutputMode;
-}
 
 /**
  * `fresnel author <명령>`(L3.authoring.spec §4.5, L4.cli.spec §3.1). 모델 없이 도는 제작 명령이다.
@@ -301,7 +291,6 @@ export type DbCommand =
 export type CliCommand =
   | ChatCommand
   | SessionsCommand
-  | GroupNewCommand
   | AuthorCommand
   | ConfigCommand
   | SecretCommand
@@ -2128,14 +2117,7 @@ function parseJsonOnly(
   return ok({ kind, output: outputOf(scanned.value) });
 }
 
-const GROUP_FLAGS: FlagTable = {
-  "--drive": { value: "none" },
-  "--policy": { value: "none" },
-  "--dir": { value: "required" },
-  "--json": { value: "none" },
-};
-
-/** 그룹 이름 검사(L3.slots.spec §3.3.4). 형식과 예약 이름을 본다. 설치된 확장과의 충돌은 명령이 본다 */
+/** 그룹 이름 검사(L3.slots.spec §3.3.4). 형식과 예약 이름을 본다. `author scaffold`가 쓴다 */
 function groupNameOf(text: string): Result<string, UsageError> {
   const checked = checkOrchestrationName(text);
   if (checked.ok) return ok(text);
@@ -2144,83 +2126,6 @@ function groupNameOf(text: string): Result<string, UsageError> {
       ? t("cli.usage.group.reserved.message", { text })
       : t("cli.usage.group.invalidName.message", { text });
   return err(usage("invalidGroupName", message, t("cli.usage.group.nameFormat.fix")));
-}
-
-function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCommand, UsageError> {
-  const [action, ...tail] = rest;
-  switch (action) {
-    case "new": {
-      const scanned = scanArgs(acc, tail, GROUP_FLAGS);
-      if (!scanned.ok) return scanned;
-      const drive = has(scanned.value, "--drive");
-      const policy = has(scanned.value, "--policy");
-      if (drive && policy) {
-        return err(
-          usage(
-            "conflictingFlags",
-            t("cli.usage.group.driveAndPolicy.message"),
-            t("cli.usage.group.driveAndPolicy.fix"),
-          ),
-        );
-      }
-      const [nameText, ...extra] = scanned.value.positionals;
-      if (nameText === undefined) {
-        return err(
-          usage(
-            "missingArgument",
-            t("cli.usage.group.nameMissing.message"),
-            t("cli.usage.group.newSyntax"),
-          ),
-        );
-      }
-      if (extra.length > 0) {
-        return err(
-          usage(
-            "unexpectedArgument",
-            t("cli.usage.tooManyArgs.message", { command: "group new" }),
-            t("cli.usage.oneName.fix"),
-          ),
-        );
-      }
-      const name = groupNameOf(nameText);
-      if (!name.ok) return name;
-      const dir = valueOf(scanned.value, "--dir");
-      if (dir === "") {
-        return err(
-          usage(
-            "missingArgument",
-            t("cli.usage.folderMissing.message", { flag: "--dir" }),
-            t("cli.usage.flag.folderFormat.fix", { flag: "--dir" }),
-          ),
-        );
-      }
-      const template: GroupTemplateKind = drive ? "drive" : policy ? "policy" : "observe";
-      return ok({
-        kind: "group.new",
-        name: name.value,
-        template,
-        dir,
-        output: outputOf(scanned.value),
-      });
-    }
-    case undefined:
-      return err(
-        usage(
-          "missingArgument",
-          t("cli.usage.subcommandMissing.message", { command: "group" }),
-          t("cli.usage.group.newSyntax"),
-        ),
-      );
-    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
-    default:
-      return err(
-        usage(
-          "unknownCommand",
-          t("cli.usage.unknownCommand.message", { command: `group ${action}` }),
-          t("cli.usage.group.newUse.fix"),
-        ),
-      );
-  }
 }
 
 const AUTHOR_SYNTAX = "fresnel author scaffold|validate|pack|install|remove|ls";
@@ -2394,7 +2299,6 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "db",
   "host",
   "plugin-host",
-  "group",
   "author",
   "doctor",
   "version",
@@ -2435,8 +2339,6 @@ function commandOf(
       return parseHost(acc, rest);
     case "plugin-host":
       return parsePluginHost(rest);
-    case "group":
-      return parseGroup(acc, rest);
     case "author":
       return parseAuthor(acc, rest);
     case "doctor":

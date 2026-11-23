@@ -2,9 +2,17 @@ import { describe, expect, test } from "bun:test";
 import type { UiNode } from "@fresnel/contracts/extensions";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import {
+  cardHiddenFor,
   cardOf,
   commandEntriesOf,
+  EMPTY_LAYOUT,
   groupPlacements,
+  layoutOf,
+  layoutValuesOf,
+  movedKeys,
+  statusOrderKeysOf,
+  UI_HIDDEN_KEY,
+  UI_ORDER_KEY,
   nativeEntriesOf,
   originTitleOf,
   provenanceOf,
@@ -249,5 +257,70 @@ describe("originTitleOf", () => {
 
   test("a title that is empty after stripping shows the entry id", () => {
     expect(originTitleOf(uiEntryOf({ extension: "aaa", id: "go", title: "​" }))).toBe("aaa의 go");
+  });
+});
+
+describe("user layout (x.ui.hidden, x.ui.order, AGE-73)", () => {
+  const STATUS = [
+    uiEntryOf({ extension: "beta", id: "b", placement: "status" }),
+    uiEntryOf({ extension: "alpha", id: "a", placement: "status" }),
+    uiEntryOf({ extension: "gamma", id: "g", placement: "status" }),
+  ];
+
+  test("a hidden item leaves its placement; settings sections cannot be hidden", () => {
+    const groups = groupPlacements(
+      [
+        ...STATUS,
+        uiEntryOf({ extension: "alpha", id: "cmd", placement: "command" }),
+        uiEntryOf({ extension: "alpha", id: "conf", placement: "settings" }),
+      ],
+      { [UI_HIDDEN_KEY]: ["beta/b", "alpha/cmd", "alpha/conf"] },
+    );
+    expect(idsOf(groups.status)).toEqual(["alpha/a", "gamma/g"]);
+    expect(idsOf(groups.command)).toEqual([]);
+    expect(idsOf(groups.settings)).toEqual(["alpha/conf"]);
+  });
+
+  test("status cells follow the user order first, then the default order; unknown keys are ignored", () => {
+    const settings = { [UI_ORDER_KEY]: { status: ["gamma/g", "gone/x", "beta/b"] } };
+    expect(idsOf(groupPlacements(STATUS, settings).status)).toEqual([
+      "gamma/g",
+      "beta/b",
+      "alpha/a",
+    ]);
+    expect(statusOrderKeysOf(STATUS, layoutOf(settings))).toEqual(["gamma/g", "beta/b", "alpha/a"]);
+  });
+
+  test("a malformed value reads as empty", () => {
+    const layout = layoutOf({ [UI_HIDDEN_KEY]: "beta/b", [UI_ORDER_KEY]: ["gamma/g"] });
+    expect([...layout.hidden]).toEqual([]);
+    expect(layout.order).toEqual({ status: [], panel: [] });
+  });
+
+  test("movedKeys moves one step and refuses to go past either end", () => {
+    const keys = ["a", "b", "c"];
+    expect(movedKeys(keys, "b", -1)).toEqual(["b", "a", "c"]);
+    expect(movedKeys(keys, "b", 1)).toEqual(["a", "c", "b"]);
+    expect(movedKeys(keys, "a", -1)).toBeNull();
+    expect(movedKeys(keys, "c", 1)).toBeNull();
+    expect(movedKeys(keys, "z", 1)).toBeNull();
+  });
+
+  test("the saved values: hidden is sorted and empty order lists are left out", () => {
+    expect(
+      layoutValuesOf({ hidden: new Set(["z/1", "a/1"]), order: { status: ["a/1"], panel: [] } }),
+    ).toEqual({ hidden: ["a/1", "z/1"], order: { status: ["a/1"] } });
+    expect(layoutValuesOf(EMPTY_LAYOUT)).toEqual({ hidden: [], order: {} });
+  });
+
+  test("cardHiddenFor is true only when every drawable card of the kind is hidden", () => {
+    const kind = "x.aaa.done";
+    const cards = [cardEntry("aaa", kind), cardEntry("bbb", kind)];
+    const one = layoutOf({ [UI_HIDDEN_KEY]: ["aaa/status"] });
+    const both = layoutOf({ [UI_HIDDEN_KEY]: ["aaa/status", "bbb/status"] });
+    expect(cardHiddenFor(cards, new Set(), one, kind)).toBe(false);
+    expect(cardHiddenFor(cards, new Set(), both, kind)).toBe(true);
+    expect(cardHiddenFor(cards, new Set(), both, "x.other.kind")).toBe(false);
+    expect(cardHiddenFor([], new Set(), both, kind)).toBe(false);
   });
 });

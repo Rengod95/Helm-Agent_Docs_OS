@@ -125,7 +125,6 @@ binds: []
 | L4/cli | `fresnel chat -p --auto-approve`: 도구 승인만 허용 | 부분 (B1-SCH) | — |
 | L4/cli | `fresnel schedule add/list/cancel/run` | 구현됨 표기 있음 (`M3b B1-SCH2`). 이월 있음 → 부분 | 93 |
 | L4/cli | `--remote`, `tcp://`, `ssh://` 원격 주소 | 부분 (B2-RMT) | 44 |
-| L4/cli | `fresnel group new` 템플릿 | 구현됨 표기 있음 (`M3b B4-GRP`). 이월 있음 → 부분 | — |
 | L4/settings-ui | 설정 키와 탭 집합(스키마와 view-model 키 대조) | 부분 (B3-SET). 쓰는 곳 없는 키 26개, 탭 13개 대 스펙 12개 | 15 |
 | L4/settings-ui, L4/desktop | 설정 화면, 시크릿 탭, 승인·제안 목록, 모델 계정 화면, 게이지, 첫 실행 화면 | M4 이월 | — |
 | L4/desktop | view-model, 상태 논리, 입력 라우팅, 사이드카, 패키징 | 부분 (B4-DSK, B3-SET) | — |

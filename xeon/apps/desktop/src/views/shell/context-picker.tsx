@@ -4,6 +4,7 @@ import { t } from "@fresnel/client/i18n";
 import { Select, SelectGroup, SelectHeading, SelectOption } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useShell, useShellActions, type WorkbenchContext } from "../../state/shell/index.ts";
+import { profileTitleOf } from "../convo/profile-chip-model.ts";
 
 /** 프로필 목록은 프로필 화면 트랙(T-BENCH)이 채운다. 셸은 그 값을 받아 칸에 올릴 뿐이다 */
 export interface ContextProfile {
@@ -50,10 +51,10 @@ export function ContextPicker(props: { readonly profiles: readonly ContextProfil
               {context.kind === "profile" && context.profileId === p.id ? (
                 <span className="flex min-w-0 items-baseline gap-2">
                   <span className="text-text-tertiary">{t("desktop.shell.context.profile")}</span>{" "}
-                  <span className="min-w-0 truncate">{p.title}</span>
+                  <span className="min-w-0 truncate">{profileTitleOf(p.id, p.title)}</span>
                 </span>
               ) : (
-                p.title
+                profileTitleOf(p.id, p.title)
               )}
             </SelectOption>
           ))}

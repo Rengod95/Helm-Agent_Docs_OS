@@ -121,6 +121,14 @@ function EndBarItem(props: {
   );
 }
 
+/**
+ * 플러그인 단추의 주의 구슬(AGE-73): 메뉴 안 탭에 사용자가 볼 것(자동 멈춤 알림, 훅 알림)이 있으면 단추 오른쪽 위에 구슬 하나.
+ * 수 알약은 두지 않는다: 알림은 런타임 탭과 플러그인 탭이 같은 훅 알림을 함께 세어 합이 부풀고, 수는 메뉴 줄이 탭마다 보인다.
+ * 머리 줄 탭의 주의 점(`playground-tab-strip.tsx` `AttentionDot`)과 같은 크기와 색이다(막대 면이 바탕과 달라 테두리는 두지 않는다). `data-attention`이 있을 때만 그린다
+ */
+const ATTENTION_ORB =
+  "data-[attention]:after:absolute data-[attention]:after:-end-0.5 data-[attention]:after:-top-0.5 data-[attention]:after:size-1.5 data-[attention]:after:rounded-full data-[attention]:after:bg-warning-solid data-[attention]:after:content-['']";
+
 /** 플러그인 패널들의 알림 수 합 */
 function PluginCount(props: {
   readonly tabs: readonly PluginEndTabDef[];
@@ -209,11 +217,14 @@ function PluginMenu(props: {
             <FloatingBarItem
               icon={<Plug />}
               data-end-plugin=""
-              aria-label={tabTitleOf(t("desktop.shell.end.plugins"), count)}
+              data-attention={count > 0 && !active ? "" : undefined}
+              aria-label={
+                count > 0 ? t("desktop.shell.end.pluginsAttention") : t("desktop.shell.end.plugins")
+              }
               aria-haspopup="menu"
               aria-expanded={open}
               active={active || open}
-              badge={count > 0 && !active ? count : undefined}
+              className={ATTENTION_ORB}
             />
           }
         >

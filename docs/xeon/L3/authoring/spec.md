@@ -32,7 +32,6 @@ binds: [xeon/packages/plugin-builder/**]
 - `defineOrchestration`, `replayDrive`, `scanDriveSource`: `L3.group-sdk.spec`
 - 기존 플러그인 템플릿 세 종류의 파일 내용: `L3.slots.spec` §3.3. 이 문서는 그 템플릿을 카탈로그의 첫 항목으로 씁니다.
 - 화면(구성기, 시험 실행)의 모양: `L4.desktop-ux.spec` §6.26, §6.28
-- `fresnel group new` 명령: `L4.cli.spec`. Plugin Builder가 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
 
 ### 1.3 이 도메인을 L3에 두는 이유
 
@@ -300,7 +299,6 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 ### 4.5 CLI와의 관계
 
-- `fresnel group new`는 `fresnel.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
 - `fresnel author <명령>` [제안]은 제작 대화를 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
 - [결정: 오케스트레이터 기본값, scI] 모델 없는 모드는 `fresnel author scaffold|validate|pack|install|remove|ls`로 구현했습니다(`apps/cli/src/commands/author.ts`). 엔진 wire(`ext.*`)를 부르므로 엔진이 같은 프로세스에 서고, 설치는 `previewInstall` 결과를 보인 뒤 사람 확인(`--yes` 또는 터미널 y)을 받습니다. 제작 대화를 여는 `fresnel author`(하위 명령 없이)는 아직 없습니다 [근거: `apps/cli/src/cli/command.ts`의 `parseAuthor`]. 명령 표는 `L4.cli.spec` §3.1입니다.
 
@@ -314,7 +312,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | Test run에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 대화에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
 | 카탈로그 항목이 `blocked` | `authoring_start` 거부와 `blockedReason` |
 | 엔진 재시작 | 대화 상태는 플러그인 상태 문서에 있어 `thread.start`에서 복원. 진행 중 Test run은 그대로 남음 |
-| 안전 모드 | Plugin Builder는 내장 L3 플러그인이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
+| 안전 모드 | Plugin Builder는 내장 L3 플러그인이라 빠짐. `fresnel author scaffold`(모델 없음)는 동작 |
 
 ## 6. 설정 노출
 
@@ -342,14 +340,13 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | `L3.group-sdk.spec` | 받음: `defineOrchestration`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineOrchestration({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 플러그인"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
-| `L4.cli.spec` | 제공: `fresnel group new`가 부를 서비스 |
 | ADR-0021 | 받음: 모드 고르기 기준과 등급표. 제공: AU-005~AU-008 검사 |
 | `architecture.security.spec` | 받음: T 행. 갱신 규칙 §4.4 3번 |
 
 ## 9. 수용 기준
 
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
-- A-2. `single-plugin` 뼈대는 템플릿 글자에 자리를 채우고, 매니페스트에 `purpose`와 `description`을 더합니다(AGE-31). 플러그인 템플릿(orchestration-sdk)은 종류 폐기 뒤 빌더가 아니라 `fresnel group new`가 씁니다. `core-diff-check`에서 보호 경로 변경 0줄입니다.
+- A-2. `single-plugin` 뼈대는 템플릿 글자에 자리를 채우고, 매니페스트에 `purpose`와 `description`을 더합니다(AGE-31). 플러그인 템플릿(orchestration-sdk)은 종류 폐기 뒤 빌더가 아니라 `fresnel group new`가 썼다. 이 명령은 2026-11-23에 지웠다(AGE-33). `core-diff-check`에서 보호 경로 변경 0줄입니다.
 - A-3. 제작 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
 - A-4. `authoring_package`는 사람 확인 없이는 파일을 쓰지 않고, `authoring_submit`은 확인 없이 검토 항목만 만든다(실행하지 않는다). 확인을 기다리는 동안 그 대화의 drive 프레임은 `asking`으로 스택에 남습니다(drive 락을 반납하지 않는다, E3).
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.

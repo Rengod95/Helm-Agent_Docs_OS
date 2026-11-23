@@ -16,6 +16,7 @@ import type {
 } from "@fresnel/contracts/wire";
 import { useSyncExternalStore } from "react";
 import { BUILD_CHECKS } from "../../../../app/build.ts";
+import { profileTitleOf } from "../../../convo/profile-chip-model.ts";
 import type { CommandError, ProfileCanvasCommands } from "../profile-source.ts";
 import { initialScene } from "../shared-sample.ts";
 import { attachCount } from "./sample-ext.ts";
@@ -176,6 +177,15 @@ export function setCollapsed(id: string, collapsed: boolean): void {
 /** 보고 있는 프로필 이름. 표본은 null(화면이 표본 이름을 쓴다) */
 export function titleOf(s: CanvasStore, id: string): string | null {
   return s.live?.saved[id]?.title ?? null;
+}
+
+/**
+ * 화면에 보이는 프로필 이름. 기본 프로필의 엔진 제목 `default`는 "기본"으로 보인다(profileTitleOf). 이름 고치기 입력의 초기값과
+ * 비교는 저장된 제목 그대로인 `titleOf`를 쓴다
+ */
+export function shownTitleOf(s: CanvasStore, id: string): string | null {
+  const title = titleOf(s, id);
+  return title === null ? null : profileTitleOf(id, title);
 }
 
 /** 저장된 `default`가 있으면 그것, 없으면 목록의 첫 프로필 */

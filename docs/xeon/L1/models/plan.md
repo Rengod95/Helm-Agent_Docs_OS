@@ -25,7 +25,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 |---|---|---|
 | M0 | core-models 코드 없음. 선행: contracts에 `L1.models.spec` §3.2·§3.3의 F 요청 타입(`ModelRole`, `ModelRef`, `parseModelRef`, `ModelBinding`, `CachePolicy`, 그리고 `@fresnel/contracts/services`의 `ModelService`·`ModelServiceName`)이 들어가야 한다. platform-secrets의 `SecretService` 인터페이스가 F에 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@fresnel/core-models/testing`), 시크릿 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 훅 `request.provider.before` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
-| M2 | 역할 표와 라우팅(6역할, 그룹 덮어쓰기), 추론 레벨·레벨별 토큰 예산 설정과 체크포인트 고정, 캐시 정책 객체와 표식 적용, provider 등록 API, 나머지 훅 5개, 허용·차단 목록. 별도 작업 줄기: 위장 provider 플러그인(방안 A 스파이크, 회귀 테스트, 배포 제외 CI 검사) | 계획 v2 L1-c 1차 행, `L1.agents.plan` M2(서브에이전트 역할) |
+| M2 | 역할 표와 라우팅(6역할, 플러그인 덮어쓰기), 추론 레벨·레벨별 토큰 예산 설정과 체크포인트 고정, 캐시 정책 객체와 표식 적용, provider 등록 API, 나머지 훅 5개, 허용·차단 목록. 별도 작업 줄기: 위장 provider 플러그인(방안 A 스파이크, 회귀 테스트, 배포 제외 CI 검사) | 계획 v2 L1-c 1차 행, `L1.agents.plan` M2(서브에이전트 역할) |
 | M3 | 구조화 출력 최소형(목표 판정용, 재시도 루프와 횟수 상한), 레이트 리밋과 계정 회전(설정은 M3 설정 화면) | `L1.models.spec` §3.10·§4.8, `L1.agents.spec` §4.8, review.decisions-2 U-21 |
 | 2차(M3 이후) | 폴백 체인, 구조화 출력 전체 | 계획 v2 L1-c 2차 행 |
 | 배포 제외 | 위장 provider 플러그인은 어느 단계에서도 배포 산출물에 들어가지 않는다 | [결정] `_research/decisions-log.md` 2026-10-21 결정 2차 |

@@ -4,19 +4,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   checkOrchestrationName,
-  fillPlaceholders,
   ORCHESTRATION_NAME_PATTERN,
-  isSafeRelativePath,
-  parseTemplateIndex,
   RESERVED_ORCHESTRATION_NAMES,
-  targetPathOf,
 } from "../src/group/rules.ts";
 
-// L4.cli.spec §3.8: apps/cli는 orchestration-sdk을 import하지 않는다(DR-14). 그래서 이름 상수와 색인 형식을 복사해 두었다.
+// L3.slots.spec §3.3.4: apps/cli는 orchestration-sdk을 import하지 않는다(DR-14). 그래서 이름 상수를 복사해 두었다.
 // 이 시험은 orchestration-sdk 소스 텍스트와 비교해, 두 목록이 갈라지면 실패한다(L3.slots.spec §3.3.4 정본은 orchestration-sdk이다).
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const GROUP_SDK = join(HERE, "..", "..", "..", "packages", "orchestration-sdk");
 const CONTRACTS = join(HERE, "..", "..", "..", "packages", "contracts");
 
 /** 이름 규칙의 정본 파일은 contracts(F)다. orchestration-sdk는 그 값을 다시 내보낸다(AGE-60) */
@@ -72,41 +67,4 @@ test("checkOrchestrationName accepts hyphenated names and names only the rules r
     error: { kind: "orchestration_name", reason: "reserved" },
   });
   expect(checkOrchestrationName("helm")).toEqual({ ok: true, value: "helm" });
-});
-
-test("the real templates/index.json parses and lists 10, 8 and 9 files for drive, policy and observe", () => {
-  const text = readFileSync(join(GROUP_SDK, "templates", "index.json"), "utf8");
-  const parsed = parseTemplateIndex(text);
-  expect(parsed.ok).toBe(true);
-  if (!parsed.ok) return;
-  expect(parsed.value.templates.drive.files).toHaveLength(10);
-  expect(parsed.value.templates.policy.files).toHaveLength(8);
-  expect(parsed.value.templates.observe.files).toHaveLength(9);
-  expect(parsed.value.templates.drive.drives).toBe(true);
-  expect(parsed.value.templates.policy.drives).toBe(false);
-});
-
-test("parseTemplateIndex refuses another schemaVersion and text that is not JSON", () => {
-  const other = parseTemplateIndex(JSON.stringify({ schemaVersion: 2, templates: {} }));
-  expect(other.ok).toBe(false);
-  if (!other.ok) expect(other.error).toBe("/schemaVersion must be equal to constant");
-  expect(parseTemplateIndex("{")).toEqual({ ok: false, error: "색인이 JSON이 아니다" });
-});
-
-test("template paths are safe relative paths and map to target paths without the bundle name", () => {
-  expect(isSafeRelativePath("common/package.json")).toBe(true);
-  expect(isSafeRelativePath("../etc/passwd")).toBe(false);
-  expect(isSafeRelativePath("/abs/path")).toBe(false);
-  expect(isSafeRelativePath("a\\b")).toBe(false);
-  expect(isSafeRelativePath("a//b")).toBe(false);
-  expect(targetPathOf("common/test/manifest.test.ts")).toBe("test/manifest.test.ts");
-  expect(targetPathOf("drive/.fresnel-plugin/plugin.json")).toBe(".fresnel-plugin/plugin.json");
-  expect(targetPathOf("drive")).toBe(null);
-});
-
-test("fillPlaceholders replaces the three slots and nothing else", () => {
-  const values = { id: "focus-lens", title: "Focus Lens", version: "0.1.0" };
-  expect(fillPlaceholders("grp.__ID__.x __TITLE__ __VERSION__ __OTHER__", values)).toBe(
-    "grp.focus-lens.x Focus Lens 0.1.0 __OTHER__",
-  );
 });

@@ -98,6 +98,8 @@ export interface PluginMeta {
   readonly usedBy?: readonly string[];
   /** 카드 `requiredByCore`: 엔진이 이 플러그인에 기대는 코어 부분. 비어 있지 않으면 프로필에서 뺄 수 없다 */
   readonly requiredBy?: readonly string[];
+  /** 카드 `does.inject.ui`의 수: 플러그인이 앱에 내놓는 화면 항목. 0보다 크면 가까이 단계 판에 화면 표시가 선다(AGE-73). 표본은 없다 */
+  readonly uiCount?: number;
 }
 
 /**

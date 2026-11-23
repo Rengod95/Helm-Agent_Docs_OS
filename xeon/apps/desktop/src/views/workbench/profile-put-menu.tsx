@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useLinkPhase } from "../../state/engine/index.ts";
 import type { CommandError } from "../commands.ts";
 import { useCommands } from "../commands.ts";
+import { profileTitleOf } from "../convo/profile-chip-model.ts";
 import { inProfile, profileSetOf, withPlugin, type ProfileSet } from "./profile-use.ts";
 
 /** 프로필 목록 읽기. 엔진에 붙으면 한 번 읽고, 넣고 뺀 뒤 `reload`로 다시 읽는다. null은 아직 못 읽었다는 뜻이다 */
@@ -89,7 +90,7 @@ export function ProfilePutMenu(props: {
                   ? "desktop.workbench.use.removeDependents"
                   : "desktop.workbench.use.removeFailed"
                 : "desktop.workbench.use.putFailed",
-              { name: props.title, profile: profile.title },
+              { name: props.title, profile: profileTitleOf(profile.id, profile.title) },
             ),
           });
           return undefined;
@@ -134,7 +135,7 @@ export function ProfilePutMenu(props: {
                 flip(profile.id);
               }}
             >
-              {profile.title}
+              {profileTitleOf(profile.id, profile.title)}
             </MenuItem>
           );
         })

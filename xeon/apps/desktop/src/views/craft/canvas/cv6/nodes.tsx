@@ -7,6 +7,7 @@
 // 하나로만 말한다. 선의 문법(참고 그림): 1.5px 무채색 실선, 반경 10의 꺾임, 나가는 쪽은 카드 변 위의 점(지름 8; 같은 자리에
 // 여럿이면 점 대신 호출 순서 번호), 들어가는 쪽은 열린 꺾쇠. 확대 단계마다 보이는 칸은 `lod.ts`의 표를 따른다.
 import { t, type MessageId } from "@fresnel/client/i18n";
+import { LayoutPanelLeft } from "@caustic/react/icons";
 import { useViewportStore, type Node, type NodeProps, type NodeTypes } from "@xyflow/react";
 import { GLOW_REACH } from "./floor.ts";
 import {
@@ -586,9 +587,13 @@ function pillValue(p: Plugin): string | null {
   return p.meta.version === "" ? null : `v${p.meta.version}`;
 }
 
-/** 푸터의 흐린 수치(참고 그림의 "382 Tokens · 시계 0.0 sec"): 매니페스트에 적힌 늘 드는 토큰, 시계 + 최근 사용 */
+/**
+ * 푸터의 흐린 수치(참고 그림의 "382 Tokens", 시계 0.0 sec): 매니페스트에 적힌 늘 드는 토큰, 시계 + 최근 사용.
+ * 플러그인이 앱에 화면 항목을 내놓으면 끝에 화면 그림 하나(구슬 아님)와 툴팁 "화면을 내놓아요"를 둔다(AGE-73). 가까이 단계에만 있다
+ */
 function Foot(props: { readonly p: Plugin }): ReactElement {
   const always = props.p.meta.cost.always;
+  const screens = (props.p.meta.uiCount ?? 0) > 0;
   return (
     <div className="cv6-foot">
       {always === null ? null : (
@@ -598,6 +603,17 @@ function Foot(props: { readonly p: Plugin }): ReactElement {
         <PartGlyph name="clock" size={12} />
         {agoText(props.p.shared.lastUsedMin)}
       </span>
+      {screens ? (
+        <span
+          className="cv6-foot-item"
+          data-slot="cv6-screens"
+          role="img"
+          aria-label={t("desktop.craft.canvas.cv6.screens")}
+          title={t("desktop.craft.canvas.cv6.screens")}
+        >
+          <LayoutPanelLeft aria-hidden className="size-3" />
+        </span>
+      ) : null}
     </div>
   );
 }

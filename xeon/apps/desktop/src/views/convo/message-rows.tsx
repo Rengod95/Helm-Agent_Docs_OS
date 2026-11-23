@@ -11,7 +11,7 @@ import {
 } from "../../lib/motion-presets.tsx";
 import { useSmoothText } from "../../lib/smooth-text.ts";
 import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
-import { cardOf, provenanceOf } from "../../plugin-ui/placements.ts";
+import { cardHiddenFor, cardOf, provenanceOf } from "../../plugin-ui/placements.ts";
 import {
   useHasToolCall,
   useItem,
@@ -525,6 +525,13 @@ export function CustomRow(props: { readonly id: ItemId }): ReactNode {
       ? text
       : text.map((b) => ("text" in b && typeof b.text === "string" ? b.text : "")).join("\n");
   const card = cardOf(plugin.groups.card, plugin.inactive, item.message.customType);
+  // 사용자가 이 kind의 카드를 숨겼으면 줄을 그리지 않는다(AGE-73, ADR-0021 §3.12). 기록은 그대로 남는다
+  if (
+    card === undefined &&
+    cardHiddenFor(plugin.entries, plugin.inactive, plugin.layout, item.message.customType)
+  ) {
+    return null;
+  }
   if (card === undefined) {
     return (
       <p className="m-0 whitespace-pre-wrap text-ui text-text-tertiary">

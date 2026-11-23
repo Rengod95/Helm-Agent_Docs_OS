@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import { X } from "@caustic/react/icons";
 import { useEffect, useRef, useState } from "react";
 import { useCommands } from "../../commands.ts";
+import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 import { LINE_GLYPH } from "../../illustrations/line-glyph.ts";
 import {
   HEADER_SEGMENTED_SIZE,
@@ -90,7 +91,7 @@ function FilterBar(props: { readonly data: MetricsData }): ReactNode {
         {profiles.kind === "ready"
           ? profiles.value.map((p) => (
               <SelectOption key={p.id} value={p.id}>
-                {p.title}
+                {profileTitleOf(p.id, p.title)}
               </SelectOption>
             ))
           : null}

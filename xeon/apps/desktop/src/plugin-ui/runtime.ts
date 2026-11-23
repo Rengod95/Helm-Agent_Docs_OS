@@ -3,7 +3,15 @@ import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { createScreenLedger, type ScreenLedger } from "@fresnel/client/views/ledger";
 import type { BridgePolicyContext } from "@fresnel/client/views/app";
 import { syncAppRoots, type AppRootsInvoke, type SkippedAppRoot } from "./app-roots.ts";
-import { groupPlacements, type PlacementGroups } from "./placements.ts";
+import {
+  groupPlacements,
+  layoutOf,
+  layoutValuesOf,
+  UI_HIDDEN_KEY,
+  UI_ORDER_KEY,
+  type PlacementGroups,
+  type UiLayout,
+} from "./placements.ts";
 import {
   appsAllowed,
   policyContextOf,
@@ -21,7 +29,10 @@ export interface PluginUiState {
   readonly entries: readonly ExtUiEntry[];
   /** 앱 정책 설정 값(`x.ui.*`). 프레임을 못 쓰는 기기에서는 `x.ui.apps`가 거짓으로 덮인다 */
   readonly settings: Readonly<Record<string, unknown>>;
+  /** 자리별 항목. 사용자가 숨긴 항목은 빠지고 상태 표시줄 칸은 사용자 순서를 따른다 */
   readonly groups: PlacementGroups;
+  /** 사용자가 숨긴 항목과 자리별 순서(`x.ui.hidden`, `x.ui.order`). `settings`에서 읽은 값이다 */
+  readonly layout: UiLayout;
   /** 꺼졌거나 안전 모드로 실리지 않은 확장 이름. 이 확장의 화면은 프레임과 폴링을 닫고 앱 root도 셸에 알리지 않는다 */
   readonly inactive: ReadonlySet<string>;
   /** 셸이 건너뛴 앱 root(나쁜 항목). 그 확장의 앱 화면은 그리지 못하고 이유를 보인다 */
@@ -52,6 +63,15 @@ export interface PluginUiRuntime {
   ) => Promise<Result<BridgePolicyContext, { readonly kind: string }>>;
   /** 이 항목의 앱을 지금 그릴 수 있는가(기기, 설정, 등급) */
   readonly framesAllowed: (entry: ExtUiEntry) => boolean;
+  /**
+   * 숨김과 순서를 사용자 범위 설정에 쓴다(리뷰 없음, ADR-0021 §3.12). 화면은 먼저 바꾸고, 쓰기가 실패하면 앞 값으로 되돌리고 오류 값을 준다
+   */
+  readonly saveLayout: (next: UiLayout) => Promise<Result<void, LayoutSaveError>>;
+}
+
+/** 쓰기 실패(연결 없음, 엔진 거절). 화면은 토스트 한 줄을 보인다 */
+interface LayoutSaveError {
+  readonly kind: "write_failed";
 }
 
 const EMPTY_SETTINGS: Readonly<Record<string, unknown>> = {};
@@ -70,6 +90,7 @@ function stateOf(
     entries,
     settings,
     groups: groupPlacements(entries, settings),
+    layout: layoutOf(settings),
     inactive,
     rootsSkipped,
   };
@@ -105,7 +126,7 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
       );
       const extensions = await connection.request("ext.list", {});
       const got = await connection.request("settings.get", {
-        keys: [UI_APPS_KEY, UI_ALLOW_PROJECT_APPS_KEY],
+        keys: [UI_APPS_KEY, UI_ALLOW_PROJECT_APPS_KEY, UI_HIDDEN_KEY, UI_ORDER_KEY],
       });
       return { items: list.items, extensions: extensions.extensions, settings: got.settings };
     });
@@ -145,6 +166,43 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
       };
     },
     framesAllowed,
+
+    async saveLayout(next) {
+      const before = state;
+      const values = layoutValuesOf(next);
+      const settings = {
+        ...before.settings,
+        [UI_HIDDEN_KEY]: values.hidden,
+        [UI_ORDER_KEY]: values.order,
+      };
+      set(stateOf(before.phase, before.entries, settings, before.inactive, before.rootsSkipped));
+      const wrote = await deps.withConnection(async (connection) => {
+        await connection.request("settings.set", {
+          key: UI_HIDDEN_KEY,
+          value: values.hidden,
+          scope: "user",
+        });
+        await connection.request("settings.set", {
+          key: UI_ORDER_KEY,
+          value: values.order,
+          scope: "user",
+        });
+      });
+      if (wrote.ok) return ok(undefined);
+      // 그사이 다시 읽은 값이 없을 때만 되돌린다(새로 읽은 값이 더 맞다)
+      if (state.entries === before.entries) {
+        set(
+          stateOf(
+            before.phase,
+            before.entries,
+            before.settings,
+            before.inactive,
+            before.rootsSkipped,
+          ),
+        );
+      }
+      return err({ kind: "write_failed" });
+    },
 
     refresh(threadId) {
       if (running !== undefined) {

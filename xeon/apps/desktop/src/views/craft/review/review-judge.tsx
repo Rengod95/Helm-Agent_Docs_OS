@@ -55,6 +55,7 @@ import {
   purposeText,
   Section,
 } from "./review-parts.tsx";
+import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 import type { ReviewData } from "./review-source.ts";
 
 /** 결정 줄의 바깥 동작(키보드가 부른다) */
@@ -565,7 +566,7 @@ function DecidePanel(props: {
           >
             {profiles.map((profile) => (
               <SelectOption key={profile.id} value={profile.id}>
-                {profile.title}
+                {profileTitleOf(profile.id, profile.title)}
               </SelectOption>
             ))}
             <SelectOption value={LIBRARY}>{t("desktop.craft.review.after.library")}</SelectOption>
