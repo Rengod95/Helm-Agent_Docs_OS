@@ -232,3 +232,68 @@ export function issuesOf(
       (issue.other !== undefined && names.includes(issue.other.split("/")[0] ?? "")),
   );
 }
+
+/** 프로필 이름은 앞뒤 공백을 뗀 1~128자다(계약의 `Title`). 맞지 않으면 null */
+export function checkProfileTitle(text: string): string | null {
+  const title = text.trim();
+  return title.length === 0 || title.length > PROFILE_TITLE_MAX ? null : title;
+}
+
+const PROFILE_TITLE_MAX = 128;
+/** 계약의 `PROFILE_ID_PATTERN`(`^[a-z][a-z0-9-]{0,47}$`)이 허용하는 가장 긴 id */
+const PROFILE_ID_MAX = 48;
+/** 이름에서 쓸 글자가 하나도 나오지 않을 때(한글 이름 따위)의 id 바탕 */
+const PROFILE_ID_FALLBACK = "profile";
+
+/**
+ * 새 프로필의 id를 이름에서 만든다. 영문 소문자와 숫자만 남기고 나머지는 `-` 하나로 줄이며, 글자로 시작하지 않으면 `profile`을 쓴다.
+ * 이미 있는 id(`taken`, 숨은 `craft`와 `default` 포함)와 겹치면 `-2`, `-3`…을 붙인다. 엔진은 겹치는 id를 고치지 않고
+ * `profile.conflict`로 거절하므로(`profile.put`의 새 저장, `profile.clone`) 화면이 먼저 비어 있는 id를 고른다
+ */
+export function profileIdFrom(title: string, taken: ReadonlySet<string>): string {
+  const slug = title
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
+  const stem = /^[a-z]/.test(slug)
+    ? slug.slice(0, PROFILE_ID_MAX).replace(/-+$/, "")
+    : PROFILE_ID_FALLBACK;
+  const used = new Set([...taken, "default", "craft"]);
+  if (!used.has(stem)) return stem;
+  const numbered = (n: number): string => {
+    const tail = `-${String(n)}`;
+    return `${stem.slice(0, PROFILE_ID_MAX - tail.length).replace(/-+$/, "")}${tail}`;
+  };
+  let n = 2;
+  while (used.has(numbered(n))) n += 1;
+  return numbered(n);
+}
+
+/**
+ * 새 빈 프로필의 저장 값. 엔진이 필요로 하는 플러그인(`requiredByCore`)만 든다: 엔진은 그것을 프로필과 무관하게 싣고, 목록에 있어야
+ * 캔버스가 잠긴 판으로 그린다. 공통 묶음은 저장 값에 넣지 않아도 베이스로 앞에 선다. 설정은 비워 두어 엔진의 기본값을 따른다
+ */
+export function newProfileInput(
+  id: string,
+  title: string,
+  required: readonly string[],
+): ProfileInput {
+  return {
+    id,
+    title,
+    plugins: required.map((name) => ({ name })),
+    settings: [],
+    startDrive: null,
+  };
+}
+
+/** 이름만 바꾼 저장 값. 플러그인, 설정, 시작 Drive는 저장된 그대로다 */
+export function renamedInput(saved: Profile, title: string): ProfileInput {
+  return {
+    id: saved.id,
+    title,
+    plugins: saved.plugins,
+    settings: saved.settings,
+    startDrive: saved.startDrive,
+  };
+}

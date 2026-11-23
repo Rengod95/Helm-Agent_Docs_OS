@@ -1,6 +1,7 @@
 // 캔버스 작업 상태: 보고 있는 프로필과 그 모양, 접은 묶음, 관계 선을 다 보일지. 캔버스와 내부 화면을 오가도 남도록 모듈 하나에 둔다.
 // 프로필 화면(C3)은 엔진 값을 읽는다(`startLive`): 프로필과 공통 묶음, 카드, Hook 위치, 보고 있는 프로필의 적용 블록과 이슈.
 // 바꾸면(넣기, 빼기, 순서) 바로 그리고 `profile.put`으로 쓴다. 거절되면 저장된 모양으로 되돌리고 그 까닭을 돌려준다.
+// 프로필 고르기 옆 메뉴(`profile-menu.tsx`)의 새로 만들기, 복사, 이름 바꾸기, 지우기도 여기서 엔진에 쓰고 목록을 다시 읽는다.
 // 표본(`shared-sample.ts`)은 개발 빌드의 표본 보기(`fresnel.craft.canvasSample` = "1")에서만 쓰고 저장하지 않는다.
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { HookPositionRow } from "@fresnel/contracts/extensions";
@@ -18,13 +19,18 @@ import { attachCount } from "./sample-ext.ts";
 import {
   canvasCards,
   canvasProfileOf,
+  newProfileInput,
   pluginOfCard,
+  profileIdFrom,
   profileInputOf,
   referencedNames,
+  renamedInput,
 } from "./live.ts";
 import {
   attachProfile,
+  installedPlugins,
   installLiveCatalog,
+  requiredByOf,
   profileFromSample,
   type CanvasProfile,
   type SceneId,
@@ -258,4 +264,80 @@ export async function saveProfile(
   );
   await readProfileDetail(commands, id);
   return ok(null);
+}
+
+/** 저장된 프로필 id 전부. 새 id가 겹치지 않게 고를 때 쓴다 */
+function takenIds(): ReadonlySet<string> {
+  return new Set(Object.keys(state.live?.saved ?? {}));
+}
+
+/** 이 프로필을 보이게 하고 목록을 다시 읽는다(`startLive`가 지금 프로필이 있으면 그대로 둔다) */
+async function openAfterWrite(commands: ProfileCanvasCommands, id: string): Promise<void> {
+  updateStore((s) => ({ ...s, current: id }));
+  await startLive(commands);
+}
+
+/**
+ * 새 빈 프로필을 만든다(`profile.put`, `baseRev` null). id는 이름에서 만들고 겹치면 번호를 붙인다(`profileIdFrom`).
+ * 든 것은 엔진이 필요로 하는 플러그인뿐이고 공통 묶음은 베이스로 선다. 만든 뒤 그 프로필을 연다. 돌려주는 값은 새 id다
+ */
+export async function createProfile(
+  commands: ProfileCanvasCommands,
+  title: string,
+): Promise<Result<string, CommandError>> {
+  const id = profileIdFrom(title, takenIds());
+  const required = installedPlugins()
+    .map((p) => p.name)
+    .filter((name) => requiredByOf(name).length > 0);
+  const put = await commands.put(newProfileInput(id, title, required), null);
+  if (!put.ok) return err(put.error);
+  await openAfterWrite(commands, put.value.profile.id);
+  return ok(put.value.profile.id);
+}
+
+/** 프로필을 복사한다(`profile.clone`). 새 id는 새 이름에서 만든다. 만든 뒤 복사본을 연다. 돌려주는 값은 새 id다 */
+export async function cloneProfile(
+  commands: ProfileCanvasCommands,
+  sourceId: string,
+  title: string,
+): Promise<Result<string, CommandError>> {
+  const newId = profileIdFrom(title, takenIds());
+  const done = await commands.clone({ id: sourceId, newId, title });
+  if (!done.ok) return err(done.error);
+  await openAfterWrite(commands, done.value.profile.id);
+  return ok(done.value.profile.id);
+}
+
+/** 이름만 바꾼다(`profile.put`, `baseRev`는 저장된 `rev`). 플러그인, 설정, 시작 Drive는 그대로다. `rev`가 달라 거절되면 목록을 다시 읽는다 */
+export async function renameProfile(
+  commands: ProfileCanvasCommands,
+  id: string,
+  title: string,
+): Promise<Result<null, CommandError>> {
+  const saved = state.live?.saved[id];
+  if (saved === undefined) return ok(null);
+  const put = await commands.put(renamedInput(saved, title), saved.rev);
+  if (!put.ok) {
+    if (put.error.kind === "rejected") await startLive(commands);
+    return err(put.error);
+  }
+  const stored = put.value.profile;
+  updateStore((s) =>
+    s.live === null ? s : { ...s, live: { ...s.live, saved: { ...s.live.saved, [id]: stored } } },
+  );
+  return ok(null);
+}
+
+/**
+ * 프로필을 지운다(`profile.delete`). 엔진은 `default`와 숨은 `craft`를 거절한다. 지운 뒤 목록을 다시 읽고 `default`를 연다.
+ * 돌려주는 값은 이 프로필을 쓰던 열린 대화 수다(엔진이 지운 뒤에 센다. 그 대화는 다음 읽기에서 `default`로 읽는다)
+ */
+export async function deleteProfile(
+  commands: ProfileCanvasCommands,
+  id: string,
+): Promise<Result<number, CommandError>> {
+  const done = await commands.remove(id);
+  if (!done.ok) return err(done.error);
+  await openAfterWrite(commands, "default");
+  return ok(done.value.reassignedThreads);
 }

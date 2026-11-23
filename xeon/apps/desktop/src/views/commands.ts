@@ -925,6 +925,7 @@ export interface MeasureCommands {
 /**
  * 프로필 캔버스(C3, craft-flows §6.10)가 부르는 wire. 프로필 목록과 공통 묶음, 플러그인 카드 전부, 블록 모델, 프로필이 실제로 적용한
  * 블록(Hook 자리마다 핸들러 순서), 저장 전 미리 보기(충돌 이슈)를 읽고, 순서를 바꾸면 `profile.put`으로 쓴다.
+ * 프로필 고르기 옆 메뉴의 새로 만들기와 이름 바꾸기는 `profile.put`, 복사는 `profile.clone`, 지우기는 `profile.delete`다.
  */
 export interface ProfileCanvasCommands {
   /** `profile.list`: 프로필과 공통 묶음(모든 프로필 앞에 선다) */
@@ -937,11 +938,23 @@ export interface ProfileCanvasCommands {
   applied(profileId: string): Promise<Result<WireResult<"blocks.applied">, CommandError>>;
   /** `profile.preview { id }`: 해소된 목록과 이슈(`replace_conflict` 따위). 쓰지 않는다 */
   preview(profileId: string): Promise<Result<WireResult<"profile.preview">, CommandError>>;
-  /** `profile.put { profile, baseRev }`: 저장. 저장된 `rev`가 `baseRev`와 다르면 `profile.conflict`로 거절된다 */
+  /**
+   * `profile.put { profile, baseRev }`: 저장. 저장된 `rev`가 `baseRev`와 다르면 `profile.conflict`로 거절된다.
+   * 새 프로필은 `baseRev`가 null이고, 그 id가 이미 있으면 같은 `profile.conflict`로 거절된다
+   */
   put(
     profile: ProfileInput,
     baseRev: number | null,
   ): Promise<Result<WireResult<"profile.put">, CommandError>>;
+  /** `profile.clone { id, newId, title }`: 플러그인, 설정, 시작 Drive를 그대로 옮긴 새 프로필. `newId`가 있으면 `profile.conflict` */
+  clone(
+    params: WireParams<"profile.clone">,
+  ): Promise<Result<WireResult<"profile.clone">, CommandError>>;
+  /**
+   * `profile.delete { id }`: 지운다. `default`와 숨은 `craft`는 `profile.builtinProtected`로 거절된다.
+   * 결과의 `reassignedThreads`는 이 프로필을 쓰던 열린 대화 수다(다음 읽기에서 `default`로 읽는다)
+   */
+  remove(id: string): Promise<Result<WireResult<"profile.delete">, CommandError>>;
 }
 
 export interface CraftMetricsCommands {

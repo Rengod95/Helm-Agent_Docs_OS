@@ -3,8 +3,8 @@
 // 그 위에서 지난번 요구를 지킨다: 줄과 체크 칸의 높이가 같고(control-md 32), 둥근 모서리와 squircle은 대화 목록 줄과 같다
 // (rounded-lg 10 × 1.2 squircle, 호버 neutral-hover, 고름 control-raised + control-edge: caustic `listNavigationLink`의 상태를 그대로 쓴다).
 // 줄을 누르면(Enter·Space도) 캔버스가 그 노드로 움직여 포커스가 간다. 줄을 캔버스로 끌어 놓으면 넣는다. 위·아래 화살표로 줄 사이를 옮긴다.
-import { t, type MessageId } from "@fresnel/client/i18n";
-import { cn, IconButton, listNavigationLink, Select, SelectOption } from "@caustic/react";
+import { t } from "@fresnel/client/i18n";
+import { cn, IconButton, listNavigationLink } from "@caustic/react";
 import type {
   KeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -12,6 +12,7 @@ import type {
   ReactNode,
 } from "react";
 import { InfoTip } from "../../info-tip.tsx";
+import { ProfileHead, type ProfileChoice } from "./profile-menu.tsx";
 import { Icon, KIND_COLOR, KindTile, PartGlyph } from "./glyphs.tsx";
 import {
   inProfile,
@@ -40,25 +41,11 @@ const ROW = cn(
 /** 줄 오른쪽의 네모난 체크 칸: 줄과 같은 높이·모서리·면 */
 const CHECK = "cv6-cell cv6-check rounded-lg";
 
-/** 표본 장면의 이름(개발 빌드의 표본 보기). 엔진 프로필은 저장된 이름을 쓴다 */
-const SAMPLE_NAMES: Readonly<Record<string, MessageId>> = {
-  dev: "desktop.craft.canvas.cv3.profile.dev",
-  empty: "desktop.craft.canvas.cv3.profile.empty",
-  scale: "desktop.craft.canvas.sample.scale",
-  attach: "desktop.craft.canvas.cv4.profile.attach",
-};
-
-function choiceName(choice: { readonly id: string; readonly title: string | null }): string {
-  if (choice.title !== null) return choice.title;
-  const key = SAMPLE_NAMES[choice.id];
-  return key === undefined ? choice.id : t(key);
-}
-
 export interface PaletteProps {
   readonly profile: CanvasProfile;
   readonly current: string;
   /** 고를 수 있는 프로필(목록 순서). 엔진 프로필은 이름이 있고 표본은 null */
-  readonly choices: readonly { readonly id: string; readonly title: string | null }[];
+  readonly choices: readonly ProfileChoice[];
   readonly bundles: readonly { readonly id: string; readonly members: readonly string[] }[];
   readonly focused: string | null;
   readonly open: boolean;
@@ -196,22 +183,7 @@ export function Palette(props: PaletteProps): ReactElement {
             <Icon name="left" size={14} />
           </IconButton>
         </div>
-        <Select
-          size="md"
-          aria-label={t("desktop.craft.canvas.cv3.profile")}
-          value={props.current}
-          onValueChange={(v) => {
-            const hit = props.choices.find((c) => c.id === v);
-            if (hit !== undefined) props.onProfile(hit.id);
-          }}
-          className="w-full"
-        >
-          {props.choices.map((c) => (
-            <SelectOption key={c.id} value={c.id}>
-              {choiceName(c)}
-            </SelectOption>
-          ))}
-        </Select>
+        <ProfileHead current={props.current} choices={props.choices} onProfile={props.onProfile} />
       </div>
       <div className="mx-3 h-px bg-border-subtle" />
       <div className="flex items-center gap-1 ps-4 pe-3 pt-3 pb-1">

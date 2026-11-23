@@ -105,6 +105,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       applied: () => Promise.resolve(err({ kind: "unsupported" })),
       preview: () => Promise.resolve(err({ kind: "unsupported" })),
       put: () => Promise.resolve(err({ kind: "unsupported" })),
+      clone: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     craftMetrics: {
       catalog: () => Promise.resolve(err({ kind: "unsupported" })),
