@@ -74,6 +74,7 @@ binds: [xeon/packages/core-workspace/**]
 
 - 실패는 `WorkspaceFailure`(내부)로 던지고 `guarded` 경계가 `CapabilityError`로 바꾼다. 표는 `FileErrorCode`와 `ExecutionErrorCode`를 공통 코드로 옮긴다(`errors.ts`). 샌드박스가 막은 것은 `denied`에 `detail.by`로 출처를 붙인다.
 - 보호 경로는 허용 root 안에 있어도 `denied`(`protected_path`)다. 루트 밖 경로는 `denied`(`outside_root`)이고, 아직 없는 마디에 `..`가 있으면 `denied`(`parent_traversal`)다.
+- 예외 하나: 프로젝트 없는 대화의 기본 작업 폴더(`<데이터>/default-project/<threadId>`)는 데이터 폴더 안이지만, 그 대화 자신의 폴더 안은 `fresnel_data` 거부에서 뺀다(첫 root가 그 폴더일 때만). 다른 대화의 기본 폴더와 데이터 폴더의 나머지, 설정, 시크릿은 그대로 막는다.
 - 셸 제한 시간 초과는 `timeout`이고 그때까지의 출력을 `detail`에 싣는다. 시간 초과 종료 코드는 -1이다.
 
 ## 6. 설정 노출

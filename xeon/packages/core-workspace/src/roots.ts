@@ -148,6 +148,22 @@ function denied(
 }
 
 /**
+ * 프로젝트 없는 대화의 기본 작업 폴더(`<데이터>/default-project/<threadId>`)는 Fresnel 데이터 폴더 안에 있다.
+ * 그 대화 자신의 작업 폴더(첫 root) 안만 `fresnel_data` 거부에서 뺀다. 다른 대화의 폴더와 데이터 폴더의 나머지는 그대로 막힌다.
+ */
+function isOwnDefaultFolder(
+  entry: { readonly path: string; readonly reason: string },
+  roots: AllowedRoots,
+  canonical: string,
+): boolean {
+  if (entry.reason !== "fresnel_data") return false;
+  const own = roots.read[0];
+  if (own === undefined || !isWithin(own, canonical)) return false;
+  const base = `${entry.path.replace(/[\\/]+$/, "")}/default-project`;
+  return own !== base && isWithin(base, own);
+}
+
+/**
  * 모델과 그룹 코드가 넘긴 경로를 접근에 쓸 정규 경로로 해석한다(spec §4.3). 위반은 `denied`(WorkspaceFailure)다.
  * 접근은 돌려준 `canonical`로 해야 한다. 검사한 경로와 연 경로가 달라지는 틈(`..`의 어휘적 해석 차이)을 없앤다.
  */
@@ -195,7 +211,7 @@ export async function resolveWorkspacePath(
   if (!allowed.some((root) => isWithin(root, canonical))) {
     throw denied("outside_root", requested, canonical);
   }
-  if (protectedEntry !== undefined) {
+  if (protectedEntry !== undefined && !isOwnDefaultFolder(protectedEntry, roots, canonical)) {
     throw denied("protected_path", requested, canonical, { protectedBy: protectedEntry.reason });
   }
   return { requested, canonical, exists };
