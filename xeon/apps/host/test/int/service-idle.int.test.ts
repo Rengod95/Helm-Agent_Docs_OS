@@ -12,7 +12,11 @@ import {
   manualTime,
   scratchRuntimeDir,
 } from "../fixtures/service-harness.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents } from "../fixtures/wire-client.ts";
 
 // X4 앞 절반(M3b B1-SVC): 서비스 모드의 유휴 종료. 연결 0 + live 0 + 대기 예약 0이 유예 동안 이어질 때만 종료하고,
@@ -78,6 +82,8 @@ describe("service idle shutdown", () => {
       try {
         // 1. 연결 하나가 승인 대기 turn을 만들고 떠난다
         const first = await connectedClient({ kind: "unix", path: handle.registration.socket });
+        // 승인 대기 대화를 만들려면 기본 프로필을 묻는 모드로 저장한다. 대화를 만들기 전에 부른다
+        await askOnDefaultProfile(first);
         const collector = collectEvents(first);
         await first.request("events.subscribe", { from: "head" });
         const created = await first.request("thread.create", { workspace });

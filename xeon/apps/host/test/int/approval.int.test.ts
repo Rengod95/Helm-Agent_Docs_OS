@@ -15,7 +15,11 @@ import {
 } from "../fixtures/approval-tape.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, type EventCollector } from "../fixtures/wire-client.ts";
 
 // HOST.4 (int): approval.requested가 내구 이벤트로 나오고 approval.list가 그것을 보이며 approval.respond로 turn이 이어진다.
@@ -52,6 +56,7 @@ async function start(): Promise<Fixture> {
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
+  await askOnDefaultProfile(connection);
   const collector = collectEvents(connection);
   await connection.request("events.subscribe", { from: "head" });
   const created = await connection.request("thread.create", { workspace });
@@ -221,6 +226,7 @@ async function startWithoutThread(): Promise<{
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
+  await askOnDefaultProfile(connection);
   const collector = collectEvents(connection);
   await connection.request("events.subscribe", { from: "head" });
   return {

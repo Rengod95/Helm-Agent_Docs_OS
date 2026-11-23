@@ -24,7 +24,7 @@ import { callingModels } from "./call-tape.ts";
 import { createFakeKeys } from "./fake-keys.ts";
 import { useEngineHome } from "./engine-home.ts";
 import { toolResultTexts } from "./tool-results.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "./user-settings.ts";
+import { askOnDefaultProfile, TAPE_SETTINGS, writeUserSettings } from "./user-settings.ts";
 import {
   collectEvents,
   HELLO_PARAMS,
@@ -190,6 +190,8 @@ export async function startSecretEnvScenario(
   const connection = createHostConnection(host.client);
   try {
     await connection.request("host.hello", HELLO_PARAMS);
+    // 이 시나리오의 모든 호출자는 승인 요청을 기다리므로 묻는 경로를 기본 프로필에 저장한다. 대화를 만들기 전에 부른다
+    await askOnDefaultProfile(connection);
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", { workspace });

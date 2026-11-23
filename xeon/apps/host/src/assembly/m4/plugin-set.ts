@@ -9,7 +9,13 @@ import {
   type RegistrationToggleSourceOf,
 } from "@fresnel/ext-host";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
-import { CRAFT_BUILDER_PLUGIN, CRAFT_PROFILE_ID, craftProfile } from "./profile-defaults.ts";
+import {
+  CRAFT_BUILDER_PLUGIN,
+  CRAFT_PROFILE_ID,
+  craftProfile,
+  FACTORY_PERMISSION_MODE,
+  PERMISSION_MODE_KEY,
+} from "./profile-defaults.ts";
 
 // M5c §3.5, §4.1: 대화별 켜짐 집합 E(T) = 코어 ∪ (공통.plugins ∪ 프로필.plugins, 처음 것을 남김) − 관리 잠금 − 오류 정지.
 // 호스트가 구현해 X에 `PluginSetPortKey`로 준다. 읽기는 동기여야 하므로 프로필 목록은 메모리에 둔 복사를 쓴다.
@@ -269,16 +275,18 @@ function pickProfile(copy: ProfileCopy, stored: string | null): Picked {
 }
 
 /**
- * `profile` 범위 층의 값. 공통 묶음 값을 프로필 값이 덮는다. 공장 값의 설정은 싣지 않는다: 사용자 파일의 권한 모드를
- * 가리지 않게 하려고(프로필을 한 번 저장하면 그때 싣는다, 구현 결정 2026-11-18)
+ * `profile` 범위 층의 값. 공통 묶음 값을 프로필 값이 덮는다. 저장 전 공장 기본도 그 설정을 싣는다(권한 모드 `bypass`).
+ * 권한 모드는 이 층에 늘 있다: 값이 없으면 공장 값이다(아래 줄)
  */
 function settingsIn(copy: ProfileCopy, picked: Picked): ReadonlyMap<string, unknown> {
   const settings = new Map<string, unknown>();
   if (!picked.craft)
     for (const setting of copy.common.settings) settings.set(setting.key, setting.value);
-  if (!picked.factory) {
-    for (const setting of picked.profile?.settings ?? []) settings.set(setting.key, setting.value);
-  }
+  for (const setting of picked.profile?.settings ?? []) settings.set(setting.key, setting.value);
+  // 실행 방식(권한 모드)은 프로필이 정한다. 프로필과 공통 묶음에 값이 없으면(새 프로필, 저장 전 공장 기본) "모두 허용"이다.
+  // 그래서 사용자 파일의 전역 값은 대화의 실행 방식을 정하지 않는다 [결정: 2026-11-23 사용자, AGE-71 질문 3, AGE-74 모순 4]
+  if (!settings.has(PERMISSION_MODE_KEY))
+    settings.set(PERMISSION_MODE_KEY, FACTORY_PERMISSION_MODE);
   return settings;
 }
 

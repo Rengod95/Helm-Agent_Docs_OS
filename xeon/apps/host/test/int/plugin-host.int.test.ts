@@ -16,7 +16,11 @@ import { isolatedPluginHost } from "../fixtures/isolated-plugin-host.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels, realTapeClock } from "../fixtures/tape-host.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
 // L4.host-service.spec §4.9, X.loading-trust §4.9. 실제 엔진이 사용자 플러그인을 플러그인 호스트 프로세스에서 돌린다.
@@ -427,6 +431,8 @@ realTest(
       await connection.request("host.hello", HELLO_PARAMS);
       // `command.run`의 명령 서비스는 host-dialog-bridge가 채운다. 기본 프로필을 바꾸면 이 단위도 빠지므로 함께 넣는다
       await putDefaultProfile(connection, [GROUP_NAME, "host-dialog-bridge"]);
+      // 외부 확장의 도구 승인을 보려고 기본 프로필을 묻는 모드로 저장한다. 이 대화를 만들기 전에 부른다
+      await askOnDefaultProfile(connection);
       // 그룹은 이 대화가 열릴 때 실린다(AGE-49). 열고 나서 격리를 본다
       const created = await connection.request("thread.create", {});
       expect(groupSupervisors.length > 0 ? "process" : "none").toBe("process");

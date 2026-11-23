@@ -17,7 +17,11 @@ import {
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { recordingModels } from "../fixtures/recording-tape.ts";
 import { realTapeClock } from "../fixtures/tape-host.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import {
   collectEvents,
   HELLO_PARAMS,
@@ -361,6 +365,8 @@ realTest(
     const connection = createHostConnection(host.client);
     try {
       await connection.request("host.hello", HELLO_PARAMS);
+      // 대조 시험의 도구 승인을 보려고 기본 프로필을 묻는 모드로 저장한다. 대화를 만들기 전에 부른다
+      await askOnDefaultProfile(connection);
       const collector = collectEvents(connection);
       await connection.request("events.subscribe", { from: "head" });
 

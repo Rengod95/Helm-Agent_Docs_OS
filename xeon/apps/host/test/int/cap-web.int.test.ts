@@ -5,7 +5,11 @@ import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/command-run.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { fetchingModels } from "../fixtures/web-tape.ts";
 import {
@@ -60,6 +64,7 @@ realTest(
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
+    await askOnDefaultProfile(connection);
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});

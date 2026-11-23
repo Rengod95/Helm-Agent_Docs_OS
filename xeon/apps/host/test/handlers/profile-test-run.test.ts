@@ -477,6 +477,24 @@ test("profile.common.put refuses to drop a core-required unit from the common se
 
 // ── 미리 보기 ───────────────────────────────────────────────────────────
 
+test("profile.preview without a thread compares the draft's permission mode with the stored profile of the same id, and a profile with no mode is bypass", async () => {
+  const rig = rigOf({ settingValue: (key) => (key === PERMISSION ? "acceptEdits" : undefined) });
+  const connection = await connect(rig);
+  await connection.request("profile.put", {
+    profile: inputOf({ settings: [{ key: PERMISSION, value: "default" }] }),
+    baseRev: null,
+  });
+  const cleared = await connection.request("profile.preview", { draft: inputOf() });
+  expect(cleared.permission).toEqual({ from: "default", to: "bypass" });
+  const same = await connection.request("profile.preview", {
+    draft: inputOf({ settings: [{ key: PERMISSION, value: "default" }] }),
+  });
+  expect(same.permission).toBeUndefined();
+  const stored = await connection.request("profile.preview", { id: "review" });
+  expect(stored.permission).toBeUndefined();
+  await connection.close();
+});
+
 test("profile.preview of a draft reports the resolved list, the declared cost, the threads using it and the permission change", async () => {
   const rig = rigOf({
     openThreads: [null, null],
@@ -506,7 +524,8 @@ test("profile.preview of a draft reports the resolved list, the declared cost, t
       { plugin: "demo", cost: zero },
     ],
   });
-  expect(preview.permission).toEqual({ from: "ask", to: "bypass" });
+  // 같은 id의 저장된 프로필이 없다(새 프로필): 모드가 바뀌는 대화가 없어 싣지 않는다. 전역 값("ask")과는 견주지 않는다
+  expect(preview.permission).toBeUndefined();
   expect(preview.dropsDrive).toBeNull();
   // 초안 id를 저장한 대화가 없으므로 0이다(기본을 쓰는 대화는 초안이 아니라 기본 프로필을 가리킨다)
   expect(preview.threadsUsing).toBe(0);

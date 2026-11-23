@@ -239,8 +239,8 @@ realTest(
       });
       expect(preview.missingRequired).toEqual([]);
       expect(preview.threadsUsing).toBe(0);
-      // 대화 없이 보면 기준은 공장 값의 권한 모드(`bypass`)다
-      expect(preview.permission).toEqual({ from: "bypass", to: "default" });
+      // 대화 없이 저장된 프로필을 보면 기준은 같은 저장 값이라 바뀌는 것이 없다(전역 값과 견주지 않는다)
+      expect(preview.permission).toBeUndefined();
       // 기준 대화가 없으므로 도구 변화는 없고 캐시 영향은 `none`이다
       expect(preview.toolsChanged).toBeUndefined();
       expect(preview.cacheImpact).toBe("none");
@@ -286,6 +286,28 @@ realTest(
         (await connection.request("profile.preview", { draft, threadId: onDefault.threadId }))
           .permission,
       ).toEqual({ from: "bypass", to: "acceptEdits" });
+      // 사용자 파일의 전역 값은 대화의 모드를 정하지 않는다: 기본 프로필(공장 값)을 쓰는 대화는 그대로 `bypass`다
+      await connection.request("settings.set", {
+        key: PERMISSION,
+        value: "default",
+        scope: "user",
+      });
+      const read = await connection.request("settings.get", {
+        keys: [PERMISSION],
+        threadId: onDefault.threadId,
+      });
+      expect(read.settings.find((setting) => setting.key === PERMISSION)?.value).toBe("bypass");
+      // 입력창 칩으로 이 대화에만 정한 값(`launch`)은 프로필을 바꿔도 남으므로 바뀜을 싣지 않는다
+      await connection.request("settings.set", {
+        key: PERMISSION,
+        value: "default",
+        scope: "launch",
+        threadId: onDefault.threadId,
+      });
+      expect(
+        (await connection.request("profile.preview", { draft, threadId: onDefault.threadId }))
+          .permission,
+      ).toBeUndefined();
 
       // 시작 Drive가 목록 밖이면 오류 이슈다. 목록에 없는 이름은 알 수 없는 플러그인이다
       const bad = await connection.request("profile.preview", {

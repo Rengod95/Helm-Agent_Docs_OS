@@ -10,7 +10,11 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { APPROVAL_COMMAND } from "../fixtures/approval-tape.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { answeringModels } from "../fixtures/tape-host.ts";
-import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import {
+  askOnDefaultProfile,
+  TAPE_SETTINGS,
+  writeUserSettings,
+} from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // HOST.4 A1 (m2-plan, open-issues M-02): 승인 요청 → SIGKILL → 재개 → 응답을 한 엔진(저장소) 위에서 이어 본다.
@@ -60,6 +64,8 @@ realTest(
         }),
       );
       await first.request("host.hello", HELLO_PARAMS);
+      // 프로필은 같은 저장소(profiles.json)에 남아 둘째 호스트도 이 값을 읽는다. 첫 대화를 만들기 전에 한 번만 부른다
+      await askOnDefaultProfile(first);
       const seen = collectEvents(first);
       await first.request("events.subscribe", { from: "head" });
       const created = await first.request("thread.create", { workspace });
