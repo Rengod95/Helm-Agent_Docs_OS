@@ -1,14 +1,21 @@
-import type { ExtensionManifest } from "@fresnel/contracts/extensions";
+import { dependenciesOf, type ExtensionManifest } from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import type { CommonSet, Profile, ProfileIssue } from "@fresnel/contracts/wire";
+import type { CommonSet, Profile, ProfileIssue, ProfilePlan } from "@fresnel/contracts/wire";
 import {
   COMMON_ID,
   planPluginEdit,
   type PluginEditRequest,
 } from "../../src/assembly/m4/plugin-edit.ts";
 import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
-import type { ProfileBody, ProfilePrevious } from "../../src/assembly/m4/profile-validate.ts";
+import {
+  validateProfile,
+  type ProfileBody,
+  type ProfileCatalog,
+  type ProfileLibrary,
+  type ProfileLibraryEntry,
+  type ProfilePrevious,
+} from "../../src/assembly/m4/profile-validate.ts";
 
 // M5c §4.7.3: 승인의 프로필 반영 계산. 바뀌는 프로필과 공통 묶음을 새 값으로 만들고, 이름이 든 대상 프로필을 모두 검사한다.
 // 검사 함수는 가짜다. 드라이버가 목록에 없으면 오류라는 한 가지 규칙만 둔다.
@@ -242,6 +249,266 @@ test("an add to the common id that fails the common check is refused and names t
       issues: [
         { profile: "common", code: "plugin_not_reviewed", severity: "error", plugin: "kit" },
       ],
+    }),
+  );
+});
+
+// AGE-72: 합치기·떼기 계획. 계획이 없으면 위의 맨 뒤 동작이 그대로다.
+
+const DRIVER: PluginFact = { ...FACT, drives: true };
+
+/** 대상 프로필에 계획을 건 `add` 요청. 빠진 칸은 "아무것도 하지 않음"이다 */
+function planRequest(
+  plugin: PluginFact,
+  profileIds: readonly string[],
+  plan: Partial<ProfilePlan> = {},
+): PluginEditRequest {
+  return {
+    kind: "add",
+    plugin,
+    profileIds,
+    plan: { swapOut: [], placeAfter: null, driveFrom: null, ...plan },
+  };
+}
+
+test("a merge puts the new plugin where the earlier original stood and takes both originals out of each chosen profile", () => {
+  const profiles = [
+    profileOf("p1", ["helm", "a", "x", "b"]),
+    profileOf("p2", ["helm", "a", "b"]),
+    profileOf("p3", ["a", "b"]),
+  ];
+  expect(planOf(planRequest(FACT, ["p1", "p2"], { swapOut: ["a", "b"] }), profiles)).toEqual(
+    ok({
+      changed: [
+        { ...profileOf("p1", ["helm", "kit", "x"], { rev: 2 }), updatedAt: NOW },
+        { ...profileOf("p2", ["helm", "kit"], { rev: 2 }), updatedAt: NOW },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+test("a profile that lists only one of the originals puts the new plugin in that one's place", () => {
+  const profiles = [profileOf("p1", ["helm", "b", "y"])];
+  expect(planOf(planRequest(FACT, ["p1"], { swapOut: ["a", "b"] }), profiles)).toEqual(
+    ok({
+      changed: [{ ...profileOf("p1", ["helm", "kit", "y"], { rev: 2 }), updatedAt: NOW }],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+test("떼기: placeAfter puts the new plugin right after the bundle member, and a member the profile lacks means the end", () => {
+  const profiles = [profileOf("p1", ["helm", "base", "other"]), profileOf("p2", ["helm", "other"])];
+  expect(planOf(planRequest(FACT, ["p1"], { placeAfter: "base" }), profiles)).toEqual(
+    ok({
+      changed: [
+        { ...profileOf("p1", ["helm", "base", "kit", "other"], { rev: 2 }), updatedAt: NOW },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+  expect(planOf(planRequest(FACT, ["p2"], { placeAfter: "base" }), profiles)).toEqual(
+    ok({
+      changed: [{ ...profileOf("p2", ["helm", "other", "kit"], { rev: 2 }), updatedAt: NOW }],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+test("the start Drive moves to the new plugin when the swapped-out plugin drove, and is cleared when the new plugin cannot drive", () => {
+  const profiles = [
+    profileOf("p1", ["helm", "a"], { startDrive: "a" }),
+    profileOf("p2", ["helm", "a"], { startDrive: "helm" }),
+  ];
+  expect(planOf(planRequest(DRIVER, ["p1"], { swapOut: ["a"] }), profiles)).toEqual(
+    ok({
+      changed: [
+        { ...profileOf("p1", ["helm", "kit"], { startDrive: "kit", rev: 2 }), updatedAt: NOW },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+  expect(planOf(planRequest(FACT, ["p1"], { swapOut: ["a"] }), profiles)).toEqual(
+    ok({
+      changed: [{ ...profileOf("p1", ["helm", "kit"], { rev: 2 }), updatedAt: NOW }],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+  // 시작 Drive가 `driveFrom`과 같으면 옮긴다. 다른 이름이면 그대로 둔다
+  expect(
+    planOf(planRequest(DRIVER, ["p2"], { swapOut: ["a"], driveFrom: "helm" }), profiles),
+  ).toEqual(
+    ok({
+      changed: [
+        { ...profileOf("p2", ["helm", "kit"], { startDrive: "kit", rev: 2 }), updatedAt: NOW },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+  expect(
+    planOf(planRequest(DRIVER, ["p1"], { swapOut: ["a"], driveFrom: "other" }), [
+      profileOf("p1", ["helm", "a", "z"], { startDrive: "z" }),
+    ]),
+  ).toEqual(
+    ok({
+      changed: [
+        { ...profileOf("p1", ["helm", "kit", "z"], { startDrive: "z", rev: 2 }), updatedAt: NOW },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+test("the settings a swapped-out plugin owned leave with it, in the chosen profile only", () => {
+  const owned = { key: "ext.a.port", value: 1 };
+  const helmKey = { key: "ext.helm.key", value: 2 };
+  const prefixOnly = { key: "ext.ab.x", value: 3 };
+  const settings = [owned, helmKey, prefixOnly];
+  const profiles = [
+    profileOf("p1", ["helm", "a"], { settings }),
+    profileOf("p2", ["helm", "a"], { settings }),
+  ];
+  expect(planOf(planRequest(FACT, ["p1"], { swapOut: ["a"] }), profiles)).toEqual(
+    ok({
+      changed: [
+        {
+          ...profileOf("p1", ["helm", "kit"], { settings: [helmKey, prefixOnly], rev: 2 }),
+          updatedAt: NOW,
+        },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+test("a new plugin that the profile already lists stays where it is and appears once", () => {
+  const profiles = [profileOf("p1", ["helm", "kit", "a"]), profileOf("p2", ["kit", "helm", "a"])];
+  expect(planOf(planRequest(FACT, ["p1", "p2"], { swapOut: ["a"] }), profiles)).toEqual(
+    ok({
+      changed: [
+        { ...profileOf("p1", ["helm", "kit"], { rev: 2 }), updatedAt: NOW },
+        { ...profileOf("p2", ["kit", "helm"], { rev: 2 }), updatedAt: NOW },
+      ],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+test("a plan that has nothing to take out and a new plugin already listed changes nothing", () => {
+  const profiles = [profileOf("p1", ["helm", "kit"])];
+  expect(planOf(planRequest(FACT, ["p1"], { swapOut: ["b"] }), profiles)).toEqual(
+    ok({ changed: [], common: null, missingPlugins: [] }),
+  );
+});
+
+test("the common set is never swapped by a plan, even when it lists an original", () => {
+  const common: CommonSet = { ...COMMON, plugins: [{ name: "helm" }, { name: "a" }] };
+  const profiles = [profileOf("p1", ["helm", "a"])];
+  expect(
+    planOf(planRequest(FACT, ["p1"], { swapOut: ["a"] }), profiles, driverCheck, common),
+  ).toEqual(
+    ok({
+      changed: [{ ...profileOf("p1", ["helm", "kit"], { rev: 2 }), updatedAt: NOW }],
+      common: null,
+      missingPlugins: [],
+    }),
+  );
+});
+
+/** 실제 검증기(`validateProfile`)를 라이브러리 몇 줄에 묶는다. 의존 거절을 검증 결과 그대로 본다 */
+function realValidate(entries: readonly ProfileLibraryEntry[]) {
+  const library: ProfileLibrary = {
+    lookup: (name) => entries.find((entry) => entry.name === name),
+  };
+  const catalog: ProfileCatalog = {
+    lookup: () => undefined,
+    secretExists: () => false,
+    managedDisabled: () => false,
+    unavailable: () => false,
+  };
+  return (body: ProfileBody, common: CommonSet, previous: ProfilePrevious) =>
+    validateProfile(body, common, library, catalog, previous);
+}
+
+function libraryEntry(
+  name: string,
+  dependencies: ProfileLibraryEntry["dependencies"] = [],
+): ProfileLibraryEntry {
+  return {
+    name,
+    reviewed: true,
+    replaces: [],
+    drives: false,
+    unmet: false,
+    requiredKeys: [],
+    version: "1.0.0",
+    dependencies,
+    members: [],
+  };
+}
+
+/** `app`이 `a`에 건 의존(종류는 인자). 매니페스트를 `dependenciesOf`로 읽은 결과와 같다 */
+function appDependsOnA(kind: "hard" | "soft"): ProfileLibraryEntry["dependencies"] {
+  return dependenciesOf({
+    name: "app",
+    plugins: [{ layer: "plugin", hooks: [], dependsOn: [{ plugin: "a", kind }] }],
+  });
+}
+
+/** 라이브러리: 병합 대상 `a`, 새 플러그인 `kit`, 그리고 `a`에 기대는 `app`. `helm`은 공통 묶음의 것이다 */
+function appLibrary(kind: "hard" | "soft"): readonly ProfileLibraryEntry[] {
+  return [
+    libraryEntry("helm"),
+    libraryEntry("a"),
+    libraryEntry("kit"),
+    libraryEntry("app", appDependsOnA(kind)),
+  ];
+}
+
+test("an app that hard-depends on a swapped-out plugin refuses the merge as dependency_disabled; a soft dependency only warns", () => {
+  const profiles = [profileOf("p1", ["helm", "a", "app"])];
+  expect(
+    planOf(
+      planRequest(FACT, ["p1"], { swapOut: ["a"] }),
+      profiles,
+      realValidate(appLibrary("hard")),
+    ),
+  ).toEqual(
+    err({
+      kind: "plugin_invalid",
+      issues: [
+        {
+          profile: "p1",
+          code: "dependency_disabled",
+          severity: "error",
+          plugin: "app",
+          other: "a",
+        },
+      ],
+    }),
+  );
+  expect(
+    planOf(
+      planRequest(FACT, ["p1"], { swapOut: ["a"] }),
+      profiles,
+      realValidate(appLibrary("soft")),
+    ),
+  ).toEqual(
+    ok({
+      changed: [{ ...profileOf("p1", ["helm", "kit", "app"], { rev: 2 }), updatedAt: NOW }],
+      common: null,
+      missingPlugins: [],
     }),
   );
 });

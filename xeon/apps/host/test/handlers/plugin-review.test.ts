@@ -135,6 +135,28 @@ test("a successful review answers its result unchanged", async () => {
   });
 });
 
+test("submitDraft passes the origin profile and the merge plan to the port, and leaves out the ones not sent", async () => {
+  const sent: unknown[][] = [];
+  const handlers = createPluginReviewHandlers(
+    partial<PluginReviewPort>({
+      submitDraft: (...args) => {
+        sent.push(args);
+        return Promise.resolve(ok({ itemId: "rvw_c" }));
+      },
+    }),
+  );
+  const plan = { swapOut: ["helm", "kit"], placeAfter: null, driveFrom: null };
+  await handlers["pluginReview.submitDraft"](
+    { draftId: "drf_a", originProfileId: "p1", profilePlan: plan },
+    CONTEXT,
+  );
+  await handlers["pluginReview.submitDraft"]({ draftId: "drf_b" }, CONTEXT);
+  expect(sent).toEqual([
+    ["drf_a", { originProfileId: "p1", profilePlan: plan }],
+    ["drf_b", {}],
+  ]);
+});
+
 test("draft.notFound is 3616, and a discarded draft answers the empty result", async () => {
   const handlers = createPluginHandlers(
     partial<PluginPort>({

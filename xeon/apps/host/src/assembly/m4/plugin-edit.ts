@@ -1,10 +1,18 @@
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { CommonSet, Profile, ProfileIssue, ProfileIssueCode } from "@fresnel/contracts/wire";
+import type {
+  CommonSet,
+  PluginRef,
+  Profile,
+  ProfileIssue,
+  ProfileIssueCode,
+  ProfilePlan,
+} from "@fresnel/contracts/wire";
 import type { PluginFact } from "./plugin-fact.ts";
 import { previousOf, type ProfileBody, type ProfilePrevious } from "./profile-validate.ts";
 
 // 승인의 프로필 반영 계산(M5c §4.7.3). 순수 함수다: 저장 상태를 받아 바뀔 프로필과 오류만 돌려준다. 쓰기는 호출자가 한다.
-// `add`는 대상 프로필 맨 뒤에 넣는다(이미 있으면 그대로). `profileIds`에 `COMMON_ID`가 있으면 공통 묶음 맨 뒤에 넣는다(이미 있으면 그대로).
+// `add`는 대상 프로필 맨 뒤에 넣는다(이미 있으면 그대로). `plan`(합치기·떼기, AGE-72)이 있으면 대상 프로필마다 `planned`의 자리에 넣고 원래 플러그인을 뺀다.
+// `profileIds`에 `COMMON_ID`가 있으면 공통 묶음 맨 뒤에 넣는다(이미 있으면 그대로). 공통 묶음에는 `plan`을 적용하지 않는다.
 // `remove`는 이름이 든 모든 프로필과 공통 묶음에서 그 이름과 그 플러그인의
 // 설정, 시작 Drive를 뺀다(`profile.removePlugin`과 같은 규칙). `keep`(수정 승인)은 목록을 고치지 않고, 이름이 든 프로필을 새 사실로 검사만 한다.
 // 검사는 바뀌거나 이름이 든 모든 대상 프로필과 공통 묶음에 `validateProfile`을 거친다. 오류가 하나라도 있으면 호출자는 아무것도 쓰지 않는다.
@@ -18,6 +26,8 @@ export type PluginEditRequest =
       readonly plugin: PluginFact;
       /** 넣을 프로필 id. 비었으면 넣지 않는다(보관만). `COMMON_ID`면 공통 묶음에 넣는다 */
       readonly profileIds: readonly string[];
+      /** 합치기·떼기 계획. 없으면 대상 프로필 맨 뒤에 넣는다 */
+      readonly plan?: ProfilePlan;
     }
   | { readonly kind: "keep"; readonly plugin: PluginFact }
   | { readonly kind: "remove"; readonly plugin: string };
@@ -101,6 +111,34 @@ export function planPluginEdit(input: {
     rev: profile.rev + 1,
   });
   const inCommon = input.common.plugins.some((ref) => ref.name === name);
+  /** 계획을 대상 프로필 하나에 적용한다. 바뀌지 않으면 같은 프로필을 돌려준다(새 판이 아니다) */
+  const planned = (profile: Profile, fact: PluginFact, plan: ProfilePlan): Profile => {
+    // 새 플러그인 자신은 뺄 대상이 아니다(계획에 같은 이름이 들어 있어도)
+    const outs = new Set(plan.swapOut.filter((item) => item !== fact.name));
+    const kept = profile.plugins.filter((ref) => !outs.has(ref.name));
+    // 자리: 뺄 것 가운데 가장 앞선 자리, 없으면 `placeAfter` 바로 뒤, 그것도 없으면 맨 뒤
+    const first = profile.plugins.findIndex((ref) => outs.has(ref.name));
+    const after =
+      plan.placeAfter === null ? -1 : kept.findIndex((ref) => ref.name === plan.placeAfter);
+    const at = first !== -1 ? first : after !== -1 ? after + 1 : kept.length;
+    // 이미 든 이름은 자리를 옮기지 않고 한 번만 둔다
+    const plugins: readonly PluginRef[] = kept.some((ref) => ref.name === fact.name)
+      ? kept
+      : [...kept.slice(0, at), { name: fact.name }, ...kept.slice(at)];
+    const settings = profile.settings.filter(
+      (setting) => ![...outs].some((out) => ownsKey(out, setting.key)),
+    );
+    const moves =
+      profile.startDrive !== null &&
+      (outs.has(profile.startDrive) || profile.startDrive === plan.driveFrom);
+    const startDrive = moves ? (fact.drives ? fact.name : null) : profile.startDrive;
+    const unchanged =
+      plugins.length === profile.plugins.length &&
+      plugins.every((ref, index) => ref.name === profile.plugins[index]?.name) &&
+      settings.length === profile.settings.length &&
+      startDrive === profile.startDrive;
+    return unchanged ? profile : bump(profile, { plugins, settings, startDrive });
+  };
 
   // 1. 바뀔 프로필과 검사할 프로필을 정한다. 목록 밖의 id는 승인 대상이 지워진 것이다(§5)
   const issues: PluginEditIssue[] = [];
@@ -109,6 +147,7 @@ export function planPluginEdit(input: {
   let commonChanged = false;
 
   if (request.kind === "add") {
+    const plan = request.plan;
     for (const id of new Set(request.profileIds)) {
       // 공통 묶음에 넣기: 모든 대화에 얹힌다. 이미 든 이름이면 아무것도 바꾸지 않는다
       if (id === COMMON_ID) {
@@ -129,7 +168,11 @@ export function planPluginEdit(input: {
         continue;
       }
       const has = profile.plugins.some((ref) => ref.name === name);
-      edited.set(id, has ? profile : bump(profile, { plugins: [...profile.plugins, { name }] }));
+      if (plan !== undefined) {
+        edited.set(id, planned(profile, request.plugin, plan));
+      } else {
+        edited.set(id, has ? profile : bump(profile, { plugins: [...profile.plugins, { name }] }));
+      }
     }
   } else if (request.kind === "keep") {
     for (const profile of input.profiles) {

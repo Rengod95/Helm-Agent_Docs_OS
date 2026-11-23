@@ -6,6 +6,8 @@ import {
   PluginReviewChangedParamsSchema,
   PluginReviewDecideParamsSchema,
   PluginReviewListParamsSchema,
+  PluginReviewSubmitDraftParamsSchema,
+  ProfilePlanSchema,
   ReviewDecisionSchema,
   ReviewItemSchema,
   type ReviewItem,
@@ -134,10 +136,63 @@ describe("review item (M5c-1)", () => {
     ).toBe(false);
   });
 
+  test("a review item may carry a profile plan, and a plan without a swap or a place is still a plan", () => {
+    const plan = { swapOut: ["helm", "kit"], placeAfter: null, driveFrom: "helm" };
+    roundTrip(ReviewItemSchema, { ...NEW_ITEM, profilePlan: plan });
+    roundTrip(ReviewItemSchema, {
+      ...NEW_ITEM,
+      profilePlan: { swapOut: [], placeAfter: "helm", driveFrom: null },
+    });
+    expect(parse(ReviewItemSchema, { ...NEW_ITEM, profilePlan: null }).ok).toBe(false);
+    expect(parse(ReviewItemSchema, { ...NEW_ITEM, profilePlan: { ...plan, extra: true } }).ok).toBe(
+      false,
+    );
+  });
+
   test("the reason is at most 2000 characters and the removal is null or an object", () => {
     expect(parse(ReviewItemSchema, { ...NEW_ITEM, reason: "a".repeat(2000) }).ok).toBe(true);
     expect(parse(ReviewItemSchema, { ...NEW_ITEM, reason: "a".repeat(2001) }).ok).toBe(false);
     expect(parse(ReviewItemSchema, { ...NEW_ITEM, removal: "gone" }).ok).toBe(false);
+  });
+});
+
+describe("profile plan (AGE-72)", () => {
+  test("a plan takes swap-out names of at most sixteen, and nullable placeAfter and driveFrom", () => {
+    roundTrip(ProfilePlanSchema, { swapOut: ["helm", "kit"], placeAfter: null, driveFrom: null });
+    roundTrip(ProfilePlanSchema, { swapOut: [], placeAfter: "helm", driveFrom: "kit" });
+    expect(
+      parse(ProfilePlanSchema, {
+        swapOut: Array.from({ length: 16 }, (_, index) => `plug-${String(index)}`),
+        placeAfter: null,
+        driveFrom: null,
+      }).ok,
+    ).toBe(true);
+    expect(
+      parse(ProfilePlanSchema, {
+        swapOut: Array.from({ length: 17 }, (_, index) => `plug-${String(index)}`),
+        placeAfter: null,
+        driveFrom: null,
+      }).ok,
+    ).toBe(false);
+    expect(parse(ProfilePlanSchema, { swapOut: ["helm"], driveFrom: null }).ok).toBe(false);
+    expect(
+      parse(ProfilePlanSchema, { swapOut: ["Helm"], placeAfter: null, driveFrom: null }).ok,
+    ).toBe(false);
+    expect(
+      parse(ProfilePlanSchema, { swapOut: [], placeAfter: null, driveFrom: null, order: 1 }).ok,
+    ).toBe(false);
+  });
+
+  test("pluginReview.submitDraft takes a draft id with an optional origin profile and plan", () => {
+    const params = PluginReviewSubmitDraftParamsSchema;
+    roundTrip(params, { draftId: "drf_1" });
+    roundTrip(params, {
+      draftId: "drf_1",
+      originProfileId: "default",
+      profilePlan: { swapOut: ["helm", "kit"], placeAfter: null, driveFrom: null },
+    });
+    expect(parse(params, { draftId: "drf_1", profilePlan: { swapOut: [] } }).ok).toBe(false);
+    expect(parse(params, { draftId: "drf_1", originProfileId: "" }).ok).toBe(false);
   });
 });
 

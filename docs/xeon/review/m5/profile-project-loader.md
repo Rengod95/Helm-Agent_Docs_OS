@@ -177,6 +177,7 @@ export interface ReviewItem {
   readonly provenance: Provenance;
   readonly originThreadId: string | null;  // 만든 대화(돌려보내기 사유를 받는 곳, 기본 프로필의 출처)
   readonly originProfileId: string | null; // 승인 때 기본 대상 프로필
+  readonly profilePlan?: ProfilePlan;      // 합치기·떼기 계획(AGE-72). 있을 때만 싣는다
   readonly card: PluginCard;               // 후보 기준
   readonly diff: WhatItDoesDiff;
   readonly evidence: readonly EvidenceRef[];
@@ -288,7 +289,7 @@ export interface OverlayRef { readonly plugin: string; readonly draftId?: string
 | `pluginReview.list` | F 검토 wire(새 파일), 호스트 | `{ state?: ReviewState; name?: string }` | `{ items: ReviewItem[] }`(`files`와 `card`는 요약) | - |
 | `pluginReview.get` | 같음 | `{ itemId }` | `{ item: ReviewItem }` | `pluginReview.notFound` |
 | `pluginReview.file` | 같음 | `{ itemId; path; side?: "candidate" \| "base" }` | `{ path; text: string \| null; truncated: boolean; missing?: boolean }`(새 판 또는 지난 승인 버전의 파일. [구현 2026-11-20, 트랙 enRv] 아래 "지난 승인 버전 읽기") | `pluginReview.notFound`, `pluginReview.pathInvalid` |
-| `pluginReview.submitDraft` | 같음 | `{ draftId }` | `{ itemId }` | `draft.notFound` |
+| `pluginReview.submitDraft` | 같음 | `{ draftId; originProfileId?; profilePlan? }`(`profilePlan`은 `{ swapOut: 확장 이름 최대 16, placeAfter: 이름 또는 null, driveFrom: 이름 또는 null }`. 준 값만 대기 항목에 싣고, 같은 해시의 대기 항목이 있으면 그 항목에 값이 다를 때 갱신한다. [결정: 2026-11-23, 사용자, AGE-72]) | `{ itemId }` | `draft.notFound` |
 | `pluginReview.decide` | 같음 | `{ itemId; decision: ReviewDecision }` | `{ item; appliedTo: string[]; missingPlugins?: string[] }`(적용된 프로필 id. `missingPlugins`는 적용된 프로필이 이미 가리키던 없는 플러그인으로 경고다. 없으면 생략. [결정: 2026-11-20, 사용자, AGE-34]) | `pluginReview.notFound`, `pluginReview.notPending`, `pluginReview.handEditNotAllowed`, `pluginReview.purposeRequired`, `pluginReview.descriptionRequired`, `pluginReview.profileInvalid`(`details.issues`) |
 | `project.list` | F 프로젝트 wire(새 파일), 호스트 | `{}` | `{ projects: Project[] }` | - |
 | `project.get` | 같음 | `{ projectId }` | `{ project; pendingReview: number }` | `project.notFound` |
@@ -582,7 +583,7 @@ plugin-store/
 
 ### 4.7 검토
 
-> **구현 상태(M5c 검토 단계, 2026-11-18).** 3a와 3b를 구현했다. 항목은 `queue/<itemId>.json`에 쓰고 재시작 뒤 파일에서 읽는다. 훑기는 `plugin.scan`과 시작 때 한 번 돈다(감시는 없다). 승인은 `beforeCommit`(대상 프로필 검사만, 쓰지 않는다), 승격과 `current` 교체, `afterCommit`(프로필 갱신, 실패하면 `current`를 옛 검토본으로 되돌린다), 보관 정리(5개), 기록, 항목 상태, `reflect`(실행 중인 판 맞추기) 순서로 커밋한다. 훅은 `assembly/plugins/approval.ts`가 만들고, 프로필 계산은 `assembly/m4/plugin-edit.ts`, 잠금 안 검사와 쓰기는 `profile-test-run-port.ts`의 `checkPluginEdit`·`applyPluginEdit`이 한다. 대상 프로필 하나라도 오류면 `pluginReview.profileInvalid`로 거절하고 아무것도 바뀌지 않는다(`details.issues`의 각 이슈는 `profile` 칸으로 프로필을 가리킨다, §10 23번). 수정 승인은 목록을 고치지 않는다. 판정은 §10 18·24·25번이다.
+> **구현 상태(M5c 검토 단계, 2026-11-18).** 3a와 3b를 구현했다. 항목은 `queue/<itemId>.json`에 쓰고 재시작 뒤 파일에서 읽는다. 훑기는 `plugin.scan`과 시작 때 한 번 돈다(감시는 없다). 승인은 `beforeCommit`(대상 프로필 검사만, 쓰지 않는다), 승격과 `current` 교체, `afterCommit`(프로필 갱신, 실패하면 `current`를 옛 검토본으로 되돌린다), 보관 정리(5개), 기록, 항목 상태, `reflect`(실행 중인 판 맞추기) 순서로 커밋한다. 훅은 `assembly/plugins/approval.ts`가 만들고, 프로필 계산은 `assembly/m4/plugin-edit.ts`, 잠금 안 검사와 쓰기는 `profile-test-run-port.ts`의 `checkPluginEdit`·`applyPluginEdit`이 한다. 대상 프로필 하나라도 오류면 `pluginReview.profileInvalid`로 거절하고 아무것도 바뀌지 않는다(`details.issues`의 각 이슈는 `profile` 칸으로 프로필을 가리킨다, §10 23번). 수정 승인은 목록을 고치지 않는다. 판정은 §10 18·24·25번이다. 합치기·떼기 계획(AGE-72)은 `m4/plugin-edit.ts`의 `add`가 맡는다(§4.7 결정 3의 계획 항목).
 
 1. 항목을 만드는 일: 담당 AI의 `PluginSubmitPort.submit`(provenance `assistant`, `originThreadId`와 증거 필수), `pluginReview.submitDraft`(초안, 만든 대화가 `originThreadId`), 원본 해시가 검토본과 다름(§4.5.8, 원본 출처가 사용자 폴더면 `unknown`, 프로젝트 동반이면 `project`), `plugin.requestRemove`와 원본 폴더 삭제 감지(`remove`), 번들 갱신(`bundled`. 항목 없이 §7.5가 처리).
 2. 항목 내용: 카드(후보 기준), "하는 일의 차이"(`WhatItDoesDiff`: 이전 검토본 카드와 후보 카드의 칸별 비교, 강제력 변화, 비용 변화), 증거 참조, 코드(파일 목록과 `pluginReview.file`로 읽는 내용), 만든 대화.
@@ -590,6 +591,7 @@ plugin-store/
    [구현 2026-11-20, 트랙 enRv, 지난 승인 버전 읽기] 승인본 보관소는 해시만이 아니라 승인한 판의 파일 트리 전체를 `versions/<키>/<해시>/tree`에 둔다(키마다 5개). 그래서 저장 형식은 바꾸지 않았다. 항목을 만들 때 비교 대상 버전의 파일 목록을 읽어 `ReviewItem.baseFiles`(선택)에 싣는다(새 플러그인이거나 읽지 못했으면 생략). `pluginReview.file`의 `side: "base"`는 `baseHash` 버전의 파일을, 생략이나 `"candidate"`는 새 판의 파일을 준다. 경로는 각각 `baseFiles`, `files`에 있어야 하고 없으면 `pluginReview.pathInvalid`다(새 판에서 지워진 파일은 `baseFiles`에만 있고, 새로 생긴 파일은 `files`에만 있다). 본문 규칙은 두 쪽이 같다: 이진이면 `text` null, 256 KiB를 넘으면 앞부분과 `truncated`. 줄 단위 비교는 호출자가 한다. 결정한 뒤에도 읽는다: 승인한 항목의 새 판은 승격된 승인본 보관소에서 읽는다. 지난 버전이 보관 한도(5개)로 지워졌거나 버려진 항목의 새 판 스냅샷이 없으면 `missing: true`, `text: null`로 답한다(오류가 아니다). 카드에는 매니페스트 버전을 `PluginCard.version`(선택)으로 싣는다. 이름 `side`, `missing`, `baseFiles`, `version`은 [제안]이다.
 3. 결정은 셋이다.
    - 승인: `profileIds`(기본은 `originProfileId`)에 넣거나 `libraryOnly`로 보관만 한다. 모든 대상 프로필을 먼저 `validateProfile`로 검사하고 하나라도 오류면 `pluginReview.profileInvalid`로 전체를 거절한다(아무것도 바뀌지 않는다). 통과하면 한 번에 스냅샷 승격, `current` 교체, 프로필 갱신(순서 맨 뒤)을 커밋한다. `update` 항목은 `profileIds`가 비어도 되고(이름으로 든 프로필 모두에 새 검토본이 적용된다 [제안: 미결 4]), `remove` 승인은 이름이 든 모든 프로필·공통 묶음에서 그 이름을 빼고 라이브러리에서 내린다. 지울 때 미리 보기(`pluginReview.get`의 `item.diff.removed`와 영향받는 프로필 id, 같이 지워지는 상태·기록)를 항목에 싣는다.
+   - 합치기·떼기 계획 [결정: 2026-11-23, 사용자, AGE-72]: 항목에 `profilePlan`이 있으면 승인은 대상 프로필(위 `profileIds`, 비면 `originProfileId`)마다 계획을 적용한다(`m4/plugin-edit.ts`의 `add`). (1) `swapOut`의 확장 이름은 그 프로필 목록에서 빼고, 그 이름이 소유한 `ext.<이름>.` 설정 키도 그 프로필에서 같이 뺀다. (2) 새 플러그인은 `swapOut` 가운데 가장 앞선 것이 있던 자리에 넣는다. 뺄 것이 없으면 `placeAfter` 바로 뒤, 그것도 없으면 맨 뒤다. 새 이름이 그 프로필에 이미 있으면 자리를 옮기지 않고 한 번만 둔다 [제안]. (3) 그 프로필의 `startDrive`가 `swapOut`에 든 이름이거나 `driveFrom`과 같으면 새 플러그인으로 옮긴다. 새 플러그인이 Drive를 못 하면(`PluginFact.drives`가 거짓) null이다. (4) 공통 묶음(`common`)과 대상이 아닌 다른 프로필은 건드리지 않는다. 원래 플러그인은 지우지 않는다(라이브러리와 다른 프로필에 그대로 남는다). (5) 다른 플러그인이 `swapOut`의 플러그인에 hard로 기대면 그 프로필의 검증이 `dependency_disabled` 오류를 내 승인이 `pluginReview.profileInvalid`로 거절되고 아무것도 바뀌지 않는다. soft면 경고만 한다. 계획은 새 플러그인의 승인에만 쓴다. 수정(`keep`), 돌려보내기, 버리기는 프로필을 바꾸지 않는다. 시험: `apps/host/test/assembly/plugin-edit.test.ts`(값 비교), `plugin-approval.test.ts`, `plugins/review.test.ts`.
    - 돌려보내기: `reason`(1~2000자)을 항목에 저장하고 `originThreadId` 대화가 열려 있으면 그 사유를 그 대화의 입력으로 넣는다(`post`, `when: "next"`) [제안]. 대화가 없으면 항목에만 남는다.
    - 버리기: 후보 스냅샷을 지우고 항목을 닫는다. 같은 해시가 원본에서 다시 발견되어도 원본이 바뀔 때까지 항목을 만들지 않는다.
 4. 손 수정: 출처가 사용자 폴더이고 `provenance: "unknown"`인 **수정 항목(`update`)**은 승인할 수 없다(`pluginReview.handEditNotAllowed`). 처음 만드는 플러그인(`new`)은 되돌릴 검토본이 없어 이 제한을 받지 않는다. 사용자가 쓴 것을 한 번 확인하면 된다 [제안]. 제거 항목도 받지 않는다(§10 19번). 선택지는 `plugin.revert`(원본을 검토본으로 되돌림), 담당 AI에게 넘겨 새 버전으로 들여오기(그 AI가 `submit`하면 `provenance: "assistant"`의 새 항목이 된다), 버리기다 [제안: flow §3.3]. 프로젝트 동반 플러그인(`provenance: "project"`)은 저장소에서 온 것이라 이 제한이 없고 승인할 수 있다.
@@ -804,6 +806,7 @@ plugin-store/
 43. 테스트 대화: `craftChat.open`이 `thread.started.craftChat`가 있는 대화를 만들고, `thread.list` 기본과 프로젝트 소속·`sameFolder`·선택기 기본값 계산에서 빠지며 `include: "craft"`로만 나온다. 쓰기는 그 플러그인의 원본 폴더에서만 되고 그 밖은 엔진 root가 거절한다(R17, R26).
 44. 숨은 `craft` 프로필: `profile.list`에 없고, 고치기·지우기·`thread.setProfile`이 `profile.builtinProtected`다. 시작 Drive가 빌더이고 사용자 중지 뒤 다음 입력에서 다시 쌓인다(R17).
 45. 맥락은 모델 컨텍스트에 줄을 더하지 않는다: `craft.context` 기록과 지연 도구 `authoring_context`로만 읽힌다. 시스템 프롬프트와 요청 본문에 새 문장이 없다(R17, R7).
+46. **[결정: 2026-11-23, 사용자, AGE-72] 합치기·떼기 계획의 프로필 반영.** 계획이 있는 승인은 대상 프로필에서 원래 플러그인을 빼고 새 플러그인을 가장 앞선 자리에 넣는다. 그 프로필의 원래 플러그인 소유 설정 키와 시작 Drive(옮길 수 없으면 null)도 같이 바뀐다. 공통 묶음과 다른 프로필은 그대로다. 다른 플러그인의 hard 의존이 끊기면 승인은 `pluginReview.profileInvalid`로 거절되고 아무것도 바뀌지 않는다(§4.7 결정 3).
 46. 테스트 대화의 턴은 `scope: craft`로 기록되어 지표 기본 필터에서 빠진다(R16, E 규칙 36).
 47. `testRun.start`가 기준 프로필 + 초안의 구성으로 대화를 만들고, 같은 `runGroupId`로 새 초안을 다시 돌릴 수 있다. 드래프트 승인 `auto`는 묶음과 표지에 실리고 `ask`(생략)와 가른다(§4.8.1 항목 10, [결정: 2026-11-18 사용자, AGE-56]). 격리 포트가 없으면 `overlay.draftUnavailable`이다(구현 2026-11-18: 초안이 실제로 실린다, `test-run-draft.int.test.ts`). 초안 출신 호출은 `bypass`에서도 카드를 띄운다(R16, U2).
 48. 빌더는 직접 설치하지 못하고 초안 → `pluginReview.submitDraft`로만 간다. 기존 플러그인을 `name`만으로 열어 고칠 수 있고, 종류 `plugin-group`이 없다(R26).

@@ -110,7 +110,8 @@ function dependencyRefusalOf(
 
 /**
  * 승인 한 번의 프로필 변경. 제거는 이름 기준이고 모든 프로필과 공통 묶음에서 뺀다. 새 플러그인은 고른 프로필의 맨 뒤에 넣는다
- * (고른 것이 없으면 처음 원본이 속한 프로필, 보관만이면 넣지 않는다). 수정은 목록을 고치지 않고 검사만 한다(§4.7.3)
+ * (고른 것이 없으면 처음 원본이 속한 프로필, 보관만이면 넣지 않는다). 항목에 합치기·떼기 계획이 있으면 그 자리에 넣고 원래 플러그인을 뺀다(AGE-72).
+ * 수정은 목록을 고치지 않고 검사만 한다(§4.7.3)
  */
 export function editOf(context: ApprovalContext): PluginEditRequest | null {
   const { item, decision, facts } = context;
@@ -124,7 +125,12 @@ export function editOf(context: ApprovalContext): PluginEditRequest | null {
       : item.originProfileId === null
         ? []
         : [item.originProfileId];
-  return { kind: "add", plugin: facts, profileIds };
+  return {
+    kind: "add",
+    plugin: facts,
+    profileIds,
+    ...(item.profilePlan === undefined ? {} : { plan: item.profilePlan }),
+  };
 }
 
 /** 프로필 쪽 실패를 검토 함수의 실패로 옮긴다. 검사 이슈는 `pluginReview.profileInvalid`가 된다 */

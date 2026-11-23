@@ -4,8 +4,8 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import { EXTENSION_NAME_PATTERN } from "@fresnel/contracts/extensions";
-import type { DevkitIssue } from "@fresnel/contracts/services";
-import type { ExtListEntry } from "@fresnel/contracts/wire";
+import type { DevkitIssue, MemberInfo } from "@fresnel/contracts/services";
+import type { ExtListEntry, ProfilePlan } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 
 /** 목적 한 문장의 길이 한도(엔진의 `purpose` 한도와 같다) */
@@ -146,4 +146,46 @@ export function mergeCandidatesOf(entries: readonly ExtListEntry[]): readonly Ex
       e.plugins.length === 1 &&
       e.plugins[0]?.id === undefined,
   );
+}
+
+/** Registration id(`<확장 이름>` 또는 `<확장 이름>/<id>`)에서 확장 이름만 */
+export function extensionNameOf(registration: string): string {
+  const cut = registration.indexOf("/");
+  return cut < 0 ? registration : registration.slice(0, cut);
+}
+
+/** 합치기가 프로필에서 뺄 원래 플러그인들(확장 이름, 같은 이름은 한 번만) */
+export function swapOutOf(profileMove: readonly { readonly from: string }[]): readonly string[] {
+  return [...new Set(profileMove.map((move) => extensionNameOf(move.from)))];
+}
+
+/** 떼기 뒤 원래 묶음이 프로필에서 어떻게 되는지와 원래 묶음 폴더를 다시 내야 하는지 */
+export interface DetachPlan {
+  readonly profilePlan: ProfilePlan;
+  /** 참이면 원래 묶음에 구성원이 남는다: 그 폴더에서 떼는 구성원을 빼고 새 판을 리뷰에 낸다 */
+  readonly bundleStays: boolean;
+}
+
+/**
+ * 떼기의 프로필 계획(AGE-72). 남는 구성원이 있으면 새 플러그인은 원래 묶음 바로 뒤에 들고(묶음은 프로필에 남는다),
+ * 떼는 구성원이 시작 Drive를 쥐고 남은 구성원이 아무도 Drive가 아니면 Drive도 새 플러그인으로 옮긴다.
+ * 남는 구성원이 없으면 묶음이 프로필에서 빠지고 새 플러그인이 그 자리를 차지한다(Drive는 묶음 쪽이 옮긴다).
+ */
+export function detachPlanOf(
+  members: readonly MemberInfo[],
+  member: string,
+  original: string,
+): DetachPlan {
+  const remaining = members.filter((m) => m.id !== member);
+  if (remaining.length === 0)
+    return {
+      profilePlan: { swapOut: [original], placeAfter: null, driveFrom: null },
+      bundleStays: false,
+    };
+  const drivesOut = members.some((m) => m.id === member && m.drives);
+  const driveFrom = drivesOut && remaining.every((m) => !m.drives) ? original : null;
+  return {
+    profilePlan: { swapOut: [], placeAfter: original, driveFrom },
+    bundleStays: true,
+  };
 }

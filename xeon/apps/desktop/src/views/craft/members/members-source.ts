@@ -6,7 +6,12 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow, type Result } from "@fresnel/contracts";
 import type { MemberInfo, MemberOp } from "@fresnel/contracts/services";
-import type { ExtListEntry, HostConnection, ReviewItem } from "@fresnel/contracts/wire";
+import type {
+  ExtListEntry,
+  HostConnection,
+  ProfilePlan,
+  ReviewItem,
+} from "@fresnel/contracts/wire";
 import { useCallback, useEffect, useState } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
@@ -70,14 +75,27 @@ interface Read {
   readonly matchesReviewed: boolean;
 }
 
-/** 원본 폴더 하나로 드래프트를 만들어 리뷰에 낸다(`plugin.draft.create` 다음 `pluginReview.submitDraft`). 구성원, 의존, 떼기, 합치기가 같이 쓴다 */
+/** 리뷰 항목에 싣는 합치기·떼기의 프로필 맥락(AGE-72). 없으면 싣지 않는다 */
+export interface ReviewSubmitOptions {
+  readonly originProfileId?: string;
+  readonly profilePlan?: ProfilePlan;
+}
+
+/**
+ * 원본 폴더 하나로 드래프트를 만들어 리뷰에 낸다(`plugin.draft.create` 다음 `pluginReview.submitDraft`). 구성원, 의존, 떼기, 합치기가 같이 쓴다.
+ * `options`는 합치기·떼기만 준다. 생략하면 요청은 `{ draftId }`뿐이다
+ */
 export async function submitDirForReview(
   run: <T>(work: (connection: HostConnection) => Promise<T>) => Promise<Result<T, CommandError>>,
   dir: string,
+  options: ReviewSubmitOptions = {},
 ): Promise<SendOutcome> {
   const sent = await run(async (c) => {
     const draft = await c.request("plugin.draft.create", { dir });
-    const submitted = await c.request("pluginReview.submitDraft", { draftId: draft.draftId });
+    const submitted = await c.request("pluginReview.submitDraft", {
+      draftId: draft.draftId,
+      ...options,
+    });
     return submitted.itemId;
   });
   return sent.ok

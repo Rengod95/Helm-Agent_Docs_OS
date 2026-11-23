@@ -28,6 +28,7 @@ import type {
   PluginDraftFromInstructionParams,
   PluginDraftFromInstructionResult,
   PluginReviewFileResult,
+  ProfilePlan,
   Provenance,
   ReviewFileSide,
   ProfileListResult,
@@ -166,6 +167,12 @@ interface DraftCreated {
   readonly info: DraftInfo;
 }
 
+/** 제출이 함께 주는 값(wire `pluginReview.submitDraft`의 선택 칸). 준 것만 대기 항목에 싣는다(AGE-72) */
+export interface DraftSubmitExtra {
+  readonly originProfileId?: string;
+  readonly profilePlan?: ProfilePlan;
+}
+
 /** 검토 서비스의 공개 면. 처리기와 제출 포트가 쓴다 */
 export interface PluginReview {
   /** 원본을 다시 훑고(`plugin.scan`) 새 검토 항목을 만든다 */
@@ -221,7 +228,10 @@ export interface PluginReview {
     path: string,
     side?: ReviewFileSide,
   ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
-  submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
+  submitDraft(
+    draftId: string,
+    extra?: DraftSubmitExtra,
+  ): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   decide(
     itemId: string,
     decision: ReviewDecision,
@@ -332,7 +342,37 @@ interface ItemFields {
   readonly files: ReviewItem["files"];
   /** 지난 승인 버전의 파일 목록. 읽지 못했거나 비교 대상이 없으면 생략한다 */
   readonly baseFiles?: ReviewItem["files"];
+  /** 합치기·떼기 계획(AGE-72). 없으면 싣지 않는다 */
+  readonly profilePlan?: ProfilePlan | undefined;
   readonly removal: ReviewItemRemoval | null;
+}
+
+/** 두 합치기 계획이 같은 값인가(없음끼리도 같다) */
+function samePlanOf(a: ProfilePlan | undefined, b: ProfilePlan | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return (
+    a.placeAfter === b.placeAfter &&
+    a.driveFrom === b.driveFrom &&
+    a.swapOut.length === b.swapOut.length &&
+    a.swapOut.every((name, index) => name === b.swapOut[index])
+  );
+}
+
+/**
+ * 대기 항목에 제출이 준 값만 싣는다. 기본 프로필이 null이거나 계획이 없으면 항목에 있던 값을 그대로 둔다(훑기는 아무것도 주지 않는다)
+ */
+function withSubmitValues(
+  item: ReviewItem,
+  values: {
+    readonly originProfileId: string | null;
+    readonly profilePlan: ProfilePlan | undefined;
+  },
+): ReviewItem {
+  const base: ReviewItem = {
+    ...item,
+    originProfileId: values.originProfileId ?? item.originProfileId,
+  };
+  return values.profilePlan === undefined ? base : { ...base, profilePlan: values.profilePlan };
 }
 
 function pendingItemOf(itemId: string, fields: ItemFields, createdAt: string): ReviewItem {
@@ -351,6 +391,7 @@ function pendingItemOf(itemId: string, fields: ItemFields, createdAt: string): R
     evidence: [...fields.evidence],
     files: [...fields.files],
     ...(fields.baseFiles === undefined ? {} : { baseFiles: [...fields.baseFiles] }),
+    ...(fields.profilePlan === undefined ? {} : { profilePlan: fields.profilePlan }),
     createdAt,
     decidedAt: null,
     reason: null,
@@ -683,6 +724,8 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     readonly provenance: Provenance;
     readonly originThreadId: string | null;
     readonly originProfileId: string | null;
+    /** 합치기·떼기 계획(제출이 준 값). 없으면 항목에 싣지 않는다 */
+    readonly profilePlan?: ProfilePlan | undefined;
     readonly evidence: readonly EvidenceRef[];
     readonly purpose: string | undefined;
     /** 가져온 훅의 출처(가져오기 계획의 값). 카드의 훅 출처는 이 값에서만 나온다 */
@@ -706,16 +749,22 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const same = pending.find((item) => item.candidateHash === input.candidateHash);
     if (same !== undefined) {
       // 훑기가 앱의 편집보다 먼저 이 내용을 보고 `unknown` 항목을 만들어 두었어도, 같은 해시가 앱의 편집이 쓴 것이면 앱에서 고친 변경이다
-      if (
+      const upgrade =
         same.provenance === "unknown" &&
         input.provenance !== "unknown" &&
-        deps.appEdits?.has(input.candidateHash) === true
-      ) {
-        const upgraded = await save({ ...same, provenance: input.provenance });
-        if (!upgraded.ok) return err(upgraded.error);
-        return ok({ item: upgraded.value, created: false });
-      }
-      return ok({ item: same, created: false });
+        deps.appEdits?.has(input.candidateHash) === true;
+      // 제출이 준 기본 프로필과 합치기 계획은 같은 대기 항목에 싣는다. 값이 달라졌을 때만 저장한다
+      const next = withSubmitValues(upgrade ? { ...same, provenance: input.provenance } : same, {
+        originProfileId: input.originProfileId,
+        profilePlan: input.profilePlan,
+      });
+      const unchanged =
+        next.originProfileId === same.originProfileId &&
+        samePlanOf(next.profilePlan, same.profilePlan);
+      if (!upgrade && unchanged) return ok({ item: same, created: false });
+      const saved = await save(next);
+      if (!saved.ok) return err(saved.error);
+      return ok({ item: saved.value, created: false });
     }
 
     const reviewed = await store.current(key);
@@ -747,6 +796,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         evidence: input.evidence,
         files: filesOf(folder),
         ...baseFilesOf(reviewed.value, input.origin),
+        profilePlan: input.profilePlan,
         removal: null,
       },
       deps.now(),
@@ -1253,6 +1303,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       readonly purpose: string | undefined;
       readonly provenance: Provenance;
       readonly originProfileId: string | null;
+      readonly profilePlan?: ProfilePlan | undefined;
       readonly importedHookOrigin?: ImportedHookOrigin | undefined;
     },
   ): Promise<Result<{ readonly item: ReviewItem; readonly created: boolean }, PluginPortFailure>> {
@@ -1275,6 +1326,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       provenance: options.provenance,
       originThreadId: info.value.originThreadId,
       originProfileId: options.originProfileId,
+      profilePlan: options.profilePlan,
       evidence: options.evidence,
       purpose: options.purpose,
       importedHookOrigin: options.importedHookOrigin,
@@ -1609,13 +1661,14 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       return ok(fileTextOf(path, bytes.value));
     },
 
-    submitDraft: (draftId) =>
+    submitDraft: (draftId, extra) =>
       serial(async () => {
         const made = await submitDraftItem(draftId, {
           evidence: [],
           purpose: undefined,
           provenance: "assistant",
-          originProfileId: null,
+          originProfileId: extra?.originProfileId ?? null,
+          profilePlan: extra?.profilePlan,
         });
         if (!made.ok) return err(made.error);
         return ok({ itemId: made.value.item.itemId });
