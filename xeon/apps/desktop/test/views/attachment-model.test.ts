@@ -70,8 +70,11 @@ describe("sizes", () => {
     expect(formatBytes(20971520)).toBe("20 MB");
     expect(formatBytes(1_300_000_000)).toBe("1.2 GB");
     setActiveLocale("ko");
-    expect(formatBytes(1536)).toBe("1.5kB");
-    expect(formatBytes(512)).toBe("512byte");
+    expect(formatBytes(1536)).toBe("1.5KB");
+    expect(formatBytes(512)).toBe("512바이트");
+    expect(formatBytes(194)).toBe("194바이트");
+    expect(formatBytes(152_576)).toBe("149KB");
+    expect(formatBytes(20971520)).toBe("20MB");
   });
 
   test("exceedsLimit is false without a known limit and true only above it", () => {

@@ -48,11 +48,17 @@ export function formatBytes(bytes: number): string {
     value /= 1024;
     unit += 1;
   }
+  const digits = unit === 0 || value >= 10 ? 0 : 1;
+  // 한국어는 단위마다 표기가 갈리지 않게 "194바이트", "149KB"처럼 한 가지로 적는다(AGE-77 F-26)
+  if (activeLocale() === "ko") {
+    const suffix = ["바이트", "KB", "MB", "GB"][unit] ?? "바이트";
+    return `${new Intl.NumberFormat("ko", { maximumFractionDigits: digits }).format(value)}${suffix}`;
+  }
   return new Intl.NumberFormat(activeLocale(), {
     style: "unit",
     unit: units[unit],
     unitDisplay: "short",
-    maximumFractionDigits: unit === 0 || value >= 10 ? 0 : 1,
+    maximumFractionDigits: digits,
   }).format(value);
 }
 
