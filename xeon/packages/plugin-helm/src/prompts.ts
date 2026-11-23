@@ -1,6 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
 import type { PostItem } from "@fresnel/contracts/extensions";
-import type { LensDef } from "./lenses.ts";
+import { BUILTIN_LENSES, type LensDef } from "./lenses.ts";
 import type { InquiryFinishedPayload } from "./records.ts";
 import { builderDeclineText, handoffRefusalText, LIMIT_TEXT, OUTCOME_TEXT } from "./texts.ts";
 import {
@@ -100,9 +100,11 @@ export function divergePrompt(state: Readonly<HelmState>): PostItem {
   );
 }
 
+/** 발견 줄. 관점 이름을 쓰고 내부 번호(`${lensId}-${n}`)는 넘기지 않는다. 보고에 번호가 나오지 않게 한다 */
 function findingLine(finding: HelmFinding): string {
+  const lens = BUILTIN_LENSES.find((candidate) => candidate.id === finding.lensId);
   const sources = finding.sources.map((source) => source.ref).join(", ");
-  return `- [${finding.id}] (${finding.confidence}) ${finding.claim}${sources === "" ? "" : ` (${sources})`}`;
+  return `- [${lens?.title ?? finding.lensId}] (${finding.confidence}) ${finding.claim}${sources === "" ? "" : ` (${sources})`}`;
 }
 
 /** loop.turn 입력: 적용 */

@@ -81,6 +81,14 @@ test("inject.requestid-dedup: request ids are stable and within 64 chars", () =>
   expect(postRequestId(ID, "converge", 12).length).toBeLessThanOrEqual(64);
 });
 
+test("the apply prompt names a finding by its lens title, not by the internal id", () => {
+  const apply = applyPrompt(at("apply"));
+  const content = apply.content;
+  if (typeof content !== "string") throw new Error("expected text");
+  expect(content).toContain("- [다른 분야의 유사 문제] (low) 주장");
+  expect(content).not.toContain("analogy-1");
+});
+
 test("external text is wrapped and the markers inside it are escaped", () => {
   const apply = applyPrompt(at("apply"));
   const content = apply.content;
