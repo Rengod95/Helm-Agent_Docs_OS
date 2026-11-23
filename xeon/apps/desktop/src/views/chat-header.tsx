@@ -174,12 +174,14 @@ function DetailMenu(): ReactNode {
           key={option}
           role="menuitemradio"
           selected={option === detail}
+          // 제목과 설명 두 줄이라 행 높이를 내용에 맡긴다(고정 높이면 제목이 위에서 잘렸다. AGE-77 F-23)
+          className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-label]]:whitespace-normal"
           end={option === detail ? <Check aria-hidden className="size-3.5" /> : undefined}
           onSelect={() => {
             if (option !== detail) choose(option);
           }}
         >
-          <span className="grid min-w-0 gap-0.5 py-0.5 text-start">
+          <span className="grid min-w-0 gap-0.5 text-start">
             <span>{t(DETAIL_LABEL_ID[option])}</span>
             <span className="text-ui-sm text-text-tertiary">{t(DETAIL_HINT_ID[option])}</span>
           </span>
