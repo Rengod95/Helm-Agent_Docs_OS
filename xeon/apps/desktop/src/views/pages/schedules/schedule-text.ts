@@ -53,7 +53,7 @@ export function triggerKindId(kind: ScheduleTriggerKind): MessageId {
 }
 
 /** 지역 시각의 시계 글(예: "09:00", 날짜 없이) */
-export function clockTextOf(epochMs: number, locale: Locale): string {
+function clockTextOf(epochMs: number, locale: Locale): string {
   return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
