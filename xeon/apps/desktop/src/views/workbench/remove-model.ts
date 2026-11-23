@@ -1,5 +1,5 @@
 // 확장 지우기(B-04)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
-// M5c-1부터 지우기는 `plugin.requestRemove`가 검토 항목을 만든다(바로 지우지 않는다). 저장 데이터는 엔진에 목록도 지우기도 없어 다루지 않는다.
+// M5c-1부터 지우기는 `plugin.requestRemove`가 검토 항목을 만든다(바로 지우지 않는다). 저장 데이터는 `ext.list`의 `hasData`로 경고 한 줄만 보이고, 지우는 것은 검토가 승인한 뒤다.
 import { assertNever } from "@fresnel/contracts";
 import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import type { Placement } from "@fresnel/contracts/extensions";

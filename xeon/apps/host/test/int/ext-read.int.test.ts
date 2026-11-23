@@ -179,6 +179,49 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
   await connection.close();
 });
 
+test("ext.list: hasData is true with keys in the plugin store and false with none, one read per extension", async () => {
+  const keysOf: Readonly<Record<string, number | null>> = { alpha: 2, team: 0 };
+  const asked: string[] = [];
+  const connection = connect(
+    createRecordedSources({
+      dataKeys: async (name) => {
+        asked.push(name);
+        return keysOf[name] ?? null;
+      },
+    }).sources,
+  );
+  await connection.request("host.hello", HELLO_PARAMS);
+  const list = await connection.request("ext.list", {});
+  expect(list.extensions.map((row) => [row.name, row.hasData])).toEqual([
+    ["alpha", true],
+    ["team", false],
+  ]);
+  expect(asked.toSorted()).toEqual(["alpha", "team"]);
+  await connection.close();
+});
+
+test("ext.list: a store count that cannot be read leaves hasData out of that row only, and without a source it is never there", async () => {
+  const connection = connect(
+    createRecordedSources({
+      dataKeys: (name) => Promise.resolve(name === "alpha" ? null : 0),
+    }).sources,
+  );
+  await connection.request("host.hello", HELLO_PARAMS);
+  const list = await connection.request("ext.list", {});
+  expect(list.extensions.map((row) => [row.name, "hasData" in row])).toEqual([
+    ["alpha", false],
+    ["team", true],
+  ]);
+  expect(list.extensions.map((row) => row.hasData)).toEqual([undefined, false]);
+  await connection.close();
+
+  const bare = connect(createRecordedSources().sources);
+  await bare.request("host.hello", HELLO_PARAMS);
+  const plain = await bare.request("ext.list", {});
+  expect(plain.extensions.map((row) => "hasData" in row)).toEqual([false, false]);
+  await bare.close();
+});
+
 test("ext.list: an extension left out of safe mode carries the same cause as host.status", async () => {
   const { sources } = createRecordedSources({
     safeMode: () => ({ active: true, cause: "startupFailures" }),

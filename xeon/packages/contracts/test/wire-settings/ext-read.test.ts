@@ -342,6 +342,15 @@ describe("M4 ext read methods", () => {
     ).toBe(false);
   });
 
+  test("ext.list carries hasData as a boolean (true, false, or left out) and rejects other values", () => {
+    roundTrip(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, hasData: true }] });
+    roundTrip(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, hasData: false }] });
+    roundTrip(WIRE_METHODS["ext.list"].result, { extensions: [entry] });
+    expect(
+      parse(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, hasData: "yes" }] }).ok,
+    ).toBe(false);
+  });
+
   test("ext.ui.changed carries only the extension name", () => {
     roundTrip(ExtUiChangedParamsSchema, { extension: "helm" });
     expect(parse(ExtUiChangedParamsSchema, { extension: "helm", value: 1 }).ok).toBe(false);
