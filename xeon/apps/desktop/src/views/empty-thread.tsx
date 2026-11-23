@@ -9,7 +9,11 @@ import { useCommands } from "./commands.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
 import { LensArt } from "./illustrations/lens-art.tsx";
 import { useStartNewThread, type NewThreadResult } from "./new-thread-flow.ts";
-import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
+import {
+  isDefaultFolderPath,
+  recentWorkspacesOf,
+  type RecentWorkspace,
+} from "./new-thread-model.ts";
 import { HostItem, useContextHost } from "./thread-context-bar.tsx";
 import { folderNameOf, pathTailOf } from "./thread-context-model.ts";
 
@@ -24,6 +28,8 @@ const dismissed = new Set<ThreadId>();
 /** 고르기 화면에서 무엇을 그릴지. 순수 함수라 시험이 바로 본다 */
 export type EmptyThreadView =
   | { readonly kind: "folder"; readonly name: string; readonly path: string }
+  /** 프로젝트 없는 대화의 기본 폴더: 대화 번호와 내부 경로는 보이지 않고 그림만 둔다(AGE-77 S-07, 폴더 칩의 "폴더 없음" 판정과 같다) */
+  | { readonly kind: "bare" }
   | {
       readonly kind: "where";
       readonly recent: readonly RecentWorkspace[];
@@ -33,6 +39,7 @@ export type EmptyThreadView =
   | { readonly kind: "noFolder" };
 
 export function emptyThreadViewOf(input: {
+  readonly threadId?: string;
   readonly workspace: string | null;
   readonly dismissed: boolean;
   readonly recent: readonly RecentWorkspace[];
@@ -40,6 +47,7 @@ export function emptyThreadViewOf(input: {
 }): EmptyThreadView {
   const { workspace } = input;
   if (workspace !== null && workspace.trim() !== "") {
+    if (isDefaultFolderPath(workspace, input.threadId)) return { kind: "bare" };
     return { kind: "folder", name: folderNameOf(workspace), path: workspace };
   }
   if (input.dismissed) return { kind: "noFolder" };
@@ -69,6 +77,7 @@ function EmptyThreadFor(props: { readonly threadId: ThreadId }): ReactNode {
   const folderPick = useFolderPick();
   const [isDismissed, setDismissed] = useState(dismissed.has(props.threadId));
   const view = emptyThreadViewOf({
+    threadId: props.threadId,
     workspace,
     dismissed: isDismissed,
     recent,
