@@ -59,6 +59,7 @@ async function mountCell(extTable: ExtTable): Promise<{
       withConnection: async <T,>(run: (connection: HostConnection) => Promise<T>) =>
         ok(await run(fake.connection)),
       current: () => fake.connection,
+      onChanged: () => () => {},
     },
   });
   const container = document.createElement("div");

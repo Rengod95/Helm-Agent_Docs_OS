@@ -453,13 +453,25 @@ export interface HostCore {
 }
 
 /** ExtHost.onChange가 알리는 변경(orchestration-sdk 요청 3) */
-export interface ExtChange {
-  /** scope: 토글 요청·적용·오류 표시가 바뀜. lease: 임대 부여·반납이 커밋됨 */
-  readonly kind: "scope" | "lease";
-  readonly scopeId: RegistrationId;
-  /** thread 단위 변경이면 그 thread, 전체 변경이면 null */
-  readonly threadId: ThreadId | null;
-}
+export type ExtChange =
+  | {
+      /** scope: 토글 요청·적용·오류 표시가 바뀜. lease: 임대 부여·반납이 커밋됨 */
+      readonly kind: "scope" | "lease";
+      readonly scopeId: RegistrationId;
+      /** thread 단위 변경이면 그 thread, 전체 변경이면 null */
+      readonly threadId: ThreadId | null;
+    }
+  | {
+      /**
+       * data: 확장의 상태 판이 커밋되었거나 기록이 남았다(`g.state` commit·update·commitWith, `g.record`, `g.recordPrivate`).
+       * 커밋이 실패하거나 충돌하면 알리지 않는다. 값은 싣지 않고, 화면은 자기 메서드로 다시 읽는다(ADR-0021 §3.4.2)
+       */
+      readonly kind: "data";
+      /** 바뀐 확장의 이름(`record.manifest.name`) */
+      readonly extension: string;
+      readonly scopeId: RegistrationId;
+      readonly threadId: ThreadId;
+    };
 
 export function newUsage(): UsageRecorder {
   return {

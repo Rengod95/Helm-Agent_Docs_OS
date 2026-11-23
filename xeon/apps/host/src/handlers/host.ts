@@ -57,6 +57,7 @@ const IMPLEMENTED_NOTIFICATIONS: readonly (
   "migration.progress",
   "project.changed",
   "drive.framesChanged",
+  "ext.ui.changed",
   "notify.delivered",
   "backtest.progress",
   "$/cancelRequest",

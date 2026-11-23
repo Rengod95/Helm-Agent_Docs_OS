@@ -928,7 +928,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 
 1. `DriveLockCandidate.enabledAtSeq: number | null`(마지막 `scope.changed{status:"enabled"}`의 seq). [반영] F `DriveLockCandidate`에 있다.
 2. 현재 drive lock의 `leaseId` 조회. [반영] `ExtHost.leaseOf(threadId)`가 `LeaseInfo{leaseId, scopeId, leaseEpoch, status}`를 돌려준다. `OrchestrationStatus.leaseId`에 쓴다.
-3. Registration 상태·drive lock 상태 변경 구독. [반영] `ExtHost.onChange(listener)`가 `ExtChange{kind: "scope" | "lease", scopeId, threadId}`를 경계 커밋 뒤 알린다. `OrchestrationService.onChange`에 쓴다.
+3. Registration 상태·drive lock 상태 변경 구독. [반영] `ExtHost.onChange(listener)`가 `ExtChange{kind: "scope" | "lease", scopeId, threadId}`를 경계 커밋 뒤 알린다. `OrchestrationService.onChange`에 쓴다. `kind: "data"`(확장 상태·기록 커밋, AGE-78)는 화면 알림용이라 이 구독에 쓰지 않는다.
 4. 테스트 호스트 재시작. [반영] `TestHost.restart()`.
 5. 2차: 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 Registration 조회. [반영, B4-GRP] `ExtHost.queryEvents(threadId, { kindPrefix })`(M3-REQ-39, 계측은 M3b부터 쓴다)와 `ExtHost.toolOwner(name)`(`ResourceRecord`의 `scopeId`·`extension`)이 X에 있다. `OrchestrationHostView`가 두 메서드를 쓴다.
 6. [반영, M3a X-3] 재실행 문맥 조회: `hostOf(g).callContext(): { kind: "on" | "drive"; threadId: ThreadId; signal: AbortSignal; point?: HookName } | undefined`(X.primitives.spec §3.8). setup, 명령 처리기, 도구 `execute`, drive의 `turn`·`spawn` 안에서는 undefined다. `OrchestrationHostAccess.callContext()`가 이 값을 그대로 돌려준다. `delegate`는 on 핸들러와 drive 함수 안에서 문맥의 thread와 신호를 쓰고, `{ threadId, signal }` 옵션은 명령 처리기와 도구 `execute`에서만 필요하다. `delegateStatus`의 on 거부와 `cancelDelegates`의 on·drive 거부(`orchestration.effectNotAllowed`)는 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`).

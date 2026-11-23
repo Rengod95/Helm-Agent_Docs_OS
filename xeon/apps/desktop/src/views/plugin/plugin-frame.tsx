@@ -67,6 +67,11 @@ export interface PluginFrameProps {
   readonly title: string;
   /** 프레임이 닫혔을 때 부른다. 이유는 장부 실패 이름이거나, 언마운트로 거두었으면 `disposed`다 */
   readonly onClosed: (reason: LedgerFailure | "disposed") => void;
+  /**
+   * 이 확장이 바뀌었다는 알림을 듣는다(`ext.ui.changed`, ADR-0021 §3.4.2). 받으면 프레임에 값 없는 `invalidate` 푸시를 민다.
+   * 프레임은 자기 메서드로 다시 읽을 뿐이다. 없으면 보내지 않는다. 반환값은 구독 해제
+   */
+  readonly changes?: ((listener: () => void) => () => void) | undefined;
 }
 
 /** 브라우저 시계와 타이머. 프레임 수명 안의 시간만 잰다 */
@@ -239,6 +244,15 @@ function PluginFrameMount(props: PluginFrameProps): ReactNode {
   useEffect(() => {
     frameRef.current?.push("theme", theme());
   }, [theme]);
+
+  // 확장이 바뀌면 값 없이 `invalidate`를 민다. 프레임은 자기 메서드를 다시 부른다(화면 수명 동안 구독한다)
+  const { changes } = props;
+  useEffect(() => {
+    if (changes === undefined) return undefined;
+    return changes(() => {
+      frameRef.current?.push("invalidate", null);
+    });
+  }, [changes]);
 
   useEffect(() => {
     const element = iframeRef.current;

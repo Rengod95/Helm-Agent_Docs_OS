@@ -743,6 +743,22 @@ const ExtUiPostParamsShape2 = request({
 export const ExtUiPostParamsSchema: TUnsafe<Req<ExtUiPostParams>> = Type.Unsafe<
   Req<ExtUiPostParams>
 >(ExtUiPostParamsShape2 satisfies SchemaProof<Req<ExtUiPostParams>, typeof ExtUiPostParamsShape2>);
+
+/**
+ * 알림 `ext.ui.changed { extension }`(ADR-0021 §3.4.2 다시 읽기 푸시). 그 확장의 상태나 기록이 커밋되었다.
+ * 값을 싣지 않는다. 화면은 열려 있으면 자기 메서드를 다시 읽는다. 같은 확장의 짧은 연속 변화는 호스트가 한 번으로 묶는다
+ */
+export interface ExtUiChangedParams {
+  readonly extension: string;
+}
+const ExtUiChangedParamsShape = closed({ extension: Name });
+export const ExtUiChangedParamsSchema: TUnsafe<ExtUiChangedParams> =
+  Type.Unsafe<ExtUiChangedParams>(
+    ExtUiChangedParamsShape satisfies SchemaProof<
+      ExtUiChangedParams,
+      typeof ExtUiChangedParamsShape
+    >,
+  );
 export interface ExtUiApprovalParams {
   readonly extension: string;
   readonly ui: string;

@@ -232,6 +232,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     pluginUi: {
       withConnection: () => Promise.resolve(err({ kind: "offline" })),
       current: () => null,
+      onChanged: () => () => {},
     },
     remote: createFakeRemoteAdapter(),
     connection: {

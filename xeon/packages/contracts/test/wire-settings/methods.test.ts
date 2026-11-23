@@ -79,6 +79,7 @@ describe("WIRE_METHODS", () => {
       "notify.delivered",
       "profile.changed",
       "drive.framesChanged",
+      "ext.ui.changed",
       "project.changed",
       "plugin.changed",
       "pluginReview.changed",

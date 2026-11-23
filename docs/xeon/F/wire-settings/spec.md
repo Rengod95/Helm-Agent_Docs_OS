@@ -685,6 +685,7 @@ M5c-1 [제안]: 프로필·프로젝트 메서드의 params·result 스키마는
 | 서버 → 클라이언트 | `notify.delivered` | `{ threadId: ThreadId(없으면 null), notice: Notice, deliveredAt: IsoTime }`. 알림 한 건을 연결된 클라이언트 모두에 보낸다(M3-REQ-16, 아래 설명) | M3 |
 | 서버 → 클라이언트 | `profile.changed` | `{ rev: integer, ids: string[], commonChanged: boolean }`. 프로필 목록이 바뀌었다. `commonChanged`가 참이면 공통 묶음도 바뀌었다. `profile.list`를 다시 읽는다(W-46, M5c-1 §3.4) | M4 |
 | 서버 → 클라이언트 | `drive.framesChanged` | `{ threadId: string }`. 주도권 스택이 바뀌었다. `drive.frames`를 다시 읽는다(drive-isolation.md 2.6) | M4 |
+| 서버 → 클라이언트 | `ext.ui.changed` | `{ extension: string }`. 그 확장의 상태나 기록이 커밋되었다(`ExtChange` data, X 스펙). 값은 싣지 않는다. 열린 화면은 자기 메서드를 다시 읽고, 앱 프레임은 값 없는 `invalidate` 푸시를 받는다(ADR-0021 §3.4.2). 호스트는 같은 확장의 신호를 100 ms 창으로 묶어 연결 전체에 한 번 보내며, 송신 큐가 차도 건너뛰지 않는다 [구현: AGE-78] | M4 |
 | 서버 → 클라이언트 | `project.changed` | `{ rev: integer, ids: string[](최대 200) }`. 프로젝트 목록이 바뀌었다. `project.list`를 다시 읽는다(M5c-1 §3.4) | M4 |
 | 서버 → 클라이언트 | `plugin.changed` | `{ name: string }`. 플러그인의 카드나 상태가 바뀌었다. `plugin.list`와 `plugin.get`을 다시 읽는다(M5c-1 §3.4) | M4 |
 | 서버 → 클라이언트 | `pluginReview.changed` | `{ itemId: string, state: ReviewState }`. 검토 항목의 상태가 바뀌었다. `pluginReview.get`으로 항목을 다시 읽는다(M5c-1 §3.4) | M4 |
@@ -845,7 +846,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 
 - `ReviewDecision`은 셋이다: `{ kind: "approve", profileIds, libraryOnly, purpose? }`(`purpose`는 1~200자이고 목적 문장이 비었을 때 승인하면서 채운다, §4.7.6), `{ kind: "sendBack", reason }`(1~2000자), `{ kind: "discard" }`. 닫힌 객체다.
 - `ReviewItem`의 `kind`는 `new | update | remove`, `state`는 `pending | approved | sent_back | discarded | superseded | withdrawn`, `provenance`는 `assistant | project | unknown | bundled | user_instruction | migration`이다. `migration`은 다른 하네스에서 옮긴 플러그인의 항목이다([제안]: `review/m5/migration.md` §7.5, 승인할 수 있고 손 수정 판정을 받지 않는다). 증거 종류 `EvidenceRef.kind: "migration"`은 아직 없다. `removal`은 `kind: "remove"`일 때만 채운다. `diff`는 "하는 일의 차이"(`added`, `removed`, `changed`, `enforcementChange`, `costDelta`)다.
-- 알림(서버 → 클라이언트): `plugin.changed { name }`(카드나 상태가 바뀌었다. `plugin.list`와 `plugin.get`을 다시 읽는다), `pluginReview.changed { itemId, state }`(항목 상태가 바뀌었다).
+- 알림(서버 → 클라이언트): `plugin.changed { name }`(카드나 상태가 바뀌었다. `plugin.list`와 `plugin.get`을 다시 읽는다), `pluginReview.changed { itemId, state }`(항목 상태가 바뀌었다). `ext.ui.changed { extension }`(그 확장의 상태나 기록이 커밋되었다. 열린 화면이 다시 읽는다, [구현: AGE-78]).
 - 오류 이름(등록됨, 숫자는 구현 때 배정했다): 3600~3649 구간에 `plugin.invalid`, `plugin.tooLarge`, `plugin.symlinkRefused`, `plugin.exists`, `plugin.noReviewedCopy`, `plugin.requiredByCore`, `plugin.dependency`, `draft.notFound`, 3650~3669 구간에 `pluginReview.notFound`, `pluginReview.notPending`, `pluginReview.pathInvalid`, `pluginReview.handEditNotAllowed`, `pluginReview.purposeRequired`, `pluginReview.profileInvalid`. 프로젝트 오류(`project.*`)는 프로젝트 wire 절이 정한다. 이 이름들은 §3.5.2 오류 표와 `WIRE_ERRORS`에 함께 들어 있다.
 - 옛 메서드와 대응: `ext.install`, `ext.installPreview`, `ext.remove`, `ext.removePreview`는 wire에서 뺐다(§3.3.1). 설치는 초안과 검토 항목으로, 지우기는 `plugin.requestRemove`로 간다. `ext.list`의 `enabledSource`는 `core | common | profile | overlay | managed | none`이다(§3.3.1 `ext.list` 행).
 

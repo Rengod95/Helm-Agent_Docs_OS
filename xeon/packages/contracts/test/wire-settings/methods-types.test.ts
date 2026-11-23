@@ -77,6 +77,7 @@ export type ServerNotificationNames = Expect<
     | "notify.delivered"
     | "profile.changed"
     | "drive.framesChanged"
+    | "ext.ui.changed"
     | "project.changed"
     | "plugin.changed"
     | "pluginReview.changed"

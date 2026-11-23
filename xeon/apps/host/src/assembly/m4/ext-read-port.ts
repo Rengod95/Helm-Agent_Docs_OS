@@ -199,6 +199,8 @@ export interface ExtReadSources {
   driveFrames(threadId: string): Promise<DriveFramesResult>;
   /** 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
   driveFramesChanged(listener: (threadId: string) => void): () => void;
+  /** 확장의 상태나 기록이 커밋되었다(`ext.ui.changed`). 구독을 끊는 함수를 돌려준다 */
+  extDataChanged(listener: (extension: string) => void): () => void;
   /**
    * `blocks.applied`의 맥락(M5e-2). `threadId`가 있으면 그 대화의 E(T)(그 프로필 설정은 `settings.layers(threadId)`에 이미 있다),
    * 없고 `profileId`가 있으면 그 프로필(공통 묶음 포함, 프로필 설정을 따로 준다), 둘 다 없으면 기본 프로필이다
@@ -281,6 +283,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
   driveFrames: () => Promise.resolve({ frames: [] }),
   driveFramesChanged: () => () => {},
+  extDataChanged: () => () => {},
   blocksContext: () => ({
     kind: "found",
     profileId: "default",
@@ -973,6 +976,7 @@ export function createExtReadPort(
     },
 
     onDriveFramesChanged: (listener) => sources.driveFramesChanged(listener),
+    onExtDataChanged: (listener) => sources.extDataChanged(listener),
 
     async hooks(params, signal) {
       const thread = await checkThread(params.threadId, signal);

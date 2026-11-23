@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/base/index.ts";
 import type { TSchema } from "typebox";
 import {
+  ExtUiChangedParamsSchema,
   HostStatusResultSchema,
   WIRE_ERRORS,
   WIRE_METHODS,
@@ -339,6 +340,12 @@ describe("M4 ext read methods", () => {
     expect(
       parse(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, forcedOn: "other" }] }).ok,
     ).toBe(false);
+  });
+
+  test("ext.ui.changed carries only the extension name", () => {
+    roundTrip(ExtUiChangedParamsSchema, { extension: "helm" });
+    expect(parse(ExtUiChangedParamsSchema, { extension: "helm", value: 1 }).ok).toBe(false);
+    expect(parse(ExtUiChangedParamsSchema, { extension: "" }).ok).toBe(false);
   });
 
   test("ext.ui.* replace ext.view.*", () => {

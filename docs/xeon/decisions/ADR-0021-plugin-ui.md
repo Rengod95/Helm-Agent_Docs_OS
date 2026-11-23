@@ -152,6 +152,8 @@ interface ExtMethodDecl {
 
 - [제안] 셸은 프레임이 불러와지면 `MessageChannel` 하나를 만들어 포트 하나를 프레임에 한 번만 넘깁니다. 프레임 origin은 불투명이라 대상 origin을 지정할 수 없으므로, 셸은 `iframe.contentWindow`가 보낸 `ready` 메시지에만 포트를 넘깁니다. 그 뒤 모든 메시지는 그 포트로만 오가고, 포트 밖 `message`는 버립니다.
 - 메시지 형식: 요청 `{ v: 1, id, op, args }`, 응답 `{ v: 1, id, ok, value | error }`, 셸이 먼저 보내는 `{ v: 1, push: "theme" | "host" | "event" | "invalidate", value }`입니다. `op`는 §3.4 표의 이름 열다섯 개(호스트 API 아홉, 셸 기능 여섯)와 `resize`(well 높이 안내), `log`(진단 줄, 길이 상한), `pong`뿐입니다.
+- [구현: AGE-78] 다시 읽기 푸시: 확장의 상태나 기록이 커밋되면 엔진이 그 확장 이름을 알리고(X `ExtChange`의 data), 호스트가 연결 전체에 알림 `ext.ui.changed { extension }`을 보낸다(F wire, 값 없음. 같은 확장의 연속 신호는 100 ms 창으로 한 번에 보낸다). 데스크톱은 그 확장의 열린 프레임에 값 없는 `invalidate` 푸시를 보내고, 선언형 화면은 10초를 기다리지 않고 바로 다시 읽는다. 값을 싣지 않으므로 새로 새는 값이 생기지 않는다.
+- [구현: AGE-78] 열기 링크: `navigate`의 `view`(같은 확장의 화면 id)와 카드의 `ViewLink`는 플레이그라운드 탭을 열어 그 화면을 올린다. 목록에 없는 id와 다른 확장의 화면은 거짓(`navigate_unsupported`)이다.
 - 셸은 요청마다 `op` 허용 목록, `args` 스키마, 매니페스트 선언(`methods`, `readsRecordKinds`), 확장 상태(켜짐, 안전 모드)를 확인한 뒤 wire를 부릅니다. 엔진은 같은 검사를 다시 합니다. 판정의 정본은 엔진입니다.
 - 다리 API 버전은 `frame.bridge`(SemVer 범위)로 맞춥니다. 앱이 범위를 채우지 못하면 그 화면은 `invalid`(`bridge_unsupported`)입니다.
 - 다리 클라이언트 라이브러리(`@fresnel/view-bridge` [제안])는 타입 있는 얇은 래퍼만 제공합니다. 판정은 셸 쪽에 있으므로 프레임 코드가 이 라이브러리를 쓰지 않아도 보안이 바뀌지 않습니다.
