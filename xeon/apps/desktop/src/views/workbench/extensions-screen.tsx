@@ -63,6 +63,10 @@ export function ExtensionsScreen(): ReactNode {
   const safe = useSafeMode()?.active === true;
   const noticeTotal = noticeTotalOf(state.entries, state.hookNotices, safe);
   const firstNotice = firstNoticeOf(state.entries);
+  // 지우기 상자의 저장 데이터 경고: `ext.list`가 준 `hasData`를 지우려는 이름으로 찾는다(옛 호스트는 없어서 경고도 없다)
+  const removingHasData = state.entries.some(
+    (row) => row.name === removing && row.hasData === true,
+  );
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* 상세가 그려질 때만 머리를 감춘다. 상세의 머리(ext-detail.tsx)가 펼치기 단추를 가진다 */}
@@ -214,6 +218,7 @@ export function ExtensionsScreen(): ReactNode {
           name={removing}
           busy={removeBusy}
           refusal={removeRefusal}
+          hasData={removingHasData}
           loadProfiles={loadProfiles}
           pluginEntries={pluginEntries}
           onCancel={() => {

@@ -131,6 +131,18 @@ describe("addonRowsOf", () => {
     ).toBe(true);
   });
 
+  test("an app-only extension is not off when ext.list says disabled or the profile lacks it, only when the host marks its screens disabled", () => {
+    const deferred = new Map([
+      ["viewdemo", addonMetaOf(entry("viewdemo", { status: "disabled" }), undefined)],
+    ]);
+    const rowOff = (
+      entries: readonly ExtUiEntry[],
+      inactive: readonly string[],
+    ): boolean | undefined => addonRowsOf(sourceOf(entries, { inactive }), deferred, "ko")[0]?.off;
+    expect(rowOff(appEntries("ok"), ["viewdemo"])).toBe(false);
+    expect(rowOff(appEntries("disabled"), [])).toBe(true);
+  });
+
   test("danger for an invalid entry or an error diagnostic, warning for a blocked app screen or a keep-off question", () => {
     expect(attentionOf(VIEWDEMO)).toBeUndefined();
     expect(attentionOf([uiEntryOf({ extension: "x", state: "invalid" })])).toBe("danger");
@@ -181,6 +193,10 @@ describe("addonRowsOf", () => {
   });
 });
 
+function appEntries(state: "ok" | "disabled"): readonly ExtUiEntry[] {
+  return [uiEntryOf({ extension: "viewdemo", id: "frame", mode: "app", state, app: APP_DECL })];
+}
+
 describe("risksOf", () => {
   test("names tool and request hooks, write methods and capabilities first, then other hooks and read-only methods", () => {
     const write = { verb: "save", readOnly: false, approval: true };
@@ -194,7 +210,7 @@ describe("risksOf", () => {
     ).toEqual([
       { kind: "toolHooks", hooks: ["tool.call.before"] },
       { kind: "requestHooks", hooks: ["request.system.before", "guard.output.before"] },
-      { kind: "methods", methods: [write, read], writes: 1 },
+      { kind: "methods", methods: [write], writes: 1 },
       { kind: "capability", capability: "files" },
       { kind: "otherHooks", count: 1 },
     ]);
@@ -203,6 +219,15 @@ describe("risksOf", () => {
       { kind: "methods", methods: [read], writes: 0 },
     ]);
     expect(risksOf(undefined, undefined, [])).toEqual([]);
+  });
+
+  test("the count of write methods and the listed methods come from the same list", () => {
+    const list = { verb: "list", readOnly: true, approval: false };
+    const add = { verb: "add", readOnly: false, approval: false };
+    const remove = { verb: "remove", readOnly: false, approval: false };
+    expect(risksOf(undefined, [list, add, remove], [])).toEqual([
+      { kind: "methods", methods: [add, remove], writes: 2 },
+    ]);
   });
 });
 

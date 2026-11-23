@@ -26,6 +26,7 @@ import {
 } from "./location-text.ts";
 import type { ProfileSetLoad } from "./profile-put-menu.tsx";
 import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
+import { profileTitleOf } from "../convo/profile-chip-model.ts";
 import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
 import {
   cardLeadOf,
@@ -187,7 +188,7 @@ function TrustColumn(props: {
             {use.kind === "profiles" ? (
               <span className="grid justify-items-start">
                 {profilesWithOf(entry.name, set.profiles).map((profile) => (
-                  <span key={profile.id}>{profile.title}</span>
+                  <span key={profile.id}>{profileTitleOf(profile.id, profile.title)}</span>
                 ))}
               </span>
             ) : (

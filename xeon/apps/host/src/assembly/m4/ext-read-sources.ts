@@ -79,6 +79,8 @@ export interface ExtReadEnv {
   readonly activeThread: () => ThreadId | null;
   /** thread의 작업 폴더 설정을 읽어 둔다(신뢰한 폴더만 층이 선다). 쥐지 않은 thread의 훅을 읽기 전에 부른다 */
   readonly prepareThread?: ((threadId: ThreadId) => Promise<void>) | undefined;
+  /** 플러그인 전용 저장소의 키 수(`ext.list`의 `hasData`). 넘기지 않으면 `hasData`를 싣지 않는다 */
+  readonly dataKeys?: ((name: string) => Promise<number | null>) | undefined;
 }
 
 function threadIdOf(value: string | undefined): ThreadId | undefined {
@@ -308,6 +310,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
 
   return {
     safeMode: () => assembly.safeMode,
+    ...(env.dataKeys === undefined ? {} : { dataKeys: env.dataKeys }),
     budget(hook) {
       const budgetClass = budgetClassOf(HOOKS[hook]);
       return { budgetClass, budgetMs: operationsSource(env.settings).budgets()[budgetClass] };

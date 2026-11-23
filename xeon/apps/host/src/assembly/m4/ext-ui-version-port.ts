@@ -1,4 +1,4 @@
-import { detach, err, ok, parse, type Result } from "@fresnel/contracts";
+import { attemptAsync, detach, err, ok, parse, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ExtDiagnostic,
@@ -61,6 +61,7 @@ async function uiPostOf(
   if (source === undefined) return err({ kind: "unknown_extension", extension: params.extension });
   const threadId = threadOf(params.threadId);
   if (threadId === undefined) return err({ kind: "unknown_thread", threadId: params.threadId });
+  await loadDeferred(source, params.extension);
   const posted = await source.host.ui.post({
     extension: params.extension,
     ui: params.ui,
@@ -80,6 +81,7 @@ async function uiApprovalOf(
   if (source === undefined) return err({ kind: "unknown_extension", extension: params.extension });
   const threadId = threadOf(params.threadId);
   if (threadId === undefined) return err({ kind: "unknown_thread", threadId: params.threadId });
+  await loadDeferred(source, params.extension);
   return source.host.ui.requestApproval({
     extension: params.extension,
     ui: params.ui,
@@ -88,6 +90,24 @@ async function uiApprovalOf(
     ...(params.params === undefined ? {} : { params: params.params }),
     ...(params.requestId === undefined ? {} : { requestId: params.requestId }),
   });
+}
+
+/** 시작 때 미뤄 둔 확장(`lazy_deferred`)인가. 사용자가 끈 것이 아니라 아직 싣지 않은 것이다 */
+function isDeferred(info: LoadedExtensionInfo): boolean {
+  return (
+    info.state === "disabled" && info.diagnostics.some((item) => item.code === "lazy_deferred")
+  );
+}
+
+/**
+ * 앱 화면이 확장에 말을 걸 때 미뤄 둔 확장을 먼저 싣는다(W-05). 재시작 직후에는 대화가 쓰기 전까지 싣지 않으므로
+ * 화면이 먼저 열리면 확장이 없다. 싣지 못해도 여기서는 던지지 않고 뒤 호출이 거절한다
+ */
+async function loadDeferred(source: ExtUiVersionSource, name: string): Promise<void> {
+  const loader = source.loader();
+  const info = loader?.list().find((candidate) => candidate.name === name);
+  if (loader === undefined || info === undefined || !isDeferred(info)) return;
+  await attemptAsync(() => loader.ensureLoaded(name, new AbortController().signal));
 }
 
 /** wire 문자열이 대화 id 모양이 아니면 열린 대화일 수 없다 */
@@ -321,6 +341,7 @@ function offExtensions(
 ): ReadonlySet<string> {
   const scopes = host.registrations();
   const off = infos.filter((info) => {
+    if (isDeferred(info)) return false;
     if (info.state !== "active") return true;
     const mine = scopes.filter((scope) => scope.extension === info.name);
     return (

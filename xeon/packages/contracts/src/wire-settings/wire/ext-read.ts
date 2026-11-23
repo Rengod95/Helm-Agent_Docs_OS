@@ -160,6 +160,11 @@ export interface ExtListEntry {
    * 화면은 이 필드가 있으면 켜짐·잠김으로 보이면 된다. 호스트가 아직 채우지 않으면 없다
    */
   readonly forcedOn?: "devMode";
+  /**
+   * 플러그인 전용 저장소에 키가 1개 이상 있으면 참(W-08). 지우기 확인 상자가 "저장한 데이터도 같이 지워져요" 경고를 보이는 데 쓴다.
+   * 호스트가 값을 읽지 못했거나 옛 호스트면 없다(거짓이 아니라 모른다)
+   */
+  readonly hasData?: boolean;
   /** 모든 플러그인의 Hook 수 */
   readonly hookCount: number;
 }
@@ -189,6 +194,7 @@ const ExtListEntryShape = closed({
   ),
   safeModeExcluded: Type.Union([Line, Type.Null()]),
   forcedOn: Type.Optional(Type.Literal("devMode")),
+  hasData: Type.Optional(Type.Boolean()),
   hookCount: Count,
 });
 const ExtListEntryShape2 = ExtListEntryShape;

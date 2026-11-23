@@ -22,6 +22,7 @@ import {
 } from "react";
 import type { DependencyRefusalView, ProfileIssueView } from "../../commands.ts";
 import { DependencyRefusal } from "../deps/dependency-refusal.tsx";
+import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 import {
   approveBlockOf,
   approveDecisionOf,
@@ -57,7 +58,6 @@ import {
   purposeText,
   Section,
 } from "./review-parts.tsx";
-import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 import type { ReviewData } from "./review-source.ts";
 
 /** 결정 줄의 바깥 동작(키보드가 부른다) */
@@ -320,6 +320,7 @@ function SourceSection(props: {
 /** 결정 뒤의 결과 카드(토스트와 같은 부품). 승인이면 들어간 프로필을 말하고 다음 항목으로 가는 단추를 카드 끝에 둔다 */
 function DecidedPanel(props: {
   readonly decided: Decided;
+  readonly profiles: readonly Profile[];
   readonly onNext: (() => void) | null;
 }): ReactNode {
   const { decided } = props;
@@ -335,7 +336,9 @@ function DecidedPanel(props: {
     decided.kind === "approved" && !decided.removal
       ? decided.outcome.profiles.length > 0
         ? `${t("desktop.craft.review.outcome.inProfiles", {
-            names: decided.outcome.profiles.join(", "),
+            names: decided.outcome.profiles
+              .map((id) => profileTitleOf(id, props.profiles.find((p) => p.id === id)?.title ?? id))
+              .join(", "),
           })} ${t("desktop.craft.review.after.profileNote")}`
         : decided.outcome.library
           ? t("desktop.craft.review.after.libraryNote")
@@ -409,7 +412,10 @@ export function issueText(issue: ProfileIssueView, profiles: readonly Profile[])
   const profile =
     issue.profile === null || issue.profile === "common"
       ? t("desktop.craft.review.issue.allProfiles")
-      : (profiles.find((p) => p.id === issue.profile)?.title ?? issue.profile);
+      : profileTitleOf(
+          issue.profile,
+          profiles.find((p) => p.id === issue.profile)?.title ?? issue.profile,
+        );
   const word = ISSUE_WORD[issue.code] ?? "desktop.craft.review.issue.other";
   return t(word, {
     profile,
@@ -760,7 +766,7 @@ export function JudgeColumn(props: {
     props.decided !== null || props.managedOff || notice !== null ? (
       <div className="rv-alerts">
         {props.decided === null ? null : (
-          <DecidedPanel decided={props.decided} onNext={props.onNext} />
+          <DecidedPanel decided={props.decided} profiles={props.profiles} onNext={props.onNext} />
         )}
         {props.managedOff ? (
           <NoticeCard

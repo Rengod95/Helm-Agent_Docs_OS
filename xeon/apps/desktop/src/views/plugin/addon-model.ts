@@ -221,8 +221,21 @@ function compareText(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
-function offOf(name: string, source: AddonSource, meta: AddonMeta | undefined): boolean {
-  return source.inactive.has(name) || meta?.enabled === false || meta?.safeMode === true;
+/**
+ * 꺼졌나. 앱 화면만 가진 확장은 프로필에 없거나 시작 때 미뤄 두어 아직 싣지 않았어도 열린다(AGE-78 질문 3, W-05):
+ * 그때는 `ext.list`의 상태나 프로필 소속이 아니라 호스트가 낸 화면 항목 상태(`disabled`)만 본다
+ */
+function offOf(
+  name: string,
+  source: AddonSource,
+  meta: AddonMeta | undefined,
+  entries: readonly ExtUiEntry[],
+): boolean {
+  if (meta?.safeMode === true) return true;
+  if (entries.length > 0 && entries.every((entry) => entry.mode === "app")) {
+    return entries.some((entry) => entry.state === "disabled");
+  }
+  return source.inactive.has(name) || meta?.enabled === false;
 }
 
 function screensOf(
@@ -328,7 +341,7 @@ function rowOf(
   locale: string,
 ): AddonRow {
   const first = entries[0];
-  const off = offOf(name, source, meta);
+  const off = offOf(name, source, meta, entries);
   const screens = screensOf(entries, source, off, locale);
   const title = stripUnsafeText(meta?.displayName ?? "", false).trim() || name;
   const fromScreens = screens.map((screen) => screen.title).join(", ");
@@ -452,7 +465,10 @@ export function risksOf(
   if (request.length > 0) risks.push({ kind: "requestHooks", hooks: request });
   const list = methods ?? [];
   const writes = list.filter((method) => !method.readOnly).length;
-  if (writes > 0) risks.push({ kind: "methods", methods: list, writes });
+  // 바꾸는 메서드가 있으면 수(`writes`)와 나열이 같은 목록에서 나온다: 읽기 메서드는 나열하지 않는다(W-07)
+  if (writes > 0) {
+    risks.push({ kind: "methods", methods: list.filter((method) => !method.readOnly), writes });
+  }
   for (const capability of capabilities) risks.push({ kind: "capability", capability });
   if (other > 0) risks.push({ kind: "otherHooks", count: other });
   if (list.length > 0 && writes === 0) risks.push({ kind: "methods", methods: list, writes: 0 });
@@ -468,7 +484,7 @@ function problemsOf(
 ): readonly AddonProblem[] {
   const problems: AddonProblem[] = [];
   if (meta?.safeMode === true) problems.push({ kind: "safeMode" });
-  else if (offOf(name, source, meta)) problems.push({ kind: "off" });
+  else if (offOf(name, source, meta, entries)) problems.push({ kind: "off" });
   const invalid = entries.filter((entry) => entry.state === "invalid").length;
   if (invalid > 0) problems.push({ kind: "invalid", count: invalid });
   const blocked = screens.filter((screen) => screen.state === "blocked").length;

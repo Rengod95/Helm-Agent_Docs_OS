@@ -1903,6 +1903,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         heldThreads: () => Array.from(held.keys()),
         activeThread: () => Array.from(held.keys()).at(-1) ?? null,
         prepareThread: (threadId) => settings.prepare(threadId),
+        // 전용 저장소의 키 수(`ext.list`의 `hasData`). 포트가 없거나 읽지 못하면 null이라 필드를 싣지 않는다
+        dataKeys: async (name) => {
+          const usage = await deps.pluginDataStore.usage?.(name);
+          return usage?.ok === true ? usage.value.keys : null;
+        },
       }),
       deps.extUi,
     ),

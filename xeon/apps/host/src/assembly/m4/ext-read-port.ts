@@ -153,6 +153,10 @@ export interface ExtReadSources {
   managedLocked(name: string): boolean;
   /** 설정 값과 무관하게 켜진 채 잠긴 이유(개발 모드). 아니면 null */
   forcedOn(name: string): "devMode" | null;
+  /**
+   * 플러그인 전용 저장소의 키 수(`ext.list`의 `hasData`, W-08). 읽지 못하면 null이다(거절하지 않는다). 원천이 없으면 `hasData`를 싣지 않는다
+   */
+  dataKeys?(name: string): Promise<number | null>;
   /** `mcp.client` 기능의 공급자. 아직 올라오지 않았으면 undefined(MCP 목록은 빈 목록이다) */
   mcpClient(): McpClientPort | undefined;
   health(name: string): ExtHealthStats;
@@ -621,6 +625,15 @@ export function createExtReadPort(
     return reason === null ? {} : { forcedOn: reason };
   }
 
+  /**
+   * 전용 저장소에 값이 있는지(`hasData`, `ext.list`만). 원천이 없거나 키 수를 읽지 못했으면 필드를 싣지 않는다(거짓이 아니라 모른다)
+   */
+  async function hasDataOf(name: string): Promise<{ readonly hasData?: boolean }> {
+    if (sources.dataKeys === undefined) return {};
+    const keys = await sources.dataKeys(name);
+    return keys === null ? {} : { hasData: keys > 0 };
+  }
+
   function entryOf(
     record: ExtensionRecord,
     infos: ReadonlyMap<string, RegistrationStatus>,
@@ -790,11 +803,15 @@ export function createExtReadPort(
       if (!thread.ok) return thread;
       const infos = statusMap();
       const safe = sources.safeMode();
-      return ok({
-        extensions: sources
-          .extensions()
-          .map((record) => entryOf(record, infos, params.threadId, safe)),
-      });
+      // 확장마다 전용 저장소를 한 번씩 읽는다. 읽지 못한 행은 `hasData`가 없을 뿐 목록 전체를 막지 않는다
+      const extensions = await Promise.all(
+        sources.extensions().map(async (record) => {
+          const entry = entryOf(record, infos, params.threadId, safe);
+          const data = await hasDataOf(record.manifest.name);
+          return data.hasData === undefined ? entry : Object.assign(entry, data);
+        }),
+      );
+      return ok({ extensions });
     },
 
     get(params) {

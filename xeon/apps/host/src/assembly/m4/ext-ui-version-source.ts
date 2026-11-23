@@ -40,7 +40,13 @@ export interface ExtUiVersionSource {
   readonly loader: () =>
     | Pick<
         ExtensionLoader,
-        "list" | "uiEntries" | "reload" | "reloadFromReviewed" | "loadInstalled" | "unload"
+        | "list"
+        | "uiEntries"
+        | "reload"
+        | "reloadFromReviewed"
+        | "loadInstalled"
+        | "unload"
+        | "ensureLoaded"
       >
     | undefined;
   /** 검토본 저장소. 버전 목록과 되돌리기의 원천이다(§4.6.7~8) */

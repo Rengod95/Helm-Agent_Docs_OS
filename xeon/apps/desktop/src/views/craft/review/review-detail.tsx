@@ -74,6 +74,7 @@ import {
   Section,
 } from "./review-parts.tsx";
 import type { ReviewData } from "./review-source.ts";
+import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 
 /** 요약 띠: 종류 타일 28, 이름(19/600)과 버전, "무엇을 하려는지 · 어디서 · 언제", 칩 줄은 타일 왼끝에서 시작한다 */
 function ReviewHead(props: {
@@ -923,7 +924,9 @@ function RemovesSection(props: { readonly item: ReviewItem }): ReactNode {
           {removal.affectedProfiles.length === 0
             ? t("desktop.craft.review.removes.noProfiles")
             : t("desktop.craft.review.removes.profiles", {
-                names: removal.affectedProfiles.map((p) => p.title).join(", "),
+                names: removal.affectedProfiles
+                  .map((p) => profileTitleOf(p.profileId, p.title))
+                  .join(", "),
               })}
         </li>
         {removal.removes.state ? (

@@ -41,6 +41,8 @@ import {
 } from "./tool-view-model.ts";
 import { MetaParts } from "../meta-parts.tsx";
 import { FixPluginLink } from "../plugin/fix-plugin-link.tsx";
+import { trialThreadOf } from "../authoring-row-model.ts";
+import { TrialChatLink } from "./trial-chat-link.tsx";
 
 // 도구 호출 하나의 줄(dzT2a 시안 3.3). 결과·진행 출력·개입·승인 기록을 구독해 `ToolLine`에 넘긴다. 결과가 오면 같은 줄이 결과를 따른다.
 
@@ -373,6 +375,8 @@ export function CallRow(props: {
       </>
     );
   const hasDetail = detail !== null;
+  const trialThread =
+    view === null || view.outcome.kind !== "done" ? null : trialThreadOf(name, view.output);
   // 묶음 안 실패 줄의 한 줄 요약. 펼치면 상자가 같은 글을 보이므로 감춘다
   // 도구 인자 검증 오류(`badArgs`)는 묶음 밖에서도 접고, 영어 원문 대신 한 줄을 보인다. 원문은 펼치면 나온다
   const badArgs =
@@ -418,6 +422,7 @@ export function CallRow(props: {
           )}
           {tail.length === 0 ? null : <div className="convo-tail">{tail.join("\n")}</div>}
           {view === null ? null : <SandboxNotes blocks={view.blocks} />}
+          {trialThread === null ? null : <TrialChatLink threadId={trialThread} />}
           <SourceChips sources={sources} />
         </>
       }

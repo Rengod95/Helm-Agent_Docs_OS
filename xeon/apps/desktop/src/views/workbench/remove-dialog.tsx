@@ -1,6 +1,6 @@
 // 지우기 확인(위험 확인). 확인하면 지우기 요청(`plugin.requestRemove`)이 검토함에 올라간다. 본문은 그 사실을 적는다.
 // 영향 묶음은 두 줄이다: 이 확장을 쓰는 프로필(`profile.list`의 plugins)과 플러그인 뷰(화면 항목 목록, 상태와 무관하게 이 확장의 것).
-// 저장 데이터는 엔진에 목록도 지우기도 없어 이 상자는 다루지 않는다.
+// 저장 데이터가 있으면(`ext.list`의 `hasData`) 경고 한 줄을 보인다. 실제로 지우는 것은 검토가 승인한 뒤의 일이다.
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow, type Result } from "@fresnel/contracts";
 import type { ExtUiEntry, Profile } from "@fresnel/contracts/wire";
@@ -15,6 +15,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import type { CommandError, DependencyRefusalView } from "../commands.ts";
 import { DependencyRefusal } from "../craft/deps/dependency-refusal.tsx";
+import { NoticeLine } from "../craft/review/review-parts.tsx";
 import {
   placementTextOf,
   pluginViewsOf,
@@ -45,6 +46,8 @@ interface RemoveDialogProps {
   readonly busy: boolean;
   /** 꼭 기대는 쪽이 있어 엔진이 거절했으면 그 목록(AGE-33). 상자를 열어 두고 목록을 보인다 */
   readonly refusal?: DependencyRefusalView | null;
+  /** 전용 저장소에 값이 있나(`ext.list`의 `hasData`). 참일 때만 "저장한 데이터도 같이 지워져요" 경고를 보인다. 없으면(옛 호스트, 읽지 못함) 경고도 없다 */
+  readonly hasData?: boolean;
   readonly loadProfiles: LoadProfiles;
   /** 플러그인 화면 항목 전부(`usePluginUiState().entries`). 이 확장의 것만 골라 보인다. 상태가 `ready`가 아니면 null이다 */
   readonly pluginEntries: readonly ExtUiEntry[] | null;
@@ -119,7 +122,11 @@ function RemoveDialogOf(props: RemoveDialogProps): ReactNode {
         </>
       }
     >
-      <RemoveDialogBody impact={impact} refusal={props.refusal ?? null} />
+      <RemoveDialogBody
+        impact={impact}
+        refusal={props.refusal ?? null}
+        hasData={props.hasData === true}
+      />
     </Dialog>
   );
 }
@@ -174,14 +181,19 @@ function ImpactRows(props: { readonly impact: RemoveImpact }): ReactNode {
 }
 
 /**
- * 상자 본문: 영향 묶음과, 엔진이 거절했을 때의 의존 목록. 상자는 포털이라 서버 렌더 시험은 본문(`RemoveDialogBody`)을 본다.
+ * 상자 본문: 저장 데이터 경고(있을 때만), 영향 묶음, 엔진이 거절했을 때의 의존 목록. 상자는 포털이라 서버 렌더 시험은 본문(`RemoveDialogBody`)을 본다.
  */
 export function RemoveDialogBody(props: {
   readonly impact: RemoveImpact;
   readonly refusal?: DependencyRefusalView | null;
+  /** 전용 저장소에 값이 있다. 참이면 리뷰 카드와 같은 경고 한 줄을 보인다 */
+  readonly hasData?: boolean;
 }): ReactNode {
   return (
     <div className="grid gap-3">
+      {props.hasData === true ? (
+        <NoticeLine tone="warning">{t("desktop.craft.review.removes.state")}</NoticeLine>
+      ) : null}
       <ImpactRows impact={props.impact} />
       {props.refusal === undefined || props.refusal === null ? null : (
         <div role="alert">
