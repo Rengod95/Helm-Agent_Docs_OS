@@ -42,3 +42,13 @@ test("an unknown title stays as it is and an empty one gets the generic name", (
   );
   expect(approvalTitleOf({ title: "", bodyKind: "tool", toolName: "bash" })).not.toBe("");
 });
+
+test("a draft plugin's tool approval title becomes Korean and keeps the plugin and tool names (R-06)", () => {
+  expect(
+    approvalTitleOf({
+      title: 'Draft plugin "kanban-board" asks. Allow tool "kanban_board_add_item"?',
+      bodyKind: "tool",
+      toolName: "kanban_board_add_item",
+    }),
+  ).toBe('드래프트 플러그인 "kanban-board"의 도구 "kanban_board_add_item" 실행을 허용할까요?');
+});

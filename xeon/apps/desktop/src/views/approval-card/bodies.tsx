@@ -292,6 +292,11 @@ export function ToolBody(props: {
   const listed = command !== null || mcp !== null || view.secrets.length > 0;
   return (
     <>
+      {props.body.draft === undefined ? null : (
+        <Alert tone="warning" layout="inline" data-slot="approval-draft-notice">
+          {t("desktop.approvals.draft.always")}
+        </Alert>
+      )}
       {replace === null ? null : <ReplaceDetails view={replace} />}
       {mcpTool === null ? null : <McpToolBlock view={mcpTool} />}
       {mcp === null || mcp.changed === null ? null : (

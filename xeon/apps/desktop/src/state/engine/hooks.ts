@@ -146,6 +146,7 @@ export const useTurnFailures = (): Readonly<Record<string, string>> =>
 export const useRecentTurnIds = (id: string | null): readonly TurnId[] =>
   useEngine((s) => sel.selectRecentTurnIds(s, id));
 export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount);
+export const useQuestionCount = (): number => useEngine(sel.selectQuestionCount);
 /** 이 대화에 시한이 있는 대기 승인이 있는지 */
 export const useApprovalUrgent = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectApprovalUrgent(s, id));
