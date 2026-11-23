@@ -373,14 +373,33 @@ function taskStateOf(status: NowTask["status"]): NowTask["state"] {
   return "done";
 }
 
+/**
+ * 보유 중인 임대가 없고 마지막으로 끝난 임대가 스스로 끝났(`done`·`idle`)으면 그 반납 seq를 돌려준다. 그 뒤에 바뀌지 않은 할 일은 끝난 Drive가
+ * 남긴 기록이라 "지금"이 아니다(끝난 뒤에도 0/N이 남던 F-42). 한도·오류·재시작으로 끝난 것은 남은 할 일이 실제로 남은 일이라 null이다.
+ */
+function endedDriveSeqOf(leases: readonly LeaseRecord[]): number | null {
+  let endedAt = -1;
+  let reason: LeaseRecord["releaseReason"] = null;
+  for (const lease of leases) {
+    if (lease.releasedSeq === null) return null;
+    if (lease.releasedSeq > endedAt) {
+      endedAt = lease.releasedSeq;
+      reason = lease.releaseReason;
+    }
+  }
+  return reason === "done" || reason === "idle" ? endedAt : null;
+}
+
 /** thread의 "지금": 목표, 판정, 할 일 목록과 진행, 도는 하위 에이전트 수, 기다리는 승인 수 */
 export function selectNow(s: EngineMirror, threadId: ThreadId): NowState {
   const c = convoOf(s, threadId);
   const cached = nowCache.get(c);
   if (cached !== undefined && cached.approvals === s.approvals) return cached.now;
+  const staleBefore = endedDriveSeqOf(c.leases);
   const tasks = c.taskOrder.flatMap((id): NowTask[] => {
     const t = c.tasks[id];
     if (t === undefined) return [];
+    if (staleBefore !== null && t.seq <= staleBefore) return [];
     const blocked = t.task.blockedBy.some((b) => {
       const other = c.tasks[b];
       return other !== undefined && other.task.status !== "completed";
