@@ -110,7 +110,7 @@ export function PluginPagesTab(): ReactNode {
 }
 
 /**
- * 엔진이 붙으면(`live`) 화면 목록을 읽고, 확장 켜짐·꺼짐과 앱 정책이 바뀌는 알림에서 다시 읽는다. 확인 줄 모달을 그린다.
+ * 엔진이 붙으면(`live`) 화면 목록을 읽고, 확장 켜짐·꺼짐과 앱 정책이 바뀌는 알림, 리뷰 결정 알림에서 다시 읽는다. 확인 줄 모달을 그린다.
  * 화면 트리 어디에든 한 번 둔다. 재연결하면 새 연결로 다시 듣는다
  */
 export function PluginUiHost(): ReactNode {
@@ -120,11 +120,19 @@ export function PluginUiHost(): ReactNode {
   useEffect(() => {
     if (phase !== "live") return undefined;
     detach(runtime.refresh(), rethrow);
-    const connection = commands.pluginUi.current();
-    if (connection === null) return undefined;
-    return watchExtensionChanges(connection, () => {
+    // 리뷰에서 승인하거나 지운 확장의 화면이 재시작 없이 앱 목록과 탭에 오른다(AGE-78, 설치 상자의 rtC R-1과 같은 일)
+    const offReview = commands.pluginReview.onChanged(() => {
       detach(runtime.refresh(), rethrow);
     });
+    const connection = commands.pluginUi.current();
+    if (connection === null) return offReview;
+    const offWatch = watchExtensionChanges(connection, () => {
+      detach(runtime.refresh(), rethrow);
+    });
+    return () => {
+      offReview();
+      offWatch();
+    };
   }, [phase, runtime, commands]);
   return <ConfirmHost queue={confirm} />;
 }

@@ -69,7 +69,7 @@ describe("plugin tabs", () => {
       "helm",
     );
     expect(native).toContain(">대화로<");
-    expect(native).not.toContain(">플러그인 앱<");
+    expect(native).not.toContain(">자체 코드<");
     const app = await render(
       [
         uiEntryOf({
@@ -83,12 +83,12 @@ describe("plugin tabs", () => {
       "pages",
     );
     expect(app).toContain(">대화로<");
-    expect(app.replaceAll("<!-- -->", "")).toContain("플러그인 앱");
+    expect(app.replaceAll("<!-- -->", "")).toContain("자체 코드");
   });
 
   test("the Helm tab says the extension has no views when nothing is placed", async () => {
     const html = await render([], "helm");
-    expect(html).toContain("이 플러그인은 화면을 내지 않아요");
+    expect(html).toContain("이 플러그인은 앱을 내지 않아요");
   });
 
   test("the Helm tab keeps its screen list and puts the inquiry results section under it", async () => {
@@ -116,7 +116,7 @@ describe("plugin tabs", () => {
       "pages",
     );
     expect(html).toContain("고장");
-    expect(html).toContain("이 화면을 열 수 없어요: bad tree");
+    expect(html).toContain("이 앱을 열 수 없어요: bad tree");
     expect(html).not.toContain("Helm 패널");
   });
 

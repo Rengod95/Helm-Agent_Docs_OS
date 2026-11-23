@@ -5,7 +5,7 @@ import { frameReasonText } from "../../../src/views/plugin/frame-reason.ts";
 describe("프레임이 닫힌 이유 문장", () => {
   test("이유가 없으면 기본 문장이고 풀이는 없다", () => {
     expect(frameReasonText(null)).toEqual({
-      line: "이 화면이 꺼졌어요. 다시 켜면 처음부터 다시 불러와요.",
+      line: "이 앱이 꺼졌어요. 다시 켜면 처음부터 다시 불러와요.",
       info: null,
     });
   });

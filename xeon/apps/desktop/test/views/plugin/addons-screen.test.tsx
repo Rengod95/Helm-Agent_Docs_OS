@@ -1,17 +1,25 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { INITIAL_WORKBENCH } from "@fresnel/client/workbench";
+import { Menu } from "@caustic/react";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
+import { parseHTML } from "linkedom";
 import { renderToString } from "react-dom/server";
 import { createShellStore } from "../../../src/state/shell/index.ts";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
-import { addonDetailOf, type AddonMetaMap } from "../../../src/views/plugin/addon-model.ts";
+import {
+  addonDetailOf,
+  addonRowsOf,
+  type AddonMetaMap,
+} from "../../../src/views/plugin/addon-model.ts";
+import { addonMovesOf } from "../../../src/views/plugin/app-moves.ts";
 import {
   AddonDetailView,
   AddonsScreen,
-  addonMovesOf,
+  OthersGroup,
   type DetailOps,
 } from "../../../src/views/plugin/addons-screen.tsx";
+import { AppTile, AppTileMenuItems } from "../../../src/views/plugin/plugin-card.tsx";
 import {
   markAddonRequest,
   pendingAddonRequest,
@@ -21,7 +29,7 @@ import { APP_DECL, uiEntryOf } from "../../plugin-ui/support.ts";
 import { inContexts } from "../workbench/support.tsx";
 import { loadedPluginUi } from "./support.tsx";
 
-// 플레이그라운드 화면(addons-screen.tsx)의 첫 장면(서버 렌더)과 크래프트로 가는 동작.
+// 플레이그라운드 홈(addons-screen.tsx: 앱 타일 격자)과 상세, 타일(plugin-card.tsx), 크래프트로 가는 동작. 효과가 없는 서버 렌더로 본다.
 
 const VIEWDEMO: readonly ExtUiEntry[] = [
   uiEntryOf({ extension: "viewdemo", id: "notes", title: "Native demo", version: "1.0.0" }),
@@ -35,7 +43,11 @@ const VIEWDEMO: readonly ExtUiEntry[] = [
   }),
 ];
 
+const NOOP = (): void => undefined;
+const NO_META: AddonMetaMap = new Map();
+
 const plain = (html: string): string => html.replaceAll("<!-- -->", "");
+const countOf = (html: string, text: string): number => html.split(text).length - 1;
 
 async function screenHtml(entries: readonly ExtUiEntry[]): Promise<string> {
   const plugin = await loadedPluginUi(entries);
@@ -51,34 +63,85 @@ async function screenHtml(entries: readonly ExtUiEntry[]): Promise<string> {
   );
 }
 
+/** 플러그인 하나의 타일을 서버 렌더한다. 목록에 없는 이름이면 빈 글 */
+function tileHtml(
+  entries: readonly ExtUiEntry[],
+  name: string,
+  options: { readonly meta?: AddonMetaMap; readonly pinned?: boolean } = {},
+): string {
+  const row = addonRowsOf(
+    { entries, inactive: new Set(), settings: {} },
+    options.meta ?? NO_META,
+    "ko",
+  ).find((item) => item.name === name);
+  if (row === undefined) return "";
+  return plain(
+    renderToString(
+      <ul>
+        <AppTile
+          row={row}
+          pinned={options.pinned ?? false}
+          onOpen={NOOP}
+          onPin={NOOP}
+          onFix={NOOP}
+          onManage={NOOP}
+        />
+      </ul>,
+    ),
+  );
+}
+
+/** 타일 메뉴를 펼쳐 그린 항목 글. 인라인 메뉴는 효과 없이 열린 채로 그려진다 */
+function menuLabelsOf(builtin: boolean, pinned = false): readonly string[] {
+  const html = renderToString(
+    <Menu inline open size="sm">
+      <AppTileMenuItems
+        builtin={builtin}
+        pinned={pinned}
+        onPin={NOOP}
+        onFix={NOOP}
+        onManage={NOOP}
+      />
+    </Menu>,
+  );
+  const doc = parseHTML(`<!doctype html><html><body>${html}</body></html>`).document;
+  return [...doc.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent);
+}
+
 beforeEach(() => {
   // 다른 시험이 남긴 요청을 따른 것으로 적어 화면이 목록부터 열리게 한다
   const pending = pendingAddonRequest();
   if (pending !== undefined) markAddonRequest(pending);
 });
 
-describe("플레이그라운드 목록", () => {
-  test("the header says Playground with a find button, and each plugin is one card with its screen count", async () => {
+describe("플레이그라운드 홈", () => {
+  test("the home is the title and one app tile per plugin with screens, a create tile after them, and no header action", async () => {
     const html = await screenHtml(VIEWDEMO);
     expect(html).toContain(`>${t("desktop.shell.nav.plugins")}</h1>`);
     expect(t("desktop.shell.nav.plugins")).toBe("플레이그라운드");
-    expect(html).toContain(t("desktop.addons.find"));
-    expect(html).toContain('data-slot="plugin-card"');
-    expect(html).toContain(t("desktop.addons.intro"));
-    expect(html).toContain(">viewdemo<");
-    expect(html).toContain(t("desktop.addons.count.screens", { count: 2 }));
+    expect(html).not.toContain(t("desktop.addons.find"));
+    expect(html).not.toContain(t("desktop.addons.intro"));
+    expect(html).toContain(`aria-label="${t("desktop.apps.label")}"`);
+    expect(countOf(html, 'data-slot="app-tile"')).toEqual(1);
+    expect(html).toContain('data-plugin="viewdemo"');
+    expect(countOf(html, 'data-slot="app-create"')).toEqual(1);
+    expect(html).toContain(t("desktop.apps.create.title"));
+    // 타일에는 화면 수 같은 메타 줄이 없다
+    expect(html).not.toContain(t("desktop.addons.count.screens", { count: 2 }));
     // 목록 단계에서는 화면을 바로 열지 않는다
     expect(html).not.toContain(t("desktop.plugin.header.backToChat"));
     expect(html).not.toContain(t("desktop.plugin.thread.title"));
   });
 
-  test("the empty state explains what gathers here and offers find and build, in the list's place", async () => {
+  test("with no apps the home is the empty state: what gathers here and one create button, no tiles", async () => {
     const html = await screenHtml([]);
     expect(html).toContain(t("desktop.addons.empty.title"));
     expect(html).toContain(t("desktop.addons.empty.body"));
-    expect(html).toContain(t("desktop.addons.kind.card.title"));
-    expect(html).toContain(t("desktop.addons.find"));
-    expect(html).toContain(t("desktop.addons.build"));
+    expect(html).toContain(t("desktop.apps.create.title"));
+    expect(countOf(html, 'data-slot="app-tile"')).toEqual(0);
+    expect(countOf(html, 'data-slot="app-create"')).toEqual(0);
+    // 옛 종류 목록은 그리지 않는다
+    expect(html).not.toContain(t("desktop.addons.kind.card.title"));
   });
 
   test('a plugin asked for before the screen opens (tab menu "details") is the first thing shown', async () => {
@@ -86,11 +149,61 @@ describe("플레이그라운드 목록", () => {
     const html = await screenHtml(VIEWDEMO);
     expect(html).toContain(t("desktop.addons.detail.back"));
     expect(html).toContain(t("desktop.addons.section.screens"));
-    expect(html).not.toContain('data-slot="plugin-card"');
+    expect(countOf(html, 'data-slot="app-tile"')).toEqual(0);
   });
 });
 
-const NOOP = (): void => undefined;
+describe("앱 타일", () => {
+  test("a normal tile is one button with its title; the status orb and pin mark show only when needed", () => {
+    const plainTile = tileHtml(VIEWDEMO, "viewdemo");
+    expect(plainTile).toContain('data-slot="app-tile"');
+    expect(plainTile).not.toContain(t("desktop.addons.badge.off"));
+    expect(plainTile).not.toContain(t("desktop.playgroundTabs.attention.danger"));
+    expect(plainTile).not.toContain(`aria-label="${t("desktop.addons.card.pinned")}"`);
+
+    const off = tileHtml(VIEWDEMO, "viewdemo", {
+      meta: new Map([["viewdemo", { enabled: false }]]),
+    });
+    expect(off).toContain(t("desktop.addons.badge.off"));
+
+    const broken = tileHtml(
+      [uiEntryOf({ extension: "viewdemo", id: "notes", state: "invalid" })],
+      "viewdemo",
+    );
+    expect(broken).toContain(t("desktop.playgroundTabs.attention.danger"));
+
+    const pinned = tileHtml(VIEWDEMO, "viewdemo", { pinned: true });
+    expect(pinned).toContain(`aria-label="${t("desktop.addons.card.pinned")}"`);
+  });
+
+  test("the tile menu has pin, fix and manage; a builtin app has no fix item", () => {
+    expect(menuLabelsOf(false)).toEqual([
+      t("desktop.apps.menu.pin"),
+      t("desktop.apps.menu.fix"),
+      t("desktop.apps.menu.manage"),
+    ]);
+    expect(menuLabelsOf(true)).toEqual([t("desktop.apps.menu.pin"), t("desktop.apps.menu.manage")]);
+    expect(menuLabelsOf(false, true)[0]).toEqual(t("desktop.apps.menu.unpin"));
+  });
+});
+
+describe("이 프로필에 없는 앱 묶음", () => {
+  test("the group is folded at first: its toggle says closed and its apps are not drawn", () => {
+    const html = plain(
+      renderToString(
+        <OthersGroup count={2}>
+          <p>숨은 앱</p>
+        </OthersGroup>,
+      ),
+    );
+    expect(html).toContain(t("desktop.apps.others.title"));
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain(">2<");
+    expect(html).toContain('data-slot="info-tip"');
+    expect(html).not.toContain("숨은 앱");
+  });
+});
+
 const OPS: DetailOps = {
   pin: { pinned: true, onChange: NOOP },
   onOpenScreen: NOOP,

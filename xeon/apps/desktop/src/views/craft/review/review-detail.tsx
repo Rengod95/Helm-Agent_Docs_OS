@@ -4,14 +4,17 @@
 //   오른쪽 좁은 열 = 판단하는 것(`review-judge.tsx`): 코드 실행 경고, 권한과 위험, 출처, 넣을 곳, 거절·승인. 열이 따로 스크롤해
 //   긴 차이를 읽는 동안에도 경고와 결정 단추가 남는다.
 // 섹션 문법은 캔버스 상세 패널(cv4)과 같다(제목 15/600, 아이콘 없음, 섹션 사이 가는 선).
+import { Chip as CausticChip } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type {
-  CardScriptEnv,
-  HookKind,
-  HookPower,
-  PluginCard,
-  ScriptUse,
+import {
+  BRIDGE_CAPABILITIES,
+  type BridgeCapability,
+  type CardScriptEnv,
+  type HookKind,
+  type HookPower,
+  type PluginCard,
+  type ScriptUse,
 } from "@fresnel/contracts/extensions";
 import type { DiffRow as CardDiffRow, Profile, ReviewItem } from "@fresnel/contracts/wire";
 import { useId, type ReactNode, type Ref } from "react";
@@ -23,6 +26,7 @@ import {
   partyNameOf,
   splitRegistration,
 } from "../deps/deps-model.ts";
+import { appRowsOf, type AppRow } from "./review-app-rows.ts";
 import {
   changeWhatOf,
   workFactsOf,
@@ -351,6 +355,93 @@ function FactRow(props: {
   );
 }
 
+const APP_WHERE_WORD: Readonly<Record<AppRow["where"], MessageId>> = {
+  page: "desktop.craft.review.app.where.page",
+  panel: "desktop.craft.review.app.where.panel",
+};
+
+const APP_MODE_WORD: Readonly<Record<"native" | "app", MessageId>> = {
+  native: "desktop.craft.review.app.mode.native",
+  app: "desktop.craft.review.app.mode.app",
+};
+
+const CAP_TITLE: Readonly<Record<BridgeCapability, MessageId>> = {
+  files: "desktop.addons.cap.files.title",
+  notify: "desktop.addons.cap.notify.title",
+  settingsWrite: "desktop.addons.cap.settingsWrite.title",
+  secrets: "desktop.addons.cap.secrets.title",
+};
+
+/** 다리 권한 이름의 글. 계약에 없는 이름은 그 이름 그대로 보인다 */
+function capTitleOf(name: string): string {
+  const known = BRIDGE_CAPABILITIES.find((cap) => cap === name);
+  return known === undefined ? name : t(CAP_TITLE[known]);
+}
+
+/** "앱" 줄 묶음: 라벨 칸(앱)과 값 칸(화면마다 한 줄). 위의 줄들과 같은 `dl` 안에 같은 배치로 놓인다 */
+function AppRows(props: { readonly rows: readonly AppRow[] }): ReactNode {
+  return (
+    <div className="flex items-start gap-3 py-0.75">
+      <dt className="w-12 shrink-0 pt-0.75 text-ui-sm leading-4 text-text-tertiary">
+        {t("desktop.craft.review.app.title")}
+      </dt>
+      <dd className="m-0 min-w-0 flex-1">
+        <ul className="m-0 grid list-none gap-2 p-0">
+          {props.rows.map((row) => (
+            <AppLine key={`${row.where}:${row.id}`} row={row} />
+          ))}
+        </ul>
+      </dd>
+    </div>
+  );
+}
+
+/** 앱 줄 하나: 자리, 이름, 방식. 자체 코드(app)면 아래에 까닭과 다리 권한을 잇는다 */
+function AppLine(props: { readonly row: AppRow }): ReactNode {
+  const { row } = props;
+  return (
+    <li className="grid gap-1">
+      <div className="flex items-baseline gap-2">
+        <span className="text-ui-sm text-text-tertiary">{t(APP_WHERE_WORD[row.where])}</span>
+        <span className="font-mono text-ui-sm text-text-primary">{row.id}</span>
+        {row.mode === null ? null : (
+          <CausticChip size="sm" tone="neutral" variant="soft">
+            {t(APP_MODE_WORD[row.mode])}
+          </CausticChip>
+        )}
+      </div>
+      {row.mode === "app" && row.reason !== null ? (
+        <div className="flex items-baseline gap-3">
+          <span className="w-20 shrink-0 text-ui-sm text-text-tertiary">
+            {t("desktop.craft.review.app.reason")}
+          </span>
+          <span className="min-w-0 max-w-[72ch] text-ui-sm text-text-secondary">{row.reason}</span>
+        </div>
+      ) : null}
+      {row.mode === "app" ? (
+        <div className="flex flex-wrap items-baseline gap-3">
+          <span className="w-20 shrink-0 text-ui-sm text-text-tertiary">
+            {t("desktop.craft.review.app.caps")}
+          </span>
+          {row.capabilities.length === 0 ? (
+            <span className="text-ui-sm text-text-secondary">
+              {t("desktop.craft.review.app.capsNone")}
+            </span>
+          ) : (
+            <span className="flex flex-wrap gap-1">
+              {row.capabilities.map((name) => (
+                <CausticChip key={name} size="sm" tone="neutral" variant="soft">
+                  {capTitleOf(name)}
+                </CausticChip>
+              ))}
+            </span>
+          )}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 const ROW_WORD: Readonly<Record<CardDiffRow, MessageId>> = {
   inject: "desktop.craft.review.row.inject",
   hook: "desktop.craft.review.row.hook",
@@ -467,7 +558,8 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
       };
     },
   );
-  const rows = [facts.when, facts.reads, facts.changes, facts.gives, dependChips];
+  const apps = appRowsOf(facts.screens);
+  const rows = [facts.when, facts.reads, facts.changes, facts.gives, dependChips, apps];
   return (
     <Section title="desktop.craft.review.section.how" id="how">
       {rows.every((r) => r.length === 0) ? (
@@ -482,6 +574,7 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
           />
           <FactRow label="desktop.craft.review.fact.gives" chips={facts.gives.map(givesChip)} />
           <FactRow label="desktop.craft.review.fact.depends" chips={dependChips} />
+          {apps.length > 0 ? <AppRows rows={apps} /> : null}
         </dl>
       )}
       {item.kind === "update" && changes.length > 0 ? (

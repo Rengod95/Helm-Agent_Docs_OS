@@ -447,6 +447,22 @@
     "sources": ["adr.0022", "adr.0021"],
     "status": "proposed"
   },
+  "app": {
+    "kind": "concept",
+    "doc": {
+      "ko": "App",
+      "en": "App"
+    },
+    "ui": {
+      "ko": "앱",
+      "en": "App"
+    },
+    "surfaces": ["chat"],
+    "ids": ["page", "panel", "apps"],
+    "sharesLabelWith": ["layerApps"],
+    "sources": ["adr.0021"],
+    "status": "proposed"
+  },
   "addOns": {
     "kind": "concept",
     "doc": {
@@ -793,6 +809,7 @@
     },
     "surfaces": ["workbench"],
     "ids": ["L4"],
+    "sharesLabelWith": ["app"],
     "sources": ["adr.0022", "architecture.layers.spec"],
     "status": "proposed"
   },

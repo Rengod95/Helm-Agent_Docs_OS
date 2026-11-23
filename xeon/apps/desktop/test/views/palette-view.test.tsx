@@ -233,9 +233,9 @@ describe("palette hand-offs in the ui store", () => {
   test("a composer request carries its insert text until the input settles it", () => {
     const ui = createUiStore();
     ui.actions.requestComposer("/helm ");
-    expect(ui.read.getState().composerRequest).toEqual({ insert: "/helm " });
+    expect(ui.read.getState().composerRequest).toEqual({ insert: "/helm ", mode: "fill" });
     ui.actions.requestComposer(null);
-    expect(ui.read.getState().composerRequest).toEqual({ insert: null });
+    expect(ui.read.getState().composerRequest).toEqual({ insert: null, mode: "fill" });
     ui.actions.settleComposerRequest();
     expect(ui.read.getState().composerRequest).toBeNull();
   });

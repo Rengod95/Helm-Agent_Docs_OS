@@ -13,7 +13,7 @@ import {
   type BridgePolicyContext,
   type ThemePush,
 } from "@fresnel/client/views/app";
-import { Alert, Button, Chip, IconButton, Tooltip } from "@caustic/react";
+import { Alert, Button, Chip, IconButton, toast, Tooltip } from "@caustic/react";
 import { ChevronLeft, CodeXml, MessageSquare } from "@caustic/react/icons";
 import {
   useCallback,
@@ -114,10 +114,17 @@ export interface PluginViewBack {
   readonly onBack: () => void;
 }
 
-/** 머리 줄 탭 화면(DP-90)의 머리: 지금 탭이 곧 제목이라 제목은 낭독기에만, 컨트롤 자리에 화면 고르기, 끝에 탭 메뉴 */
+/**
+ * 앱 작업 공간(머리 줄 탭 화면, DP-90, AGE-78)의 머리. `title`을 주면 그 이름(앱 이름)이 보이는 제목이고, 없으면 제목은 낭독기에만 있다.
+ * `lead`는 제목 앞(뒤로 가기), `controls`는 화면 고르기, `action`은 끝의 동작들이다
+ */
 export interface PluginViewTab {
+  readonly lead?: ReactNode;
+  readonly title?: string;
   readonly controls?: ReactNode;
   readonly action: ReactNode;
+  /** 확장이 꺼졌거나 이 대화의 프로필에 없어 그리지 못할 때 경고 아래에 둘 관리 단추 */
+  readonly onManage?: () => void;
 }
 
 /** 플러그인 앱 표지. 툴팁은 앱 선언의 이유다. 화면 맨 위 머리 안의 표지라 툴팁은 아래로 연다(DP-60) */
@@ -148,13 +155,30 @@ function StateNote(props: {
   readonly text: string;
   readonly tone: "warning" | "danger";
   readonly page: boolean;
+  readonly onManage?: (() => void) | undefined;
 }): ReactNode {
-  if (!props.page) return <Note text={props.text} />;
+  const manage =
+    props.onManage === undefined ? null : (
+      <div className="flex">
+        <Button size="sm" variant="outline" onClick={props.onManage}>
+          {t("desktop.apps.menu.manage")}
+        </Button>
+      </div>
+    );
+  if (!props.page) {
+    return (
+      <div className="grid gap-2">
+        <Note text={props.text} />
+        {manage}
+      </div>
+    );
+  }
   return (
-    <div className="mx-auto w-full max-w-200">
+    <div className="mx-auto grid w-full max-w-200 gap-3">
       <Alert variant="outline" tone={props.tone}>
         {props.text}
       </Alert>
+      {manage}
     </div>
   );
 }
@@ -178,8 +202,9 @@ function Header(props: {
   if (tab !== undefined) {
     return (
       <ScreenHeader
-        title={extMessageOf(entry.messages, activeLocale(), entry.title)}
-        titleHidden
+        title={tab.title ?? extMessageOf(entry.messages, activeLocale(), entry.title)}
+        titleHidden={tab.title === undefined}
+        lead={tab.lead}
         meta={
           <>
             {entry.trust === "project" ? (
@@ -359,6 +384,7 @@ export function createSession(
   openExternal: (href: string) => Promise<void>,
   shell?: PluginShellPort,
   openView?: (view: string) => boolean,
+  draft?: (text: string) => void,
 ): Session {
   const box: SessionBox = { thread: threadId, context };
   return {
@@ -410,6 +436,7 @@ export function createSession(
         },
         // 실행기가 확인 줄을 거친 주소만 여기까지 온다. 확인 없이 OS 브라우저를 여는 길은 없다
         openExternal,
+        draft,
         resize,
         diagnostic: () => {},
       }),
@@ -476,6 +503,12 @@ function useSession(
       openExternal,
       shell,
       openView,
+      // 사용자 확장의 `post`는 입력창 끝에 덧붙인다. 보내기는 사람이 누른다(턴을 시작하지 않는다)
+      (text) => {
+        commands.requestComposer(text, "append");
+        const name = extMessageOf(entry.messages, activeLocale(), entry.title);
+        toast({ tone: "info", title: t("desktop.apps.draft.notice", { name }) });
+      },
     ),
   );
   useEffect(() => {
@@ -766,11 +799,21 @@ export function PluginView(props: {
   readonly tab?: PluginViewTab | undefined;
   /** 좁은 옆 패널에 그린다. 머리 메타를 버전 하나로 줄인다(`Header`) */
   readonly compact?: boolean | undefined;
+  /** 머리를 그리지 않는다. 머리를 따로 가진 자리(대화 옆 "앱" 탭, AGE-78)가 쓴다 */
+  readonly bare?: boolean | undefined;
+  /** 확장이 꺼졌거나 이 대화의 프로필에 없을 때 경고 아래에 둘 관리 단추(`bare` 자리용. 탭 머리는 `tab.onManage`) */
+  readonly onManage?: (() => void) | undefined;
 }): ReactNode {
   const { entry, back, tab } = props;
   const page = back !== undefined || tab !== undefined;
-  const stop = (text: string, tone: "warning" | "danger"): ReactNode => (
-    <StateNote text={text} tone={tone} page={page} />
+  const onManage = tab?.onManage ?? props.onManage;
+  const stop = (text: string, tone: "warning" | "danger", manage?: boolean): ReactNode => (
+    <StateNote
+      text={text}
+      tone={tone}
+      page={page}
+      onManage={manage === true ? onManage : undefined}
+    />
   );
   const { runtime } = usePluginUi();
   const threadId = useReadyThreadId();
@@ -784,15 +827,25 @@ export function PluginView(props: {
     (skipped) => skipped.extension === entry.extension && skipped.version === entry.version,
   );
   let body: ReactNode;
-  if (entry.state === "disabled") body = stop(t("desktop.plugin.state.disabled"), "warning");
-  else if (entry.state === "invalid") {
+  if (entry.state === "disabled") {
+    // 꺼진 확장. 앱 자리(작업 공간, 대화 옆)에서는 켜는 길(관리)을 같이 둔다
+    body =
+      onManage === undefined
+        ? stop(t("desktop.plugin.state.disabled"), "warning")
+        : stop(t("desktop.apps.state.notInProfile"), "warning", true);
+  } else if (entry.state === "invalid") {
     const reason = stripUnsafeText(entry.issues[0]?.message ?? "", false);
     body = stop(t("desktop.plugin.state.invalid", { reason }), "danger");
   } else if (loaded === undefined) body = <Note text={t("desktop.plugin.state.loading")} />;
   else if (loaded === "offline") body = <Note text={t("desktop.plugin.state.offline")} />;
   // 꺼졌거나 안전 모드가 된 확장은 열린 프레임과 폴링을 거두고 알림만 보인다(본문을 그리지 않으면 거둬진다)
-  else if (inactive || !loaded.context.enabled || loaded.context.safeMode) {
-    body = stop(t("desktop.plugin.state.disabled"), "warning");
+  else if (loaded.context.safeMode) body = stop(t("desktop.plugin.state.disabled"), "warning");
+  else if (inactive || !loaded.context.enabled) {
+    // 꺼졌거나 이 대화의 프로필에 없다. 앱 자리(작업 공간, 대화 옆)에서는 프로필 글과 관리 단추를 둔다
+    body =
+      onManage === undefined
+        ? stop(t("desktop.plugin.state.disabled"), "warning")
+        : stop(t("desktop.apps.state.notInProfile"), "warning", true);
   } else if (entry.mode === "app" && rootSkipped !== undefined && runtime.framesAllowed(entry)) {
     // 셸이 이 앱의 root를 받지 않았다. 그리면 프레임 주소가 404이므로 이유만 보인다
     body = stop(t("desktop.plugin.state.invalid", { reason: rootSkipped.kind }), "danger");
@@ -806,15 +859,17 @@ export function PluginView(props: {
   else body = stop(t("desktop.plugin.state.frameBlocked"), "warning");
   return (
     <section className="flex min-h-0 flex-1 flex-col">
-      <Header
-        entry={entry}
-        back={back}
-        tab={tab}
-        compact={props.compact}
-        onBackToChat={() => {
-          showChat();
-        }}
-      />
+      {props.bare === true ? null : (
+        <Header
+          entry={entry}
+          back={back}
+          tab={tab}
+          compact={props.compact}
+          onBackToChat={() => {
+            showChat();
+          }}
+        />
+      )}
       <div
         className={
           page

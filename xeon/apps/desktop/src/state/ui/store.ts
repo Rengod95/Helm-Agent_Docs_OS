@@ -63,10 +63,10 @@ type ShellConfirm = {
 };
 
 /**
- * 입력창에 대한 요청(⌘L과 명령 팔레트의 슬래시 명령). `insert`가 글이면 입력창이 비어 있을 때만 채우고, null이면 초점만 준다.
- * 입력창이 받으면 `settleComposerRequest`로 지운다. 입력창이 아직 없으면 요청은 입력창이 생길 때 받는다.
+ * 입력창에 대한 요청(⌘L과 명령 팔레트의 슬래시 명령). `insert`가 글이면 `fill`은 입력창이 비어 있을 때만 채우고, `append`는 입력창 끝에 덧붙인다(비어 있으면 그 글만).
+ * `insert`가 null이면 초점만 준다. 입력창이 받으면 `settleComposerRequest`로 지운다. 입력창이 아직 없으면 요청은 입력창이 생길 때 받는다.
  */
-export type ComposerRequest = { readonly insert: string | null };
+export type ComposerRequest = { readonly insert: string | null; readonly mode: "fill" | "append" };
 
 /** 변경 검토 화면(P-04)이 여는 검토 승인. 화면은 이 승인이 대기열에 있는 동안 보이고, 해결되면 같은 리뷰의 다음 라운드를 따라간다 */
 export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: string };
@@ -176,7 +176,7 @@ interface UiActions {
   askShellConfirm(confirm: ShellConfirm): void;
   clearShellConfirm(): void;
   setEngineSwitching(switching: boolean): void;
-  requestComposer(insert: string | null): void;
+  requestComposer(insert: string | null, mode?: "fill" | "append"): void;
   settleComposerRequest(): void;
   /** 설정 화면을 열고 그 탭과 항목으로 옮길 요청을 남긴다 */
   requestSettingsJump(jump: SettingsJump): void;
@@ -263,7 +263,7 @@ export function createUiStore(): UiStore {
     askShellConfirm: (shellConfirm) => api.setState({ shellConfirm }),
     clearShellConfirm: () => api.setState({ shellConfirm: null }),
     setEngineSwitching: (engineSwitching) => api.setState({ engineSwitching }),
-    requestComposer: (insert) => api.setState({ composerRequest: { insert } }),
+    requestComposer: (insert, mode = "fill") => api.setState({ composerRequest: { insert, mode } }),
     settleComposerRequest: () => api.setState({ composerRequest: null }),
     requestSettingsJump: (settingsJump) => api.setState({ screen: "settings", settingsJump }),
     settleSettingsJump: () => api.setState({ settingsJump: null }),

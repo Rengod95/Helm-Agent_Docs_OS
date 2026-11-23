@@ -7,12 +7,15 @@ import {
   addonMetaOf,
   addonRouteOf,
   addonRowsOf,
+  appGroupsOf,
   monogramOf,
   risksOf,
   splitBuiltin,
   tabbableRowsOf,
+  toolOwnerOf,
   type AddonAttention,
   type AddonMetaMap,
+  type AddonRow,
   type AddonSource,
 } from "../../../src/views/plugin/addon-model.ts";
 import { APP_DECL, uiEntryOf } from "../../plugin-ui/support.ts";
@@ -340,6 +343,62 @@ describe("addonMetaOf", () => {
       hookCount: undefined,
       methods: undefined,
     });
+  });
+});
+
+describe("addonMetaOf 도구 이름", () => {
+  test("reads the names of the manifest tools, keeping only the entries with a name", () => {
+    const manifest = {
+      tools: [
+        { name: "search" },
+        { name: "  " },
+        { name: 3 },
+        "bare",
+        { desc: "x" },
+        { name: "save" },
+      ],
+    };
+    expect(addonMetaOf(undefined, manifest).tools).toEqual(["search", "save"]);
+    expect(addonMetaOf(undefined, { tools: "search" }).tools).toEqual(undefined);
+    expect(addonMetaOf(undefined, undefined).tools).toEqual(undefined);
+  });
+});
+
+describe("toolOwnerOf", () => {
+  test("names the first plugin, in meta order, whose manifest tools include the name", () => {
+    const meta: AddonMetaMap = new Map([
+      ["alpha", addonMetaOf(undefined, { tools: [{ name: "lookup" }] })],
+      ["beta", addonMetaOf(undefined, { tools: [{ name: "lookup" }, { name: "save" }] })],
+      ["gamma", addonMetaOf(undefined, {})],
+    ]);
+    expect(toolOwnerOf(meta, "lookup")).toEqual("alpha");
+    expect(toolOwnerOf(meta, "save")).toEqual("beta");
+    expect(toolOwnerOf(meta, "missing")).toEqual(undefined);
+    expect(toolOwnerOf(NO_META, "lookup")).toEqual(undefined);
+  });
+});
+
+const names = (list: readonly AddonRow[]): string[] => list.map((row) => row.name);
+
+describe("appGroupsOf", () => {
+  const ENTRIES: readonly ExtUiEntry[] = [
+    uiEntryOf({ extension: "zeta", id: "notes", title: "Zeta screen" }),
+    uiEntryOf({ extension: "alpha", id: "notes", title: "Alpha screen" }),
+    uiEntryOf({ extension: "beta", id: "start", placement: "command", title: "Beta command" }),
+  ];
+  test("without a profile every app is main; rows with no screen are left out", () => {
+    const rows = addonRowsOf(sourceOf(ENTRIES), NO_META, "ko");
+    expect(names(rows)).toEqual(["alpha", "beta", "zeta"]);
+    expect(names(appGroupsOf(rows, undefined).main)).toEqual(["alpha", "zeta"]);
+    expect(appGroupsOf(rows, undefined).others).toEqual([]);
+  });
+
+  test("with a profile, the apps it lists are main and the rest are others, in row order", () => {
+    const rows = addonRowsOf(sourceOf(ENTRIES), NO_META, "ko");
+    const groups = appGroupsOf(rows, new Set(["zeta", "beta"]));
+    expect(names(groups.main)).toEqual(["zeta"]);
+    expect(names(groups.others)).toEqual(["alpha"]);
+    expect(appGroupsOf(rows, new Set()).main).toEqual([]);
   });
 });
 

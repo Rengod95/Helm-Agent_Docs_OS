@@ -63,6 +63,8 @@ export interface AddonMeta {
   readonly hooks?: readonly string[] | undefined;
   readonly hookCount?: number | undefined;
   readonly methods?: readonly AddonMethod[] | undefined;
+  /** 매니페스트 `tools`의 이름(비지 않은 것만, 매니페스트 순서). 매니페스트를 못 읽었으면 없다 */
+  readonly tools?: readonly string[] | undefined;
 }
 
 export type AddonMetaMap = ReadonlyMap<string, AddonMeta>;
@@ -378,6 +380,30 @@ export function tabbableRowsOf(
   return addonRowsOf(source, meta, locale).filter((row) => row.screens > 0);
 }
 
+/** 도구 이름을 든 첫 플러그인 이름(메타 순서). 아무도 안 들면 undefined */
+export function toolOwnerOf(meta: AddonMetaMap, tool: string): string | undefined {
+  for (const [name, info] of meta) {
+    if (info.tools?.includes(tool) === true) return name;
+  }
+  return undefined;
+}
+
+/**
+ * 홈의 앱을 둘로 나눈다: 지금 대화의 프로필에 든 플러그인(`main`)과 그 밖(`others`). 화면이 있는 행만 든다.
+ * `inProfile`이 undefined(대화가 없거나 프로필을 못 읽음)면 모두 `main`이다. 받은 순서를 지킨다
+ */
+export function appGroupsOf(
+  rows: readonly AddonRow[],
+  inProfile: ReadonlySet<string> | undefined,
+): { readonly main: readonly AddonRow[]; readonly others: readonly AddonRow[] } {
+  const apps = rows.filter((row) => row.screens > 0);
+  if (inProfile === undefined) return { main: apps, others: [] };
+  return {
+    main: apps.filter((row) => inProfile.has(row.name)),
+    others: apps.filter((row) => !inProfile.has(row.name)),
+  };
+}
+
 /** 목록을 둘로 나눈다: 사용자가 더한 플러그인과 내장 플러그인 */
 export function splitBuiltin(rows: readonly AddonRow[]): {
   readonly added: readonly AddonRow[];
@@ -559,6 +585,17 @@ function methodsOf(value: unknown): readonly AddonMethod[] | undefined {
   return out;
 }
 
+/** 매니페스트 `tools`에서 이름이 비지 않은 것만 읽는다 */
+function toolNamesOf(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: string[] = [];
+  for (const item of value) {
+    const name = textOf(fieldOf(item, "name"));
+    if (name !== undefined) out.push(name);
+  }
+  return out;
+}
+
 /** 훅 이름(겹침 없음, 받은 순서) */
 function hookNamesOf(hooks: readonly ExtHookInfo[]): readonly string[] {
   return [...new Set(hooks.map((hook) => hook.hook))];
@@ -596,5 +633,6 @@ export function addonMetaOf(
     hooks: hooks === undefined ? undefined : hookNamesOf(hooks),
     hookCount: entry?.hookCount,
     methods: manifest === undefined ? undefined : methodsOf(manifest["methods"]),
+    tools: manifest === undefined ? undefined : toolNamesOf(manifest["tools"]),
   };
 }

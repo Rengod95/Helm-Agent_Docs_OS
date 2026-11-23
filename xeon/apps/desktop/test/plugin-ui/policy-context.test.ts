@@ -79,7 +79,7 @@ describe("policyContextOf", () => {
     expect([...context.value.ownCommands].toSorted()).toEqual(["helm"]);
   });
 
-  test("post follows the trust tier: only builtin may post", () => {
+  test("post follows the trust tier: builtin and user may post (user only into the composer), project may not", () => {
     const user = policyContextOf({
       get: extGetOf(),
       entry: uiEntryOf({ trust: "user" }),
@@ -100,7 +100,7 @@ describe("policyContextOf", () => {
     });
     if (!user.ok || !builtin.ok || !project.ok) throw new Error("expected contexts");
     expect([user.value.allowPost, builtin.value.allowPost, project.value.allowPost]).toEqual([
-      false,
+      true,
       true,
       false,
     ]);
@@ -118,7 +118,7 @@ describe("policyContextOf", () => {
     });
     if (!context.ok) throw new Error("expected a context");
     expect(context.value.trust).toBe("user");
-    expect(context.value.allowPost).toBe(false);
+    expect(context.value.allowPost).toBe(true);
   });
 
   test("builtin extensions also get the l3 group setting prefix", () => {
