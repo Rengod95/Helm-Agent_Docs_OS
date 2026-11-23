@@ -209,6 +209,8 @@ export function createM4Ports(
  * 기본값(매니페스트 기본이 꺼짐이면 거짓)은 잠금이 아니라 프로필이 정한다.
  */
 function managedOffOf(env: M4HostEnv, name: string): boolean {
+  // 엔진이 필요로 하는 플러그인은 관리 잠금이 거짓이어도 켜 둔다(저장된 값은 무시한다, AGE-74)
+  if (REQUIRED_BY_CORE.has(name)) return false;
   const def = env.catalog.get(`ext.${name}.enabled`);
   if (def === undefined) return false;
   const { setting } = resolveSetting(def, env.settings.layers(undefined));

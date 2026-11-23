@@ -38,6 +38,7 @@ const KIND_TEXT: Readonly<Record<ExtKind, MessageId>> = {
 const LOCK_TEXT: Readonly<Record<Exclude<ToggleLock, null>, MessageId>> = {
   exempt: "desktop.workbench.lock.exempt",
   safe_mode: "desktop.workbench.lock.safeMode",
+  required: "desktop.workbench.lock.required",
   managed: "desktop.workbench.lock.managed",
 };
 

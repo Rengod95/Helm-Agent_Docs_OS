@@ -28,6 +28,7 @@ import {
   FolderOpen,
   History,
   KeyRound,
+  Lock,
   MessageSquare,
   Monitor,
   PanelBottom,
@@ -65,6 +66,7 @@ import {
 import { useToggleRequest } from "../workbench/craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "../workbench/controller.ts";
 import { ExportExtension } from "../workbench/export-extension.tsx";
+import { lockText } from "../workbench/ext-row.tsx";
 import { RemoveDialog } from "../workbench/remove-dialog.tsx";
 import { keepsDialogOpen, removableOf } from "../workbench/remove-model.ts";
 import { forgetManifest, useAddonData } from "./addon-data.ts";
@@ -480,6 +482,8 @@ function problemText(problem: AddonProblem): string {
 export interface DetailOps {
   /** 전역 켜기·끄기. 잠겼거나 목록을 아직 못 읽었으면 undefined(스위치를 그리지 않는다) */
   readonly toggle: (ToggleInfo & { readonly onChange: (target: boolean) => void }) | undefined;
+  /** 엔진이 필요로 해서 잠긴 확장이면 그 까닭(자물쇠와 글). 스위치 자리에 보인다. 다른 잠금은 스위치를 그리지 않을 뿐이다 */
+  readonly requiredLock?: string;
   /** 머리 줄 탭 고정. 화면이 없으면 undefined */
   readonly pin:
     | { readonly pinned: boolean; readonly onChange: (pinned: boolean) => void }
@@ -528,6 +532,15 @@ function DetailHead(props: { readonly detail: AddonDetail; readonly ops: DetailO
         </p>
       </div>
       <div className="flex min-h-7 flex-none items-center gap-2 pt-1">
+        {ops.requiredLock === undefined ? null : (
+          <span
+            className="me-2 inline-flex items-center gap-1 text-ui-sm text-text-tertiary"
+            data-required-lock=""
+          >
+            <Lock aria-hidden className="size-icon-sm" />
+            {ops.requiredLock}
+          </span>
+        )}
         {ops.toggle === undefined ? null : (
           <span className="me-2 inline-flex items-center gap-2">
             <label htmlFor={switchId} className="text-ui text-text-secondary">
@@ -1144,6 +1157,12 @@ export function AddonsScreen(): ReactNode {
     },
     [workbench.entries, workbench.pending],
   );
+  const requiredLockOf = (name: string): { readonly requiredLock: string } | undefined => {
+    const entry = workbench.entries.find((item) => item.name === name);
+    return entry !== undefined && workbenchRowOf(entry, workbench.pending).lock === "required"
+      ? { requiredLock: lockText("required") }
+      : undefined;
+  };
   const onToggle = (name: string, target: boolean): void => {
     toggleRequest.request(name, target);
   };
@@ -1192,6 +1211,7 @@ export function AddonsScreen(): ReactNode {
                   },
                 };
           })(),
+          ...requiredLockOf(detail.row.name),
           pin:
             detail.screens.length === 0
               ? undefined

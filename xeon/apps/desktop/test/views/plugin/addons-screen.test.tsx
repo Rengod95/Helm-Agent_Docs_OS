@@ -106,13 +106,18 @@ const OPS: DetailOps = {
   onCopy: NOOP,
 };
 
-function detailHtml(entries: readonly ExtUiEntry[], name: string, meta: AddonMetaMap): string {
+function detailHtml(
+  entries: readonly ExtUiEntry[],
+  name: string,
+  meta: AddonMetaMap,
+  ops: DetailOps = OPS,
+): string {
   const detail = addonDetailOf(name, { entries, inactive: new Set(), settings: {} }, meta, "ko");
   if (detail === undefined) return "";
   return plain(
     renderToString(
       inContexts(
-        <AddonDetailView detail={detail} ops={OPS} />,
+        <AddonDetailView detail={detail} ops={ops} />,
         createWorkbenchStore(() => INITIAL_WORKBENCH),
       ),
     ),
@@ -145,6 +150,17 @@ describe("플레이그라운드 상세", () => {
     expect(positions.every((at) => at >= 0)).toBe(true);
     expect(positions).toEqual(positions.toSorted((left, right) => left - right));
     expect(html).toContain(t("desktop.workbench.uiMode.app"));
+  });
+
+  test("a core-required plugin shows the lock and its reason where the switch would be", () => {
+    const html = detailHtml(VIEWDEMO, "viewdemo", new Map(), {
+      ...OPS,
+      toggle: undefined,
+      requiredLock: t("desktop.workbench.lock.required"),
+    });
+    expect(html).toContain("data-required-lock");
+    expect(html).toContain(t("desktop.workbench.lock.required"));
+    expect(html).not.toContain(t("desktop.addons.toggle", { name: "viewdemo" }));
   });
 
   test("an off plugin shows the warning, no head open button, and the screen's open is disabled", () => {

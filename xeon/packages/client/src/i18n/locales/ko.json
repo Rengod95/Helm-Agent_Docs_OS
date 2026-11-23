@@ -3659,6 +3659,7 @@
   "desktop.workbench.toggle.reason.code": "사유: {code}",
   "desktop.workbench.lock.exempt": "보안 동작이거나 기본 동작이라 끌 수 없어요",
   "desktop.workbench.lock.safeMode": "안전 모드라 빠졌어요",
+  "desktop.workbench.lock.required": "엔진이 필요로 해요",
   "desktop.workbench.lock.managed": "관리자가 정한 값이에요",
   "desktop.workbench.state.on": "켜짐",
   "desktop.workbench.state.off": "꺼짐",

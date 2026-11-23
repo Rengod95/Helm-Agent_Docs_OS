@@ -302,7 +302,7 @@ export type ExtKind = "group" | "plugin" | "core";
 
 export type ExtState = "on" | "off" | "enabling" | "disabling" | "auto_disabled" | "safe_excluded";
 
-export type ToggleLock = "exempt" | "safe_mode" | "managed" | null;
+export type ToggleLock = "exempt" | "safe_mode" | "required" | "managed" | null;
 
 export interface ExtRowVM {
   readonly name: string;
@@ -361,6 +361,8 @@ function kindOf(e: ExtListEntry): ExtKind {
 export function lockOf(e: ExtListEntry): ToggleLock {
   if (e.safeModeExcluded !== null) return "safe_mode";
   if (isExemptTier(e)) return "exempt";
+  // 엔진이 필요로 하는 플러그인(호스트가 켜짐 출처를 `core`로 준다)은 어디서도 끌 수 없다(AGE-74). 프로필 화면의 "엔진이 필요로 해요"와 같은 뜻이다
+  if (e.enabledSource === "core") return "required";
   if (e.enabledSource === "managed") return "managed";
   return null;
 }

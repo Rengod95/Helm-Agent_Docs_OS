@@ -3659,6 +3659,7 @@
   "desktop.workbench.toggle.reason.code": "Reason: {code}",
   "desktop.workbench.lock.exempt": "Required for safety and core behavior, so it cannot be turned off",
   "desktop.workbench.lock.safeMode": "Left out by safe mode",
+  "desktop.workbench.lock.required": "Needed by the engine",
   "desktop.workbench.lock.managed": "Set by an administrator",
   "desktop.workbench.state.on": "On",
   "desktop.workbench.state.off": "Off",

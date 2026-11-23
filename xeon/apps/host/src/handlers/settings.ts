@@ -17,6 +17,7 @@ import {
 } from "@fresnel/contracts/wire";
 import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
 import { settingProblemOf } from "../settings-problems.ts";
+import { REQUIRED_BY_CORE } from "../assembly/m4/profile-defaults.ts";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
 import { threadLocked, withWriteOwner } from "./owner.ts";
@@ -218,6 +219,15 @@ function requireKnownModel(engine: Engine, key: string, value: unknown): void {
   });
 }
 
+const EXT_ENABLED_KEY = /^ext\.([^.]+)\.enabled$/;
+
+/** `ext.<필수 플러그인>.enabled`를 거짓으로 쓰는 요청이면 그 플러그인 이름. 아니면 undefined */
+function requiredPluginOffOf(key: string, value: unknown): string | undefined {
+  if (value !== false) return undefined;
+  const name = EXT_ENABLED_KEY.exec(key)?.[1];
+  return name !== undefined && REQUIRED_BY_CORE.has(name) ? name : undefined;
+}
+
 export function createSettingsSetHandler(
   engine: Engine,
   hub: () => ConnectionHub,
@@ -226,6 +236,11 @@ export function createSettingsSetHandler(
   return async (params) => {
     const { threadId, key, scope } = params;
     requireThreadIfGiven(engine, threadId, "settings.set");
+    // 엔진이 필요로 하는 플러그인은 어느 범위에서도 끌 수 없다: 범위 검사보다 먼저 분명한 오류로 거절한다(AGE-74)
+    const required = requiredPluginOffOf(key, params.value);
+    if (required !== undefined) {
+      throw wireError("plugin.requiredByCore", { details: { plugin: required } });
+    }
     engine.syncExtensionKeys?.();
     if (threadId !== undefined) await ports.settings.prepare(threadId);
     const checked = checkSettingWrite(
