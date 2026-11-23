@@ -6606,6 +6606,8 @@
   "desktop.composer.mode.default.hint": "Asks before running commands or editing.",
   "desktop.composer.mode.acceptEdits.hint": "Edits files right away, asks before commands.",
   "desktop.composer.mode.bypass.hint": "Runs everything without asking. Use only in trusted folders.",
+  "desktop.composer.mode.byProfile": "Selected by profile {profile}",
+  "desktop.composer.mode.useProfile": "Back to profile {profile}",
   "desktop.composer.model.useDefault": "Use the default model ({model})",
   "desktop.composer.interrupt.stopping": "Stopping…",
   "desktop.composer.queue.tag.steer": "Steer",

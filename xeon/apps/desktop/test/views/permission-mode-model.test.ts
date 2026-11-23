@@ -7,12 +7,15 @@ import {
   bypassAllowedOf,
   modeChangeConcerns,
   modeEventConcerns,
+  modeOriginOf,
   modeStepOf,
   permissionChipViewOf,
   permissionModeOf,
   permissionModeOptionsOf,
   permissionModeReadOf,
   permissionModeToneOf,
+  profileModeFrom,
+  profileModeRowOf,
   switchModeOf,
   type PermissionModeOption,
 } from "../../src/views/permission-mode-model.ts";
@@ -220,5 +223,64 @@ describe("permissionModeReadOf · permissionChipViewOf (DP-213)", () => {
       note: { id: "desktop.composer.approvalMode.missing" },
       retry: false,
     });
+  });
+});
+
+/** 실행 방식 설정 줄 하나 */
+const modeLine = (value: unknown) => ({ key: PERMISSION_MODE_KEY, value });
+
+describe("프로필이 정한 실행 방식과 칩 메뉴의 고정 줄 (DP-231, AGE-71)", () => {
+  test("값을 정한 범위: launch는 이 대화, profile은 프로필, 그 밖은 other", () => {
+    expect(
+      ["launch", "profile", "managed", "user", "default", undefined, 3].map(modeOriginOf),
+    ).toEqual(["thread", "profile", "other", "other", "other", "other", "other"]);
+  });
+
+  test("프로필 값이 공통 묶음 값을 이기고, 둘 다 없으면 모두 허용, 모르는 값은 null이다", () => {
+    expect([
+      profileModeFrom([modeLine("default")], [modeLine("acceptEdits")]),
+      profileModeFrom([], [modeLine("acceptEdits")]),
+      profileModeFrom([modeLine("default"), modeLine("acceptEdits")], []),
+      profileModeFrom([{ key: "l1.loop.maxSteps", value: 5 }], []),
+      profileModeFrom([modeLine("plan")], [modeLine("default")]),
+    ]).toEqual(["default", "acceptEdits", "acceptEdits", "bypass", null]);
+  });
+
+  test("대화가 따로 고르지 않았으면 지금 값을 프로필이 정한 줄로 보인다", () => {
+    expect(
+      profileModeRowOf({
+        read: { kind: "known", mode: "acceptEdits" },
+        origin: "profile",
+        profileMode: null,
+      }),
+    ).toEqual({ kind: "applied", mode: "acceptEdits" });
+  });
+
+  test("대화가 따로 골랐으면 되돌리기 줄이고 그 모드는 읽은 프로필 값(모르면 null)이다", () => {
+    const read = { kind: "known", mode: "default" } as const;
+    expect([
+      profileModeRowOf({ read, origin: "thread", profileMode: "bypass" }),
+      profileModeRowOf({ read, origin: "thread", profileMode: null }),
+    ]).toEqual([
+      { kind: "revert", mode: "bypass" },
+      { kind: "revert", mode: null },
+    ]);
+  });
+
+  test("값을 모르거나 관리 잠금처럼 프로필도 대화도 정하지 않았으면 줄이 없다", () => {
+    expect([
+      profileModeRowOf({ read: { kind: "loading" }, origin: "profile", profileMode: null }),
+      profileModeRowOf({ read: { kind: "failed" }, origin: "thread", profileMode: "bypass" }),
+      profileModeRowOf({
+        read: { kind: "unknown", value: "plan" },
+        origin: "profile",
+        profileMode: null,
+      }),
+      profileModeRowOf({
+        read: { kind: "known", mode: "default" },
+        origin: "other",
+        profileMode: null,
+      }),
+    ]).toEqual([null, null, null, null]);
   });
 });

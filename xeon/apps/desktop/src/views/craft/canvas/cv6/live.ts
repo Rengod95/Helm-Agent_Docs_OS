@@ -17,7 +17,7 @@ import type {
   ProfileIssue,
 } from "@fresnel/contracts/wire";
 import type { PermissionMode } from "@fresnel/contracts/services";
-import { PERMISSION_MODE_KEY, permissionModeOf } from "../permission-mode-source.ts";
+import { PERMISSION_MODE_KEY, profileModeFrom } from "../permission-mode-source.ts";
 import type { SharedPlugin } from "../shared-sample.ts";
 import type { PluginMeta } from "../shared-meta.ts";
 import { anchorOfPosition } from "./facts.ts";
@@ -300,18 +300,12 @@ export function renamedInput(saved: Profile, title: string): ProfileInput {
   };
 }
 
-/** 프로필이 실행 방식을 정하지 않았을 때 엔진이 쓰는 값("모두 허용", 호스트 `FACTORY_PERMISSION_MODE`) */
-const PROFILE_MODE_FALLBACK: PermissionMode = "bypass";
-
 /**
- * 이 프로필을 쓰는 대화의 실행 방식(권한 모드). 엔진의 `profile` 층과 같은 규칙이다: 프로필 값이 공통 묶음 값을 이기고(같은 키는 마지막 값),
- * 둘 다 없으면 "모두 허용"이다 [결정: 2026-11-23 사용자, AGE-71 질문 3]. 엔진이 모르는 값이면 null이다
+ * 이 프로필을 쓰는 대화의 실행 방식. 엔진의 `profile` 층과 같은 규칙이다(`profileModeFrom`: 프로필 값 > 공통 묶음 값 > 모두 허용).
+ * 엔진이 모르는 값이면 null이다. 대화 입력창 칩 메뉴의 "프로필 값으로 되돌리기" 줄도 같은 규칙을 쓴다
  */
 export function profileModeOf(saved: Profile, common: CommonSet): PermissionMode | null {
-  const own = saved.settings.findLast((setting) => setting.key === PERMISSION_MODE_KEY);
-  const shared = common.settings.findLast((setting) => setting.key === PERMISSION_MODE_KEY);
-  const found = own ?? shared;
-  return found === undefined ? PROFILE_MODE_FALLBACK : permissionModeOf(found.value);
+  return profileModeFrom(saved.settings, common.settings);
 }
 
 /** 실행 방식만 바꾼 저장 값. 그 키의 옛 줄은 빼고 새 값 한 줄을 끝에 둔다. 이름, 플러그인, 다른 설정, 시작 Drive는 저장된 그대로다 */

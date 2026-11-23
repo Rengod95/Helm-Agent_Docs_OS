@@ -10,8 +10,10 @@ import { useCommands, type CommandError } from "./commands.ts";
 import {
   bypassAllowedOf,
   modeStepOf,
+  modeOriginOf,
   permissionModeOf,
   permissionModeReadOf,
+  type ModeOrigin,
   type ModeStep,
   type PermissionModeRead,
 } from "./permission-mode-model.ts";
@@ -414,18 +416,32 @@ export type ModeChangeError = { readonly kind: "command"; readonly error: Comman
  * 이 대화의 승인 모드(입력창 칩이 보이는 값)와 고르기(DP-101·213). 값은 대화 범위 `settings.get`이고, 설정이 바뀌면 다시 읽고, 고르기가 이기면 다시 읽는다.
  * `read`는 읽는 중·읽음·실패·모르는 값을 가른다(`PermissionModeRead`). 칩은 어느 경우에도 자리를 지키고, 모르면 기본 모드로 보이며 이유를 말한다.
  * 모를 때 고르면 지금 값과 견주지 않고 고른 모드를 쓴다. `retry`는 다시 읽는다.
- * `bypassAllowed`는 `l1.tools.bypassAllowed`이고 참일 때만 메뉴에 모두 허용이 있다
+ * `bypassAllowed`는 `l1.tools.bypassAllowed`이고 참일 때만 메뉴에 모두 허용이 있다.
+ * `origin`은 그 값을 누가 정했는지다(DP-231, AGE-71). 대화가 따로 고른 값이 아니면(프로필이 정함) 지금 값과 같은 모드를 골라도 이 대화에
+ * 쓴다(그래야 그 대화에 고정된다). `clear`는 대화에서 따로 고른 값을 지워 프로필 값으로 돌아가고, `readProfile`은 그 프로필이 정한 값을
+ * 읽어 `profileMode`에 둔다(따로 고른 값이 있을 때 메뉴를 열며 부른다)
  */
 export function useThreadPermissionMode(threadId: ThreadId): {
   readonly read: PermissionModeRead;
+  readonly origin: ModeOrigin;
   readonly bypassAllowed: boolean;
+  readonly profileMode: { readonly profileId: string; readonly mode: PermissionMode | null } | null;
   readonly choose: (next: PermissionMode) => Promise<Result<null, ModeChangeError>>;
+  readonly clear: () => Promise<Result<null, ModeChangeError>>;
+  readonly readProfile: (profileId: string) => void;
   readonly retry: () => void;
 } {
   const commands = useCommands();
   const phase = useLinkPhase();
-  const [read, setRead] = useState<PermissionModeRead>({ kind: "loading" });
+  const [state, setState] = useState<{
+    readonly read: PermissionModeRead;
+    readonly origin: ModeOrigin;
+  }>({ read: { kind: "loading" }, origin: "other" });
   const [bypassAllowed, setBypassAllowed] = useState(false);
+  const [profileMode, setProfileMode] = useState<{
+    readonly profileId: string;
+    readonly mode: PermissionMode | null;
+  } | null>(null);
   // 고르기가 이기면 올려 다시 읽게 한다. 호스트가 준 값(관리 설정이 덮을 수 있다)을 그대로 보인다
   const [reads, setReads] = useState(0);
   useEffect(() => {
@@ -434,7 +450,11 @@ export function useThreadPermissionMode(threadId: ThreadId): {
     const readAll = (): void => {
       detach(
         commands.readThreadMode(threadId).then((result) => {
-          if (!stale) setRead(permissionModeReadOf(result.ok, result.ok ? result.value : null));
+          if (stale) return undefined;
+          setState({
+            read: permissionModeReadOf(result.ok, result.ok ? result.value.value : null),
+            origin: result.ok ? modeOriginOf(result.value.scope) : "other",
+          });
           return undefined;
         }),
         rethrow,
@@ -454,15 +474,23 @@ export function useThreadPermissionMode(threadId: ThreadId): {
       stop();
     };
   }, [commands, phase, threadId, reads]);
-  const readNow = async (): Promise<PermissionMode | null> => {
+  const readNow = async (): Promise<{
+    readonly mode: PermissionMode | null;
+    readonly origin: ModeOrigin;
+  } | null> => {
     const got = await commands.readThreadMode(threadId);
-    return got.ok ? permissionModeOf(got.value) : null;
+    return got.ok
+      ? { mode: permissionModeOf(got.value.value), origin: modeOriginOf(got.value.scope) }
+      : null;
   };
   const choose = async (next: PermissionMode): Promise<Result<null, ModeChangeError>> => {
-    if (read.kind === "loading") return ok(null);
-    // 칩이 보이는 값은 늦을 수 있다(다른 창, 설정 파일). 걸음은 엔진의 지금 값으로 정한다. 모르면 고른 모드를 그대로 쓴다
+    if (state.read.kind === "loading") return ok(null);
+    // 칩이 보이는 값은 늦을 수 있다(다른 창, 설정 파일). 걸음은 엔진의 지금 값으로 정한다. 모르거나 프로필이 정한 값이면 고른 모드를 그대로 쓴다
     const now = await readNow();
-    const step: ModeStep = now === null ? { kind: "set", mode: next } : modeStepOf(now, next);
+    const step: ModeStep =
+      now === null || now.mode === null || now.origin !== "thread"
+        ? { kind: "set", mode: next }
+        : modeStepOf(now.mode, next);
     switch (step.kind) {
       case "none":
         // 엔진이 이미 그 모드면 칩만 늦은 것이다. 다시 읽어 맞춘다
@@ -478,11 +506,34 @@ export function useThreadPermissionMode(threadId: ThreadId): {
         return assertNever(step, "ModeStep");
     }
   };
+  const clear = async (): Promise<Result<null, ModeChangeError>> => {
+    const done = await commands.clearThreadMode(threadId);
+    setReads((count) => count + 1);
+    return done.ok ? ok(null) : err({ kind: "command", error: done.error });
+  };
+  const readProfile = (profileId: string): void => {
+    detach(
+      commands.readProfileMode(profileId).then((got) => {
+        setProfileMode({ profileId, mode: got.ok ? got.value : null });
+        return undefined;
+      }),
+      rethrow,
+    );
+  };
   const retry = (): void => {
-    setRead({ kind: "loading" });
+    setState({ read: { kind: "loading" }, origin: "other" });
     setReads((count) => count + 1);
   };
-  return { read, bypassAllowed, choose, retry };
+  return {
+    read: state.read,
+    origin: state.origin,
+    bypassAllowed,
+    profileMode,
+    choose,
+    clear,
+    readProfile,
+    retry,
+  };
 }
 
 /**

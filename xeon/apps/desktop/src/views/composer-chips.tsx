@@ -6,6 +6,8 @@ import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
 import { THINKING_LEVELS, type PermissionMode } from "@fresnel/contracts/services";
 import type { ModelEntry } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
+import type { ProfileLook } from "./convo/profile-chip-model.ts";
+import { ProfileGlyph } from "./convo/profile-glyph.tsx";
 import { modelKeyOf } from "./denied-model-model.ts";
 import { modelOptionsOf } from "./model-usage.ts";
 import { ModelPicker } from "./pages/shared/model-picker.tsx";
@@ -13,6 +15,7 @@ import {
   permissionModeOptionsOf,
   permissionModeToneOf,
   type PermissionChipView,
+  type ProfileModeRowView,
 } from "./permission-mode-model.ts";
 import { THINKING_LEVEL_LABEL_IDS, thinkingLevelOf } from "./thinking-level-model.ts";
 
@@ -71,13 +74,16 @@ export function MenuText(props: { readonly title: string; readonly hint: ReactNo
 /**
  * 권한 모드 칩. 메뉴는 묻기, 편집 자동 허용, 그리고 허락되면 모두 허용(`permissionModeOptionsOf`). 모두 허용은 위험 색이다.
  * 칩 자리는 늘 있다(DP-213): `mode`가 null이면 읽는 중이라 "승인 모드" 글의 비활성 칩이고, `note`가 있으면(읽기 실패, 모르는 값)
- * 기본 모드 글에 점선 밑줄을 긋고 이유를 툴팁(title)과 메뉴 맨 위 설명 줄로 말한다. 그때는 메뉴의 어느 모드도 골라져 있지 않고, 실패면 "다시 읽기"가 있다
+ * 기본 모드 글에 점선 밑줄을 긋고 이유를 툴팁(title)과 메뉴 맨 위 설명 줄로 말한다. 그때는 메뉴의 어느 모드도 골라져 있지 않고, 실패면 "다시 읽기"가 있다.
+ * `profile`이 있으면 세 줄 아래 구분선과 고정 줄 하나를 둔다(DP-231, `ProfileModeLine`). 그 줄이 `applied`면 위 세 줄에는 체크가 없다
  */
 export function PermissionModeChip(props: {
   readonly mode: PermissionMode | null;
   readonly bypassAllowed: boolean;
   readonly disabled: boolean;
   readonly note?: PermissionChipView["note"];
+  readonly profile?: ProfileModeLineProps | null;
+  readonly onOpen?: () => void;
   readonly onRetry?: () => void;
   readonly onChange: (mode: PermissionMode) => void;
 }): ReactNode {
@@ -114,6 +120,9 @@ export function PermissionModeChip(props: {
       align="end"
       aria-label={t("desktop.composer.approvalMode.label")}
       className="w-80"
+      onOpenChange={(open) => {
+        if (open) props.onOpen?.();
+      }}
       trigger={
         <Button
           type="button"
@@ -139,6 +148,37 @@ export function PermissionModeChip(props: {
         </Button>
       }
     >
+      <PermissionModeMenuBody
+        mode={mode}
+        note={note}
+        retry={
+          props.note?.id === "desktop.composer.approvalMode.failed" ? props.onRetry : undefined
+        }
+        bypassAllowed={props.bypassAllowed}
+        profile={props.profile ?? null}
+        onChange={props.onChange}
+      />
+    </Menu>
+  );
+}
+
+/**
+ * 칩 메뉴 안: 까닭 줄(읽기 실패, 모르는 값)과 "다시 읽기", 세 모드 줄, 그리고 `profile`이 있으면 구분선 아래 고정 줄(DP-231).
+ * 고정 줄이 `applied`면 세 모드 줄 어디에도 체크가 없다(지금 값은 고정 줄이 나타낸다)
+ */
+export function PermissionModeMenuBody(props: {
+  readonly mode: PermissionMode;
+  /** 기본 모드로 보이는 까닭(이미 옮긴 글). 없으면 null */
+  readonly note: string | null;
+  /** 읽기 실패일 때만 있다 */
+  readonly retry?: (() => void) | undefined;
+  readonly bypassAllowed: boolean;
+  readonly profile: ProfileModeLineProps | null;
+  readonly onChange: (mode: PermissionMode) => void;
+}): ReactNode {
+  const { note } = props;
+  return (
+    <>
       {note === null ? null : (
         <>
           <p
@@ -147,12 +187,11 @@ export function PermissionModeChip(props: {
           >
             {note}
           </p>
-          {props.onRetry === undefined ||
-          props.note?.id !== "desktop.composer.approvalMode.failed" ? null : (
+          {props.retry === undefined ? null : (
             <MenuItem
               icon={<RotateCcw aria-hidden />}
               onSelect={() => {
-                props.onRetry?.();
+                props.retry?.();
               }}
             >
               {t("desktop.composer.approvalMode.retry")}
@@ -162,14 +201,87 @@ export function PermissionModeChip(props: {
         </>
       )}
       <PermissionModeMenuItems
-        mode={mode}
+        mode={props.mode}
         bypassAllowed={props.bypassAllowed}
-        marked={note === null}
+        marked={note === null && props.profile?.view.kind !== "applied"}
         onChange={props.onChange}
       />
-    </Menu>
+      {props.profile === null ? null : (
+        <>
+          <MenuSeparator />
+          <ProfileModeLine {...props.profile} />
+        </>
+      )}
+    </>
   );
 }
+
+/** 칩 메뉴 고정 줄의 값: 줄의 종류와 모드(`profileModeRowOf`), 대화의 프로필 이름과 그 아이콘(프로필 칩과 같은 아이콘) */
+export interface ProfileModeLineProps {
+  readonly view: ProfileModeRowView;
+  readonly profile: string;
+  readonly look: ProfileLook;
+  /** 따로 고른 값을 지운다(`revert` 줄을 누를 때) */
+  readonly onRevert: () => void;
+}
+
+/**
+ * 칩 메뉴 구분선 아래의 고정 줄(DP-231 [결정: 2026-11-23 사용자, AGE-71]). 모양은 위 세 줄과 같다(모드 아이콘, 이름, 한 줄 설명).
+ * 설명 줄은 프로필 칩과 같은 프로필 아이콘(12)과 "<프로필> 프로필이 정함"이다.
+ * - `applied`(대화에서 따로 고른 값이 없음): 지금 적용 중인 값이라 골라진 줄(체크)로 보이고, 눌러도 바뀌는 것이 없다.
+ * - `revert`(따로 고른 값이 있음): 그 프로필의 값을 보이고 설명이 "<프로필> 프로필 값으로 되돌리기"다. 누르면 따로 고른 값을 지운다.
+ *   프로필 값을 아직 모르면(읽는 중, 실패) 이름 자리도 그 되돌리기 글이고 모드 아이콘 대신 되돌리기 아이콘이다
+ */
+function ProfileModeLine(props: ProfileModeLineProps): ReactNode {
+  const { view } = props;
+  const hint = (
+    <span className="flex min-w-0 items-center gap-1">
+      <ProfileGlyph look={props.look} size={12} />
+      <span className="min-w-0">
+        {t(
+          view.kind === "applied"
+            ? "desktop.composer.mode.byProfile"
+            : "desktop.composer.mode.useProfile",
+          { profile: props.profile },
+        )}
+      </span>
+    </span>
+  );
+  if (view.kind === "applied") {
+    return (
+      <MenuItem
+        role="menuitemradio"
+        selected
+        data-mode-profile="applied"
+        tone={view.mode === "bypass" ? "danger" : "neutral"}
+        className={MODE_ROW_CLASS}
+        icon={modeIcon(view.mode)}
+        end={<Check aria-hidden className="size-3.5" />}
+      >
+        <MenuText title={permissionModeChipText(view.mode)} hint={hint} />
+      </MenuItem>
+    );
+  }
+  return (
+    <MenuItem
+      data-mode-profile="revert"
+      tone={view.mode === "bypass" ? "danger" : "neutral"}
+      className={MODE_ROW_CLASS}
+      icon={view.mode === null ? <RotateCcw aria-hidden /> : modeIcon(view.mode)}
+      onSelect={props.onRevert}
+    >
+      {view.mode === null ? (
+        hint
+      ) : (
+        <MenuText title={permissionModeChipText(view.mode)} hint={hint} />
+      )}
+    </MenuItem>
+  );
+}
+
+/** 모드 메뉴 줄: 두 줄 글이라 높이가 늘고, 아이콘은 첫 줄에 맞춘다 */
+const MODE_ROW_CLASS =
+  "h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal";
 
 /**
  * 모드 메뉴의 줄들: 묻기, 편집 자동 허용, 허락되면 모두 허용(`permissionModeOptionsOf`). 줄마다 아이콘, 이름, 한 줄 설명이고 모두 허용은 위험 색이다.
@@ -189,7 +301,7 @@ export function PermissionModeMenuItems(props: {
         role="menuitemradio"
         selected={selected}
         tone={option.mode === "bypass" ? "danger" : "neutral"}
-        className="h-auto min-h-control-md items-start py-1.5 [&>[data-slot=menu-icon]]:pt-0.5 [&>[data-slot=menu-label]]:whitespace-normal"
+        className={MODE_ROW_CLASS}
         icon={modeIcon(option.mode)}
         end={selected ? <Check aria-hidden className="size-3.5" /> : undefined}
         onSelect={() => {

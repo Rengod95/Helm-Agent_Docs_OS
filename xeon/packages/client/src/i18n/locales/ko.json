@@ -6606,6 +6606,8 @@
   "desktop.composer.mode.default.hint": "명령과 편집을 실행하기 전에 물어요.",
   "desktop.composer.mode.acceptEdits.hint": "파일 편집은 바로 하고, 명령은 물어요.",
   "desktop.composer.mode.bypass.hint": "묻지 않고 모두 실행해요. 믿는 폴더에서만 쓰세요.",
+  "desktop.composer.mode.byProfile": "{profile} 프로필이 정함",
+  "desktop.composer.mode.useProfile": "{profile} 프로필 값으로 되돌리기",
   "desktop.composer.model.useDefault": "기본 모델로 되돌리기 ({model})",
   "desktop.composer.interrupt.stopping": "멈추는 중…",
   "desktop.composer.queue.tag.steer": "끼워 넣기",

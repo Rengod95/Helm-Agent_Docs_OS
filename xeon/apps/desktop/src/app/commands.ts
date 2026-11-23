@@ -39,6 +39,7 @@ import {
   PERMISSION_MODE_KEY,
   modeChangeConcerns,
   modeEventConcerns,
+  profileModeFrom,
 } from "../views/permission-mode-model.ts";
 import { THINKING_LEVEL_KEY, thinkingChangeConcerns } from "../views/thinking-level-model.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
@@ -432,7 +433,23 @@ export function createCommands(
         c.request("settings.get", { keys: [PERMISSION_MODE_KEY], threadId }),
       );
       if (!got.ok) return got;
-      return ok(got.value.settings.find((setting) => setting.key === PERMISSION_MODE_KEY)?.value);
+      const found = got.value.settings.find((setting) => setting.key === PERMISSION_MODE_KEY);
+      return ok({ value: found?.value, scope: found?.source.scope });
+    },
+    async clearThreadMode(threadId) {
+      const done = await withWriteConnection((c) =>
+        c.request("settings.reset", { key: PERMISSION_MODE_KEY, scope: "launch", threadId }),
+      );
+      if (!done.ok) showLockedIfLocked(threadId, done.error);
+      return done.ok ? ok(null) : done;
+    },
+    async readProfileMode(profileId) {
+      const got = await withConnection((c) => c.request("profile.list", {}));
+      if (!got.ok) return got;
+      const profile = got.value.profiles.find((found) => found.id === profileId);
+      return ok(
+        profile === undefined ? null : profileModeFrom(profile.settings, got.value.common.settings),
+      );
     },
     async readBypassAllowed(threadId) {
       const got = await withConnection((c) =>
