@@ -3751,6 +3751,8 @@
   "desktop.workbench.detail.tab.versions": "버전",
   "desktop.workbench.detail.tab.record": "기록",
   "desktop.workbench.detail.origin": "설치 위치",
+  "desktop.workbench.detail.origin.revealMissing": "이 컴퓨터에 설치 폴더가 없어요",
+  "desktop.workbench.detail.origin.revealFailed": "설치 폴더를 열지 못했어요",
   "desktop.workbench.detail.diagnostics": "진단",
   "desktop.workbench.detail.hooks.empty": "연결된 훅이 없어요",
   "desktop.workbench.detail.hooks.budget": "예산",

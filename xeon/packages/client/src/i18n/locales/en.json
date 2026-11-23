@@ -3751,6 +3751,8 @@
   "desktop.workbench.detail.tab.versions": "Versions",
   "desktop.workbench.detail.tab.record": "Record",
   "desktop.workbench.detail.origin": "Location",
+  "desktop.workbench.detail.origin.revealMissing": "The install folder is not on this computer",
+  "desktop.workbench.detail.origin.revealFailed": "Could not show the install folder",
   "desktop.workbench.detail.diagnostics": "Diagnostics",
   "desktop.workbench.detail.hooks.empty": "No hooks",
   "desktop.workbench.detail.hooks.budget": "Budget",

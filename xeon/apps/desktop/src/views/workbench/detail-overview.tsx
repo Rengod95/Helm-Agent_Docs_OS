@@ -6,16 +6,19 @@ import { rowOf } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { Alert, Button, ListDescription, ListDescriptionRow } from "@caustic/react";
+import { Alert, Button, ListDescription, ListDescriptionRow, toast } from "@caustic/react";
 import { CircleCheck, Clock, TriangleAlert } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { useCommands } from "../commands.ts";
+import { revealFullOutput } from "../convo/reveal-full-output.ts";
+import { useDesktopShell, type DesktopShell } from "../desktop-shell-context.ts";
 import { tokens } from "../craft/canvas/cv6/words.ts";
 import { useAddonData } from "../plugin/addon-data.ts";
 import { addonDetailOf } from "../plugin/addon-model.ts";
 import { RiskSection } from "../plugin/addon-parts.tsx";
 import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
 import { originText } from "./origin-text.ts";
+import { LOCATION_LIMIT, middleEllipsisOf, revealablePathOf } from "./location-text.ts";
 import type { ProfileSetLoad } from "./profile-put-menu.tsx";
 import { ColumnHead, MUTED, TwoColumns } from "./tab-body.tsx";
 import { profileUseOf, profileUseText, type ProfileUse } from "./profile-use.ts";
@@ -183,8 +186,7 @@ function TrustColumn(props: {
           </ListDescriptionRow>
         )}
         <ListDescriptionRow term={t("desktop.workbench.detail.origin")}>
-          {originText(entry.origin)}{" "}
-          <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
+          <LocationValue origin={originText(entry.origin)} location={entry.location} />
         </ListDescriptionRow>
         {cost === null ? null : (
           <ListDescriptionRow term={t("desktop.craft.canvas.cv3.sec.cost")}>
@@ -197,6 +199,58 @@ function TrustColumn(props: {
         <ReadinessSection readiness={readiness} onRecheck={props.onRecheck} />
       )}
     </div>
+  );
+}
+
+/**
+ * 설치 위치 칸(AGE-77 S-09 라): 출처 글 뒤에 경로를 가운데 말줄임으로 보이고, 전체 경로는 제목 글로 둔다.
+ * 셸이 있고 실제 경로면 "폴더에서 보기" 단추를 옆에 둔다. 웹처럼 셸이 없으면 단추를 그리지 않는다
+ */
+function LocationValue(props: { readonly origin: string; readonly location: string }): ReactNode {
+  const shell = useDesktopShell();
+  const path = revealablePathOf(props.location);
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+      <span>{props.origin}</span>
+      <span className="min-w-0 font-mono text-mono-sm text-text-tertiary" title={props.location}>
+        {middleEllipsisOf(props.location, LOCATION_LIMIT)}
+      </span>
+      {shell === null || path === null ? null : <RevealButton shell={shell} path={path} />}
+    </span>
+  );
+}
+
+/** "폴더에서 보기": 셸 명령 `reveal_path`로 설치 폴더를 파일 관리자에서 연다. 못 찾거나 못 열면 알린다 */
+function RevealButton(props: {
+  readonly shell: Pick<DesktopShell, "invoke">;
+  readonly path: string;
+}): ReactNode {
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      className="flex-none"
+      onClick={() => {
+        detach(
+          revealFullOutput(props.shell, props.path).then((result) => {
+            if (result !== "revealed") {
+              toast({
+                tone: "danger",
+                title: t(
+                  result === "missing"
+                    ? "desktop.workbench.detail.origin.revealMissing"
+                    : "desktop.workbench.detail.origin.revealFailed",
+                ),
+              });
+            }
+            return undefined;
+          }),
+          rethrow,
+        );
+      }}
+    >
+      {t("desktop.item.output.reveal")}
+    </Button>
   );
 }
 
