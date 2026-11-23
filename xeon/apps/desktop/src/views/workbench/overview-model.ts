@@ -46,8 +46,9 @@ function toolsDraftTextOf(names: readonly string[]): string {
 }
 
 /**
- * "하는 일" 첫 줄(AGE-77 S-09 나). 목적이 도구 이름을 싣고 있으면(리뷰가 채운 기본 문장) 이름 원문을 빼고, 설명이 있으면 설명을,
- * 없으면 "도구 N개를 모델에 줘요"를 쓴다. 사람이 쓴 목적은 그대로다. 목적이 없으면 null이다
+ * "하는 일" 첫 줄(AGE-77 S-09 나). 목적이 도구 이름을 싣고 있으면(리뷰가 채운 기본 문장) 이름 원문을 빼고, 설명이 있으면 설명의 첫 문장을,
+ * 없으면 "도구 N개를 모델에 줘요"를 쓴다(설명은 모델이 쓴 개발자 말일 수 있어 전체가 아니라 첫 문장만, rerun4 U-01).
+ * 사람이 쓴 목적은 그대로다. 목적이 없으면 null이다
  */
 export function doesLeadOf(input: {
   readonly purpose: string | null;
@@ -59,7 +60,7 @@ export function doesLeadOf(input: {
   if (toolNames.length === 0 || purpose !== toolsDraftTextOf(toolNames)) {
     return { text: purpose, fromDescription: false };
   }
-  if (description !== null) return { text: description, fromDescription: true };
+  if (description !== null) return { text: firstSentenceOf(description), fromDescription: true };
   return {
     text: t("desktop.workbench.detail.overview.toolCount", { count: toolNames.length }),
     fromDescription: false,
@@ -67,7 +68,7 @@ export function doesLeadOf(input: {
 }
 
 /** 카드의 "하는 일" 첫 줄. 카드를 못 읽었으면 null(호출하는 쪽이 자리 글을 쓴다) */
-export function doesLeadOfCard(card: PluginCard): DoesLead | null {
+function doesLeadOfCard(card: PluginCard): DoesLead | null {
   return doesLeadOf({
     purpose: cardTextIn(card, "purpose"),
     description: cardTextIn(card, "description"),
