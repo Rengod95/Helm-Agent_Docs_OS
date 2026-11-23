@@ -59,6 +59,15 @@ function choiceName(choice: ProfileChoice): string {
 /** 이름을 받는 일 셋 */
 export type NameEdit = "new" | "clone" | "rename";
 
+/** 이름을 받는 입력의 처음 글. 복사는 보이는 이름으로 시작하고(기본 프로필은 "기본"), 이름 고치기는 저장된 제목이다 */
+export function startTextOf(edit: NameEdit, name: string, shownName: string): string {
+  if (edit === "new") return "";
+  if (edit === "clone") {
+    return t("desktop.craft.canvas.cv9.profileMenu.cloneTitle", { name: shownName });
+  }
+  return name;
+}
+
 const EDIT_LABEL: Readonly<Record<NameEdit, MessageId>> = {
   new: "desktop.craft.canvas.cv9.profileMenu.name.new",
   clone: "desktop.craft.canvas.cv9.profileMenu.name.clone",
@@ -106,7 +115,7 @@ export function ProfileHead(props: {
   const failureId = useId();
   const builtinId = useId();
   const saved = store.live?.saved[props.current];
-  // 이름 고치기·복사 입력의 초기값과 비교는 저장된 제목(`name`)을 쓰고, 보이는 글은 `shownName`이다
+  // 이름 고치기 입력의 초기값과 비교는 저장된 제목(`name`)을 쓴다. 복사 입력의 초기값과 보이는 글은 `shownName`이다
   const name = titleOf(store, props.current) ?? props.current;
   const shownName = shownTitleOf(store, props.current) ?? props.current;
   // 엔진이 지우지 않는 것: `default`(내장, `builtin`). 숨은 `craft`는 목록에 오지 않는다
@@ -126,13 +135,7 @@ export function ProfileHead(props: {
   const start = (next: NameEdit): void => {
     setFailure(null);
     setEdit(next);
-    setText(
-      next === "new"
-        ? ""
-        : next === "clone"
-          ? t("desktop.craft.canvas.cv9.profileMenu.cloneTitle", { name })
-          : name,
-    );
+    setText(startTextOf(next, name, shownName));
   };
   const stop = (): void => {
     const from = edit;

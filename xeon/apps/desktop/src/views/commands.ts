@@ -1382,6 +1382,10 @@ export interface Commands {
   playgroundTabs(): PlaygroundTabsPrefs | null;
   /** 플레이그라운드 탭 고정을 저장한다. 저장하지 못하면 `false`다 */
   savePlaygroundTabs(prefs: PlaygroundTabsPrefs): Promise<boolean>;
+  /** 크래프트 플러그인 목록의 보기(로컬 설정, plugTab). 저장한 적이 없으면 null */
+  pluginListView(): "table" | "cards" | null;
+  /** 플러그인 목록의 보기를 저장한다. 저장하지 못하면 `false`다 */
+  savePluginListView(view: "table" | "cards"): Promise<boolean>;
   /** 마지막에 보던 대화 id(로컬 설정). 없으면 null */
   lastThreadId(): string | null;
   /** 보던 대화를 저장한다. 보던 대화가 없으면 null. 저장하지 못하면 `false`다 */

@@ -62,6 +62,17 @@ function render(r: ShellRegistry, openTab: string | null): string {
   );
 }
 
+/** 플러그인 단추 한 개의 글(여는 태그부터 닫는 태그까지). 없으면 빈 글 */
+function pluginButtonOf(out: string): string {
+  return /<button[^>]*data-end-plugin[^>]*>.*?<\/button>/.exec(out)?.[0] ?? "";
+}
+
+/** 플러그인 단추가 확인 표시(`data-attention`)와 구슬을 함께 가졌는지 */
+function pluginMarksOf(out: string): readonly [boolean, boolean] {
+  const b = pluginButtonOf(out);
+  return [b.includes('data-attention=""'), b.includes('data-slot="attention-orb"')];
+}
+
 describe("end rail", () => {
   test("bar tabs come first; a separator and one plugin button follow when a plugin panel exists", () => {
     const out = render(registry(true), null);
@@ -108,5 +119,17 @@ describe("end rail", () => {
     expect(button).toContain('data-attention=""');
     expect(button).toContain(`aria-label="${t("desktop.shell.end.pluginsAttention")}"`);
     expect(button).not.toContain('data-slot="floating-bar-badge"');
+  });
+
+  test("the plugin button's orb comes exactly when its data-attention mark does, and not while it is open", () => {
+    expect([
+      pluginMarksOf(render(registry(true), null)),
+      pluginMarksOf(render(registry(true, 3), null)),
+      pluginMarksOf(render(registry(true, 3), "helm")),
+    ]).toEqual([
+      [false, false],
+      [true, true],
+      [false, false],
+    ]);
   });
 });

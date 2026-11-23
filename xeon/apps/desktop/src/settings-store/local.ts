@@ -102,6 +102,8 @@ export const LOCAL: {
   readonly playgroundTabs: LocalKey<PlaygroundTabsSchema>;
   /** 마지막으로 붙은 대상의 주소. 앱을 켜면 이 대상으로 다시 붙는다. 빈 값은 이 컴퓨터다(`lastTargetOf`) */
   readonly lastTarget: LocalKey<TString>;
+  /** 플러그인 목록의 보기("table" 표, "cards" 카드). 없으면 표다(`views/workbench/list-view.ts`) */
+  readonly pluginListView: LocalKey<TUnion<[TLiteral<"table">, TLiteral<"cards">]>>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -148,6 +150,10 @@ export const LOCAL: {
   lastThread: localKey("l4.desktop.window.lastThread", Type.String({ maxLength: 128 })),
   playgroundTabs: localKey("l4.desktop.window.playgroundTabs", PlaygroundTabsShape),
   lastTarget: localKey(LAST_TARGET_KEY, Type.String({ maxLength: 2048 })),
+  pluginListView: localKey(
+    "l4.desktop.window.pluginListView",
+    Type.Union([Type.Literal("table"), Type.Literal("cards")]),
+  ),
 };
 
 type LocalSettingsError =

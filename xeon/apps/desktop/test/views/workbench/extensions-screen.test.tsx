@@ -5,6 +5,7 @@ import {
   listLoaded,
   openDetail,
   pickPlugin,
+  rowOf,
   setCoreOpen,
   setQuery,
   type WorkbenchState,
@@ -12,6 +13,8 @@ import {
 import { renderToString } from "react-dom/server";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
 import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
+import { PluginCardGrid } from "../../../src/views/workbench/plugin-cards.tsx";
+import type { PluginCards } from "../../../src/views/workbench/use-plugin-cards.ts";
 import { entry, inContexts, screenStore } from "./support.tsx";
 
 // 크래프트 플러그인 목록(P-13, AGE-76 plugMin): 세 묶음, 앱 핵심은 접힌 채 시작, 켜기 스위치 없음, 줄마다 "프로필에 넣기".
@@ -89,7 +92,8 @@ describe("플러그인 목록: 세 묶음", () => {
     const rows = rowsOf(html);
     // core-loop은 카탈로그의 한국어 이름(ext.name.coreLoop)으로 그려진다
     const core = rows.find((row) => (row.cells[0] ?? "").includes("에이전트 루프"));
-    expect(core?.cells[1]).toBe("");
+    // 쓰는 곳 칸(셋째 열)은 프로필 목록을 읽기 전이라 빈 글이다
+    expect(core?.cells[2]).toBe("");
     expect(core?.markup).not.toContain(PUT);
     expect(rows.filter((row) => row.markup.includes(PUT)).map((row) => row.cells[0])).toEqual([
       "review",
@@ -104,11 +108,14 @@ describe("플러그인 목록: 세 묶음", () => {
 });
 
 describe("플러그인 목록: 줄과 칸", () => {
-  test("열은 이름, 쓰는 곳, 상태, 프로필 메뉴 칸이다", () => {
+  test("열은 이름, 종류, 쓰는 곳, 출처, 버전, 상태, 프로필 메뉴 칸이다", () => {
     expect(headingsOf(render())).toEqual([
       [
         t("desktop.workbench.col.name"),
+        t("desktop.workbench.col.kind"),
         t("desktop.workbench.col.use"),
+        t("desktop.workbench.versions.col.source"),
+        t("desktop.workbench.versions.col.version"),
         t("desktop.workbench.col.state"),
         "",
       ],
@@ -122,7 +129,7 @@ describe("플러그인 목록: 줄과 칸", () => {
 
   test("자동으로 멈춘 플러그인은 상태 칸에 '멈춤'을, 문제없는 줄은 '준비됨'을 보인다", () => {
     const rows = rowsOf(render());
-    expect(rows.map((row) => [row.cells[0], row.cells[2]])).toEqual([
+    expect(rows.map((row) => [row.cells[0], row.cells[5]])).toEqual([
       ["review", t("desktop.workbench.health.stopped")],
       ["웹 검색web", t("desktop.workbench.health.ready")],
     ]);
@@ -155,5 +162,29 @@ describe("플러그인 상세(P-17)는 목록 대신 그린다", () => {
     }
     expect(html).not.toContain('role="switch"');
     expect(groupsOf(html)).not.toContain(MINE);
+  });
+});
+
+describe("플러그인 목록: 카드 보기", () => {
+  test("줄마다 카드 하나를 그리고, 카드를 못 읽었으면 목적이 없다는 글을 보인다", () => {
+    const cards: PluginCards = {
+      cardOf: () => null,
+      reload: () => undefined,
+    };
+    const rows = [rowOf(entry("web", { displayName: "웹 검색" }))];
+    const html = renderToString(
+      inContexts(
+        <PluginCardGrid
+          label={MINE}
+          rows={rows}
+          profiles={{ set: null, reload: () => undefined }}
+          cards={cards}
+        />,
+        screenStore(),
+      ),
+    );
+    expect(html.match(/<li\b/g)?.length).toBe(1);
+    expect(html).toContain("웹 검색");
+    expect(html).toContain(t("desktop.workbench.card.noPurpose"));
   });
 });

@@ -8,6 +8,7 @@ import { useCommands } from "../commands.ts";
 import { useAddonData } from "./addon-data.ts";
 import { tabbableRowsOf, type AddonRow } from "./addon-model.ts";
 import { requestAddon } from "./plugin-pick.ts";
+import { AttentionOrb } from "../effects/attention-orb.tsx";
 import { PluginGlyph } from "./plugin-glyph.tsx";
 import { useOptionalPluginUi } from "./plugin-context.tsx";
 import {
@@ -44,17 +45,6 @@ const DRAG_TYPE = "application/x-fresnel-playground-tab";
 /** 탭 하나의 겉모습. 지금 탭은 왼쪽 내비 막대의 지금 표시와 같은 면(raised + 안쪽 선)이다 */
 const TAB =
   "relative inline-flex h-control-sm flex-none items-center gap-1.5 rounded-lg text-ui font-medium text-text-secondary outline-none transition-control hover:bg-neutral-hover hover:text-text-primary focus-visible:shadow-focus aria-[current=page]:bg-control-raised aria-[current=page]:text-text-primary aria-[current=page]:shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]";
-
-/** 주의 점: 아이콘 오른쪽 위, 바탕색 테두리로 떼어 낸다 */
-function AttentionDot(props: { readonly tone: "warning" | "danger" }): ReactNode {
-  return (
-    <span
-      aria-hidden
-      data-slot="tab-attention"
-      className={`absolute -end-0.5 -top-0.5 size-1.5 rounded-full shadow-[0_0_0_2px_var(--cs-color-bg-app)] ${props.tone === "danger" ? "bg-danger-solid" : "bg-warning-solid"}`}
-    />
-  );
-}
 
 function tabLabelOf(row: AddonRow): string {
   const state =
@@ -127,7 +117,8 @@ function TabMenuItems(props: {
   );
 }
 
-function Tab(props: {
+/** 탭 하나. 주의가 있으면 아이콘 오른쪽 위에 주의 구슬을 단다(뜻은 `tabLabelOf`가 이름에 넣는다) */
+export function PlaygroundTab(props: {
   readonly row: AddonRow;
   readonly mode: "label" | "icon";
   readonly current: boolean;
@@ -170,7 +161,12 @@ function Tab(props: {
     >
       <span className="relative inline-flex flex-none">
         <PluginGlyph icon={row.icon} monogram={row.monogram} size="tab" off={row.off} />
-        {row.attention === undefined ? null : <AttentionDot tone={row.attention} />}
+        {/* 구슬(12px)은 아이콘(16px) 오른쪽 위 모서리에 걸친다. 오른쪽 끝이 라벨 앞 간격(6px)에 닿고, 아이콘 몸통의 위 오른쪽 귀퉁이만 덮는다 */}
+        {row.attention === undefined ? null : (
+          <span data-slot="tab-attention" className="absolute -end-1.5 -top-2 flex">
+            <AttentionOrb />
+          </span>
+        )}
       </span>
       {props.mode === "label" ? <span className="min-w-0 truncate">{row.title}</span> : null}
     </button>
@@ -403,7 +399,7 @@ function TabStrip(): ReactNode {
         }}
       >
         {tabs.map((row, index) => (
-          <Tab
+          <PlaygroundTab
             key={row.name}
             row={row}
             mode={mode}

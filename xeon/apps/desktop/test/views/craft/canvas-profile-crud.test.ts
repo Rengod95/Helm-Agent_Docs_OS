@@ -1,6 +1,7 @@
 // 프로필 화면(C3) 왼쪽 패널의 새 프로필(+ 단추, pfMode2)과 ⋯ 메뉴의 복사, 이름 바꾸기, 지우기(craft-flows §6.10, pfCrud).
 // 이름에서 id를 만드는 규칙과 저장 값은 순수 함수로, 엔진에 쓰고 다시 읽는 흐름은 메모리 안의 가짜 엔진으로 값을 비교한다.
 import { beforeEach, describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import { err, ok } from "@fresnel/contracts";
 import { BLOCK_MODEL } from "@fresnel/contracts/blocks";
 import type { PluginCard } from "@fresnel/contracts/extensions";
@@ -26,6 +27,7 @@ import { CommandsContext } from "../../../src/views/commands.ts";
 import {
   ProfileHead,
   profileWriteErrorText,
+  startTextOf,
 } from "../../../src/views/craft/canvas/cv6/profile-menu.tsx";
 import { fakeCommands as fakeViewCommands } from "../fake-commands.ts";
 import {
@@ -316,6 +318,15 @@ describe("메뉴의 쓰기", () => {
       { name: "helm" },
     ]);
     expect(s.live?.saved["profile"]?.startDrive).toBe("helm");
+  });
+
+  test("이름 입력의 처음 글: 복사는 보이는 이름으로 시작하고, 이름 고치기는 저장된 제목이다", () => {
+    const shown = t("desktop.profileChip.defaultName");
+    expect(startTextOf("clone", "default", shown)).toBe(
+      t("desktop.craft.canvas.cv9.profileMenu.cloneTitle", { name: shown }),
+    );
+    expect(startTextOf("rename", "default", shown)).toBe("default");
+    expect(startTextOf("new", "default", shown)).toBe("");
   });
 
   test("이름 바꾸기: 저장된 rev로 이름만 바꿔 쓴다", async () => {

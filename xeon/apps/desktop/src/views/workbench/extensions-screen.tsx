@@ -3,7 +3,7 @@
 import { PuzzleArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { pluginGroups, selectedEntry } from "@fresnel/client/workbench";
-import { Alert, Button, EmptyState } from "@caustic/react";
+import { Alert, Button, EmptyState, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands, type DependencyRefusalView } from "../commands.ts";
@@ -14,12 +14,14 @@ import { BuilderEntry } from "./builder-entry.tsx";
 import { ExtDetail } from "./ext-detail.tsx";
 import { InstallDialog } from "./install-dialog.tsx";
 import { PluginList } from "./plugin-list.tsx";
+import { DEFAULT_LIST_VIEW, listViewOf, type ListView } from "./list-view.ts";
 import { useProfileSet } from "./profile-put-menu.tsx";
 import { RemoveDialog } from "./remove-dialog.tsx";
 import { keepsDialogOpen } from "./remove-model.ts";
+import { usePluginCards } from "./use-plugin-cards.ts";
 import { MergeDialog } from "../craft/members/split-dialogs.tsx";
 import { useSplitActions } from "../craft/members/split-source.ts";
-import { SquareStack } from "@caustic/react/icons";
+import { LayoutGrid, Rows3, SquareStack } from "@caustic/react/icons";
 import { useSafeMode } from "../safe-mode-context.ts";
 import {
   HEADER_CONTROL_SIZE,
@@ -43,6 +45,10 @@ export function ExtensionsScreen(): ReactNode {
   const [removeBusy, setRemoveBusy] = useState(false);
   const [removeRefusal, setRemoveRefusal] = useState<DependencyRefusalView | null>(null);
   const profiles = useProfileSet();
+  // 플러그인 카드(종류, 목적, 준비 상태)는 한 번 읽어 목록과 상세가 같이 쓴다
+  const cards = usePluginCards();
+  // 목록의 보기(표, 카드). 이 기기의 로컬 설정 `l4.desktop.window.pluginListView`에 남는다. 저장하지 못해도 이 화면에서는 고른 보기다
+  const [view, setView] = useState<ListView>(() => commands.pluginListView() ?? DEFAULT_LIST_VIEW);
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
   const ready = state.list === "ready";
@@ -89,7 +95,7 @@ export function ExtensionsScreen(): ReactNode {
       />
       {/* 머리가 가려진 상세에서는 위 간격을 이 칸이 맡고, 머리가 보이면 공용 간격이 준다 */}
       <div
-        className={`mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pb-4${headerHidden ? " pt-6" : ""}`}
+        className={`mx-auto flex min-h-0 w-full ${detailEntry === null ? "max-w-240" : "max-w-300"} flex-1 flex-col gap-3 px-3 pb-4${headerHidden ? " pt-6" : ""}`}
       >
         <MergeDialog
           open={merging}
@@ -115,6 +121,24 @@ export function ExtensionsScreen(): ReactNode {
         {detailEntry === null && (
           <div className="flex flex-wrap items-center gap-1.5">
             <SearchField />
+            <SegmentedControl
+              size="sm"
+              aria-label={t("desktop.workbench.view.label")}
+              value={view}
+              onValueChange={(value) => {
+                const next = listViewOf(value);
+                setView(next);
+                detachVoid(commands.savePluginListView(next).then(() => undefined));
+              }}
+              className="ms-auto"
+            >
+              <SegmentedControlItem value="table" icon={<Rows3 />}>
+                {t("desktop.workbench.view.table")}
+              </SegmentedControlItem>
+              <SegmentedControlItem value="cards" icon={<LayoutGrid />}>
+                {t("desktop.workbench.view.cards")}
+              </SegmentedControlItem>
+            </SegmentedControl>
           </div>
         )}
         <ListStatusBand controller={controller} />
@@ -146,6 +170,8 @@ export function ExtensionsScreen(): ReactNode {
             <ExtDetail
               key={detailEntry.name}
               entry={detailEntry}
+              card={cards.cardOf(detailEntry.name)}
+              onRecheck={cards.reload}
               tab={state.detailTab}
               profiles={profiles}
               onTab={(tab) => {
@@ -178,7 +204,7 @@ export function ExtensionsScreen(): ReactNode {
         )}
         {ready && detailEntry === null && !empty && (
           <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-            <PluginList profiles={profiles} />
+            <PluginList profiles={profiles} cards={cards} view={view} />
           </div>
         )}
         <RemoveDialog

@@ -1,6 +1,7 @@
 // 플러그인 상세 "의존" 탭의 그림(m6Mb, AGE-33). 한 물음에 답한다: "이 플러그인은 무엇에 기대고, 무엇이 이 플러그인에 기대나".
 // 두 구역이다. 기대는 플러그인(이 플러그인의 `dependsOn`, 원본 폴더가 있으면 고칠 수 있다)과 이 플러그인에 기대는 것(카드의
-// `dependents`, 읽기만). 줄 하나는 구성원 탭의 줄과 같은 높이(32)이고, 이름, 건 쪽 멤버, 버전 범위, 문제, 종류 칩, 지우기 단추가 선다.
+// `dependents`, 읽기만). 두 구역은 상세 칸이 넓으면 두 단으로 나란히 선다(plugTab, `TwoColumns`). 줄 하나는 구성원 탭의 줄과 같은 높이(32)이고,
+// 이름, 건 쪽 멤버, 버전 범위, 문제, 종류 칩, 지우기 단추가 선다.
 // 문제(설치본 기준, 엔진이 계산)는 주의 구슬과 글로 늘 보인다. 고친 것은 바로 원본 폴더에 쓰이고, 승인하기 전에는 승인본이 돈다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
@@ -22,6 +23,7 @@ import type { DependencyOp } from "@fresnel/contracts/services";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { useCallback, useId, useState, type ReactNode } from "react";
 import { DotOrb } from "../../effects/dot-orb.tsx";
+import { TwoColumns } from "../../workbench/tab-body.tsx";
 import { InfoTip } from "../info-tip.tsx";
 import { sendStateOf, type SendState } from "../members/members-model.ts";
 import { Chip, NoticeCard, NoticeLine } from "../review/review-parts.tsx";
@@ -441,85 +443,91 @@ export function DepsView(props: { readonly data: DepsData }): ReactNode {
       </Button>
     ) : null;
   return (
-    <div className="rv-root grid max-w-200 content-start gap-6 pt-4" data-deps="">
+    <div className="rv-root grid content-start gap-6 pt-4" data-deps="">
       <SendNotice state={state} editable={editable} editor={editor} onOpen={data.openReview} />
-      <section className="grid gap-3" aria-labelledby={headA} data-deps-section="dependsOn">
-        <SectionHead
-          id={headA}
-          title="desktop.craft.deps.dependsOn"
-          info="desktop.craft.deps.dependsOn.help"
-          end={end}
-        />
-        {editor.notice?.kind === "failed" && (
-          <div role="alert">
-            <NoticeLine tone="danger">{t(editor.notice.text)}</NoticeLine>
-          </div>
-        )}
-        {dependsOn.length === 0 && !editor.adding ? (
-          <p className="m-0 text-ui text-text-secondary">
-            {t("desktop.craft.deps.dependsOn.empty")}
-          </p>
-        ) : (
-          <ul className="m-0 grid list-none gap-0.5 p-0" aria-labelledby={headA}>
-            {dependsOn.map((row) => (
-              <DependencyRowView
-                key={row.key}
-                row={row}
-                side="dependsOn"
-                entries={data.entries}
-                removable={editable}
+      <TwoColumns
+        start={
+          <section className="grid gap-3" aria-labelledby={headA} data-deps-section="dependsOn">
+            <SectionHead
+              id={headA}
+              title="desktop.craft.deps.dependsOn"
+              info="desktop.craft.deps.dependsOn.help"
+              end={end}
+            />
+            {editor.notice?.kind === "failed" && (
+              <div role="alert">
+                <NoticeLine tone="danger">{t(editor.notice.text)}</NoticeLine>
+              </div>
+            )}
+            {dependsOn.length === 0 && !editor.adding ? (
+              <p className="m-0 text-ui text-text-secondary">
+                {t("desktop.craft.deps.dependsOn.empty")}
+              </p>
+            ) : (
+              <ul className="m-0 grid list-none gap-0.5 p-0" aria-labelledby={headA}>
+                {dependsOn.map((row) => (
+                  <DependencyRowView
+                    key={row.key}
+                    row={row}
+                    side="dependsOn"
+                    entries={data.entries}
+                    removable={editable}
+                    busy={editor.busy}
+                    onRemove={onRemove}
+                  />
+                ))}
+              </ul>
+            )}
+            {editor.adding && (
+              <AddForm
+                data={data}
+                taken={taken}
                 busy={editor.busy}
-                onRemove={onRemove}
+                onCancel={() => {
+                  editor.setAdding(false);
+                }}
+                onAdd={(op) => {
+                  detach(
+                    editor.run([op]).then((ok) => {
+                      if (ok) editor.setAdding(false);
+                      return undefined;
+                    }),
+                    rethrow,
+                  );
+                }}
               />
-            ))}
-          </ul>
-        )}
-        {editor.adding && (
-          <AddForm
-            data={data}
-            taken={taken}
-            busy={editor.busy}
-            onCancel={() => {
-              editor.setAdding(false);
-            }}
-            onAdd={(op) => {
-              detach(
-                editor.run([op]).then((ok) => {
-                  if (ok) editor.setAdding(false);
-                  return undefined;
-                }),
-                rethrow,
-              );
-            }}
-          />
-        )}
-      </section>
-      <section className="grid gap-3" aria-labelledby={headB} data-deps-section="dependents">
-        <SectionHead
-          id={headB}
-          title="desktop.craft.deps.dependents"
-          info="desktop.craft.deps.dependents.help"
-        />
-        {dependents.length === 0 ? (
-          <p className="m-0 text-ui text-text-secondary">
-            {t("desktop.craft.deps.dependents.empty")}
-          </p>
-        ) : (
-          <ul className="m-0 grid list-none gap-0.5 p-0" aria-labelledby={headB}>
-            {dependents.map((row) => (
-              <DependencyRowView
-                key={row.key}
-                row={row}
-                side="dependents"
-                entries={data.entries}
-                removable={false}
-                busy={editor.busy}
-                onRemove={onRemove}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+            )}
+          </section>
+        }
+        end={
+          <section className="grid gap-3" aria-labelledby={headB} data-deps-section="dependents">
+            <SectionHead
+              id={headB}
+              title="desktop.craft.deps.dependents"
+              info="desktop.craft.deps.dependents.help"
+            />
+            {dependents.length === 0 ? (
+              <p className="m-0 text-ui text-text-secondary">
+                {t("desktop.craft.deps.dependents.empty")}
+              </p>
+            ) : (
+              <ul className="m-0 grid list-none gap-0.5 p-0" aria-labelledby={headB}>
+                {dependents.map((row) => (
+                  <DependencyRowView
+                    key={row.key}
+                    row={row}
+                    side="dependents"
+                    entries={data.entries}
+                    removable={false}
+                    busy={editor.busy}
+                    onRemove={onRemove}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        }
+      />
     </div>
   );
 }

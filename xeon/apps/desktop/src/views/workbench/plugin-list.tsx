@@ -1,16 +1,24 @@
-// 크래프트 플러그인 목록(P-13, AGE-76 plugMin). 세 묶음: 내가 넣은 것, 기본 제공, 앱 핵심(접힌 채 시작).
-// 줄 칸: 이름, 쓰는 곳(프로필 N개 / 어느 프로필에도 없음 / 모든 대화), 상태, "프로필에 넣기" 메뉴. 켜기 스위치는 없다(켜고 끔은 프로필에서만).
+// 크래프트 플러그인 목록(P-13, AGE-76 plugMin, plugTab). 세 묶음: 내가 넣은 것, 기본 제공, 앱 핵심(접힌 채 시작).
+// 묶음마다 표나 카드로 그린다(보기는 목록 머리의 보기 전환이 고른다). 표 열: 이름, 종류, 쓰는 곳, 출처, 버전, 상태, "프로필에 넣기" 메뉴.
+// 정렬은 이름과 종류 열만 건다. 정렬 상태는 세 표가 하나를 같이 쓴다. 켜기 스위치는 없다(켜고 끔은 프로필에서만).
 // 앱 핵심 묶음 머리에는 자물쇠와 "늘 켜져 있어요. 끄거나 지울 수 없어요."가 접혀 있어도 늘 보인다. 그 안의 줄에는 메뉴가 없다.
 // 줄을 누르거나 Enter·Space로 상세를 연다. 줄 사이 화살표 이동은 Table이 한다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { pluginGroups, type ExtRowVM, type PluginGroupKey } from "@fresnel/client/workbench";
 import { Table, type TableColumn } from "@caustic/react";
 import { ChevronDown, ChevronRight, Lock } from "@caustic/react/icons";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
-import { DotOrb } from "../effects/dot-orb.tsx";
+import { PluginCardGrid } from "./plugin-cards.tsx";
+import { HealthCell, notReadyOf, RowName, UseText } from "./plugin-cells.tsx";
+import { originText } from "./origin-text.ts";
+import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
 import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
-import { profileUseOf, profileUseText } from "./profile-use.ts";
+import { sortKeyOf, sortRows, type ListView, type TableSort } from "./list-view.ts";
+import type { PluginCards } from "./use-plugin-cards.ts";
+
+// 상태 칸의 규칙(`rowHealthOf`)은 상세 머리가 같이 쓴다. 두 보기가 쓰는 칸은 `plugin-cells.tsx`에 있다
+export { HealthCell, rowHealthOf } from "./plugin-cells.tsx";
 
 const GROUP_TITLE: Readonly<Record<PluginGroupKey, MessageId>> = {
   mine: "desktop.workbench.group.mine",
@@ -18,68 +26,25 @@ const GROUP_TITLE: Readonly<Record<PluginGroupKey, MessageId>> = {
   core: "desktop.workbench.group.core",
 };
 
-/** 줄의 상태 한 칸. 문제가 있을 때만 주의 구슬과 글, 아니면 흐린 "준비됨" */
-type RowHealth = "stopped" | "safeMode" | "problem" | "ready";
-
-export function rowHealthOf(row: Pick<ExtRowVM, "state" | "failed">): RowHealth {
-  if (row.state === "auto_disabled") return "stopped";
-  if (row.state === "safe_excluded") return "safeMode";
-  if (row.failed) return "problem";
-  return "ready";
-}
-
-const HEALTH_TEXT: Readonly<Record<RowHealth, MessageId>> = {
-  stopped: "desktop.workbench.health.stopped",
-  safeMode: "desktop.workbench.health.safeMode",
-  problem: "desktop.workbench.health.problem",
-  ready: "desktop.workbench.health.ready",
-};
-
-export function HealthCell(props: { readonly row: Pick<ExtRowVM, "state" | "failed"> }): ReactNode {
-  const health = rowHealthOf(props.row);
-  if (health === "ready") {
-    return <span className="text-ui-sm text-text-tertiary">{t(HEALTH_TEXT.ready)}</span>;
-  }
-  return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-ui-sm text-text-primary">
-      <span
-        aria-hidden="true"
-        className="inline-flex size-icon-sm shrink-0 items-center justify-center"
-      >
-        <DotOrb state="listening" tone="warm" size={12} kind="mark" live={false} />
-      </span>
-      <span className="min-w-0 truncate">{t(HEALTH_TEXT[health])}</span>
-    </span>
-  );
-}
-
-function RowName(props: { readonly row: ExtRowVM }): ReactNode {
-  const { row } = props;
-  return (
-    <span className="flex min-w-0 items-baseline gap-2">
-      <span className="min-w-0 truncate text-text-primary">{row.displayName ?? row.name}</span>
-      {row.displayName !== null && (
-        <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-          {row.name}
-        </span>
-      )}
-    </span>
-  );
-}
-
 function GroupTable(props: {
   readonly label: string;
   readonly rows: readonly ExtRowVM[];
   readonly profiles: ProfileSetLoad;
+  readonly cards: PluginCards;
+  readonly sort: TableSort | null;
+  readonly onSortChange: (sort: TableSort) => void;
 }): ReactNode {
   const actions = useWorkbenchActions();
   const byName = new Map(props.rows.map((row) => [row.name, row] as const));
   const set = props.profiles.set;
-  // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다
+  // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다. 열 폭은 세 묶음이 같다(이름 열만 남은 폭을 쓴다)
   const columns: TableColumn[] = [
-    { key: "name", header: t("desktop.workbench.col.name") },
-    { key: "use", header: t("desktop.workbench.col.use"), width: 168 },
-    { key: "health", header: t("desktop.workbench.col.state"), width: 136 },
+    { key: "name", header: t("desktop.workbench.col.name"), sortable: true },
+    { key: "kind", header: t("desktop.workbench.col.kind"), width: 112, sortable: true },
+    { key: "use", header: t("desktop.workbench.col.use"), width: 152 },
+    { key: "origin", header: t("desktop.workbench.versions.col.source"), width: 112 },
+    { key: "version", header: t("desktop.workbench.versions.col.version"), width: 88 },
+    { key: "health", header: t("desktop.workbench.col.state"), width: 128 },
     { key: "put", header: "", align: "end", width: 136 },
   ];
   return (
@@ -91,6 +56,11 @@ function GroupTable(props: {
       aria-label={props.label}
       columns={columns}
       rows={props.rows.map((row) => ({ id: row.name }))}
+      sort={props.sort}
+      onSortChange={(next) => {
+        const key = sortKeyOf(next.key);
+        if (key !== null) props.onSortChange({ key, direction: next.direction });
+      }}
       onRowActivate={(picked) => {
         const row = byName.get(picked.id);
         if (row === undefined) return;
@@ -101,14 +71,29 @@ function GroupTable(props: {
         const row = byName.get(picked.id);
         if (row === undefined) return null;
         if (column.key === "name") return <RowName row={row} />;
-        if (column.key === "use") {
+        if (column.key === "kind") {
+          const kind = pluginKindOf(props.cards.cardOf(row.name));
+          return kind === null ? null : <KindTag kind={kind} />;
+        }
+        if (column.key === "use") return <UseText row={row} profiles={set} />;
+        if (column.key === "origin") {
+          if (row.origin === undefined) return null;
           return (
-            <span className="text-ui-sm text-text-secondary">
-              {set === null ? "" : profileUseText(profileUseOf(row.name, row.appCore, set))}
+            <span className="block min-w-0 truncate text-ui-sm text-text-secondary">
+              {originText(row.origin)}
             </span>
           );
         }
-        if (column.key === "health") return <HealthCell row={row} />;
+        if (column.key === "version") {
+          return (
+            <span className="block min-w-0 truncate font-mono text-mono-sm text-text-tertiary tabular-nums">
+              {row.version}
+            </span>
+          );
+        }
+        if (column.key === "health") {
+          return <HealthCell row={row} blocked={notReadyOf(props.cards.cardOf(row.name))} />;
+        }
         if (column.key !== "put" || row.appCore) return null;
         // 메뉴를 누르는 것이 줄 열기로 번지지 않게 막는다
         return (
@@ -172,11 +157,37 @@ function CoreHead(props: {
   );
 }
 
-export function PluginList(props: { readonly profiles: ProfileSetLoad }): ReactNode {
+export function PluginList(props: {
+  readonly profiles: ProfileSetLoad;
+  readonly cards: PluginCards;
+  readonly view: ListView;
+}): ReactNode {
   const state = useWorkbench((s) => s);
   const actions = useWorkbenchActions();
+  // 정렬은 표 머리를 누를 때 걸린다. 세 묶음의 표가 이 하나를 같이 쓰고, 카드 보기도 같은 순서를 따른다
+  const [sort, setSort] = useState<TableSort | null>(null);
   // 찾는 중이면 앱 핵심도 펼쳐 보인다(찾은 줄이 접힌 묶음에 숨지 않게)
   const searching = state.query.trim() !== "";
+  const kindOfName = (name: string) => pluginKindOf(props.cards.cardOf(name));
+  // 묶음 하나의 몸: 정렬을 걸고 고른 보기대로 표나 카드를 그린다
+  const body = (label: string, rows: readonly ExtRowVM[]): ReactNode => {
+    const sorted = sortRows(rows, sort, kindOfName);
+    if (props.view === "cards") {
+      return (
+        <PluginCardGrid label={label} rows={sorted} profiles={props.profiles} cards={props.cards} />
+      );
+    }
+    return (
+      <GroupTable
+        label={label}
+        rows={sorted}
+        profiles={props.profiles}
+        cards={props.cards}
+        sort={sort}
+        onSortChange={setSort}
+      />
+    );
+  };
   return (
     <div className="grid content-start gap-6">
       {pluginGroups(state).map((group) => {
@@ -185,7 +196,7 @@ export function PluginList(props: { readonly profiles: ProfileSetLoad }): ReactN
           return (
             <section key={group.key} aria-label={label} className="grid gap-1">
               <GroupHead title={label} count={group.rows.length} />
-              <GroupTable label={label} rows={group.rows} profiles={props.profiles} />
+              {body(label, group.rows)}
             </section>
           );
         }
@@ -199,7 +210,7 @@ export function PluginList(props: { readonly profiles: ProfileSetLoad }): ReactN
                 actions.setCoreOpen(!open);
               }}
             />
-            {open && <GroupTable label={label} rows={group.rows} profiles={props.profiles} />}
+            {open && body(label, group.rows)}
           </section>
         );
       })}

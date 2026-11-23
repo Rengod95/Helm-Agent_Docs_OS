@@ -233,7 +233,6 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
       ]),
       folded("desktop.settings.part.hooks", [
         "x.operations.hookDefs",
-        "x.operations.hookOrder",
         "x.operations.hookDisabled",
         "x.operations.hookEnvAllow",
       ]),

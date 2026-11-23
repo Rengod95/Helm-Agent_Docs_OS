@@ -201,12 +201,14 @@ function headerHtml(target: ExtListEntry): string {
       <ExtDetail
         entry={target}
         tab="overview"
+        card={null}
         profiles={{ set: null, reload: noop }}
         onTab={noop}
         onBack={noop}
         onRetry={noop}
         onStop={noop}
         onRemove={noop}
+        onRecheck={noop}
       />,
       store,
     ),

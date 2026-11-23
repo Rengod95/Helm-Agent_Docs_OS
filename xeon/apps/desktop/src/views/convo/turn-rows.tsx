@@ -16,6 +16,7 @@ import { MetaParts } from "../meta-parts.tsx";
 import { ReplyActions } from "./message-actions.tsx";
 import { DrivingBy } from "./drive-stack.tsx";
 import { InvokedMark } from "./one-shot.tsx";
+import { profileTitleOf as shownProfileTitleOf } from "./profile-chip-model.ts";
 import { profileTitleOf, useProfiles } from "./profile-listing.ts";
 import {
   clockOf,
@@ -144,7 +145,9 @@ export function MarkerRow(props: { readonly marker: ConvoMarker }): ReactNode {
   const nameOf = useModelNameOf();
   const profiles = useProfiles();
   const clock = clockOf(props.marker.at);
-  const text = markerTextOf(props.marker, nameOf, (id) => profileTitleOf(profiles, id));
+  const text = markerTextOf(props.marker, nameOf, (id) =>
+    shownProfileTitleOf(id, profileTitleOf(profiles, id)),
+  );
   const { change } = props.marker;
   // 모델 바꿈은 화면 이름으로 적고 참조(`provider/model`)는 hover에 둔다
   const title = change.kind === "model" ? change.model : undefined;
