@@ -525,6 +525,11 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         if (change.kind === "lease" && change.threadId !== null) listener(change.threadId);
       });
     },
+    extDataChanged(listener) {
+      return env.ext.onChange((change) => {
+        if (change.kind === "data") listener(change.extension);
+      });
+    },
     settings: {
       catalog,
       layers: (threadId) => layersOf(env.settings, threadId),

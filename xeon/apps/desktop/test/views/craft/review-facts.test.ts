@@ -46,10 +46,62 @@ describe("how it works: when / reads / effect / gives", () => {
       reads: [],
       changes: [{ kind: "instructions" }],
       gives: [],
+      screens: [],
     });
     const notes = workFactsOf(sample("rvw_sample_notes").card);
     expect(notes.when).toEqual([{ kind: "onDemand" }]);
     expect(notes.gives).toEqual([{ kind: "skill", value: "release-notes" }]);
+  });
+});
+
+describe("screens: 화면 줄은 카드의 화면 칸을 매니페스트 선언 그대로 보인다", () => {
+  test("a native screen has its place and id; an own-code screen adds its reason and bridge capabilities", () => {
+    const card = sample("rvw_sample_fetch").card;
+    const inject = card.does.inject;
+    if (inject === null) throw new Bug("the sample has no inject inventory");
+    const facts = workFactsOf({
+      ...card,
+      does: {
+        ...card.does,
+        inject: {
+          ...inject,
+          ui: [
+            {
+              id: "main",
+              placement: "page",
+              readsState: null,
+              modelVisible: "none",
+              mode: "native",
+            },
+            {
+              id: "graph",
+              placement: "panel",
+              readsState: null,
+              modelVisible: "none",
+              mode: "app",
+              app: { reason: "Needs a canvas", capabilities: ["files", "files", "secrets"] },
+            },
+            { id: "start", placement: "command", readsState: null, modelVisible: "none" },
+          ],
+        },
+      },
+    });
+    expect(facts.screens).toEqual([
+      { id: "main", placement: "page", mode: "native", reason: null, capabilities: [] },
+      {
+        id: "graph",
+        placement: "panel",
+        mode: "app",
+        reason: "Needs a canvas",
+        capabilities: ["files", "secrets"],
+      },
+      { id: "start", placement: "command", mode: null, reason: null, capabilities: [] },
+    ]);
+    expect(facts.gives).toContainEqual({ kind: "ui", count: 3 });
+  });
+
+  test("a card without UI declarations has no screen lines", () => {
+    expect(workFactsOf(sample("rvw_sample_rule").card).screens).toEqual([]);
   });
 });
 

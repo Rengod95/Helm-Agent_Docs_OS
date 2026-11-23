@@ -91,7 +91,7 @@ import {
 import { WIRE_LIMITS, WireMetaSchema } from "./jsonrpc.ts";
 import { RequestKeySchema } from "./schema-kit.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
-import { DriveFramesChangedParamsSchema } from "./ext-read.ts";
+import { DriveFramesChangedParamsSchema, ExtUiChangedParamsSchema } from "./ext-read.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
 import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
@@ -2667,6 +2667,8 @@ interface ServerNotificationSchemas {
   "profile.changed": typeof ProfileChangedParamsSchema;
   /** M4 (drive-isolation.md 2.6) */
   "drive.framesChanged": typeof DriveFramesChangedParamsSchema;
+  /** M4 (ADR-0021 §3.4.2 다시 읽기 푸시) */
+  "ext.ui.changed": typeof ExtUiChangedParamsSchema;
   "project.changed": typeof ProjectChangedParamsSchema;
   "plugin.changed": typeof PluginChangedParamsSchema;
   "pluginReview.changed": typeof PluginReviewChangedParamsSchema;
@@ -2916,6 +2918,7 @@ export const WIRE_NOTIFICATIONS: {
   "notify.delivered": { params: NotifyDeliveredParamsSchema, since: "0.1.0", stage: "M3" },
   "profile.changed": { params: ProfileChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "drive.framesChanged": { params: DriveFramesChangedParamsSchema, since: "0.1.0", stage: "M4" },
+  "ext.ui.changed": { params: ExtUiChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "project.changed": { params: ProjectChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "plugin.changed": { params: PluginChangedParamsSchema, since: "0.1.0", stage: "M4" },
   "pluginReview.changed": { params: PluginReviewChangedParamsSchema, since: "0.1.0", stage: "M4" },

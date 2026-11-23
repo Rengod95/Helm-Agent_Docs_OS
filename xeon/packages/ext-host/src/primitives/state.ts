@@ -242,6 +242,16 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     return thread;
   }
 
+  /** 확장의 데이터가 커밋됐다고 알린다(`ExtChange` data). 커밋이 성공한 뒤에만 부른다. 화면은 자기 메서드로 다시 읽는다 */
+  function announceData(record: RegistrationRecord, thread: ThreadRuntime): void {
+    core.notify({
+      kind: "data",
+      extension: record.manifest.name,
+      scopeId: record.id,
+      threadId: thread.threadId,
+    });
+  }
+
   function portOf(record: RegistrationRecord): RecordCommitPort {
     const port = core.ports.get(RecordCommitPortKey);
     if (port === undefined) {
@@ -499,6 +509,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
           version: decl.version,
           doc: deepFreeze(next),
         });
+        announceData(record, thread);
         noteEffect(amb);
         if (amb.invocation !== undefined && amb.drive === null)
           hooks.directCommitted(thread, record);
@@ -659,7 +670,10 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
         ],
       });
       throwIfRejected(record, result);
-      if (result.status === "committed") noteEffect(amb);
+      if (result.status === "committed") {
+        announceData(record, thread);
+        noteEffect(amb);
+      }
     },
     async recordPrivate(record, generation, kind, payload) {
       assertGeneration(record, generation);
@@ -698,7 +712,10 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
         drafts: [makeDraft(core.deps.ids, { threadId: thread.threadId, kind, payload })],
       });
       throwIfRejected(record, result);
-      if (result.status === "committed") noteEffect(amb);
+      if (result.status === "committed") {
+        announceData(record, thread);
+        noteEffect(amb);
+      }
     },
     async readRecords(record, generation, query) {
       assertGeneration(record, generation);

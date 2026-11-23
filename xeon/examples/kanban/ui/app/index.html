@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="theme.css">
+  <title>칸반</title>
+</head>
+<body>
+  <main class="app">
+    <h1 class="app-title">칸반</h1>
+    <form class="app-form" id="add-form">
+      <input class="app-input" id="title-input" maxlength="200" placeholder="새 카드 제목" aria-label="새 카드 제목" required>
+      <button class="app-button" type="submit">추가</button>
+    </form>
+    <div class="board">
+      <section class="column" data-column="todo" aria-label="할 일">
+        <h2 class="column-title">할 일</h2>
+        <ul class="column-list" data-column="todo"></ul>
+      </section>
+      <section class="column" data-column="doing" aria-label="진행 중">
+        <h2 class="column-title">진행 중</h2>
+        <ul class="column-list" data-column="doing"></ul>
+      </section>
+      <section class="column" data-column="done" aria-label="끝">
+        <h2 class="column-title">끝</h2>
+        <ul class="column-list" data-column="done"></ul>
+      </section>
+    </div>
+    <p class="app-status" id="status" role="status"></p>
+  </main>
+  <script src="bridge.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

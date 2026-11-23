@@ -15,7 +15,14 @@ import {
 } from "@fresnel/client/views/app";
 import { Alert, Button, Chip, IconButton, Tooltip } from "@caustic/react";
 import { ChevronLeft, CodeXml, MessageSquare } from "@caustic/react/icons";
-import { useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
 import { ShellStoreContext } from "../../state/shell/index.ts";
@@ -29,8 +36,10 @@ import {
 } from "../shell/screen-header.tsx";
 import { NativeTree } from "./native-tree.tsx";
 import { readTreeOf, treeActionsOf } from "./native-run.ts";
+import { onExtensionChanged, screenOpenerOf } from "./own-view.ts";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { browserClock, browserScheduler, PluginFrame } from "./plugin-frame.tsx";
+import { openTab, PLAYGROUND_TAB_SCREEN } from "./playground-tab-store.ts";
 
 // 플러그인 화면 하나를 셸 틀(머리)과 함께 그린다. 선언형은 `NativeSurface`(`NativeTree`), 앱은 `PluginFrame`이다.
 // 셸 머리(확장 이름, 등급, 버전, 프로젝트 배지)는 프레임 밖 셸 층에 있다(ADR-0021 §3.6.6).
@@ -349,6 +358,7 @@ export function createSession(
   runtime: PluginUiRuntime,
   openExternal: (href: string) => Promise<void>,
   shell?: PluginShellPort,
+  openView?: (view: string) => boolean,
 ): Session {
   const box: SessionBox = { thread: threadId, context };
   return {
@@ -394,6 +404,8 @@ export function createSession(
             showScreen("chat");
             return true;
           }
+          // 같은 확장의 다른 화면(플레이그라운드 탭으로 연다). 목록에 없는 id는 거짓이다
+          if (target.kind === "view") return openView?.(target.id) ?? false;
           return false;
         },
         // 실행기가 확인 줄을 거친 주소만 여기까지 온다. 확인 없이 OS 브라우저를 여는 길은 없다
@@ -419,6 +431,26 @@ export function useShowChat(): () => void {
   };
 }
 
+/**
+ * 같은 확장의 다른 화면을 플레이그라운드 탭으로 연다(열기 링크, `navigate { view }`). 목록에 없는 id면 false다.
+ * 여는 길은 플레이그라운드 탭 줄과 같다: 탭을 열고, 대화 영역에서 탭 화면을 올린다(`playground-tab-strip.tsx`의 `open`)
+ */
+function useOpenView(extension: string): (view: string) => boolean {
+  const { runtime } = usePluginUi();
+  const commands = useCommands();
+  const shell = useContext(ShellStoreContext)?.actions;
+  return screenOpenerOf({
+    entries: () => runtime.getState().entries,
+    extension,
+    open: (name, screenKey) => {
+      openTab(name, screenKey);
+      shell?.switchArea("chat");
+      commands.showScreen("chat");
+      shell?.updatePlace({ screen: PLAYGROUND_TAB_SCREEN, scroll: 0 });
+    },
+  });
+}
+
 function useSession(
   entry: ExtUiEntry,
   context: BridgePolicyContext,
@@ -426,6 +458,7 @@ function useSession(
   runtime: PluginUiRuntime,
   openExternal: (href: string) => Promise<void>,
   shell: PluginShellPort | undefined,
+  openView: (view: string) => boolean,
 ): Session {
   const commands = useCommands();
   const showChat = useShowChat();
@@ -442,6 +475,7 @@ function useSession(
       runtime,
       openExternal,
       shell,
+      openView,
     ),
   );
   useEffect(() => {
@@ -492,8 +526,10 @@ function FrameBody(props: {
 }): ReactNode {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
+  const commands = useCommands();
   const threadId = useReadyThreadId();
   const reducedMotion = useMotionReduced();
+  const openView = useOpenView(entry.extension);
   const session = useSession(
     entry,
     loaded.context,
@@ -501,6 +537,13 @@ function FrameBody(props: {
     runtime,
     plugin.openExternal,
     plugin.shell,
+    openView,
+  );
+  // 이 확장이 상태나 기록을 바꾸면 프레임에 `invalidate`를 민다(화면 수명 동안 구독한다)
+  const changes = useCallback(
+    (listener: () => void) =>
+      onExtensionChanged((next) => commands.pluginUi.onChanged(next), entry.extension, listener),
+    [commands, entry.extension],
   );
   const app = entry.app;
   const root = useFrameRoot(plugin.frameRoot);
@@ -528,6 +571,7 @@ function FrameBody(props: {
       theme={reducedMotion ? themeAfterMotionChange : themeNow}
       title={extMessageOf(entry.messages, activeLocale(), entry.title)}
       onClosed={() => {}}
+      changes={changes}
     />
   );
 }
@@ -570,6 +614,7 @@ function useRunner(
 /**
  * 선언형 본문. 확장 문맥(`loaded`)으로 연결과 판정 맥락을 잡고 트리를 그린다.
  * `doc`이 있으면 그 문서로 그릴 때 한 번 자르고 읽기를 하지 않는다. 없으면 데이터 문서를 10초마다 읽어 자른다.
+ * 이 확장이 바뀌었다는 알림(`ext.ui.changed`)이 오면 10초를 기다리지 않고 바로 다시 읽는다.
  * 버튼 명령은 `treeActionsOf`로 실행기를 거친다(확인 줄, 쿨다운, 장부). 페이지·패널과 상태 표시줄·설정 구역이 같이 쓴다
  */
 export function NativeSurface(props: {
@@ -584,7 +629,16 @@ export function NativeSurface(props: {
   const { runtime, openExternal, shell } = usePluginUi();
   const commands = useCommands();
   const threadId = useReadyThreadId();
-  const session = useSession(entry, loaded.context, threadId, runtime, openExternal, shell);
+  const openView = useOpenView(entry.extension);
+  const session = useSession(
+    entry,
+    loaded.context,
+    threadId,
+    runtime,
+    openExternal,
+    shell,
+    openView,
+  );
   const [backend] = useState(() => session.makeBackend(() => {}));
   const key = screenKeyOf(entry);
   const runner = useRunner(session, backend, runtime, key);
@@ -595,6 +649,7 @@ export function NativeSurface(props: {
       ledger: runtime.ledger,
       screenKey: key,
       openChat: () => commands.showScreen("chat"),
+      openView,
     }),
   );
   const [tree, setTree] = useState<ResolvedTree | "failed" | undefined>(undefined);
@@ -622,11 +677,31 @@ export function NativeSurface(props: {
     };
     detach(run(), rethrow);
     const timer = window.setInterval(() => detach(run(), rethrow), POLL_MS);
+    // 확장이 상태나 기록을 바꾸면 10초를 기다리지 않고 바로 다시 읽는다(`ext.ui.changed`, ADR-0021 §3.4.2)
+    const offChanged = onExtensionChanged(
+      (listener) => commands.pluginUi.onChanged(listener),
+      entry.extension,
+      () => {
+        detach(run(), rethrow);
+      },
+    );
     return () => {
       live = false;
       window.clearInterval(timer);
+      offChanged();
     };
-  }, [runner, session, runtime, key, disabled, treeDoc, doc, entry.messages]);
+  }, [
+    runner,
+    session,
+    runtime,
+    key,
+    disabled,
+    treeDoc,
+    doc,
+    entry.messages,
+    entry.extension,
+    commands,
+  ]);
   const failed = tree === "failed" && doc === undefined;
   useEffect(() => {
     onFailed?.(failed);

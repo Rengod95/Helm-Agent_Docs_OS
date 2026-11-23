@@ -106,6 +106,32 @@ function commandCallsOf(connection: ReturnType<typeof fakeConnection>): unknown[
 /** 답하기 전에 묶인 일을 끝까지 돌린다. 확인 줄이 답을 받은 뒤의 호출까지 기다린다 */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
+describe("a view link opens a screen of the same extension through the open function", () => {
+  test("a view link hands its view id to openView, a thread link still opens the chat", () => {
+    const connection = fakeConnection({});
+    const context = contextOf([]);
+    const runner = runnerOf(backendOf(connection, context), context, createConfirmQueue());
+    const opened: string[] = [];
+    let chats = 0;
+    const actions = treeActionsOf({
+      runner,
+      context: () => context,
+      ledger: createScreenLedger(),
+      screenKey: SCREEN_KEY,
+      openChat: () => {
+        chats += 1;
+      },
+      openView: (view) => {
+        opened.push(view);
+      },
+    });
+    actions.openLink({ kind: "view", view: "board" });
+    actions.openLink({ kind: "thread", id: "thread-2" });
+    expect(opened).toEqual(["board"]);
+    expect(chats).toBe(1);
+  });
+});
+
 describe("a status Chip reads its text from the polled status document", () => {
   test("ext.helm.status fills the bound text, and that read is the only extension call", async () => {
     const connection = fakeConnection(

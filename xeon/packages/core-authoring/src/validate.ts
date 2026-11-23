@@ -17,6 +17,7 @@ import {
   type DevkitIssue,
   type ValidationReport,
 } from "@fresnel/contracts/services";
+import { appViewIssues } from "./app-check.ts";
 import { au004, au008, au010, au011, au013, type SourceText } from "./au-rules.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 
@@ -282,6 +283,7 @@ export async function validateExtensionDir(
   issues.push(...au004(issues, manifest, options.providers));
   if (manifest !== undefined) {
     if (drives) issues.push(...au010(manifest, texts), ...au011(texts));
+    issues.push(...(await appViewIssues(dir, manifest, texts)));
   }
   issues.push(...au008(arrayOf(recordOf(recordOf(parsed.value.raw)?.["ui"])?.["items"])));
   return ok(reportOf(issues));

@@ -299,6 +299,7 @@ export interface ExtHost {
   driveFrames(threadId: ThreadId): readonly DriveFrameView[];
   /**
    * scope 토글 요청·적용, drive 락 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3의 답).
+   * 확장의 상태 판 커밋과 기록(`data`)도 성공한 뒤 알린다 [구현: AGE-78, 호스트가 `ext.ui.changed`로 묶어 보낸다].
    * 요청은 곧바로, 적용과 drive 락 변화는 경계 커밋 뒤에 부른다. 구독자의 예외는 `report`로 남기고 다른 구독자에게 이어 간다
    */
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
@@ -336,13 +337,25 @@ export interface LeaseInfo {
   readonly status: "active" | "releasing";
 }
 
-export interface ExtChange {
-  /** scope: 토글 요청, 적용, 오류 표시, 켜짐 집합 변화. lease: drive 락 부여나 반납이 커밋됨 */
-  readonly kind: "scope" | "lease";
-  readonly scopeId: RegistrationId;
-  /** thread 단위 변화면 그 thread, 전체 요청이면 null */
-  readonly threadId: ThreadId | null;
-}
+export type ExtChange =
+  | {
+      /** scope: 토글 요청, 적용, 오류 표시, 켜짐 집합 변화. lease: drive 락 부여나 반납이 커밋됨 */
+      readonly kind: "scope" | "lease";
+      readonly scopeId: RegistrationId;
+      /** thread 단위 변화면 그 thread, 전체 요청이면 null */
+      readonly threadId: ThreadId | null;
+    }
+  | {
+      /**
+       * data: 확장의 상태 판이 커밋되었거나 기록이 남았다(`g.state` commit·update·commitWith, `g.record`, `g.recordPrivate`).
+       * 성공한 커밋만 알린다. 충돌이나 실패는 알리지 않는다. 값은 싣지 않는다 [구현: AGE-78]
+       */
+      readonly kind: "data";
+      /** 바뀐 확장의 이름(매니페스트 `name`) */
+      readonly extension: string;
+      readonly scopeId: RegistrationId;
+      readonly threadId: ThreadId;
+    };
 ```
 
 - `createExtHost`는 Cordis 루트 `Context`를 안에서 만든다(`context.ts:36-49`). 루트와 `Context` 타입은 밖으로 내보내지 않는다(eng.dependency-rules.guide DR-11).

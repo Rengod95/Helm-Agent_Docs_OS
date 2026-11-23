@@ -29,6 +29,7 @@ import {
   type PluginEnforcement,
   type PluginOriginKind,
   type PluginUiDecl,
+  type UiContribution,
 } from "@fresnel/contracts/extensions";
 import {
   dependentsOf,
@@ -322,6 +323,24 @@ function scriptOf(
   };
 }
 
+/**
+ * 매니페스트 화면 항목 하나의 카드 칸. 그리는 방식과 자체 코드의 선언(까닭, 다리 권한)은 매니페스트 그대로 싣는다.
+ * 매니페스트는 모델에 보일지 적지 않으므로 가장 좁은 값을 쓴다 [제안]
+ */
+function uiDeclOf(item: UiContribution): PluginUiDecl {
+  // 명령 항목은 화면이 없어 그리는 방식이 없다
+  const mode = item.placement === "command" ? undefined : (item.mode ?? "native");
+  const decl: PluginUiDecl = {
+    id: item.id,
+    placement: item.placement,
+    readsState: null,
+    modelVisible: "none",
+    ...(mode === undefined ? {} : { mode }),
+  };
+  if (item.app === undefined) return decl;
+  return { ...decl, app: { reason: item.app.reason, capabilities: item.app.capabilities ?? [] } };
+}
+
 function injectOf(
   folder: CardSubject,
   source: ScriptSource,
@@ -341,13 +360,7 @@ function injectOf(
   // 제공(provides)의 id를 providers 칸에 적는다. 모델 제공자는 코드가 등록하므로 정적으로 알 수 없다 [제안]
   const providers = unique(decls.flatMap((decl) => (decl.provides ?? []).map((p) => p.id)));
   const replaces = unique(decls.flatMap((decl) => decl.replaces ?? []));
-  const ui: PluginUiDecl[] = (manifest.ui?.items ?? []).map((item) => ({
-    id: item.id,
-    placement: item.placement,
-    readsState: null,
-    // 매니페스트는 모델에 보일지 적지 않는다. 가장 좁은 값을 쓴다 [제안]
-    modelVisible: "none",
-  }));
+  const ui: PluginUiDecl[] = (manifest.ui?.items ?? []).map(uiDeclOf);
   const always = materials.instructions.map((item) => ({ path: item.path, bytes: item.bytes }));
   const skills = materials.skills.map((skill) => ({
     name: skill.name,

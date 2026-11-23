@@ -7,10 +7,12 @@ import type {
   KindEntry,
   MemberOp,
   PluginMode,
+  ScaffoldMode,
   ScaffoldInput,
   ScaffoldResult,
 } from "@fresnel/contracts/services";
 import { checkOrchestrationName } from "@fresnel/contracts/services";
+import { appSkeletonFiles, type AppSkeletonValues } from "./app-skeleton.ts";
 import { KIND_CATALOG } from "./catalog.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 import {
@@ -91,7 +93,7 @@ async function listFiles(root: string, prefix = ""): Promise<Result<string[], De
   return ok(nested.value.flat().toSorted());
 }
 
-/** 방식의 템플릿 폴더. 생략하면 훅 방식(기존 골격)이다 */
+/** 방식의 템플릿 폴더. 생략하면 훅 방식(기존 골격)이다. `app`은 폴더가 없고 `appSkeletonFiles`가 글을 준다 */
 function templateOf(dirs: TemplateDirs, mode: PluginMode): string {
   switch (mode) {
     case "hook":
@@ -105,11 +107,22 @@ function templateOf(dirs: TemplateDirs, mode: PluginMode): string {
   }
 }
 
-/** 템플릿 파일 목록과 내용을 읽는다. 종류는 플러그인 하나이고 방식마다 템플릿 폴더 전체를 쓴다 */
+/**
+ * 뼈대 파일 목록과 내용을 읽는다. 종류는 플러그인 하나이고 방식마다 템플릿 폴더 전체를 쓴다.
+ * `app`은 템플릿 폴더 없이 `appSkeletonFiles`(순수 함수)가 글을 만든다
+ */
 async function plannedTemplate(
   dirs: TemplateDirs,
-  mode: PluginMode,
+  mode: ScaffoldMode,
+  values: AppSkeletonValues,
 ): Promise<Result<PlannedFile[], DevkitError>> {
+  if (mode === "app")
+    return ok(
+      appSkeletonFiles(values).map((file) => ({
+        path: file.path,
+        bytes: new TextEncoder().encode(file.text),
+      })),
+    );
   const root = templateOf(dirs, mode);
   const names = await listFiles(root);
   if (!names.ok) return names;
@@ -230,16 +243,24 @@ export async function scaffoldExtension(
   if (input.layer !== undefined && !LAYERS_OF_SINGLE.has(input.layer))
     return err(invalid(`layer ${input.layer} is not allowed`));
 
+  // 앱 뼈대는 화면과 엔진 코드가 한 덩어리라 구성원을 받지 않는다. 구성원은 뼈대를 만든 뒤 편집 명령으로 더한다
+  if (input.mode === "app" && (input.orchestration?.members ?? []).length > 0)
+    return err(
+      invalid(
+        "the app mode takes no members: scaffold it first, then add members with editMembers",
+      ),
+    );
+
   const state = await targetState(input.dir);
   if (!state.ok) return state;
-  const planned = await plannedTemplate(options.templates, input.mode ?? "hook");
-  if (!planned.ok) return planned;
-
-  const values = {
+  const values: AppSkeletonValues = {
     id: input.name,
     title: options.displayName ?? input.name,
     version: DEFAULT_VERSION,
   };
+  const planned = await plannedTemplate(options.templates, input.mode ?? "hook", values);
+  if (!planned.ok) return planned;
+
   const out: PlannedFile[] = [];
   let coded: readonly string[] = [];
   let stubs: readonly PlannedFile[] = [];
@@ -258,8 +279,9 @@ export async function scaffoldExtension(
       });
     } else out.push({ path, bytes: file.bytes });
   }
-  // 엔트리가 있는 뼈대나 코드 구성원이 있으면 생성 파일을 낸다. 엔트리 `src/index.ts`가 이 파일을 가져온다
-  if (out.some((file) => file.path === ENTRY_PATH) || coded.length > 0)
+  // 엔트리가 있는 뼈대나 코드 구성원이 있으면 생성 파일을 낸다. 엔트리 `src/index.ts`가 이 파일을 가져온다.
+  // 앱 엔진 코드는 이 파일을 가져오지 않으므로 구성원 코드가 없으면 만들지 않는다
+  if (coded.length > 0 || (input.mode !== "app" && out.some((file) => file.path === ENTRY_PATH)))
     out.push({
       path: MEMBERS_GENERATED_PATH,
       bytes: new TextEncoder().encode(membersGeneratedText(coded)),

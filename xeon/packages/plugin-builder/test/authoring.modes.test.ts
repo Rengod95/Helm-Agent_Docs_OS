@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { pluginDeclsOf } from "@fresnel/contracts/extensions";
-import type { PluginMode } from "@fresnel/contracts/services";
+import type { ScaffoldMode } from "@fresnel/contracts/services";
 import { scanDriveSource } from "@fresnel/orchestration-sdk/testing";
 import { scaffoldExtension, validateExtensionDir } from "@fresnel/core-authoring";
 import {
@@ -28,7 +28,7 @@ interface Expected {
   readonly entry: boolean;
 }
 
-const EXPECTED: Readonly<Record<PluginMode, Expected>> = {
+const EXPECTED: Readonly<Record<ScaffoldMode, Expected>> = {
   hook: {
     hooks: ["boundary.settle.after"],
     drives: false,
@@ -44,9 +44,11 @@ const EXPECTED: Readonly<Record<PluginMode, Expected>> = {
     entry: false,
   },
   drive: { hooks: [], drives: true, instructions: [], group: true, entry: true },
+  // 앱 뼈대는 루트 플러그인 하나(훅 없음, 구동 없음)이고 그룹 모양이다(`orchestration: {}`). 화면과 메서드는 authoring.app-mode가 본다
+  app: { hooks: [], drives: false, instructions: [], group: true, entry: true },
 };
 
-for (const mode of ["hook", "inject", "drive"] as const) {
+for (const mode of ["hook", "inject", "drive", "app"] as const) {
   test(`authoring.modes.${mode}: the ${mode} scaffold has the manifest fields of its mode, and validates with the replay discipline scan`, async () => {
     const name = `mode-${mode}`;
     const dir = root.path(name);

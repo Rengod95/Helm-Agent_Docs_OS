@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "name": "kanban",
+  "version": "1.0.0",
+  "displayName": "칸반",
+  "description": "할 일, 진행 중, 끝 세 칸의 카드 보드. 화면에서 카드를 끌어 옮기고, 모델도 같은 도구로 옮긴다",
+  "purpose": "카드를 칸 사이로 옮기며 보드를 한눈에 본다. 화면과 모델이 같은 함수로 같은 상태를 고친다",
+  "entry": "./src/index.ts",
+  "plugins": [{ "layer": "L3", "hooks": [] }],
+  "orchestration": {},
+  "defaultEnabled": false,
+  "trust": { "level": "user" },
+  "tools": [
+    {
+      "name": "kanban_move_card",
+      "description": "보드의 카드 하나를 칸과 자리로 옮긴다. 화면의 move 메서드와 같은 함수를 쓴다"
+    },
+    {
+      "name": "kanban_add_card",
+      "description": "할 일 칸 맨 끝에 카드 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다"
+    }
+  ],
+  "methods": [
+    {
+      "verb": "board",
+      "params": { "type": "object", "properties": {}, "additionalProperties": false },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "cards": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "column": { "enum": ["todo", "doing", "done"] },
+                "order": { "type": "integer", "minimum": 0 }
+              },
+              "required": ["id", "title", "column", "order"],
+              "additionalProperties": false
+            }
+          },
+          "reason": { "type": "string" }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": true
+    },
+    {
+      "verb": "move",
+      "params": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "column": { "enum": ["todo", "doing", "done"] },
+          "index": { "type": "integer", "minimum": 0, "maximum": 500 }
+        },
+        "required": ["id", "column", "index"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "cards": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "column": { "enum": ["todo", "doing", "done"] },
+                "order": { "type": "integer", "minimum": 0 }
+              },
+              "required": ["id", "title", "column", "order"],
+              "additionalProperties": false
+            }
+          },
+          "reason": { "type": "string" }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": false,
+      "label": "카드 옮기기"
+    },
+    {
+      "verb": "add",
+      "params": {
+        "type": "object",
+        "properties": { "title": { "type": "string", "minLength": 1, "maxLength": 200 } },
+        "required": ["title"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "cards": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "column": { "enum": ["todo", "doing", "done"] },
+                "order": { "type": "integer", "minimum": 0 }
+              },
+              "required": ["id", "title", "column", "order"],
+              "additionalProperties": false
+            }
+          },
+          "reason": { "type": "string" }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "readOnly": false,
+      "label": "카드 추가"
+    }
+  ],
+  "ui": {
+    "schemaVersion": 1,
+    "items": [
+      {
+        "id": "board",
+        "placement": "page",
+        "mode": "app",
+        "title": "칸반",
+        "app": {
+          "root": "./ui/app",
+          "entry": "index.html",
+          "bridge": "^1.0.0",
+          "reason": "카드를 끌어 다른 칸으로 옮기는 보드는 목록, 표, 버튼 같은 선언형 부품으로 그릴 수 없어 직접 그리는 화면이 필요하다"
+        },
+        "fallback": "./ui/native/fallback.json"
+      }
+    ]
+  }
+}

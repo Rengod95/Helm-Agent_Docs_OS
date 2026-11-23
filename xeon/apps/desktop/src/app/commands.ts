@@ -648,7 +648,18 @@ export function createCommands(
       },
     }),
     schedule: createScheduleCommands(withConnection, () => connectionCommands.setServiceMode(true)),
-    pluginUi: { withConnection, current: () => session.connection() },
+    pluginUi: {
+      withConnection,
+      current: () => session.connection(),
+      onChanged: (listener) => {
+        const connection = session.connection();
+        return connection === null
+          ? () => {}
+          : connection.onNotification("ext.ui.changed", (params) => {
+              listener(params.extension);
+            });
+      },
+    },
     connection: connectionCommands,
     remote: remoteAdapterOf(withConnection),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),

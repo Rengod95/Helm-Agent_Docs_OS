@@ -34,6 +34,7 @@ export function fakeConnection(
     "notify.delivered": new Set(),
     "profile.changed": new Set(),
     "drive.framesChanged": new Set(),
+    "ext.ui.changed": new Set(),
     "project.changed": new Set(),
     "plugin.changed": new Set(),
     "pluginReview.changed": new Set(),

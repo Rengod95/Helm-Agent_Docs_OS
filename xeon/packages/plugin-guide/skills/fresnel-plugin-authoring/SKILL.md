@@ -26,7 +26,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 1. `authoring_kinds`: list the kinds (optional).
 2. `authoring_start` with `kind`, `name`, `dir`: the user must confirm kind and name.
 3. `authoring_compose` (plugin groups only): save the composition draft.
-4. `authoring_scaffold`: write the files into an empty or missing folder.
+4. `authoring_scaffold` with `mode` `hook`, `inject`, `drive`, or `app`: write the files into an empty or missing folder. `app` writes a plugin with its own screen (`ui/app/`), read and write methods, and a model tool; read `references/ui.md` first.
 5. Edit the files, then `authoring_validate`. Repeat until there are no errors.
 6. `authoring_trial`: the user confirms, because it uses model calls. `authoring_replay`: development mode only.
 7. `authoring_submit` with the `turnId` of a turn in the Test run (the evidence): it sends the folder to the review inbox as a draft. Nothing is installed; the user approves it in the review inbox, and only then can the plugin be used. `authoring_package` (optional): packs one bundle file the user can keep; the user confirms.
@@ -34,7 +34,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 
 These tools are deferred: find them with tool search before you call them.
 
-Templates: `xeon/packages/core-authoring/templates/single-plugin/` (single plugin) and `xeon/packages/orchestration-sdk/templates/` (drive, policy, and observe groups).
+Templates: `xeon/packages/core-authoring/templates/single-plugin/` (single plugin), `xeon/packages/core-authoring/templates/` (inject and drive), and `xeon/packages/orchestration-sdk/templates/` (drive, policy, and observe groups). The `app` skeleton is text in `xeon/packages/core-authoring/src/app-skeleton.ts`.
 
 ## Reference files
 
@@ -43,3 +43,4 @@ Templates: `xeon/packages/core-authoring/templates/single-plugin/` (single plugi
 | `references/manifest.md` | every manifest field, required fields, naming rules, valid examples |
 | `references/hooks-and-tools.md` | hook names and folds, handler shapes, group and drive API, tool definition, layers |
 | `references/install-and-flow.md` | install folders, trust levels, project extensions, each Plugin Builder step and its confirmation |
+| `references/ui.md` | plugin screens: declarative or app (own code) mode, the six slots, the app bridge ops, confirmation lines, app state and methods |

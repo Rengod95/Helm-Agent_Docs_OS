@@ -1,0 +1,125 @@
+/* 앱 화면의 모양. 색은 셸이 푸시하는 토큰(--bg, --fg, --dim, --panel, --border, --accent)만 쓴다.
+   간격은 아래 --space 토큰만 쓰고, 화면 규칙에 길이 값을 직접 적지 않는다. */
+:root {
+  color-scheme: light dark;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --radius: 6px;
+  --stroke: 1px;
+  --font-size: 13px;
+  --font-size-title: 15px;
+  --line: 1.5;
+}
+body {
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--bg, canvas);
+  color: var(--fg, canvastext);
+  font:
+    var(--font-size) / var(--line) system-ui,
+    sans-serif;
+}
+.app {
+  display: grid;
+  gap: var(--space-3);
+}
+.app-title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 600;
+}
+.app-form {
+  display: flex;
+  gap: var(--space-2);
+}
+.app-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: var(--stroke) solid var(--border, currentColor);
+  border-radius: var(--radius);
+  background: var(--panel, transparent);
+  color: inherit;
+  font: inherit;
+}
+.app-button {
+  padding: var(--space-1) var(--space-3);
+  border: var(--stroke) solid var(--accent, currentColor);
+  border-radius: var(--radius);
+  background: var(--accent, transparent);
+  color: var(--bg, canvas);
+  font: inherit;
+  cursor: pointer;
+}
+.app-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+.app-list li {
+  padding: var(--space-2);
+  border: var(--stroke) solid var(--border, currentColor);
+  border-radius: var(--radius);
+  background: var(--panel, transparent);
+}
+.app-status {
+  margin: 0;
+  color: var(--dim, inherit);
+}
+
+/* 보드 칸. 칸 셋은 같은 폭이고, 끌어 놓을 칸은 accent 테두리로 표시한다. 크기 값은 토큰(--column-min)으로만 적는다. */
+:root {
+  --column-min: 96px;
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.column {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  min-width: 0;
+  min-height: var(--column-min);
+  border: var(--stroke) solid var(--border, currentColor);
+  border-radius: var(--radius);
+  background: var(--panel, transparent);
+}
+.column.is-over {
+  border-color: var(--accent, currentColor);
+}
+.column-title {
+  margin: 0;
+  font-size: var(--font-size);
+  font-weight: 600;
+}
+.column-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+.card {
+  padding: var(--space-2);
+  border: var(--stroke) solid var(--border, currentColor);
+  border-radius: var(--radius);
+  background: var(--bg, canvas);
+  color: inherit;
+  cursor: grab;
+  overflow-wrap: anywhere;
+}
+.card.is-dragging {
+  opacity: 0.5;
+}
+.card-empty {
+  padding: var(--space-2);
+  color: var(--dim, inherit);
+}

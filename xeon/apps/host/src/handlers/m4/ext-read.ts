@@ -57,6 +57,8 @@ export interface ExtReadPort {
   readonly driveFrames: PortCall<"drive.frames">;
   /** 주도권 스택이 바뀐 thread를 알린다(`drive.framesChanged`). 구독을 끊는 함수를 돌려준다 */
   readonly onDriveFramesChanged: (listener: (threadId: string) => void) => () => void;
+  /** 확장의 상태나 기록이 커밋되었다(`ext.ui.changed`). 값은 없고 확장 이름만 준다. 구독을 끊는 함수를 돌려준다 */
+  readonly onExtDataChanged: (listener: (extension: string) => void) => () => void;
   readonly hooks: PortCall<"hooks.list">;
   readonly settingExplain: PortCall<"settings.explain">;
   readonly hookDisableConfirm: PortCall<"hooks.disableConfirm">;

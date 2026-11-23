@@ -261,6 +261,70 @@ test("recordPrivate is hidden from other extensions", async () => {
   ]);
 });
 
+test("a committed state write announces the extension's data once, a conflict does not", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const changes: unknown[] = [];
+  t.host.onChange((change) => {
+    if (change.kind === "data") changes.push(change);
+  });
+  await t.host.install(
+    makeUnit({ name: "st-announce", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
+      g.on("boundary.settle.after", async () => {
+        // 같은 판에 대한 두 커밋: 앞의 것만 커밋되고 뒤의 것은 충돌이라 알리지 않는다
+        const first = g.commit({ n: 1 });
+        const second = g.commit({ n: 2 });
+        await first;
+        await codeOf(() => second);
+      });
+    }),
+  );
+  await fire(t, thread, "k-announce");
+  expect(changes).toEqual([
+    { kind: "data", extension: "st-announce", scopeId: "st-announce", threadId: thread },
+  ]);
+});
+
+test("a committed group record and a private record each announce the data once", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const changes: unknown[] = [];
+  t.host.onChange((change) => {
+    if (change.kind === "data") changes.push(change);
+  });
+  await t.host.install(
+    makeUnit(
+      {
+        name: "ann-group",
+        orchestration: {},
+        hooks: ["boundary.settle.after"],
+        recordKinds: [
+          {
+            kind: "grp.ann-group.note.recorded",
+            version: 1,
+            description: "note",
+            payload: notePayloadSchema,
+          },
+        ],
+      },
+      (g) => {
+        g.on("boundary.settle.after", async () => {
+          const subject = { type: "thread" as const, id: thread };
+          await g.record("grp.ann-group.note.recorded", subject, { text: "hello" });
+          await g.recordPrivate("grp.ann-group.proposal.created", { id: "p1" });
+        });
+      },
+    ),
+  );
+  await fire(t, thread, "k-record");
+  expect(changes).toEqual([
+    { kind: "data", extension: "ann-group", scopeId: "ann-group", threadId: thread },
+    { kind: "data", extension: "ann-group", scopeId: "ann-group", threadId: thread },
+  ]);
+});
+
 test("rewind restores the state of the active branch", async () => {
   const t = await createTestHost();
   const thread = t.newThread();

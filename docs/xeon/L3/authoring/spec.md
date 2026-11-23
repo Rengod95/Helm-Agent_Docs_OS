@@ -68,7 +68,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 기본 켜짐 | 켜짐. 도구 열한 개가 모두 지연 노출(`exposure: "deferred"`)이라 켜 두어도 "hi" 턴의 문맥은 늘지 않고 모델은 `tool_search`로 찾습니다 [결정: 2026-11-13 사용자, 2026-11-01 결정을 대체]. 안전 모드와 `defaultGroups: false`에서는 싣지 않고, 사용자가 `ext.authoring.enabled`를 명시적으로 끈 설정은 존중합니다 |
 | drive | 씀. 제작 대화 단계 머신(§4.1)을 주도 단계 함수로 돌립니다. 사람 확인은 `ask` 명령(X-17, drive-isolation.md §1.1)을 씁니다 |
 | 훅 | `tool.call.before`(first, 쓰기 범위 가드), `thread.start`(tap, 대화 복원) |
-| 화면 기여 | 선언형 `page` "제작"(대화 단계, 검사, 시험 결과), `well` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
+| 화면 기여 | 선언형 `page` "제작"(대화 단계, 검사, 시험 결과), `panel` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
 | 구성요소 | 스킬 `authoring-guide`(종류 고르기, 모드 고르기, 보안 규칙), 명령 `/author` |
 
 ### 3.2 모델 도구
@@ -80,7 +80,7 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
 | `authoring_start` | `{ name, kind?, dir?, displayName?, purpose?, resident? }` | 제작 대화 id, 이름 검사 결과. 주도 시작 요청(`g.startDrive`)을 먼저 내고, 거부되면 `drive_unavailable`로 대화를 열지 않는다. `resident`는 일반 대화에서만 모델이 넘긴 값을 쓴다. 테스트 대화(craft 표지)에서는 호스트가 상주로 정한다(아래, [제안]) | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
-| `authoring_scaffold` | `{ sessionId, mode?, description? }`(`mode`: `hook`, `inject`, `drive`. 목적은 대화의 목적 한 문장을, 설명은 입력을 매니페스트에 쓴다 [결정: 2026-11-23 사용자, AGE-31]) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
+| `authoring_scaffold` | `{ sessionId, mode?, description? }`(`mode`: `hook`, `inject`, `drive`, `app`. 목적은 대화의 목적 한 문장을, 설명은 입력을 매니페스트에 쓴다 [결정: 2026-11-23 사용자, AGE-31]) | 만든 파일 목록 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
 | `authoring_trial` | `{ sessionId }` | Test run 대화 id | Test run 생성(설치 없음) |
 | `authoring_replay` | `{ sessionId, maxCommits? }` | `ReplayDriveReport`(개발 모드만) | 실행 |
@@ -94,7 +94,7 @@ binds: [xeon/packages/plugin-builder/**]
   - `authoring_start`는 이름만 받으면 기존 플러그인의 원본 폴더(`<설정>/plugins/<이름>`)를 연다(`fresnel.devkit`의 선택 메서드 `sourceOf`). 종류와 이름 확인 카드를 건너뛰고 검사 단계(`validate`)부터 시작하며, 뼈대는 만들지 않는다(`scaffold`가 `exists`로 거절한다). 원본이 검토본과 달라도 원본에서 시작하고, 제출은 검토 서비스가 `update` 항목으로 만든다(`provenance: "assistant"`은 바꾸지 않았다). 거절: `not_found`(원본 폴더 없음), `bundled_not_editable`(번들이고 원본 폴더 없음), `source_unavailable`(이 빌드에 `sourceOf`가 없음).
   - `authoring_start`의 `dir`이 있으면 새 플러그인이다(`kind`는 생략하면 `single-plugin`). `purpose`(목적 한 문장, 200자 이하)와 `resident`(상주 모드, 아래)를 상태에 싣는다.
   - `authoring_drafts { name? }`는 지연 읽기 도구다. `fresnel.devkit`의 선택 메서드 `draftList`가 호스트 포트 `plugin.draft.list`와 같은 값을 준다(최신 먼저, 각 초안의 `parent`). 이름을 생략하면 열린 제작 대화의 플러그인이다. 거절: `no_name`, `drafts_unavailable`.
-  - `authoring_scaffold { mode? }`는 세 방식의 뼈대를 만든다(§4.9.4, `packages/core-authoring/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 오케스트레이션 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다(시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
+  - `authoring_scaffold { mode? }`는 네 방식의 뼈대를 만든다(§4.9.4, `packages/core-authoring/templates/`). `hook`은 기존 골격(훅 `boundary.settle.after`, 생략하면 이것), `inject`는 지침 파일 하나(`components.instructions: ["instructions.md"]`, 훅 없음), `drive`는 오케스트레이션 구성원이고 구동 단계 함수가 있는 골격(`group: {}`, `plugins[0].drives: true`). 셋 모두 `validate`를 통과하고 `authoring_submit`까지 닿는다. `app`은 앱 플러그인 뼈대다(pgRe §4.3, ADR-0021 §3.5). 루트 플러그인 하나(층 L3, 훅 없음, `orchestration: {}`)이고 `ui` 항목 하나(`placement: "page"`, `mode: "app"`, `app.root: "./ui/app"`, `app.reason`은 뼈대 기본 글)를 두며, 읽기 메서드 `list`, 쓰기 메서드 `add`(`label` 있음), 그 쓰기와 같은 함수 `addItem`을 쓰는 모델 도구 `<이름>_add_item`을 만든다. 파일은 `.fresnel-plugin/plugin.json`, `src/index.ts`, `ui/app/index.html`·`app.js`·`bridge.js`·`theme.css`다. 본문은 `packages/core-authoring/src/app-skeleton.ts`의 문자열 모음(순수 함수)이고, 시험은 `packages/core-authoring/test/app-skeleton.test.ts`다. 구성원은 받지 않는다(뼈대 뒤에 편집 명령으로 더한다). 뼈대에는 `fallback`이 없어 검사가 AU-007 경고를 낸다. [미결: 앱 뼈대를 그룹 모양(`orchestration: {}`)으로 둔다. `defineOrchestration`만 `registerMethod`와 `registerTool`을 타입으로 열기 때문이다. 일반 `ExtensionEntry`에도 같은 등록을 여는 길을 따로 만들지 정한다](시험: `packages/plugin-builder/test/authoring.modes.test.ts`, 호스트 수락 시험: `apps/host/test/assembly/authoring-modes.test.ts`).
   - `authoring_submit`은 `purpose`를 입력에서 받고, 없으면 제작 대화의 목적(맡기기나 `authoring_start`가 받은 것)을 쓴다.
   - `authoring_context`(지연 읽기 도구, 입력 없음)는 테스트 대화에 붙은 맥락 참조(`craft.context` 사건, M5c §4.8.8)를 기록 순서대로 돌려준다. 발견 참조는 근거 묶음(`findings.bundle`과 같은 값)을 싣고 다른 참조는 `bundle: null`이다. 대화 id는 도구를 부른 대화의 것이다. 모델 컨텍스트에는 줄을 더하지 않는다. 거절: `context_unavailable`(이 빌드에 `craftContext`가 없음).
   - `authoring_replay`는 남긴다. §4.9.7은 폐기를 정하지만 재생 값은 엔진의 `backtest.run`(E)이 준다. 이 가지에는 `backtest.run`의 호스트 처리기가 없어서 옛 개발 모드 재생을 그대로 둔다 [미결: E의 `backtest.run`이 들어온 뒤 지운다] [근거: apps/host/src/assembly/m4/devkit-port.ts, apps/host/src/handlers/m4/devkit.ts].
@@ -120,6 +120,7 @@ interface DevkitService {
 ```
 
 - `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, orchestration-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
+- [제안] 앱 화면 검사(`packages/core-authoring/src/app-check.ts`)는 `ui` 항목의 `app`마다 `app.root` 폴더와 `app.entry` 파일이 있는지, 경로가 확장 폴더 밖으로 나가지 않는지 봅니다. 선언한 `methods`는 엔트리에서 `registerMethod`로 등록되었는지, 엔트리의 등록은 모두 선언되었는지 맞춥니다(등록은 문자열 리터럴 이름만 세고, 이름이 계산되는 `registerMethod`가 있으면 등록 검사를 건너뜁니다). 오류는 `app_root_missing`, `app_entry_missing`, `app_path_unsafe`, `method_unregistered`, `method_undeclared`이고, 까닭 글이 뼈대 기본 글 그대로면 경고 `app_reason_placeholder`입니다. 각 글은 고칠 방법을 적습니다. 모양(`ui_limit`, `ui_mode_not_allowed`, `ui_reason_empty`, `ui_path_invalid`)은 F `validateUi`가 봅니다.
 - `trial`(구현 이름 `testRun`)은 설치하지 않은 대상 폴더의 Test run을 만듭니다(AGE-68). 입력은 `{ dir, profileId?, workspace? }`이고 `dir`은 제작 대화의 대상 폴더입니다. 호스트 포트(`DevkitPort.trialRun`)가 폴더를 초안으로 만들고(`plugin.draft.create`와 같은 길), `testRun.start`와 같은 구성(`testRunDrafts.prepare`, `bind`)으로 그 초안을 새 Test run 대화(`thread.create { testRun: true }`, W-34)에만 고정합니다. 사용자 확장 폴더에 복사하지 않고 검토 승인도 건너뛰지 않습니다(설치는 검토 승인 뒤에만 됩니다). 대화를 만들지 못하면 붙잡음을 풀어 초안을 내립니다. 설치된 확장 이름을 받는 wire `ext.test.run`(testRun)은 그대로이며 이 도구는 쓰지 않습니다. 도구 입력의 `prompt`와 `profile`은 뺐습니다: 첫 입력은 사용자가 그 대화에서 보내고, 프로필 고르기는 화면(`testRun.start`)의 일입니다 [제안: AGE-68, 상태 문서 판을 올리지 않으려는 선택].
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
 - [제안] `editMembers`(`xeon/packages/core-authoring`, 시스템 모듈)는 플러그인 원본 폴더의 구성원을 고치는 순수한 폴더 편집 함수입니다. 원본 폴더의 절대 경로와 편집 명령 목록(`MemberOp`, contracts `services/devkit.ts`)을 받아 `add`(id, 층, 제목, 방식), `rename`(id, to), `retitle`(id, title), `remove`(id), `move`(id, toIndex)를 위에서 아래로 한 번에 적용합니다. 하나라도 실패하면 아무 파일도 쓰지 않습니다. 쓰기는 원본 폴더 안에서만 하고 설치된 사본은 건드리지 않습니다. 고친 폴더는 호출자가 `plugin.draft.create`로 다시 초안을 만들어 검토를 다시 거칩니다.
@@ -210,7 +211,7 @@ M4 첫 카탈로그 [제안]:
 | AU-002 | 요청 신뢰 등급이 `builtin`이면 거부(외부 제작물은 `user`나 `project`) | 오류 |
 | AU-003 | `composition`이 매니페스트 `plugins[]`의 `hooks`, `drives`, `usesPost`, `requires`, `optional`과 맞음 | 오류 |
 | AU-004 | drive 블록 둘(`drive_duplicate`), on 핸들러의 기능 호출(`on_capability_call`), 필수 기능의 제공자 없음(`capability_missing`) | 오류, 오류, 경고 |
-| AU-005 | 화면: `frame`은 `page`·`well`만, `frame.reason` 있음, `widgets`·`bridge` 범위가 지금 앱과 맞음 | 오류 |
+| AU-005 | 화면: `app`은 `page`·`panel`만, `app.reason` 있음, `widgets`·`bridge` 범위가 지금 앱과 맞음 | 오류 |
 | AU-006 | 화면: 요청 등급 `project`인데 `frame` 사용 | 경고(설치 환경의 `x.ui.allowProjectApps`에 따름) |
 | AU-007 | 화면: 프레임 화면에 `fallback`도 `cli.command`도 없음 | 경고 |
 | AU-008 | 화면: 위젯 카탈로그로 그릴 수 있는 모양을 프레임으로 냄(트리 후보가 있음) | 정보 |
@@ -280,7 +281,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 - 구성기(`L4.desktop-ux.spec` §6.28)는 구성 초안을 편집하고 `ext.validateComposition`(W-47)으로 검사합니다. "새 플러그인"은 구성기에서 초안을 만든 뒤 "제작 확장으로 만들기"를 누르면 제작 대화를 열어 그 초안을 넘깁니다(`authoring_compose`). 반대로 에이전트가 만든 초안은 구성기에서 읽기 전용으로 열 수 있습니다.
 - 구성기는 구조를 편집하는 유일한 화면입니다. 런타임 캔버스는 운영(켜기, 끄기, 덮어쓰기)만 합니다(`L4.desktop-ux.spec` §12.4 C-2).
-- 화면 기여가 있는 플러그인은 `authoring_scaffold`의 `views` 인자로 slot과 모드를 받습니다. 에이전트는 ADR-0021 §3.5 표로 모드를 고르고, 프레임이면 `frame.reason`을 씁니다. AU-005~AU-008이 그 선택을 검사합니다.
+- 화면 기여가 있는 플러그인은 `authoring_scaffold`가 `mode: "app"`으로 앱 뼈대를 만들 때 `ui`의 `app` 선언을 씁니다(`views` 인자는 없습니다). 에이전트는 ADR-0021 §3.5 표로 모드를 고르고, 자체 코드(`app`)이면 `app.reason`에 까닭을 한 줄 씁니다. 그 선택은 §3.3의 앱 화면 검사와 AU-005~AU-008이 검사합니다. 앱 뼈대의 모델 도구는 `risk`를 적지 않습니다(생략하면 `exec`). 외부 확장이 `read`나 `write`를 선언하면 `tool_risk_reserved`로 그 등록이 거부되어 꺼진 채 실패 사유가 남으므로(확장은 적재되지만 기능은 켜지지 않는다), 뼈대가 그렇게 쓰면 안 됩니다. 뼈대를 키운 완성본은 `xeon/examples/kanban`입니다(카드 보드, 읽기·쓰기 메서드 세 개, 같은 함수를 쓰는 모델 도구 두 개, 끌어 옮기는 화면).
 
 ### 4.4 카탈로그 갱신과 열린 확장
 
@@ -348,7 +349,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - A-3. 제작 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
 - A-4. `authoring_package`는 사람 확인 없이는 파일을 쓰지 않고, `authoring_submit`은 확인 없이 검토 항목만 만든다(실행하지 않는다). 확인을 기다리는 동안 그 대화의 drive 프레임은 `asking`으로 스택에 남습니다(drive 락을 반납하지 않는다, E3).
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.
-- A-6. 화면 기여가 있는 시험 플러그인 하나(선언형 `well` + 프레임 `page`)를 만들면 AU-005가 통과하고, 프레임 금지 설정에서 `fallback`이 그려집니다.
+- A-6. 화면 기여가 있는 시험 플러그인 하나(선언형 `panel` + 앱 `page`)를 만들면 AU-005가 통과하고, 프레임 금지 설정에서 `fallback`이 그려집니다.
 - A-7. F 훅 하나의 이름을 바꾸는 가짜 변경에서 카탈로그 적합성 시험이 실패합니다.
 
 ## 10. 미결 사항

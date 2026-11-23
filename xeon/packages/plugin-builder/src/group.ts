@@ -20,7 +20,7 @@ import { authoringTools, AUTHORING_TOOL_NAMES, type AuthoringGuide } from "./gro
 
 // L3.authoring.spec §3.1 그룹 `authoring`. 내장 L3 플러그인 그룹이고 기본은 켜짐이다([결정: 2026-11-13 사용자], 2026-11-01의 기본 꺼짐을 대체). 도구는 모두 지연(`deferred`)이라 문맥 비용이 0이다.
 // 일은 주입받은 `fresnel.devkit` 서비스가 하고, 그룹은 도구, 단계 머신(drive), 쓰기 범위 가드(`tool.call.before`)만 가진다.
-// Plugin UI 기여(page, well, card, command)는 T-VIEW 뒤에 더한다.
+// Plugin UI 기여(page, panel, card, status, command, settings 여섯 자리)는 T-VIEW 뒤에 더한다.
 
 export const authoringManifest: OrchestrationManifest = defineManifest({
   schemaVersion: 2,

@@ -37,6 +37,10 @@ export type ExtensionKind = (typeof EXTENSION_KINDS)[number];
 export const PLUGIN_MODES = ["hook", "inject", "drive"] as const;
 export type PluginMode = (typeof PLUGIN_MODES)[number];
 
+/** 뿌리 뼈대(`authoring_scaffold`)의 방식. 구성원 방식 셋에 앱 플러그인 뼈대 `app`이 더해진다 */
+export const SCAFFOLD_MODES = ["hook", "inject", "drive", "app"] as const;
+export type ScaffoldMode = (typeof SCAFFOLD_MODES)[number];
+
 /** 종류 카탈로그 항목 하나(`catalog/kinds/<id>.json`) */
 export interface KindEntry {
   readonly id: ExtensionKind;
@@ -64,7 +68,7 @@ export interface ScaffoldInput {
   readonly name: string;
   readonly dir: string;
   /** 플러그인의 방식. 생략하면 `hook`(기존 골격)이다 [제안: M5c §4.9.4] */
-  readonly mode?: PluginMode;
+  readonly mode?: ScaffoldMode;
   /** `single-plugin`일 때 플러그인의 층. 생략하면 템플릿 기본값 [제안] */
   readonly layer?: ExtensionLayer;
   /** `group` 선언 초안. 있으면 매니페스트에 `group`이 붙는다 */

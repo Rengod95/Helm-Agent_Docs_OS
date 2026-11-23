@@ -1,9 +1,11 @@
 import {
   HOOK_NAMES,
   HOOKS,
+  type BridgeCapability,
   type HookKind,
   type HookPower,
   type PluginCard,
+  type UiMode,
 } from "@fresnel/contracts/extensions";
 import { placesOf, type Place } from "./review-model.ts";
 
@@ -42,11 +44,24 @@ export type GivesFact =
   | { readonly kind: "ui"; readonly count: number }
   | { readonly kind: "decision" };
 
+/**
+ * 화면 줄 하나(작동 방식의 "화면" 줄이 쓸 값). 자리와 이름, 그리는 방식, 자체 코드의 까닭과 다리 권한을 매니페스트 선언 그대로 싣는다.
+ * 옛 카드에는 방식이 없어 `mode`가 null이다. 선언형 화면은 까닭과 권한이 없다
+ */
+interface ScreenFact {
+  readonly id: string;
+  readonly placement: string;
+  readonly mode: UiMode | null;
+  readonly reason: string | null;
+  readonly capabilities: readonly BridgeCapability[];
+}
+
 export interface WorkFacts {
   readonly when: readonly WhenFact[];
   readonly reads: readonly ReadsFact[];
   readonly changes: readonly ChangesFact[];
   readonly gives: readonly GivesFact[];
+  readonly screens: readonly ScreenFact[];
 }
 
 /** 카드의 Hook 이름이 계약이 아는 이름이면 그 종류(입력, 모델 요청, 도구 호출…). 모르는 이름은 null */
@@ -136,7 +151,14 @@ export function workFactsOf(card: PluginCard): WorkFacts {
       : []),
     ...(powers.has("decide") ? [{ kind: "decision" } satisfies GivesFact] : []),
   ];
-  return { when, reads, changes, gives };
+  const screens: ScreenFact[] = (inject?.ui ?? []).map((ui) => ({
+    id: ui.id,
+    placement: ui.placement,
+    mode: ui.mode ?? null,
+    reason: ui.app?.reason ?? null,
+    capabilities: unique(ui.app?.capabilities ?? [], (capability) => capability),
+  }));
+  return { when, reads, changes, gives, screens };
 }
 
 // "이전 버전과 달라진 일"의 한 줄. 엔진의 차이(`apps/host` `plugins/diff.ts`)는 `what`을 `<부품>:<이름>` 열쇠로 준다(`tool:fetch`,

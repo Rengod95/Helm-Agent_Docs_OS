@@ -362,6 +362,65 @@ test("선언만 있는 도구, 명령, 대체는 Inject 칸에 들고 도구 수
   expect(card.cost.toolCount).toBe(1);
 });
 
+test("화면 칸: 매니페스트의 자리, 그리는 방식, 자체 코드의 까닭과 다리 권한을 그대로 싣는다", () => {
+  const card = cardOf(
+    folderOf("screen-kit", {
+      ".fresnel-plugin/plugin.json": JSON.stringify({
+        schemaVersion: 2,
+        name: "screen-kit",
+        version: "1.0.0",
+        ui: {
+          schemaVersion: 1,
+          widgets: "^1.0.0",
+          items: [
+            { id: "main", placement: "page", title: "Main", file: "./ui/main.view.json" },
+            {
+              id: "graph",
+              placement: "panel",
+              mode: "app",
+              title: "Graph",
+              app: {
+                root: "./ui/graph",
+                entry: "index.html",
+                bridge: "^1.0.0",
+                reason: "Needs a canvas",
+                capabilities: ["files", "notify"],
+              },
+            },
+            { id: "start", placement: "command", title: "Start" },
+          ],
+        },
+      }),
+      "ui/main.view.json": "{}",
+      "ui/graph/index.html": "<!doctype html>",
+    }),
+  );
+  expect(card.does.inject?.ui).toEqual([
+    {
+      id: "main",
+      placement: "page",
+      readsState: null,
+      modelVisible: "none",
+      mode: "native",
+    },
+    {
+      id: "graph",
+      placement: "panel",
+      readsState: null,
+      modelVisible: "none",
+      mode: "app",
+      app: { reason: "Needs a canvas", capabilities: ["files", "notify"] },
+    },
+    {
+      id: "start",
+      placement: "command",
+      readsState: null,
+      modelVisible: "none",
+    },
+  ]);
+  expect(parse(PluginCardSchema, card).ok).toBe(true);
+});
+
 test("재료와 선언이 하나도 없는 코드 플러그인은 Inject 칸이 null이다", () => {
   const card = cardOf(
     folderOf("bare-code", {

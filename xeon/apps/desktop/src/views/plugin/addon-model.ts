@@ -192,7 +192,7 @@ function shownTitle(entry: ExtUiEntry, locale: string): string {
 }
 
 /** 화면으로 세는 항목: 모든 `page`와 Helm이 아닌 확장의 `panel`(`pluginScreenItemsOf`와 같은 기준) */
-function isScreenEntry(entry: ExtUiEntry): boolean {
+export function isScreenEntry(entry: ExtUiEntry): boolean {
   return (
     entry.placement === "page" ||
     (entry.placement === "panel" && entry.extension !== HELM_EXTENSION)

@@ -87,7 +87,7 @@ function commandArgsOf(
 
 /**
  * 선언형 화면의 동작 묶음. `Button`·`Form`의 명령은 `command` 동작으로 실행기를 거치고(확인 줄, 쿨다운, 장부),
- * 대화 링크는 `openChat`으로 간다. 외부 링크는 확인 줄이 아직 없어 열지 않는다
+ * 대화 링크는 `openChat`으로, 화면 링크(`ViewLink`)는 `openView`(같은 확장의 화면 id)로 간다. 외부 링크는 확인 줄이 아직 없어 열지 않는다
  */
 export function treeActionsOf(options: {
   readonly runner: ActionRunner;
@@ -95,8 +95,10 @@ export function treeActionsOf(options: {
   readonly ledger: ScreenLedger;
   readonly screenKey: string;
   readonly openChat: () => void;
+  /** 화면 링크를 연다. 목록에 없는 id면 아무것도 하지 않는다(`navigate { view }`와 같은 길) */
+  readonly openView?: ((view: string) => void) | undefined;
 }): NativeTreeActions {
-  const { runner, context, ledger, screenKey, openChat } = options;
+  const { runner, context, ledger, screenKey, openChat, openView } = options;
   return {
     runCommand(command, values) {
       // `helm start`는 명령 이름 `helm`과 인자 앞머리 `start`다. 판정(`decide`)은 이름만 보고, 인자는 실행 글에 붙는다
@@ -111,6 +113,7 @@ export function treeActionsOf(options: {
     },
     openLink(link) {
       if (link.kind === "thread") openChat();
+      if (link.kind === "view") openView?.(link.view);
     },
   };
 }

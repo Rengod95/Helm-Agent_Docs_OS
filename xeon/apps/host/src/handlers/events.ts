@@ -25,6 +25,7 @@ import type { ConnectionHub, ConnectionState, Subscription } from "../connection
 import { wireErrorOfStore } from "../store-error.ts";
 import type { CommitBatch, Engine } from "../types.ts";
 import { createObservePoller } from "./observe.ts";
+import { UI_CHANGE_WINDOW_MS, createUiChangeCoalescer } from "./ui-changes.ts";
 import { startNoticeDelivery } from "./notice-delivery.ts";
 import {
   approvalLeafMasks,
@@ -579,6 +580,25 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
+  // 확장의 상태나 기록이 커밋되면 연결 전체에 `ext.ui.changed { extension }`을 보낸다(ADR-0021 §3.4.2, AGE-78).
+  // 같은 확장의 연속 신호는 창(UI_CHANGE_WINDOW_MS)으로 한 번에 보낸다. 값은 싣지 않으므로 송신 큐가 차도 건너뛰지 않는다
+  const uiChanges = createUiChangeCoalescer({
+    windowMs: UI_CHANGE_WINDOW_MS,
+    scheduler: engine.ports.scheduler,
+    emit: (extension) => {
+      for (const conn of hub.connections()) {
+        if (conn.phase !== "ready") continue;
+        conn.sender.push({
+          jsonrpc: "2.0",
+          method: "ext.ui.changed",
+          params: toRecord({ extension }),
+        });
+      }
+    },
+  });
+  const offExtData = engine.ports.m4.extRead.onExtDataChanged((extension) => {
+    uiChanges.signal(extension);
+  });
   // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-94). 값과 설정 판정은 notice-delivery.ts가 한다
   const offNotices = startNoticeDelivery(engine, hub);
   return {
@@ -596,6 +616,8 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       offBacktestProgress();
       offProjects();
       offFrames();
+      offExtData();
+      uiChanges.dispose();
       offNotices();
       poller.dispose();
     },
