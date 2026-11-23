@@ -614,7 +614,7 @@ export interface ServiceAlive {
 export type RestoreTargetOutcome = "none" | "restored" | "fellBack";
 
 /** 첫 실행 화면의 기본 그룹(L4.desktop-ux §6.5). 켜기 키는 `ext.<그룹>.enabled`(X 로더 예약 키)다 */
-export type DefaultGroupId = "helm" | "learning";
+export type DefaultGroupId = "helm";
 
 /** 기본 그룹의 켜짐 값과 안전 모드 여부. `enabled`의 null은 설정 값을 쓴 적이 없다는 뜻이다(기본값은 화면 모델이 정한다) */
 export interface GroupsSnapshot {

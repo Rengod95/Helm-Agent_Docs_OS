@@ -1,7 +1,6 @@
 import { ProposalArt } from "../../illustrations/index.tsx";
 import { activeLocale, t } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
-import type { ToggleRequest } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import type { WireResult } from "@fresnel/contracts/wire";
 import {
@@ -37,7 +36,6 @@ import {
   effectiveScopeOf,
   rowTitleOf,
   selectedRowOf,
-  unavailableShownOf,
   visibleRowsOf,
   type KindFilter,
   type ProposalFilter,
@@ -87,8 +85,6 @@ export interface ProposalsHandlers {
   readonly skillOpen: (request: SkillRequest) => void;
   readonly skillClose: () => void;
   readonly dismissNotice: () => void;
-  /** 꺼진 학습 그룹을 켠다(확장 스위치와 같은 쓰기) */
-  readonly learningTurnOn: (request: ToggleRequest) => void;
   readonly onKey: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
 
@@ -101,7 +97,7 @@ export interface ProposalsViewProps {
 }
 
 const STATUS_ITEMS: readonly StatusFilter[] = ["pending", "applied", "all"];
-const SOURCE_ITEMS: readonly SourceFilter[] = ["all", "learning", "knowledge"];
+const SOURCE_ITEMS: readonly SourceFilter[] = ["all", "knowledge"];
 const KIND_ITEMS: readonly KindFilter[] = ["all", "skill", "memory", "feedback", "script"];
 
 const LIST_DESC =
@@ -195,15 +191,8 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
           {state.notice.text}
         </Alert>
       )}
-      {state.learning.status === "off" ? (
-        <LearningOffNotice
-          turnOn={state.learning.turnOn}
-          live={live}
-          onTurnOn={handlers.learningTurnOn}
-        />
-      ) : null}
       {state.list.status === "ready"
-        ? unavailableShownOf(state.list.unavailable, state.learning).map((source) => (
+        ? state.list.unavailable.map((source) => (
             <Alert key={source} tone="warning">
               {t(unavailableTextIdOf(source))}
             </Alert>
@@ -251,39 +240,6 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
         handlers={handlers}
       />
     </section>
-  );
-}
-
-/**
- * 학습 그룹이 꺼져 있다는 안내. 오류가 아니라 정보 줄이다. 켤 수 있으면 "켜기"를 둔다(잠겼거나 실리지 않은 그룹은 단추가 없다).
- * 꺼져 있어도 과거 기록은 목록에 그대로 있다
- */
-function LearningOffNotice(props: {
-  readonly turnOn: ToggleRequest | null;
-  readonly live: boolean;
-  readonly onTurnOn: (request: ToggleRequest) => void;
-}): ReactNode {
-  const { turnOn, live, onTurnOn } = props;
-  return (
-    <Alert
-      tone="info"
-      action={
-        turnOn === null ? undefined : (
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={!live}
-            onClick={() => {
-              onTurnOn(turnOn);
-            }}
-          >
-            {t("desktop.proposals.learning.on")}
-          </Button>
-        )
-      }
-    >
-      {t("desktop.proposals.learning.off")}
-    </Alert>
   );
 }
 

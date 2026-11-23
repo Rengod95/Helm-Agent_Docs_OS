@@ -36,8 +36,6 @@ export function sourceFilterIdOf(source: SourceFilter): MessageId {
   switch (source) {
     case "all":
       return "desktop.proposals.filter.source.all";
-    case "learning":
-      return "client.settings.proposals.source.learning";
     case "knowledge":
       return "client.settings.proposals.source.knowledge";
     default:

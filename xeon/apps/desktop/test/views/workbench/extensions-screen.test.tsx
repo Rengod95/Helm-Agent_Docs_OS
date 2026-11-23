@@ -113,7 +113,7 @@ describe("확장 화면: 층별 목록과 찾기", () => {
 
   test("찾는 확장이 없으면 빈 상태를 보인다", () => {
     const html = render((s) => setQuery(s, "zzz"));
-    expect(html).toContain("찾는 확장이 없어요");
+    expect(html).toContain("찾는 플러그인이 없어요");
   });
 });
 

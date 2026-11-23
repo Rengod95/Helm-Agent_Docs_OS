@@ -18,7 +18,7 @@ import { readPendingCount, watchPendingCount } from "./proposal-pending.ts";
 // 연결이 살아 있을 때만 다시 읽고, 끊기면 마지막 수를 둔다. 문맥이 없으면 0이고 `refresh`는 아무 일도 하지 않는다.
 
 export interface ProposalPending {
-  /** 대기 제안 수. 학습 꺼짐과 목록 실패는 0이다 */
+  /** 대기 제안 수. 목록을 못 읽으면 0이다 */
   readonly count: number;
   /** 지금 다시 읽는다. 제안 화면은 결정을 보낸 뒤에 부른다 */
   readonly refresh: () => void;
@@ -51,7 +51,6 @@ export function ProposalPendingProvider(props: {
     const run = async (): Promise<void> => {
       const next = await readPendingCount({
         proposals: (params) => commands.proposals.list(params),
-        extensions: () => commands.workbench.list(),
       });
       if (seq === latest.current) setCount(next);
     };
@@ -75,7 +74,6 @@ export function ProposalPendingProvider(props: {
           window.removeEventListener("focus", listener);
         };
       },
-      onWorkbench: (listener) => commands.workbench.onChanged(listener),
       onNotice: (listener) =>
         commands.notices.onDelivered((delivered) => {
           listener(delivered.notice.kind);

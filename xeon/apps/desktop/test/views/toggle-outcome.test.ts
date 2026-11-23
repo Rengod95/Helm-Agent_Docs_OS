@@ -61,7 +61,7 @@ describe("the reason text", () => {
     expect(toggleReasonOf("config_required")).toBe(
       "필수 설정이 비어 있어요. 채운 뒤 다시 켜 주세요",
     );
-    expect(toggleReasonOf("trust_denied")).toBe("신뢰하지 않은 확장이라 실을 수 없어요");
+    expect(toggleReasonOf("trust_denied")).toBe("신뢰하지 않은 플러그인이라 실을 수 없어요");
     expect(toggleReasonOf("capability_missing")).toBe("사유: capability_missing");
   });
 });

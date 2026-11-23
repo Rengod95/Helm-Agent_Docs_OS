@@ -6,7 +6,6 @@ import {
   type ProposalRowVM,
   type ProposalScope,
 } from "@fresnel/client/settings";
-import type { ToggleRequest } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import {
   useCallback,
@@ -24,7 +23,6 @@ import {
   confirmActionOf,
   effectiveScopeOf,
   INITIAL_PROPOSALS_STATE,
-  learningStateOf,
   listParamsOf,
   moveSelectionOf,
   overlayOpenOf,
@@ -85,20 +83,6 @@ export function ProposalsScreen(): ReactNode {
     if (live) detach(read(state.filter, null, false), rethrow);
   }, [live, read, state.filter]);
 
-  // 학습 그룹의 켜짐은 확장 목록에서 읽는다(목록의 안내 줄이 쓴다). 확장이 바뀌면 다시 읽는다
-  const readLearning = useCallback(async (): Promise<void> => {
-    const listed = await commands.workbench.list();
-    dispatch({ type: "learningRead", learning: learningStateOf(listed.ok ? listed.value : null) });
-  }, [commands]);
-
-  useEffect(() => {
-    if (!live) return undefined;
-    detach(readLearning(), rethrow);
-    return commands.workbench.onChanged(() => {
-      detach(readLearning(), rethrow);
-    });
-  }, [commands, live, readLearning]);
-
   const notify = (tone: NoticeTone, text: string): void => {
     dispatch({ type: "noticeSet", notice: { tone, text } });
   };
@@ -134,16 +118,6 @@ export function ProposalsScreen(): ReactNode {
     const done = doneNoticeOf(action, outcome.applied, outcome.proposal.status);
     notify(done.tone, t(done.textId));
     await read(state.filter, null, false);
-  };
-
-  /** 학습 그룹 켜기: 스위치와 같은 확장 쓰기다. 끝나면 켜짐 상태를 다시 읽는다 */
-  const turnLearningOn = async (request: ToggleRequest): Promise<void> => {
-    const done = await commands.workbench.toggle(request);
-    if (!done.ok) {
-      notify("danger", t(commandErrorIdOf(done.error)));
-      return;
-    }
-    await readLearning();
   };
 
   /** 동작 하나. 입력이 필요하면 편집기를, 확인이 필요하면 대화 상자를 연다 */
@@ -262,9 +236,6 @@ export function ProposalsScreen(): ReactNode {
     },
     dismissNotice: () => {
       dispatch({ type: "noticeSet", notice: null });
-    },
-    learningTurnOn: (request) => {
-      detach(turnLearningOn(request), rethrow);
     },
     onKey,
   };

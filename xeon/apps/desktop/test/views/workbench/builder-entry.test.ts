@@ -22,7 +22,7 @@ describe("builderSentenceOf", () => {
   });
 
   test("목록에 없거나 연결이 없으면 각자 까닭을 말한다", () => {
-    expect(sentence(null, "live")).toBe("확장 목록에 플러그인 빌더가 없어서 켤 수 없어요");
+    expect(sentence(null, "live")).toBe("플러그인 목록에 플러그인 빌더가 없어서 켤 수 없어요");
     expect(sentence("disabled", "offline")).toBe("엔진에 연결되면 만들 수 있어요");
   });
 });

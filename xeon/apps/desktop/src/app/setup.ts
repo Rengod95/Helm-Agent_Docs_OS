@@ -67,7 +67,6 @@ const SCOPE = "user";
 /** 기본 그룹의 켜기 키(X 로더 예약 키, F.extensions.spec §6). 첫 실행 화면만 쓴다 */
 const GROUP_KEY: Readonly<Record<DefaultGroupId, string>> = {
   helm: "ext.helm.enabled",
-  learning: "ext.learning.enabled",
 };
 
 /** 설정 값이 참 또는 거짓이면 그 값, 아니면 null(쓴 적이 없다). 기본값은 화면 모델이 정한다 */
@@ -184,12 +183,10 @@ export function createSetupCommands(
       };
       const helm = await stored(GROUP_KEY.helm);
       if (!helm.ok) return helm;
-      const learning = await stored(GROUP_KEY.learning);
-      if (!learning.ok) return learning;
       const status = await run((c) => c.request("host.status", {}));
       if (!status.ok) return status;
       const snapshot: GroupsSnapshot = {
-        enabled: { helm: helm.value, learning: learning.value },
+        enabled: { helm: helm.value },
         safeMode: status.value.safeMode === true,
       };
       return ok(snapshot);

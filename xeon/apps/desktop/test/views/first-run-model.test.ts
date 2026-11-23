@@ -59,7 +59,7 @@ function nameOf(text: string): SecretName {
 }
 
 const GROUPS_DEFAULT: GroupsSnapshot = {
-  enabled: { helm: null, learning: null },
+  enabled: { helm: null },
   safeMode: false,
 };
 
@@ -208,29 +208,27 @@ describe("first-run steps", () => {
 });
 
 describe("first-run default groups", () => {
-  test("both default groups are on when no value was saved, and review is off and not switchable", () => {
+  test("helm is on when no value was saved, and review is off and not switchable", () => {
     expect(groupRowsOf(GROUPS_DEFAULT)).toEqual([
       { id: "helm", on: true, switchable: true },
-      { id: "learning", on: true, switchable: true },
       { id: "review", on: false, switchable: false },
     ]);
     expect(groupOnOf(null)).toBe(true);
   });
 
-  test("a saved value overrides the default for its group only", () => {
-    const groups: GroupsSnapshot = { enabled: { helm: false, learning: null }, safeMode: false };
+  test("a saved value overrides the default", () => {
+    const groups: GroupsSnapshot = { enabled: { helm: false }, safeMode: false };
     expect(groupRowsOf(groups)).toEqual([
       { id: "helm", on: false, switchable: true },
-      { id: "learning", on: true, switchable: true },
       { id: "review", on: false, switchable: false },
     ]);
   });
 
-  test("the group step is done only while both default groups are on", () => {
+  test("the group step is done only while helm is on", () => {
     const helmOff = firstRunModelOf({
       setup: KEYED,
       search: null,
-      groups: { enabled: { helm: false, learning: null }, safeMode: false },
+      groups: { enabled: { helm: false }, safeMode: false },
     });
     expect(helmOff.steps.find((step) => step.id === "groups")?.done).toBe(false);
     const allOn = firstRunModelOf({ setup: KEYED, search: null, groups: GROUPS_DEFAULT });
@@ -241,7 +239,7 @@ describe("first-run default groups", () => {
     const model = firstRunModelOf({
       setup: KEYED,
       search: null,
-      groups: { enabled: { helm: null, learning: null }, safeMode: true },
+      groups: { enabled: { helm: null }, safeMode: true },
     });
     expect(model.groups?.safeMode).toBe(true);
   });
