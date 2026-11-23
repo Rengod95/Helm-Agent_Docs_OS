@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { proposalListView, type ProposalRowVM } from "@fresnel/client/settings";
-import type { ExtListEntry, ProposalRow, WireResult } from "@fresnel/contracts/wire";
+import type { ProposalRow, WireResult } from "@fresnel/contracts/wire";
 import {
   confirmActionOf,
   DIFF_FOLD_LINES,
@@ -10,7 +10,6 @@ import {
   effectiveScopeOf,
   INITIAL_FILTER,
   INITIAL_PROPOSALS_STATE,
-  learningStateOf,
   listParamsOf,
   moveSelectionOf,
   overlayOpenOf,
@@ -19,9 +18,7 @@ import {
   rowTitleOf,
   selectedRowOf,
   skillFailureOf,
-  unavailableShownOf,
   visibleRowsOf,
-  type LearningState,
   type ProposalPage,
   type ProposalsState,
   type SkillRequest,
@@ -94,10 +91,9 @@ describe("listParamsOf", () => {
     });
   });
 
-  test("applied from the learning source, with a cursor, sends each filter as the wire names it", () => {
-    expect(listParamsOf({ status: "applied", source: "learning", kind: "skill" }, "cur-1")).toEqual(
-      { status: ["applied"], source: "learning", cursor: "cur-1" },
-    );
+  test("applied from the knowledge source, with a cursor, sends each filter as the wire names it", () => {
+    const params = listParamsOf({ status: "applied", source: "knowledge", kind: "skill" }, "cur-1");
+    expect(params).toEqual({ status: ["applied"], source: "knowledge", cursor: "cur-1" });
   });
 });
 
@@ -277,72 +273,12 @@ describe("doneNoticeOf", () => {
   });
 });
 
-describe("unavailableTextIdOf and unavailableShownOf", () => {
-  const OFF: LearningState = { status: "off", turnOn: null };
-
+describe("unavailableTextIdOf", () => {
   test("each unreadable source has its own sentence", () => {
     expect(unavailableTextIdOf("learning")).toBe("client.settings.proposals.unavailable.learning");
     expect(unavailableTextIdOf("knowledge")).toBe(
       "client.settings.proposals.unavailable.knowledge",
     );
-  });
-
-  test("with learning off, a learning read gap is not an error; the knowledge gap still shows", () => {
-    expect(unavailableShownOf(["learning", "knowledge"], OFF)).toEqual(["knowledge"]);
-    expect(unavailableShownOf(["learning"], OFF)).toEqual([]);
-    expect(unavailableShownOf(["learning"], { status: "on" })).toEqual(["learning"]);
-    expect(unavailableShownOf(["learning"], { status: "unknown" })).toEqual(["learning"]);
-  });
-});
-
-/** 확장 목록의 한 항목. 학습 그룹의 켜짐 상태 시험에만 쓴다 */
-function extEntry(overrides: Partial<ExtListEntry>): ExtListEntry {
-  return {
-    name: "learning",
-    displayName: "Learning",
-    layer: "L3",
-    isOrchestration: true,
-    version: "0.1.0",
-    location: "builtin",
-    requestedGrade: "builtin",
-    effectiveGrade: "builtin",
-    tier: null,
-    status: "enabled",
-    plugins: [],
-    diagnostics: [],
-    autoDisabled: false,
-    safeModeExcluded: null,
-    hookCount: 0,
-    ...overrides,
-  };
-}
-
-describe("learningStateOf", () => {
-  test("an unread extension list is unknown; a running group is on", () => {
-    expect(learningStateOf(null)).toEqual({ status: "unknown" });
-    expect(learningStateOf([extEntry({ status: "enabled" })])).toEqual({ status: "on" });
-  });
-
-  test("a disabled group is off and offers the same switch write the extension list uses", () => {
-    expect(learningStateOf([extEntry({ status: "disabled" })])).toEqual({
-      status: "off",
-      turnOn: { key: "ext.learning.enabled", value: true, scope: "user" },
-    });
-  });
-
-  test("a group the safe mode left out is off with no switch; a managed group is off with no switch", () => {
-    expect(learningStateOf([extEntry({ status: "disabled", safeModeExcluded: "flag" })])).toEqual({
-      status: "off",
-      turnOn: null,
-    });
-    expect(learningStateOf([extEntry({ status: "disabled", enabledSource: "managed" })])).toEqual({
-      status: "off",
-      turnOn: null,
-    });
-  });
-
-  test("a list without the learning group means it is not loaded here: off, no switch", () => {
-    expect(learningStateOf([extEntry({ name: "helm" })])).toEqual({ status: "off", turnOn: null });
   });
 });
 
@@ -628,16 +564,5 @@ describe("overlayOpenOf", () => {
     });
     expect(overlayOpenOf(skillOpen)).toBe(true);
     expect(overlayOpenOf(proposalsReducer(skillOpen, { type: "skillClosed" }))).toBe(false);
-  });
-});
-
-describe("learning state", () => {
-  test("a read stores the learning state, and a closed screen starts unknown", () => {
-    expect(INITIAL_PROPOSALS_STATE.learning).toEqual({ status: "unknown" });
-    const off = proposalsReducer(INITIAL_PROPOSALS_STATE, {
-      type: "learningRead",
-      learning: { status: "off", turnOn: null },
-    });
-    expect(off.learning).toEqual({ status: "off", turnOn: null });
   });
 });

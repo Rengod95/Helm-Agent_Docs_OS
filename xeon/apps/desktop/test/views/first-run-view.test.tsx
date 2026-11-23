@@ -55,7 +55,7 @@ const SETUP: SetupSnapshot = {
   binaries: null,
 };
 
-const GROUPS: GroupsSnapshot = { enabled: { helm: null, learning: null }, safeMode: false };
+const GROUPS: GroupsSnapshot = { enabled: { helm: null }, safeMode: false };
 
 function modelOf(setup: SetupSnapshot | null, groups: GroupsSnapshot | null): FirstRunModel | null {
   if (setup === null) return null;
@@ -177,15 +177,15 @@ describe("first-run screen server render", () => {
   test("offline keeps the last read values, says the writes are locked, and disables the switches", () => {
     const page = html(propsOf({ status: "offline", locked: true, open: "groups" }));
     expect(page).toContain(t("desktop.firstRun.offline"));
-    // helm, learning, review 세 줄의 스위치가 모두 잠긴다(review는 원래 바꿀 수 없다)
-    expect(page.match(/role="switch"[^>]*disabled=""/g)?.length).toBe(3);
+    // helm, review 두 줄의 스위치가 모두 잠긴다(review는 원래 바꿀 수 없다)
+    expect(page.match(/role="switch"[^>]*disabled=""/g)?.length).toBe(2);
   });
 
-  test("the safe mode line shows at the top of the default groups step, with helm and learning on and review off", () => {
-    const groups: GroupsSnapshot = { enabled: { helm: null, learning: null }, safeMode: true };
+  test("the safe mode line shows at the top of the default groups step, with helm on and review off", () => {
+    const groups: GroupsSnapshot = { enabled: { helm: null }, safeMode: true };
     const page = html(propsOf({ open: "groups", model: modelOf(SETUP, groups) }));
     expect(page).toContain(t("desktop.firstRun.groups.safeMode"));
-    expect(page.match(/role="switch"[^>]*data-state="checked"/g)?.length).toBe(2);
+    expect(page.match(/role="switch"[^>]*data-state="checked"/g)?.length).toBe(1);
     expect(page).toContain(t("desktop.firstRun.group.review.name"));
     expect(page).toContain(t("desktop.firstRun.groups.lightCraft"));
     expect(page).not.toContain("group new");

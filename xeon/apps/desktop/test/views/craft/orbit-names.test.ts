@@ -30,7 +30,7 @@ describe("지도 점의 상태", () => {
   test("상태 글은 자동 꺼짐, 실패, 주도, 켜짐, 꺼짐 순으로 정해진다", () => {
     expect(stateText(plug({ drives: true, health: autoOff }))).toBe("자동으로 꺼짐");
     expect(stateText(plug({ drives: true, health: failing }))).toBe("실패");
-    expect(stateText(plug({ drives: true }))).toBe("주도");
+    expect(stateText(plug({ drives: true }))).toBe("Drive");
     expect(stateText(plug())).toBe("켜짐");
     expect(stateText(plug({ on: false }))).toBe("꺼짐");
   });

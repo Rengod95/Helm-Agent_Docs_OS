@@ -52,18 +52,18 @@ async function liveApp(extra: EngineExtra) {
 }
 
 describe("default group toggles write the user-scope switch", () => {
-  test("turning learning off and helm on writes the exact settings.set params, in order", async () => {
+  test("turning helm off and on writes the exact settings.set params, in order", async () => {
     const { app, params } = await liveApp({
       results: {
-        "settings.set": { setting: setting("ext.learning.enabled", false) },
+        "settings.set": { setting: setting("ext.helm.enabled", false) },
       },
     });
-    const off = await app.commands.setup.setGroupEnabled("learning", false);
+    const off = await app.commands.setup.setGroupEnabled("helm", false);
     const on = await app.commands.setup.setGroupEnabled("helm", true);
     expect(off).toEqual({ ok: true, value: null });
     expect(on).toEqual({ ok: true, value: null });
     expect(paramsOf(params, "settings.set")).toEqual([
-      { key: "ext.learning.enabled", value: false, scope: "user" },
+      { key: "ext.helm.enabled", value: false, scope: "user" },
       { key: "ext.helm.enabled", value: true, scope: "user" },
     ]);
     await app.stop();
@@ -92,13 +92,10 @@ describe("the group step reads its switches and the safe mode flag", () => {
     const loaded = await app.commands.setup.loadGroups();
     expect(loaded).toEqual({
       ok: true,
-      value: { enabled: { helm: false, learning: null }, safeMode: true },
+      value: { enabled: { helm: false }, safeMode: true },
     });
-    // 키는 하나씩 읽는다: 설치되지 않은 그룹의 키 하나가 거절돼도 다른 그룹을 읽는다
-    expect(paramsOf(params, "settings.get")).toEqual([
-      { keys: ["ext.helm.enabled"] },
-      { keys: ["ext.learning.enabled"] },
-    ]);
+    // 켜기 키는 그룹마다 따로 읽는다(거절된 키의 처리는 아래 시험이 본다)
+    expect(paramsOf(params, "settings.get")).toEqual([{ keys: ["ext.helm.enabled"] }]);
     await app.stop();
   });
 
@@ -110,7 +107,7 @@ describe("the group step reads its switches and the safe mode flag", () => {
     const loaded = await app.commands.setup.loadGroups();
     expect(loaded).toEqual({
       ok: true,
-      value: { enabled: { helm: null, learning: null }, safeMode: true },
+      value: { enabled: { helm: null }, safeMode: true },
     });
     await app.stop();
   });

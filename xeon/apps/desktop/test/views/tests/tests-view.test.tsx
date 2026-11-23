@@ -300,12 +300,12 @@ describe("새 테스트 시트 실패 이유", () => {
         id="new-test"
         draft={NEW_TEST_DEFAULT}
         devMode={false}
-        failure="이 이름은 설치되어 실린 확장이 아니에요."
+        failure="이 이름은 설치되어 실린 플러그인이 아니에요."
         onChange={NOOP}
         onSubmit={NOOP}
       />,
     );
-    expect(markup).toContain("이 이름은 설치되어 실린 확장이 아니에요.");
+    expect(markup).toContain("이 이름은 설치되어 실린 플러그인이 아니에요.");
   });
 });
 
@@ -315,7 +315,7 @@ describe("테스트 화면 알림", () => {
       ui: { ...UI, notice: { kind: "failed", failure: "targetNotLoaded" } },
     });
     expect(markup).toContain(
-      "이 이름은 설치되어 실린 확장이 아니에요. 대상 칸 아래에서 이름을 골라 주세요.",
+      "이 이름은 설치되어 실린 플러그인이 아니에요. 대상 칸 아래에서 이름을 골라 주세요.",
     );
     expect(markup).not.toContain("요청이 거절됐어요.");
   });

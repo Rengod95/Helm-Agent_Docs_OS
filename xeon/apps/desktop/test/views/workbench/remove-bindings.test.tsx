@@ -61,9 +61,9 @@ describe("지우기 판단", () => {
     expect(removableOf({})).toBe(false);
   });
 
-  test("지우기 요청은 검토함에 올렸다는 문장이다(바로 지웠다고 쓰지 않는다)", () => {
+  test("지우기 요청은 리뷰에 올렸다는 문장이다(바로 지웠다고 쓰지 않는다)", () => {
     expect(REMOVE_REQUESTED_TEXT).toBe("desktop.workbench.remove.requested");
-    expect(t(REMOVE_REQUESTED_TEXT)).toContain("검토함");
+    expect(t(REMOVE_REQUESTED_TEXT)).toContain("리뷰");
   });
 
   test("확인 문구는 실행 중인 Turn에서 바로 빠진다고 적는다", () => {

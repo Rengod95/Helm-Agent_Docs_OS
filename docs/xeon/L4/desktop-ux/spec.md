@@ -174,13 +174,12 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 목표: 스킬·메모리·피드백 후보를 보고 승인, 수정, 거절, 되돌립니다.
 - 단계
   1. 사이드바 "제안"에 대기 제안 수가 배지로 붙습니다. 받은 요청(거르기 "모두")의 맨 위에 "새 학습 제안 N개가 검토를 기다려요" 줄이 서고 "검토하기"가 제안 화면(P-06)을 엽니다 [결정: 오케스트레이터 기본값, fxLM]. 배지와 줄의 수, 다시 읽는 때는 P-06의 "사이드바 배지"를 봅니다. 학습 검토가 끝나면 기존 배경 작업 완료 알림이 옵니다. 그 알림의 문구와 OS 알림은 바꾸지 않았습니다. 알림이 대화 범위를 싣지 않아 학습 검토만 골라 문구를 바꿀 수 없습니다 [gap].
-  2. 제안 화면(P-06)에서 목록을 상태·종류·출처(학습, 지식)로 거릅니다.
+  2. 제안 화면(P-06)에서 목록을 상태·종류·출처(지식)로 거릅니다. 학습 출처 행은 거르기 항목이 없고 출처 "모두"에서 보입니다.
   3. 행을 고르면 오른쪽에 diff, 근거 이벤트, 이유, 충돌 스킬이 보입니다. 웹·MCP를 읽은 뒤 만든 후보는 경고가 붙습니다.
   4. 스킬 후보는 승인 옆에서 범위(사용자, 작업 폴더)를 고릅니다. "수정"은 본문 편집기를 엽니다.
   5. 적용된 학습 제안은 "되돌리기"가 있습니다. 그 사이 기억이 바뀌어 원장이 되돌리지 못하면 제안은 "적용됨"으로 그대로 남고, 되돌렸다는 알림 대신 경고가 보입니다.
-  6. 학습 플러그인이 꺼져 있으면 목록 위에 정보 줄이 보이고 "켜기"로 다시 켤 수 있습니다. 과거 기록은 그대로 보입니다. 꺼짐은 오류가 아닙니다.
 - 거치는 화면: P-06, S-05
-- 성공 기준: 결정이 `proposal.decide`로 가고 결과가 `decisionOutcomeOf`로 바뀝니다. `revision_mismatch`면 목록을 다시 읽고 문장을 보입니다. 되돌리기의 성공 알림은 행이 `reverted`가 됐을 때만 보입니다. 되돌리기가 거절되면(`rollback_refused`, 행은 `applied`) 경고 `desktop.proposals.done.revertRefused`가 보입니다. 학습이 꺼진 동안 목록은 저장된 기록을 읽고 꺼짐 줄과 "켜기"를 보입니다. [결정: 오케스트레이터 기본값, fxLM]
+- 성공 기준: 결정이 `proposal.decide`로 가고 결과가 `decisionOutcomeOf`로 바뀝니다. `revision_mismatch`면 목록을 다시 읽고 문장을 보입니다. 되돌리기의 성공 알림은 행이 `reverted`가 됐을 때만 보입니다. 되돌리기가 거절되면(`rollback_refused`, 행은 `applied`) 경고 `desktop.proposals.done.revertRefused`가 보입니다. [결정: 오케스트레이터 기본값, fxLM]
 
 ### SC-07 예약 만들기와 결과 확인
 
@@ -1068,7 +1067,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 접근성: 단계 목록은 `aria-current="step"`, 완료는 문장 "완료됨"을 함께 읽습니다. 키 입력란 `autocomplete="off"`, 라벨 "키 값".
 - caustic: `Stepper`(checklist), `Card`, `FormLayout`, `Field`, `Input`, `Combobox mode="popup"`(provider, 모델), `Table`(도구), `Badge`, `Button`, `Alert`, `ChoiceGroup`(권장 provider 카드), `Progress`.
 
-- 기본 플러그인 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 플러그인" 단계를 둡니다. Helm과 학습 플러그인은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 플러그인의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 플러그인 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 플러그인은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 플러그인이 실리지 않았어요" 한 줄을 둡니다.
+- 기본 플러그인 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 플러그인" 단계를 둡니다. Helm 플러그인은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm 플러그인의 `Switch`와 한 줄 설명을 보이고 기본값은 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1). 값은 `ext.helm.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 플러그인은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 플러그인이 실리지 않았어요" 한 줄을 둡니다.
 
 - 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 플러그인 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "시작 안내 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결] [근거: `m4-decisions` 2026-11-04 블록까지 review 켜기 키 결정 없음]. (2) 검색 권장에는 "설치" 단추가 없고(설치 wire `ext.install`은 있다), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기(늘 대화 영역에 연다. 지난 실행이 크래프트 영역에서 끝났어도 크래프트의 자리를 덮지 않는다, cv9 2차 2026-11-23), 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
 
@@ -1647,16 +1646,13 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 | 수정 | 편집기(`Textarea`, 200000자) → `decisionParams(row, "edit", { body })` |
 | 거절(메모) | `decisionParams(row, "reject", { note })`(500자) |
 | 되돌리기 | `decisionParams(row, "revert")`, O-06 확인. 알림은 결과 행의 상태로 정한다(`doneNoticeOf`) |
-| 학습 켜기(꺼짐 줄) | `commands.workbench.toggle(toggleRequestOf(...))`, 끝나면 `workbench.list` 다시 읽기 |
-| 거르기 | 상태(대기, 적용됨, 모두), 종류, 출처 |
+| 거르기 | 상태(대기, 적용됨, 모두), 종류, 출처(모두, 지식) |
 | 더 보기 | `nextCursor` |
 
 - 상태
   - 빈: `emptyText` "대기 중인 제안이 없어요".
   - 읽는 중: 목록 `Skeleton` 5행.
   - 오류: `unavailable` 출처(학습 또는 지식 쪽만 못 읽음)를 목록 위 `Alert`(warning)로, 결정 실패는 `FAILURE_TEXTS` 문장과 `reload`가 참이면 목록 다시 읽기.
-  - 꺼짐(학습): 확장 목록(`workbench.list`)에서 학습 플러그인이 켜진 상태(`enabled`, `enabling`)가 아니면(꺼짐, 안전 모드로 빠짐, 목록에 없음: 플러그인이 실리지 않은 구성) 목록 위에 정보 줄(`info`) "학습이 꺼져 있어요. 새 제안은 만들어지지 않아요."를 보입니다. 오류 `Alert`가 아닙니다. 꺼진 동안 학습 기록은 저장소에서 읽어 과거 행이 그대로 보이고, 되돌리기 단추도 그대로 둡니다. 결정은 플러그인이 돌 때만 되므로 누르면 `unavailable` 문장이 보입니다 [결정: 오케스트레이터 기본값, fxLM]. "켜기" 단추는 스위치와 같은 쓰기(`commands.workbench.toggle`, `settings.set { key: "ext.learning.enabled", scope: "user" }`)를 보내고, 끝나면 확장 목록을 다시 읽습니다. 잠긴 플러그인(안전 모드, 관리 플러그인)과 실리지 않은 구성은 단추 없이 정보 줄만 보입니다 [결정: 오케스트레이터 기본값, fxLM]. 꺼진 동안 대기 행의 만료 시각은 비웁니다. 만료 일수는 플러그인 설정이라 저장소 경로에서는 알 수 없습니다 [결정: 오케스트레이터 기본값, fxLM].
-  - 읽기 실패와 꺼짐의 구별: 호스트는 학습 기록을 저장소에서 읽으므로 꺼짐에서는 학습 출처를 `unavailable`에 올리지 않습니다. 올라오는 경우는 저장소 읽기 실패(오류 `Alert` 유지)나 플러그인이 실리지 않은 구성(꺼짐으로 보임)입니다. 와이어는 둘을 가르지 않으므로 화면은 확장 목록(`workbench.list`)으로 가립니다. 확장 목록을 못 읽었으면 꺼짐이라고 말하지 않고 오류를 그대로 보입니다 [결정: 오케스트레이터 기본값, fxLM].
   - 되돌리기 거절: 원장이 되돌리지 못하면(`rollback_refused`) 행은 "적용됨"으로 그대로 있고, 목록을 다시 읽어 되돌리기 단추를 남깁니다. 알림은 경고(`warning`) `desktop.proposals.done.revertRefused`입니다. 성공 알림은 행이 `reverted`일 때만 보입니다(`doneNoticeOf`). [결정: 오케스트레이터 기본값, fxLM]
   - 권한 필요: `approval_required`, `scope_not_allowed` 문장.
   - 긴 내용: diff 200000자 상한, 상세 패널 `ScrollArea`, 500줄 넘으면 접기. 변경 줄은 글을 감싸 끝까지 보입니다. 줄 높이는 글에 맞추고 번호·부호 칸은 첫 줄에 둡니다(`DIFF_WRAP`) [결정: 오케스트레이터 기본값, fxLM]. 제안 쪽 글(스킬 비교 대화 상자)은 아직 자르고 보입니다 [gap].
@@ -1677,8 +1673,8 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 - 바로 가기 키: ↑↓(행), `a` 승인, `e` 수정, `x` 거절, `u` 되돌리기. 입력 칸에 초점이 있으면 받지 않는다. Enter로 상세에 초점을 옮기는 동작은 아직 없다.
 - 상태 여섯 가지는 `proposals-view.test.tsx`가 서버 렌더로 본다(빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용). 긴 내용은 줄 500개를 넘으면 나머지를 접는다(`DIFF_FOLD_LINES`).
 - mockup 정렬(2026-11-06, dsgnb 트랙): 목록 행은 mockup `Row`처럼 listbox 옵션이고 출처·근거·판 글은 뺐습니다. 상세는 머리(종류·대상, 상태 배지는 대기가 아닐 때만) → 경고 Alert들(오프라인, 신뢰할 수 없는 입력, 충돌) → `ListDescription`(낸 쪽, 이유, 근거 "대화 열기", 적용 범위 `RadioGroup`) → 읽기 전용 `CodeDiff`(고치는 중에는 본문 `Textarea`) → 결정 줄입니다. 거절은 왼쪽, 수정·승인·되돌리기는 오른쪽입니다. 빈 목록은 두 열 대신 가운데 빈 상태입니다. 유지한 것: 충돌 스킬 대화 상자(W-14, mockup에는 없음), 500줄 접기, 승인·되돌리기 확인 대화 상자(mockup은 바로 실행). 뺀 것: 적용됨 배지의 성공 색(caustic `Badge`의 `tone`이 deprecated라 중립으로 둠), 좁은 폭에서 목록과 상세를 번갈아 보이는 전환(두 열이 쌓여 각자 스크롤).
-- 학습 꺼짐 구현 노트: 호스트 `createProposalPort`(`apps/host/src/assembly/proposals.ts`)는 `learningStore`(저장소에 남은 학습 투영, `learning.reader.current`)로 꺼진 플러그인의 목록을 읽는다. 플러그인이 실리지 않은 구성(안전 모드, `defaultGroups: false`)은 저장소 면이 없어 `unavailable`에 학습이 오른다(시험 `test/int/proposals.int.test.ts`). 화면의 `learningStateOf`(`proposals-model.ts`)가 확장 목록의 `learning` 항목으로 꺼짐을 정하고 `unavailableShownOf`가 꺼진 동안 학습 쪽 오류를 뺀다.
-- 사이드바 배지 [구현: 2026-11-07, fxLM 제안 알림 트랙]: 사이드바 "제안"의 수는 `proposal.list { status: ["pending"], limit: 200 }`의 행 수입니다. 출처와 종류는 거르지 않습니다. 학습 출처 행은 학습 플러그인이 꺼져 있으면(`learningStateOf`가 `off`) 세지 않습니다. 꺼짐 줄이 "새 제안은 만들어지지 않아요"라고 말하고 그 행은 결정이 되지 않기 때문입니다. 꺼짐을 모르면(확장 목록을 못 읽음) 센다. 학습 행이 없으면 확장 목록을 읽지 않습니다. 목록을 못 읽으면 0이고 오류 문구는 없습니다. 연결이 끊기면 마지막 수를 둡니다 [결정: 오케스트레이터 기본값, fxLM]. 다시 읽는 때: 연결이 살아 있을 때 붙을 때, 30초마다, 창이 앞으로 올 때, 확장이 바뀔 때(`commands.workbench.onChanged`), 배경 작업 완료 알림이 올 때, 이 화면에서 결정을 보낸 뒤(`refresh`) [결정: 오케스트레이터 기본값, fxLM]. 학습 검토의 끝을 알리는 전용 알림은 없어 배경 작업 완료 알림으로 대신합니다 [gap]. 구현: `views/proposal-pending.ts`(질의, 세기, 다시 읽는 때), `views/proposal-pending-context.tsx`(한 벌의 읽기와 문맥). 시험: `test/views/proposal-pending-model.test.ts`, `test/views/proposal-badge.test.tsx`.
+- 학습 출처 구현 노트: 호스트 `createProposalPort`(`apps/host/src/assembly/proposals.ts`)는 `learningStore`(저장소에 남은 학습 투영, `learning.reader.current`)로 꺼진 플러그인의 목록을 읽는다. 플러그인이 실리지 않은 구성(안전 모드, `defaultGroups: false`)은 저장소 면이 없어 `unavailable`에 학습이 오른다(시험 `test/int/proposals.int.test.ts`). 화면은 `unavailable`을 그대로 보이고 학습 켜짐을 따로 정하지 않는다.
+- 사이드바 배지 [구현: 2026-11-07, fxLM 제안 알림 트랙]: 사이드바 "제안"의 수는 `proposal.list { status: ["pending"], limit: 200 }`의 행 수입니다. 출처와 종류는 거르지 않고 읽은 행을 모두 셉니다(학습 출처 행도 센다). 확장 목록은 읽지 않습니다. 목록을 못 읽으면 0이고 오류 문구는 없습니다. 연결이 끊기면 마지막 수를 둡니다 [결정: 오케스트레이터 기본값, fxLM]. 다시 읽는 때: 연결이 살아 있을 때 붙을 때, 30초마다, 창이 앞으로 올 때, 배경 작업 완료 알림이 올 때, 이 화면에서 결정을 보낸 뒤(`refresh`) [결정: 오케스트레이터 기본값, fxLM]. 학습 검토의 끝을 알리는 전용 알림은 없어 배경 작업 완료 알림으로 대신합니다 [gap]. 구현: `views/proposal-pending.ts`(질의, 세기, 다시 읽는 때), `views/proposal-pending-context.tsx`(한 벌의 읽기와 문맥). 시험: `test/views/proposal-pending-model.test.ts`, `test/views/proposal-badge.test.tsx`.
 - 빠진 것 [gap]: 상세의 적용 범위 라디오는 `scopeChoice`가 있는 스킬 승인에만 보인다. 상대 시각은 목록을 마지막으로 읽은 시각 기준이다(화면을 다시 그리지 않는다).
 
 ### 6.11 P-07 예약
@@ -3414,7 +3410,7 @@ sequenceDiagram
 
 ### 7.5 학습 제안 검토
 
-1. 학습 검토가 끝나면 `grp.learning.review.finished`와 `grp.learning.<kind>.proposed`가 기록됩니다. 주 내비 "제안" 배지와 받은 요청 제안 묶음이 갱신됩니다(`proposal.list` 다시 읽기, 알림이 없어 이벤트를 신호로 씁니다). 구현은 P-06의 "사이드바 배지" 규칙을 따릅니다. 배경 작업 완료 알림과 확장 변경을 신호로 쓰고, 나머지는 30초 주기로 읽습니다 [결정: 오케스트레이터 기본값, fxLM].
+1. 학습 검토가 끝나면 `grp.learning.review.finished`와 `grp.learning.<kind>.proposed`가 기록됩니다. 주 내비 "제안" 배지와 받은 요청 제안 묶음이 갱신됩니다(`proposal.list` 다시 읽기, 알림이 없어 이벤트를 신호로 씁니다). 구현은 P-06의 "사이드바 배지" 규칙을 따릅니다. 배경 작업 완료 알림을 신호로 쓰고, 나머지는 30초 주기로 읽습니다 [결정: 오케스트레이터 기본값, fxLM].
 2. 사용자가 P-06에서 행을 고르고 diff와 근거를 봅니다.
 3. 승인: 스킬이면 범위를 고르고 `proposal.decide`(approve, revision)를 보냅니다. 결과 `done { applied }`면 행 상태가 "적용됨"이 됩니다. `revision_mismatch`면 목록을 다시 읽고 "다른 곳에서 바뀌었어요"를 보입니다. `base_stale`이면 행이 다시 "대기"로 돌아오고 diff가 다시 계산됩니다.
 4. 수정: 편집기에서 본문을 고쳐 `edit`을 보냅니다. revision이 1 늘고 다시 스캔됩니다. 스캔에 막히면 `scan_failed`로 거절됩니다.

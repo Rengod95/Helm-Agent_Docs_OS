@@ -23,23 +23,23 @@ export const STEP_ORDER: readonly StepId[] = ["tools", "key", "model", "search",
 const OPTIONAL_STEPS: ReadonlySet<StepId> = new Set<StepId>(["search", "groups"]);
 
 /**
- * 기본 그룹 켜짐의 기본값. Helm과 학습 그룹의 매니페스트 `defaultEnabled`가 참이다(L3.helm.spec §3.1, L3.learning.spec §3.1).
+ * 기본 그룹 켜짐의 기본값. Helm 그룹의 매니페스트 `defaultEnabled`가 참이다(L3.helm.spec §3.1).
  * 설정 값을 쓴 적이 없으면 이 값이다.
  */
 const GROUP_DEFAULT_ON = true;
 
 /** 기본 그룹 단계가 켜고 끄는 그룹(화면에서 Switch로 보인다) */
-const DEFAULT_GROUP_IDS: readonly DefaultGroupId[] = ["helm", "learning"];
+const DEFAULT_GROUP_IDS: readonly DefaultGroupId[] = ["helm"];
 
 /**
- * 기본 그룹 행. Helm과 학습은 Switch로 켜고 끈다. `review`는 기본으로 꺼져 있고 이 화면에서 바꾸지 않는다
+ * 기본 그룹 행. Helm은 Switch로 켜고 끈다. `review`는 기본으로 꺼져 있고 이 화면에서 바꾸지 않는다
  * (켜기 키가 정해지지 않았다). 판별 필드 `switchable`로 그린다.
  */
 export type GroupRow =
   | { readonly id: DefaultGroupId; readonly on: boolean; readonly switchable: true }
   | { readonly id: "review"; readonly on: false; readonly switchable: false };
 
-/** 그룹 행의 id. Helm, 학습, review 가운데 하나다 */
+/** 그룹 행의 id. Helm, review 가운데 하나다 */
 export type GroupRowId = GroupRow["id"];
 
 /** 화면이 그리는 첫 실행 상태. 설정을 읽는 중, 못 읽음, 오프라인, 읽음 */
@@ -109,11 +109,10 @@ export function groupOnOf(stored: boolean | null): boolean {
   return stored ?? GROUP_DEFAULT_ON;
 }
 
-/** 기본 그룹 행 두 개와 review 행 한 개. review는 꺼짐으로 보이고 바꿀 수 없다 */
+/** 기본 그룹 행 한 개와 review 행 한 개. review는 꺼짐으로 보이고 바꿀 수 없다 */
 export function groupRowsOf(groups: GroupsSnapshot): readonly GroupRow[] {
   return [
     { id: "helm", on: groupOnOf(groups.enabled.helm), switchable: true },
-    { id: "learning", on: groupOnOf(groups.enabled.learning), switchable: true },
     { id: "review", on: false, switchable: false },
   ];
 }

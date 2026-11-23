@@ -59,13 +59,11 @@ export function startBlockedOf(model: FirstRunModel | null): MessageId | null {
 
 const GROUP_NAME_ID: Readonly<Record<GroupRowId, MessageId>> = {
   helm: "desktop.firstRun.group.helm.name",
-  learning: "desktop.firstRun.group.learning.name",
   review: "desktop.firstRun.group.review.name",
 };
 
 const GROUP_WHAT_ID: Readonly<Record<GroupRowId, MessageId>> = {
   helm: "desktop.firstRun.group.helm.what",
-  learning: "desktop.firstRun.group.learning.what",
   review: "desktop.firstRun.group.review.what",
 };
 

@@ -86,7 +86,7 @@ describe("plugin tabs", () => {
 
   test("the Helm tab says the extension has no views when nothing is placed", async () => {
     const html = await render([], "helm");
-    expect(html).toContain("이 확장은 화면을 내지 않아요");
+    expect(html).toContain("이 플러그인은 화면을 내지 않아요");
   });
 
   test("the Helm tab keeps its screen list and puts the inquiry results section under it", async () => {

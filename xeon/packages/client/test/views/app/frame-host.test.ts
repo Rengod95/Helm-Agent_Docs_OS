@@ -354,30 +354,30 @@ describe("theme tokens and confirm line", () => {
       paramsSummary: "",
       approval: false,
     } as const;
-    expect(confirmLineText(base)).toBe('"helm" 확장이 "start" 동작을 하려고 해요');
+    expect(confirmLineText(base)).toBe('"helm" 플러그인이 "start" 동작을 하려고 해요');
     // 매니페스트 라벨이 있으면 라벨 옆에 실제 동사를 함께 보인다(라벨이 다른 동작처럼 보이게 하지 못한다)
     expect(confirmLineText({ ...base, label: "작업 시작" })).toBe(
-      '"helm" 확장이 "작업 시작 (start)" 동작을 하려고 해요',
+      '"helm" 플러그인이 "작업 시작 (start)" 동작을 하려고 해요',
     );
     // 라벨의 제어·방향 제어·보이지 않는 글자는 지운다. 지우고 남은 것이 없으면 동사만 보인다
     expect(confirmLineText({ ...base, label: "작업\u202e 시\u200b작\u0007" })).toBe(
-      '"helm" 확장이 "작업 시작 (start)" 동작을 하려고 해요',
+      '"helm" 플러그인이 "작업 시작 (start)" 동작을 하려고 해요',
     );
     expect(confirmLineText({ ...base, label: "\u202e\u0007" })).toBe(
-      '"helm" 확장이 "start" 동작을 하려고 해요',
+      '"helm" 플러그인이 "start" 동작을 하려고 해요',
     );
     expect(confirmLineText({ ...base, kind: "approval", approval: true })).toBe(
-      '"helm" 확장이 "start" 동작의 승인 카드를 띄우려고 해요',
+      '"helm" 플러그인이 "start" 동작의 승인 카드를 띄우려고 해요',
     );
     // 비밀 키 확인 줄은 내부 이름 대신 "확장의 'key' 키"로 보인다. 모양이 다른 이름은 그대로 보인다
     expect(confirmLineText({ ...base, kind: "secret", action: "ext--helm--token" })).toBe(
-      '"helm" 확장이 시크릿 "helm의 \'token\' 키"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
+      '"helm" 플러그인이 시크릿 "helm의 \'token\' 키"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
     );
     expect(confirmLineText({ ...base, kind: "secret", action: "api-key" })).toBe(
-      '"helm" 확장이 시크릿 "api-key"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
+      '"helm" 플러그인이 시크릿 "api-key"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
     );
     expect(confirmLineText({ ...base, kind: "external", action: "https://example.com/a" })).toBe(
-      '"helm" 확장이 브라우저에서 "https://example.com/a" 주소를 열려고 해요',
+      '"helm" 플러그인이 브라우저에서 "https://example.com/a" 주소를 열려고 해요',
     );
     expect(
       confirmLineText({
@@ -387,7 +387,7 @@ describe("theme tokens and confirm line", () => {
         punycodeHost: "xn--bcher-kva.example",
       }),
     ).toBe(
-      '"helm" 확장이 브라우저에서 "https://xn--bcher-kva.example/" 주소를 열려고 해요 (실제 호스트: xn--bcher-kva.example)',
+      '"helm" 플러그인이 브라우저에서 "https://xn--bcher-kva.example/" 주소를 열려고 해요 (실제 호스트: xn--bcher-kva.example)',
     );
     expect(confirmBadges(base)).toEqual(["직접 설치"]);
     expect(confirmBadges({ ...base, trust: "project" })).toEqual([

@@ -9,7 +9,6 @@ import { createShellStore, ShellStoreContext } from "../../src/state/shell/index
 import {
   INITIAL_PROPOSALS_STATE,
   proposalsReducer,
-  type LearningState,
   type ProposalPage,
   type ProposalsState,
   type SkillPeek,
@@ -41,7 +40,6 @@ const HANDLERS: ProposalsHandlers = {
   skillOpen: NOOP,
   skillClose: NOOP,
   dismissNotice: NOOP,
-  learningTurnOn: NOOP,
   onKey: NOOP,
 };
 const NOW = 2_000_000_000_000;
@@ -213,57 +211,7 @@ describe("ProposalsView states", () => {
   });
 });
 
-describe("ProposalsView learning off and reverts", () => {
-  const OFF_ON: LearningState = {
-    status: "off",
-    turnOn: { key: "ext.learning.enabled", value: true, scope: "user" },
-  };
-
-  test("learning off is an info line with a turn-on button, not an error, and the stored history stays listed", () => {
-    const page = rowsOf(wire({ status: "applied", source: "learning", target: "old" }));
-    const off = proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON });
-    const markup = html(off);
-    expect(markup).toContain(t("desktop.proposals.learning.off"));
-    expect(buttonOf(markup, t("desktop.proposals.learning.on"))).not.toContain('disabled=""');
-    expect(markup).toContain("스킬 old");
-    expect(markup).not.toContain(t("client.settings.proposals.unavailable.learning"));
-  });
-
-  test("learning off with the learning read gap from the host shows no learning error", () => {
-    const page: ProposalPage = { rows: [], unavailable: ["learning"], nextCursor: null };
-    const off = proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON });
-    const markup = html(off);
-    expect(markup).toContain(t("desktop.proposals.learning.off"));
-    expect(markup).not.toContain(t("client.settings.proposals.unavailable.learning"));
-  });
-
-  test("the turn-on button is off while offline, and absent when the group cannot be switched", () => {
-    const page = rowsOf(wire({}));
-    const offline = html(
-      proposalsReducer(ready(page), { type: "learningRead", learning: OFF_ON }),
-      {
-        live: false,
-      },
-    );
-    expect(buttonOf(offline, t("desktop.proposals.learning.on"))).toContain('disabled=""');
-    const locked = html(
-      proposalsReducer(ready(page), {
-        type: "learningRead",
-        learning: { status: "off", turnOn: null },
-      }),
-    );
-    expect(locked).toContain(t("desktop.proposals.learning.off"));
-    expect(locked).not.toContain(t("desktop.proposals.learning.on"));
-  });
-
-  test("learning on shows neither the off line nor a learning error for a read gap the list did not name", () => {
-    const page = rowsOf(wire({}));
-    const on = html(
-      proposalsReducer(ready(page), { type: "learningRead", learning: { status: "on" } }),
-    );
-    expect(on).not.toContain(t("desktop.proposals.learning.off"));
-  });
-
+describe("ProposalsView reverts", () => {
   test("a refused revert shows the warning sentence, not the reverted one, and the row stays applied with its revert button", () => {
     const page = rowsOf(
       wire({ status: "applied", source: "learning", reason: "rollback_refused" }),

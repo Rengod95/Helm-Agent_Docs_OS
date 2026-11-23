@@ -230,7 +230,6 @@ export const SETTINGS_SECTIONS: Readonly<Record<SettingsSectionId, SectionSpec>>
         "x.ui.allowProjectApps",
         "x.operations.safeMode.default",
         "x.operations.autoDisable.enabled",
-        "x.loading-trust.paths",
       ]),
       folded("desktop.settings.part.hooks", [
         "x.operations.hookDefs",

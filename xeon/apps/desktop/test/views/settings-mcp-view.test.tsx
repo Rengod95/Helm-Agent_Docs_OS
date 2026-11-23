@@ -210,7 +210,7 @@ describe("McpServersView rows", () => {
         rev: 0,
       },
     });
-    expect(markup).toContain("확장 helm");
+    expect(markup).toContain("플러그인 helm");
   });
 
   test("the original error text sits behind an info icon and the Korean sentence stays visible", () => {
