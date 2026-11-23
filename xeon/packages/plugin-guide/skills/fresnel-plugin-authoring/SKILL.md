@@ -25,7 +25,7 @@ Fresnel plugins use one format: `.fresnel-plugin/plugin.json` with `"schemaVersi
 
 0. `authoring_guide`: read this guide when the guide skills are not loaded.
 1. `authoring_kinds`: list the kinds (optional).
-2. `authoring_start` with `kind`, `name`, `dir`: the user must confirm kind and name.
+2. `authoring_start` with `kind`, `name` (`dir` is optional: the folder is created under this conversation's working folder, so never ask the user for a path): the user must confirm kind and name.
 3. `authoring_compose` (plugin groups only): save the composition draft.
 4. `authoring_scaffold` with `mode` `hook`, `inject`, `drive`, `app`, or `native`: write the files into an empty or missing folder. `app` writes a plugin with its own screen (`ui/app/`), read and write methods, and a model tool. `native` writes a plugin with one declarative screen (`ui/native/main.view.json`) and one read method. Read `references/ui.md` before choosing one.
 5. Build the requested feature in the skeleton's files, then `authoring_validate`. Repeat until there are no errors; warnings do not block.
