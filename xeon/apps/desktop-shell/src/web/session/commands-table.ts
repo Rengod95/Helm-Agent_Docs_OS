@@ -56,6 +56,10 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   save_file: BROWSER,
   open_external: BROWSER,
   open_log_dir: HIDDEN,
+  // 아티팩트 프레임(artView): 웹 게이트웨이는 `fresnel-artifact://`를 내지 않고, 폴더에서 보기는 데스크톱에만 있다
+  artifact_frame_open: HIDDEN,
+  artifact_frame_status: HIDDEN,
+  artifact_reveal: HIDDEN,
 
   // 알림과 트레이
   notify_permission: BROWSER,

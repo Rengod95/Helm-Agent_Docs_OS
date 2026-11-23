@@ -11,6 +11,7 @@ import { CallRow, resultViewOf, useCallRunning, useElapsedSeconds } from "./tool
 import { Reveal, useDisclosure } from "./tool-line.tsx";
 import { toolHeadOf } from "./tool-view-model.ts";
 import { MetaParts } from "../meta-parts.tsx";
+import { ArtifactCards } from "../artifact/artifact-card.tsx";
 
 // 활동 묶음(dzT2a 시안 6절, DP-154). 같은 턴에서 글 없이 이어진 도구 호출을 한 머리로 접는다.
 // 묶음은 한 덩어리로 읽힌다: 상태(실행 중 수·실패 수·경과 초)는 머리에서 한 번 말하고, 줄에는 작은 표시 하나만 둔다(`grouped`).
@@ -82,6 +83,7 @@ export function ActivityGroup(props: {
           name={only.name}
           args={only.args}
         />
+        <ArtifactCards threadId={props.threadId} callIds={[only.callId]} />
       </HeightGlide>
     );
   }
@@ -122,7 +124,14 @@ export function ActivityGroup(props: {
         flaggedOnly={flaggedOnly}
       />
     ));
-  if (hideHead) return <div className="grid min-w-0">{body(true)}</div>;
+  if (hideHead) {
+    return (
+      <div className="grid min-w-0">
+        {body(true)}
+        <ArtifactCards threadId={props.threadId} callIds={calls.map((call) => call.callId)} />
+      </div>
+    );
+  }
   return (
     <div className="grid min-w-0" data-slot="convo-activity">
       <div className="convo-line" data-toggle="true" data-open={open ? "true" : undefined}>
@@ -169,6 +178,8 @@ export function ActivityGroup(props: {
       <Reveal open={open}>
         <div className="convo-group-body">{body(false)}</div>
       </Reveal>
+      {/* 아티팩트 카드는 묶음이 접혀도 보인다(artView) */}
+      <ArtifactCards threadId={props.threadId} callIds={calls.map((call) => call.callId)} />
     </div>
   );
 }

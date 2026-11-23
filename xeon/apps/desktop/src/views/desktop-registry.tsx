@@ -1,5 +1,6 @@
 import {
   CalendarClock,
+  CodeXml,
   Compass,
   Component,
   Inbox,
@@ -68,8 +69,9 @@ import { AddonsScreen } from "./plugin/addons-screen.tsx";
 import { PLAYGROUND_TAB_SCREEN } from "./plugin/playground-tab-store.ts";
 import { PlaygroundTabScreen } from "./plugin/playground-tab-screen.tsx";
 import { ChangesTab } from "./panels/changes/changes-tab.tsx";
+import { ArtifactTab } from "./artifact/artifact-tab.tsx";
 import { ContextTab } from "./panels/context/context-tab.tsx";
-import { CHANGES_TAB_ID, CONTEXT_TAB_ID } from "./panels/tab-ids.ts";
+import { ARTIFACT_TAB_ID, CHANGES_TAB_ID, CONTEXT_TAB_ID } from "./panels/tab-ids.ts";
 import {
   useApprovalCount,
   useOpenThread,
@@ -374,6 +376,19 @@ const CHANGES_TAB: EndTabDef = {
   render: () => <ChangesTab />,
 };
 
+// 아티팩트 탭(artView, AGE-77): 모델이 만든 HTML, SVG, 그림, 마크다운을 가둔 틀에 그린다. 판 전체를 쓰고 넓게 펼 수 있다
+const ARTIFACT_TAB: EndTabDef = {
+  id: ARTIFACT_TAB_ID,
+  area: "chat",
+  label: "desktop.artifact.tab",
+  icon: <CodeXml />,
+  width: 480,
+  wideWidth: 880,
+  fill: true,
+  screens: ["chat"],
+  render: () => <ArtifactTab />,
+};
+
 // 컨텍스트 탭(DP-201~203): 채움과 자동 요약 문턱, 턴별 구성, 요약 기록, 토큰·비용, 실린 것
 const CONTEXT_TAB: EndTabDef = {
   id: CONTEXT_TAB_ID,
@@ -431,6 +446,7 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerEndTab(WORK_TAB);
   registry.registerEndTab(RUNNING_TAB);
   registry.registerEndTab(CHANGES_TAB);
+  registry.registerEndTab(ARTIFACT_TAB);
   registry.registerEndTab(CONTEXT_TAB);
   // 플러그인 2차 메뉴(DP-194). 첫 묶음은 플러그인이 기여한 패널이고 Helm이 이 자리의 첫 소비자다(내용 `HelmPanelTab`은 그대로)
   registry.registerPluginEndTab({

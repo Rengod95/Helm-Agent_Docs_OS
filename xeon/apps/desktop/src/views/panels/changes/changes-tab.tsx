@@ -11,16 +11,21 @@ import {
   TimelineItem,
   Tooltip,
 } from "@caustic/react";
-import { Diamond, Maximize2, Terminal } from "@caustic/react/icons";
+import { CodeXml, Diamond, Maximize2, Terminal } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useContext, useMemo, useState, type ReactNode } from "react";
 import {
+  useOpenThread,
   useOpenThreadId,
   useOpenTranscript,
   useTurnSummaries,
 } from "../../../state/engine/index.ts";
+import { ShellStoreContext } from "../../../state/shell/index.ts";
+import { artifactKindOfPath, normalizeArtifactPath } from "../../artifact/artifact-model.ts";
+import { pickArtifact } from "../../artifact/artifact-store.ts";
+import { ARTIFACT_TAB_ID } from "../tab-ids.ts";
 import { MessageActionsContext } from "../../convo/message-actions.tsx";
 import { ProgressOrb } from "../../effects/progress-orb.tsx";
 import { FileChangeDiff } from "../../file-change-view.tsx";
@@ -187,6 +192,28 @@ function FileDiffs(props: {
   readonly inTurn: boolean;
 }): ReactNode {
   const [wide, setWide] = useState(false);
+  const workspace = useOpenThread()?.workspace ?? null;
+  const shell = useContext(ShellStoreContext);
+  // 그려 볼 수 있는 파일(HTML, SVG, 그림, 마크다운)은 아티팩트 판에서 연다(artView)
+  const artifactKey =
+    artifactKindOfPath(props.file.path) === null
+      ? null
+      : `file:${normalizeArtifactPath(props.file.path, workspace)}`;
+  const artifactButton =
+    artifactKey === null ? null : (
+      <Button
+        size="xs"
+        variant="ghost"
+        iconStart={<CodeXml aria-hidden />}
+        className="flex-none"
+        onClick={() => {
+          pickArtifact({ key: artifactKey, version: null });
+          shell?.actions.openEndTab(ARTIFACT_TAB_ID, "chat");
+        }}
+      >
+        {t("desktop.changes.openArtifact")}
+      </Button>
+    );
   const wideButton = (
     <Button
       size="xs"
@@ -205,7 +232,13 @@ function FileDiffs(props: {
       {props.file.edits.map((edit, index) => {
         const turn = props.view.turns[edit.turnIndex];
         const label = props.inTurn || turn === undefined ? null : turn;
-        const button = withButton && index === 0 ? wideButton : null;
+        const button =
+          withButton && index === 0 ? (
+            <>
+              {artifactButton}
+              {wideButton}
+            </>
+          ) : null;
         return (
           <div key={edit.callId} className="grid grid-cols-1 min-w-0 gap-1.5">
             {label === null && button === null ? null : (

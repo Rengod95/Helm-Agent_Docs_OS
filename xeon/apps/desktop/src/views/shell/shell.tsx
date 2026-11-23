@@ -16,6 +16,7 @@ import { Presence, fadeIn, flipFrom, useScreenEnter } from "../../lib/motion-pre
 import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { currentEndTabOf, EndPanel, wellWidthOf } from "./end-panel.tsx";
 import { wellBesideOf } from "./well-beside.ts";
+import { useWellWide } from "./well-wide.ts";
 import type { ContextProfile } from "./context-picker.tsx";
 import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
 import { runShellAction, resolveShortcut } from "./shortcuts.ts";
@@ -283,7 +284,12 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const screen = useShell((s) => s.places[s.area].screen);
   const tabs = props.registry.endTabs(area, screen);
   const pluginTabs = props.registry.pluginEndTabs(area, screen);
-  const place = toastPlace(layout, open, wellWidthOf(currentEndTabOf(tabs, pluginTabs, tabId)));
+  const wide = useWellWide();
+  const place = toastPlace(
+    layout,
+    open,
+    wellWidthOf(currentEndTabOf(tabs, pluginTabs, tabId), wide),
+  );
   const fit = useToastFit(place);
   const bottom = fit.bottom;
   const width = fit.width;
@@ -372,6 +378,7 @@ function ShellFrame(props: ShellProps): ReactNode {
   const stageWidth = useCssWidth(columnRef);
   const endOpen = useShell((s) => s.endOpen);
   const endTabId = useShell((s) => s.places[s.area].endTab);
+  const wellWide = useWellWide();
   const wellBeside =
     !compact &&
     endOpen &&
@@ -387,6 +394,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               props.registry.pluginEndTabs(railArea, railScreen),
               endTabId,
             ),
+            wellWide,
           ),
         )
       : null;

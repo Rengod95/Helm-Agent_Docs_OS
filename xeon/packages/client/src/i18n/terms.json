@@ -372,6 +372,24 @@
       "docs": ["턴 재생"]
     }
   },
+  "artifact": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Artifact",
+      "en": "Artifact"
+    },
+    "ui": {
+      "ko": "아티팩트",
+      "en": "Artifact"
+    },
+    "surfaces": ["chat"],
+    "ids": ["artifact", "ArtifactId", "artifact_create", "artifact_update"],
+    "forbid": {
+      "ui": ["산출물"]
+    },
+    "sources": ["L2.artifacts.spec", "L4.desktop-ux.spec"],
+    "status": "proposed"
+  },
   "replayTest": {
     "kind": "operation",
     "doc": {
