@@ -104,7 +104,7 @@ test("the list result carries the local day (today), and no skeleton file turns 
   expect(entry).toContain("d.getFullYear()");
   expect(entry).toContain("pad(d.getMonth() + 1)");
   expect(entry).toContain("pad(d.getDate())");
-  expect(entry).toContain("today: today(),");
+  expect(entry).toContain("return { ok: true, items, today: today() };");
   for (const file of nativeSkeletonFiles(VALUES)) {
     expect(file.text.includes("toISOString")).toBe(false);
   }

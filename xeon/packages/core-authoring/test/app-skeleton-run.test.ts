@@ -83,7 +83,7 @@ test("adds at the same time with no conversation are all kept", async () => {
   });
 });
 
-test("with an open conversation, the skeleton keeps its items in the conversation state", async () => {
+test("with an open conversation, the skeleton keeps its items in the plugin store, the same list as with no conversation", async () => {
   const store = memoryPluginStore();
   const t = await skeletonHost(store);
   const thread = t.newThread();
@@ -94,7 +94,11 @@ test("with an open conversation, the skeleton keeps its items in the conversatio
     ok: true,
     items: [{ title: "대화 항목", created: localDay() }],
   });
-  expect(await store.get(NAME, "items")).toEqual({ ok: true, value: null });
+  // 대화 없이 읽어도 같은 항목이 보이고, 다른 대화에서 읽어도 같다
+  const same = { ok: true, items: [{ title: "대화 항목", created: localDay() }] };
+  expect(await callMethod(t, NAME, "list", {}, null)).toEqual(same);
+  expect(await callMethod(t, NAME, "list", {}, t.newThread())).toEqual(same);
+  expect((await store.get(NAME, "items")).ok).toBe(true);
 });
 
 test("a failing plugin store comes back as a reason from list and add", async () => {

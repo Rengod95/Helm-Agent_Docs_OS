@@ -79,7 +79,7 @@ function manifestText(values: AppSkeletonValues): string {
     tools: [
       {
         name: appToolName(values.id),
-        description: "앱 목록에 항목 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다",
+        description: "앱 목록에 항목 하나를 더한다.",
       },
     ],
     methods: [
@@ -130,7 +130,8 @@ function entryText(values: AppSkeletonValues): string {
     "",
     "// 앱 플러그인 골격. 상태 하나(items), 읽기 메서드 list, 쓰기 메서드 add, 같은 함수를 쓰는 모델 도구를 둔다.",
     "// 화면(ui/app)은 메서드를 부르고 모델은 도구를 부른다. 둘 다 addItem 하나로 상태를 고치므로 같은 목록을 본다.",
-    '// 대화가 열려 있으면 상태 문서(g.state, g.commit)에, 없으면 플러그인 저장소(g.pluginStore, 키 "items")에 둔다.',
+    '// 기록은 항상 플러그인 전용 저장소(g.pluginStore, 키 "items")에 둔다. 화면 메서드와 모델 도구가 어느 대화에서 불리든 같은 한 목록을 읽고 쓴다.',
+    "// 대화마다 따로 가져야 하는 기록은 상태 문서(g.state, g.commit)에 둘 수 있다.",
     "",
     "interface AppItem {",
     "  readonly title: string;",
@@ -167,18 +168,13 @@ function entryText(values: AppSkeletonValues): string {
     "  | { readonly ok: true; readonly items: readonly AppItem[] }",
     "  | { readonly ok: false; readonly reason: string };",
     "",
-    "/** 대화 없이 쓰는 목록을 플러그인 저장소에서 읽는다. 저장된 값이 목록 모양이 아니면 저장 데이터가 깨진 것이다 */",
+    "/** 목록을 플러그인 저장소에서 읽는다. 저장된 값이 목록 모양이 아니면 저장 데이터가 깨진 것이다 */",
     "async function readStored(g: AppApi): Promise<ItemsOutcome> {",
     "  const stored = await g.pluginStore.get(ITEMS_KEY);",
     "  if (!stored.ok) return { ok: false, reason: stored.error.kind };",
     "  if (stored.value === null) return { ok: true, items: initialState.items };",
     "  const checked = parse(stateSchema, stored.value);",
     '  return checked.ok ? { ok: true, items: checked.value.items } : { ok: false, reason: "storage_unavailable" };',
-    "}",
-    "",
-    "/** 목록을 읽는다. 대화가 열려 있으면 상태 문서, 아니면 플러그인 저장소다 */",
-    "async function readItems(g: AppApi, open: boolean): Promise<ItemsOutcome> {",
-    "  return open ? { ok: true, items: g.state().items } : readStored(g);",
     "}",
     "",
     "/** 저장소 쪽의 읽고-고쳐-쓰기를 한 줄로 세운다. 줄이 없으면 같은 목록을 읽은 두 추가가 서로를 덮는다 */",
@@ -189,13 +185,9 @@ function entryText(values: AppSkeletonValues): string {
     "  return run;",
     "}",
     "",
-    "/** 항목 하나를 더한다. 대화가 열려 있으면 상태 문서에, 없으면 플러그인 저장소에 쓴다. 메서드 add와 모델 도구가 이 함수 하나를 쓴다 */",
-    "async function addItem(g: AppApi, open: boolean, title: string): Promise<ItemsOutcome> {",
+    "/** 항목 하나를 플러그인 저장소에 더한다. 메서드 add와 모델 도구가 이 함수 하나를 쓴다 */",
+    "async function addItem(g: AppApi, title: string): Promise<ItemsOutcome> {",
     "  const made: AppItem = { title, created: today() };",
-    "  if (open) {",
-    "    const committed = await g.commit({ items: [...g.state().items, made] });",
-    "    return { ok: true, items: committed.items };",
-    "  }",
     "  return inStoreLine<ItemsOutcome>(async () => {",
     "    const current = await readStored(g);",
     "    if (!current.ok) return current;",
@@ -211,30 +203,25 @@ function entryText(values: AppSkeletonValues): string {
     "  state: { schema: stateSchema, initial: initialState, version: 1 },",
     "  setup(g) {",
     '    g.registerMethod("list", {',
-    "      handler: (_params, ctx) => {",
-    "        // 대화가 없거나 열려 있지 않으면 상태 문서가 없으므로 플러그인 저장소에서 읽는다",
-    "        const open = ctx.threadId !== null && ctx.threadOpen !== false;",
-    "        return readItems(g, open);",
-    "      },",
+    "      handler: () => readStored(g),",
     "    });",
     '    g.registerMethod("add", {',
-    "      handler: async (params, ctx) => {",
+    "      handler: async (params) => {",
     "        const checked = parse(addParams, params);",
     '        if (!checked.ok) return { ok: false, reason: "invalid_params" };',
-    "        const open = ctx.threadId !== null && ctx.threadOpen !== false;",
-    "        return addItem(g, open, checked.value.title);",
+    "        return addItem(g, checked.value.title);",
     "      },",
     "    });",
     "    g.registerTool({",
     `      name: ${tool},`,
-    '      description: "앱 목록에 항목 하나를 더한다. 화면의 add 메서드와 같은 함수를 쓴다",',
+    '      description: "앱 목록에 항목 하나를 더한다.",',
     "      parameters: addParams,",
     '      replay: "unsafe",',
     "      // risk를 생략한다. 외부 확장이 read나 write를 선언하면 등록이 거부되고, 생략하면 exec가 기본이다",
-    "      execute: async (args, ctx) => {",
+    "      execute: async (args) => {",
     "        const checked = parse(addParams, args);",
     '        if (!checked.ok) return { ok: false, reason: "invalid_input" };',
-    "        return addItem(g, ctx.threadId !== null, checked.value.title);",
+    "        return addItem(g, checked.value.title);",
     "      },",
     "    });",
     "  },",
@@ -257,7 +244,10 @@ const INDEX_HTML = `<!doctype html>
   <main class="app">
     <h1 class="app-title">앱</h1>
     <div class="app-form">
-      <input class="app-input" id="title-input" maxlength="200" aria-label="항목 이름">
+      <div class="app-field">
+        <label class="app-label" for="title-input">항목 이름</label>
+        <input class="app-input" id="title-input" maxlength="200">
+      </div>
       <button class="app-button" id="add-button" type="button">추가</button>
     </div>
     <ul class="app-list" id="items"></ul>
@@ -405,7 +395,8 @@ const APP_JS = `// 앱 화면 한 장. 목록을 읽어 그리고, 입력을 받
 `;
 
 const THEME_CSS = `/* 앱 화면의 모양. 색은 셸이 푸시하는 토큰(--bg, --fg, --dim, --panel, --border, --accent)만 쓴다.
-   간격은 아래 --space 토큰만 쓰고, 화면 규칙에 길이 값을 직접 적지 않는다. */
+   간격은 아래 --space 토큰만 쓰고, 화면 규칙에 길이 값을 직접 적지 않는다.
+   입력칸마다 이름표(label), 목록 줄 안 항목 사이는 gap(margin이 아니라)으로 띄운다. */
 :root {
   color-scheme: light dark;
   --space-1: 4px;
@@ -427,7 +418,9 @@ body {
 }
 .app { display: grid; gap: var(--space-3); }
 .app-title { margin: 0; font-size: var(--font-size-title); font-weight: 600; }
-.app-form { display: flex; gap: var(--space-2); }
+.app-form { display: flex; align-items: end; gap: var(--space-2); }
+.app-field { display: grid; flex: 1; min-width: 0; gap: var(--space-1); }
+.app-label { color: var(--dim, inherit); }
 .app-input {
   flex: 1;
   min-width: 0;
@@ -449,12 +442,15 @@ body {
 }
 .app-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-1); }
 .app-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   padding: var(--space-2);
   border: var(--stroke) solid var(--border, currentColor);
   border-radius: var(--radius);
   background: var(--panel, transparent);
 }
-.app-created { margin-left: var(--space-2); color: var(--dim, inherit); }
+.app-created { color: var(--dim, inherit); }
 .app-status { margin: 0; color: var(--dim, inherit); }
 `;
 

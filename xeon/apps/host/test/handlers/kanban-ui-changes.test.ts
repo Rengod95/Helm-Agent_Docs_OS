@@ -13,7 +13,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import { locateTemplateDirs, scaffoldExtension } from "@fresnel/core-authoring";
 import { createExtensionLoader } from "@fresnel/ext-host";
-import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import { createTestHost, memoryPluginStore, type TestHost } from "@fresnel/ext-host/testing";
 import { HOST_SDK_MODULES } from "../../src/plugin-host/sdk-modules.ts";
 import { createUiChangeCoalescer, UI_CHANGE_WINDOW_MS } from "../../src/handlers/ui-changes.ts";
 
@@ -127,7 +127,7 @@ interface Loaded {
  * 적재 진단에 오류가 없고 확장이 활성이어야 한다. 도구 포트는 등록된 도구 정의를 모아 둔다
  */
 async function loadExtension(userDir: string, name: string): Promise<Loaded> {
-  const t = await createTestHost();
+  const t = await createTestHost({ pluginStore: memoryPluginStore() });
   const tools = new Map<string, ToolResourceDef>();
   await t.host.registerPlatform({
     name: "extension-test-tools",
@@ -325,16 +325,31 @@ test("the screen's method calls and the model's tool calls reach the same board"
     index: 0,
   });
 
-  await callMethod(loaded, byMethod, "add", { title: "첫 카드" });
-  await callMethod(loaded, byMethod, "add", { title: "둘째 카드" });
+  // 다른 대화에서 부른 화면 메서드가 같은 한 보드를 읽고 쓴다(기록은 플러그인 전용 저장소에 하나다)
+  expect(await callMethod(loaded, byMethod, "board", {})).toEqual(toolBoard);
   const methodBoard = await callMethod(loaded, byMethod, "move", {
-    id: "card-1",
-    column: "doing",
+    id: "card-2",
+    column: "done",
     index: 0,
   });
 
-  expect(methodBoard).toEqual(toolBoard);
-  expect(await callMethod(loaded, byMethod, "board", {})).toEqual(methodBoard);
+  // 메서드가 옮긴 결과를 도구 쪽 대화에서 더한 카드와 함께 읽는다
+  const added = await callTool(loaded, byTool, "kanban_add_card", { title: "셋째 카드" });
+  expect(added).toEqual({
+    ok: true,
+    cards: [
+      { id: "card-3", title: "셋째 카드", column: "todo", order: 0 },
+      { id: "card-1", title: "첫 카드", column: "doing", order: 0 },
+      { id: "card-2", title: "둘째 카드", column: "done", order: 0 },
+    ],
+  });
+  expect(methodBoard).toEqual({
+    ok: true,
+    cards: [
+      { id: "card-1", title: "첫 카드", column: "doing", order: 0 },
+      { id: "card-2", title: "둘째 카드", column: "done", order: 0 },
+    ],
+  });
 });
 
 const pad = (n: number): string => String(n).padStart(2, "0");

@@ -12,7 +12,7 @@ import {
   type TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
 import { createExtensionLoader } from "@fresnel/ext-host";
-import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import { createTestHost, memoryPluginStore, type TestHost } from "@fresnel/ext-host/testing";
 import { HOST_SDK_MODULES } from "../../src/plugin-host/sdk-modules.ts";
 
 // 본보기 `examples/kanban-native`가 실제 로더로 실리고, 화면의 길(메서드 move, add, reorder, caller `ui`)과
@@ -90,7 +90,7 @@ interface Loaded {
  * 적재 진단에 오류가 없고 확장이 활성이어야 한다. 도구 포트는 등록된 도구 정의를 모아 둔다
  */
 async function loadExtension(userDir: string, name: string): Promise<Loaded> {
-  const t = await createTestHost();
+  const t = await createTestHost({ pluginStore: memoryPluginStore() });
   const tools = new Map<string, ToolResourceDef>();
   await t.host.registerPlatform({
     name: "extension-test-tools",

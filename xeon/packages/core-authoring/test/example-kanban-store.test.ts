@@ -92,7 +92,7 @@ test("with no conversation, adds that run at the same time get distinct ids and 
   });
 });
 
-test("with an open conversation, the board lives in the conversation state and the plugin store stays empty", async () => {
+test("with an open conversation, the board lives in the plugin store and a read with no conversation sees it", async () => {
   const store = memoryPluginStore();
   const t = await kanbanHost(store);
   const thread = t.newThread();
@@ -107,8 +107,8 @@ test("with an open conversation, the board lives in the conversation state and t
   expect(
     await callMethod(t, NAME, "move", { id: "card-1", column: "done", index: 0 }, thread),
   ).toEqual({ ok: true, cards: done });
-  expect(await callMethod(t, NAME, "board", {}, thread)).toEqual({ ok: true, cards: done });
-  expect(await store.get(NAME, "board")).toEqual({ ok: true, value: null });
+  expect(await callMethod(t, NAME, "board", {}, null)).toEqual({ ok: true, cards: done });
+  expect(await storedBoard(store)).toEqual({ cards: done, seq: 1 });
 });
 
 test("a conversation that is not open reads the board from the plugin store", async () => {
