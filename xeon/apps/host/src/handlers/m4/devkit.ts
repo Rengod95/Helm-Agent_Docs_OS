@@ -41,6 +41,8 @@ import type {
 export interface DevkitPort {
   kinds(): Promise<readonly KindEntry[]>;
   scaffold(input: ScaffoldInput): Promise<Result<ScaffoldResult, DevkitError>>;
+  /** 대상 폴더가 뼈대 그대로인가(`isSkeletonFolder`). 빌더 서비스의 `isSkeletonOnly`가 부른다. wire 메서드가 아니다 */
+  isSkeletonOnly(input: ScaffoldInput): Promise<Result<boolean, DevkitError>>;
   validate(dir: string): Promise<Result<ValidationReport, DevkitError>>;
   validateComposition(params: ExtValidateCompositionParams): ExtValidateResult;
   pack(input: PackInput): Promise<Result<PackResult, DevkitError>>;

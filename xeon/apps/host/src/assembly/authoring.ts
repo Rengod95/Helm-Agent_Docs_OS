@@ -57,6 +57,7 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
   return {
     kinds: async () => (await port()?.kinds()) ?? [],
     scaffold: async (input) => (await port()?.scaffold(input)) ?? err(NOT_READY),
+    isSkeletonOnly: async (input) => (await port()?.isSkeletonOnly(input)) ?? err(NOT_READY),
     validate: async (dir) => (await port()?.validate(dir)) ?? err(NOT_READY),
     validateComposition: (composition) => {
       const found = port()?.validateComposition({ composition });
