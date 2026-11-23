@@ -109,9 +109,19 @@ test("the model tool and the screen's write method share one function in the ent
   expect(entry).toContain('g.registerMethod("list", {');
   expect(entry).toContain('g.registerMethod("add", {');
   expect(entry).toContain('name: "kanban_add_item",');
-  expect(entry).toContain("return g.commit({ items: [...g.state().items, title] });");
-  // 메서드 add와 모델 도구가 같은 addItem을 부른다
-  expect(entry.split("addItem(g, checked.value.title)")).toHaveLength(3);
+  expect(entry).toContain(
+    "const committed = await g.commit({ items: [...g.state().items, title] });",
+  );
+  // 메서드 add와 모델 도구가 같은 addItem을 부른다(정의는 "addItem(g: "라서 셈에 들지 않는다)
+  expect(entry.split("addItem(g, ")).toHaveLength(3);
+});
+
+test("without a conversation the entry keeps its items in the plugin store and never answers no_thread", () => {
+  const entry = fileText("src/index.ts");
+  expect(entry).not.toContain("no_thread");
+  expect(entry).toContain('const ITEMS_KEY = "items";');
+  expect(entry).toContain("g.pluginStore.get(ITEMS_KEY)");
+  expect(entry).toContain("g.pluginStore.put(ITEMS_KEY, { items: next })");
 });
 
 test("the manifest has no orchestration declaration, so the app is not a Drive or member plugin", () => {
