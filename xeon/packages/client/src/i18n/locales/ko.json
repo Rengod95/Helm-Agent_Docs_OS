@@ -3457,6 +3457,7 @@
   "desktop.announce.approval.write.memory": "승인이 필요해요: {name} 기억 쓰기",
   "desktop.announce.approval.write.skill": "승인이 필요해요: {name} 스킬 쓰기",
   "desktop.announce.approval.mcpStart": "승인이 필요해요: MCP 서버 {name} 시작",
+  "desktop.announce.question": "질문에 답해 주세요",
   "desktop.announce.turnDone": "답이 끝났어요",
   "desktop.announce.turnFailed": "답이 실패했어요",
   "desktop.transcript.empty": "아직 메시지가 없어요.",

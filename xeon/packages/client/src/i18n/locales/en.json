@@ -3457,6 +3457,7 @@
   "desktop.announce.approval.write.memory": "Approval needed: write {name} memory",
   "desktop.announce.approval.write.skill": "Approval needed: write skill {name}",
   "desktop.announce.approval.mcpStart": "Approval needed: start MCP server {name}",
+  "desktop.announce.question": "A question needs your answer",
   "desktop.announce.turnDone": "The reply is done",
   "desktop.announce.turnFailed": "The reply failed",
   "desktop.transcript.empty": "No messages yet.",

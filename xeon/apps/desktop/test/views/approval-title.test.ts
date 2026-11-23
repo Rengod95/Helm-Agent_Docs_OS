@@ -12,6 +12,30 @@ test("the engine's English tool and question titles become the card's Korean sen
   ).toBe("질문에 답해 주세요");
 });
 
+test("web access and skill or memory write titles also become the card's sentences", () => {
+  expect(
+    approvalTitleOf({
+      title: "Allow web access to example.com?",
+      bodyKind: "tool",
+      toolName: "web_fetch",
+    }),
+  ).toBe("example.com에 웹으로 접근하도록 허용할까요?");
+  expect(
+    approvalTitleOf({
+      title: "Approve skill.create on skill deploy-notes?",
+      bodyKind: "tool",
+      toolName: "skill_manage",
+    }),
+  ).toBe("deploy-notes 스킬 쓰기: 만들기");
+  expect(
+    approvalTitleOf({
+      title: "Approve memory.add on user memory?",
+      bodyKind: "tool",
+      toolName: "memory",
+    }),
+  ).toBe("user 기억 쓰기: 추가");
+});
+
 test("an unknown title stays as it is and an empty one gets the generic name", () => {
   expect(approvalTitleOf({ title: 'Allow tool "read"?', bodyKind: "tool", toolName: "bash" })).toBe(
     'Allow tool "read"?',

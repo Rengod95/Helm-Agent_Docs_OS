@@ -40,6 +40,7 @@ import {
   approvalAgeOf,
   approvalExpiryOf,
   approvalKeyOf,
+  cardTitleTextOf,
   cardTitleViewOf,
   clockTextOf,
   threadLinkVisibleOf,
@@ -247,18 +248,7 @@ function PendingCard(props: {
   };
 
   const titleView = cardTitleViewOf(request);
-  const cardTitle =
-    titleView === null
-      ? request.title
-      : titleView.id === "desktop.approvals.title.tool"
-        ? t(titleView.id, titleView.params)
-        : titleView.id === "desktop.approvals.title.web"
-          ? t(titleView.id, titleView.params)
-          : titleView.id === "desktop.approvals.title.mcpStart"
-            ? t(titleView.id, titleView.params)
-            : titleView.id === "desktop.approvals.title.question"
-              ? t(titleView.id, titleView.params)
-              : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
+  const cardTitle = titleView === null ? request.title : cardTitleTextOf(titleView);
   const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const review = body.kind === "review" ? body.review : null;

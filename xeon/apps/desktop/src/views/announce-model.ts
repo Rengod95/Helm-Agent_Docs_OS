@@ -20,8 +20,10 @@ export function approvalAnnouncement(request: LiveApprovalRequest): Announcement
     return { id: "desktop.announce.approval", params: { what: view.params.host } };
   if (view !== null && view.id === "desktop.approvals.title.mcpStart")
     return { id: "desktop.announce.approval.mcpStart", params: { name: view.params.server } };
-  // 질문 제목은 안내에서도 요청 제목 원문을 그대로 쓴다(아래 기본 줄)
-  if (view !== null && view.id !== "desktop.approvals.title.question") {
+  // 질문은 승인이 아니라서 승인 문장 대신 질문 문장으로 알린다. 제목 원문은 영어로 고정된 글이라 읽어 주지 않는다
+  if (view !== null && view.id === "desktop.approvals.title.question")
+    return { id: "desktop.announce.question" };
+  if (view !== null) {
     return {
       id:
         view.id === "desktop.approvals.title.write.skill"

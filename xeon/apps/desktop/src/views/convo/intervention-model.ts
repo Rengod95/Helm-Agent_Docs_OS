@@ -1,5 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
+import { cardTitleTextOf, cardTitleViewOfText } from "../approval-card/card-model.ts";
 import type { ApprovalTrail, Intervention } from "../../state/engine/convo.ts";
 
 // 도구 줄에 붙는 개입 꼬리표(dzT2a 시안 5절). 순수 함수이고 화면 없이 시험한다.
@@ -108,24 +109,19 @@ function approvalLabelOf(trail: ApprovalTrail): string {
 }
 
 /**
- * 승인 꼬리표의 제목(접근성 이름에도 들어간다). 엔진이 영어로 고정한 도구와 질문 승인 제목은 승인 카드와 같은 한국어 문장으로 바꾼다(AGE-77 F-19).
+ * 승인 꼬리표의 제목(접근성 이름에도 들어간다). 엔진이 영어로 고정한 도구, 질문, 웹 접근, 기억·스킬 쓰기 승인 제목은 승인 카드와 같은 문장으로 바꾼다(AGE-77 F-19, AGE-75).
  * 모르는 제목은 그대로, 빈 제목은 일반 이름이다
  */
 export function approvalTitleOf(
   trail: Pick<ApprovalTrail, "title" | "bodyKind" | "toolName">,
 ): string {
   if (trail.title === "") return t("desktop.convo.tag.approval.title");
-  if (
-    trail.bodyKind === "tool" &&
-    trail.toolName !== null &&
-    trail.title === `Allow tool "${trail.toolName}"?`
-  ) {
-    return t("desktop.approvals.title.tool", { tool: trail.toolName });
-  }
-  if (trail.bodyKind === "question" && trail.title === "Answer the questions") {
-    return t("desktop.approvals.title.question");
-  }
-  return trail.title;
+  const view = cardTitleViewOfText({
+    title: trail.title,
+    bodyKind: trail.bodyKind,
+    toolName: trail.toolName,
+  });
+  return view === null ? trail.title : cardTitleTextOf(view);
 }
 
 function approvalTag(trail: ApprovalTrail): InterventionTag | null {
