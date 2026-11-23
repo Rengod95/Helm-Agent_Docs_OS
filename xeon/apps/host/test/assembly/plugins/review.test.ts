@@ -995,6 +995,7 @@ test("an approval hands the item's merge plan to the profile edit; sending back 
       loader: () => undefined,
       refreshPluginSet: () => Promise.resolve(),
       facts: () => [],
+      pluginDataStore: { clear: () => Promise.resolve(ok(undefined)) },
       log: SILENT,
     }),
   );
