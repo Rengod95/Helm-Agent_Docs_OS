@@ -85,6 +85,11 @@ export interface ScaffoldInput {
   readonly purpose?: string;
   /** 하는 일의 설명. 매니페스트 `description`에 쓴다. 생략하면 빈 칸으로 두고 검사(AU-013)가 채우라고 말한다 */
   readonly description?: string;
+  /**
+   * 다시 만들기. 폴더가 비어 있지 않아도, 남은 파일이 모두 어느 방식의 뼈대 그대로면 새 방식의 뼈대로 바꾼다. 뼈대와 다른 파일이 하나라도 있으면
+   * 아무것도 바꾸지 않고 `exists`로 그 목록을 알린다 [결정: AGE-77 S-05]
+   */
+  readonly replace?: boolean;
 }
 export interface ScaffoldResult {
   readonly dir: string;

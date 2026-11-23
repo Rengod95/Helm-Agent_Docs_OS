@@ -153,7 +153,7 @@ export function au011(sources: readonly SourceText[]): readonly DevkitIssue[] {
 
 const TEXT_GAP_MESSAGES: Readonly<Record<ManifestTextField, string>> = {
   purpose:
-    "purpose is empty: write one sentence in the user's words that says what the plugin does for them (up to 200 characters)",
+    "purpose is empty: write one sentence that says what the plugin does for the user (not the request sentence copied) (up to 200 characters)",
   description:
     "description is empty: write one plain sentence a user reads on the plugin card that says what the plugin does and when (up to 1024 characters)",
 };

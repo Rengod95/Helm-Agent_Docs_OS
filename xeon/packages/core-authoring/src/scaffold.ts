@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { assertNever, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { ExtensionLayer } from "@fresnel/contracts/extensions";
@@ -11,7 +11,7 @@ import type {
   ScaffoldInput,
   ScaffoldResult,
 } from "@fresnel/contracts/services";
-import { checkOrchestrationName } from "@fresnel/contracts/services";
+import { checkOrchestrationName, SCAFFOLD_MODES } from "@fresnel/contracts/services";
 import { appSkeletonFiles, type AppSkeletonValues } from "./app-skeleton.ts";
 import { KIND_CATALOG } from "./catalog.ts";
 import { nativeSkeletonFiles } from "./native-skeleton.ts";
@@ -63,6 +63,17 @@ async function targetState(dir: string): Promise<Result<"absent" | "empty", Devk
   return children.value.length === 0
     ? ok("empty")
     : err({ kind: "exists", message: `${dir} is not empty` });
+}
+
+/** 다시 만들기에서는 비어 있지 않은 폴더도 받는다(`occupied`). 파일인지는 그대로 거부한다 */
+async function targetStateForReplace(
+  dir: string,
+): Promise<Result<"absent" | "empty" | "occupied", DevkitError>> {
+  const state = await targetState(dir);
+  if (state.ok) return state;
+  const found = await io(dir, () => stat(dir));
+  if (found.ok && found.value.isDirectory()) return ok("occupied");
+  return state;
 }
 
 async function readTemplateTree(
@@ -231,6 +242,109 @@ function entryIn(catalog: readonly KindEntry[], id: string): KindEntry | undefin
   return catalog.find((entry) => entry.id === id);
 }
 
+/** 한 방식의 뼈대 파일을 모두 계획한다. 디스크에는 쓰지 않는다 */
+async function planScaffold(
+  input: ScaffoldInput,
+  mode: ScaffoldMode,
+  options: ScaffoldOptions,
+  values: AppSkeletonValues,
+): Promise<Result<PlannedFile[], DevkitError>> {
+  const planned = await plannedTemplate(options.templates, mode, values);
+  if (!planned.ok) return planned;
+
+  const out: PlannedFile[] = [];
+  let coded: readonly string[] = [];
+  let stubs: readonly PlannedFile[] = [];
+  for (const file of planned.value) {
+    const path = fill(file.path, values);
+    if (path === MANIFEST_PATH) {
+      const patched = patchManifest(fill(new TextDecoder().decode(file.bytes), values), input);
+      if (!patched.ok) return patched;
+      out.push({ path, bytes: new TextEncoder().encode(patched.value.text) });
+      coded = patched.value.coded;
+      stubs = patched.value.stubs;
+    } else if (/\.(json|ts|md)$/.test(path)) {
+      out.push({
+        path,
+        bytes: new TextEncoder().encode(fill(new TextDecoder().decode(file.bytes), values)),
+      });
+    } else out.push({ path, bytes: file.bytes });
+  }
+  // 엔트리가 있는 뼈대나 코드 구성원이 있으면 생성 파일을 낸다. 엔트리 `src/index.ts`가 이 파일을 가져온다.
+  // 화면 뼈대의 엔진 코드는 이 파일을 가져오지 않으므로 구성원 코드가 없으면 만들지 않는다
+  if (coded.length > 0 || (!isScreenSkeleton(mode) && out.some((file) => file.path === ENTRY_PATH)))
+    out.push({
+      path: MEMBERS_GENERATED_PATH,
+      bytes: new TextEncoder().encode(membersGeneratedText(coded)),
+    });
+  out.push(...stubs);
+  return ok(out);
+}
+
+const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
+
+/** 매니페스트에서 빌더가 채우는 두 칸을 뺀 글. 두 매니페스트가 이 칸을 빼고 같으면 뼈대 그대로다 */
+function manifestCore(bytes: Uint8Array): string | null {
+  const json = parseJson(new TextDecoder().decode(bytes));
+  if (!json.ok || !isRecord(json.value)) return null;
+  const rest = Object.fromEntries(
+    Object.entries(json.value).filter(([key]) => key !== "purpose" && key !== "description"),
+  );
+  return JSON.stringify(rest);
+}
+
+function sameFile(path: string, found: Uint8Array, skeleton: Uint8Array): boolean {
+  if (path === MANIFEST_PATH) {
+    const left = manifestCore(found);
+    return left !== null && left === manifestCore(skeleton);
+  }
+  return Buffer.from(found).equals(Buffer.from(skeleton));
+}
+
+/**
+ * 다시 만들기(`replace`): 폴더에 남은 파일이 모두 어느 방식의 뼈대 그대로일 때만 새 뼈대로 바꾼다. 뼈대와 다른 파일(사용자나 빌더가 고친 것)이
+ * 하나라도 있으면 아무것도 지우지 않고 그 목록을 담아 거부한다. 지울 파일(새 뼈대가 쓰지 않는 옛 뼈대 파일)을 돌려준다
+ */
+async function replaceablePlan(
+  input: ScaffoldInput,
+  options: ScaffoldOptions,
+  values: AppSkeletonValues,
+): Promise<Result<readonly string[], DevkitError>> {
+  const existing = await listFiles(input.dir);
+  if (!existing.ok) return existing;
+  const bare: ScaffoldInput = { kind: input.kind, name: input.name, dir: input.dir };
+  const planned = await mapAll([...SCAFFOLD_MODES], async (mode) => {
+    // 입력이 맞지 않아 계획하지 못하는 방식은 옛 뼈대 후보가 아니다
+    const plan = await planScaffold(bare, mode, options, values);
+    return ok<PlannedFile[]>(plan.ok ? plan.value : []);
+  });
+  if (!planned.ok) return planned;
+  const skeletons = planned.value;
+  const read = await mapAll(existing.value, async (path) => {
+    const found = await io(path, () => readFile(join(input.dir, path)));
+    if (!found.ok) return found;
+    return ok({ path, bytes: found.value });
+  });
+  if (!read.ok) return read;
+  const changed = read.value
+    .filter(
+      (file) =>
+        !skeletons.some((files) =>
+          files.some(
+            (skeleton) =>
+              skeleton.path === file.path && sameFile(file.path, file.bytes, skeleton.bytes),
+          ),
+        ),
+    )
+    .map((file) => file.path);
+  if (changed.length > 0)
+    return err({
+      kind: "exists",
+      message: `${input.dir} has files that differ from the skeleton and were not replaced: ${changed.join(", ")}`,
+    });
+  return ok(existing.value);
+}
+
 /** 뼈대를 만든다. 실패하면 파일을 하나도 쓰지 않는다(쓰기 전에 모두 계획한다) */
 export async function scaffoldExtension(
   input: ScaffoldInput,
@@ -261,46 +375,22 @@ export async function scaffoldExtension(
       ),
     );
 
-  const state = await targetState(input.dir);
-  if (!state.ok) return state;
   const values: AppSkeletonValues = {
     id: input.name,
     title: options.displayName ?? input.name,
     version: DEFAULT_VERSION,
   };
-  const planned = await plannedTemplate(options.templates, input.mode ?? "hook", values);
-  if (!planned.ok) return planned;
-
-  const out: PlannedFile[] = [];
-  let coded: readonly string[] = [];
-  let stubs: readonly PlannedFile[] = [];
-  for (const file of planned.value) {
-    const path = fill(file.path, values);
-    if (path === ".fresnel-plugin/plugin.json") {
-      const patched = patchManifest(fill(new TextDecoder().decode(file.bytes), values), input);
-      if (!patched.ok) return patched;
-      out.push({ path, bytes: new TextEncoder().encode(patched.value.text) });
-      coded = patched.value.coded;
-      stubs = patched.value.stubs;
-    } else if (/\.(json|ts|md)$/.test(path)) {
-      out.push({
-        path,
-        bytes: new TextEncoder().encode(fill(new TextDecoder().decode(file.bytes), values)),
-      });
-    } else out.push({ path, bytes: file.bytes });
-  }
-  // 엔트리가 있는 뼈대나 코드 구성원이 있으면 생성 파일을 낸다. 엔트리 `src/index.ts`가 이 파일을 가져온다.
-  // 화면 뼈대의 엔진 코드는 이 파일을 가져오지 않으므로 구성원 코드가 없으면 만들지 않는다
-  if (
-    coded.length > 0 ||
-    (!isScreenSkeleton(input.mode) && out.some((file) => file.path === ENTRY_PATH))
-  )
-    out.push({
-      path: MEMBERS_GENERATED_PATH,
-      bytes: new TextEncoder().encode(membersGeneratedText(coded)),
-    });
-  out.push(...stubs);
-  const written = await mapAll(out, (file) => {
+  const state =
+    input.replace === true ? await targetStateForReplace(input.dir) : await targetState(input.dir);
+  if (!state.ok) return state;
+  const stale =
+    state.value === "occupied"
+      ? await replaceablePlan(input, options, values)
+      : ok<readonly string[]>([]);
+  if (!stale.ok) return stale;
+  const out = await planScaffold(input, input.mode ?? "hook", options, values);
+  if (!out.ok) return out;
+  const written = await mapAll(out.value, (file) => {
     const target = join(input.dir, file.path);
     return io(target, async () => {
       await mkdir(dirname(target), { recursive: true });
@@ -308,5 +398,12 @@ export async function scaffoldExtension(
     });
   });
   if (!written.ok) return written;
-  return ok({ dir: input.dir, files: out.map((file) => file.path).toSorted() });
+  // 새 뼈대가 쓰지 않는 옛 뼈대 파일을 지운다(바뀐 파일이 있었으면 위에서 이미 거부했다)
+  const kept = new Set(out.value.map((file) => file.path));
+  const removed = await mapAll(
+    stale.value.filter((path) => !kept.has(path)),
+    (path) => io(path, () => rm(join(input.dir, path), { force: true })),
+  );
+  if (!removed.ok) return removed;
+  return ok({ dir: input.dir, files: out.value.map((file) => file.path).toSorted() });
 }

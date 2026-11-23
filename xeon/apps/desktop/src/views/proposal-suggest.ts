@@ -34,7 +34,7 @@ function listsSuggest(plugins: readonly { readonly name: string }[]): boolean {
 
 /**
  * 제안 플러그인의 상태를 가른다. `entries`는 `ext.list` 행들, `inProfiles`는 `suggestInProfilesOf`의 값이다.
- * 켜짐은 플러그인 목록이 쓰는 뜻과 같다(`enabled`와 `enabling`, 안전 모드에서 빠지지 않음). 행이 없으면(빠짐, 설치 안 됨) 꺼짐이다.
+ * 켜짐은 호스트(`suggestEnabledOf`)와 같게 `enabled`만이다(`enabling`은 켜지는 중이라 꺼짐으로 본다). 안전 모드에서 빠지지 않아야 한다. 행이 없으면(빠짐, 설치 안 됨) 꺼짐이다.
  * 확장 목록에서 꺼졌으면 프로필과 무관하게 꺼짐이다. 켜져 있는데 프로필을 아직 못 읽었으면(또는 읽지 못했으면) `unknown`이다.
  * 목록이 없으면(읽기 전, 연결 없음) `unknown`이다
  */
@@ -45,7 +45,7 @@ export function suggestStateOf(
   if (entries === undefined) return "unknown";
   const entry = entries.find((item) => item.name === SUGGEST_PLUGIN_NAME);
   if (entry === undefined) return "off";
-  const running = entry.status === "enabled" || entry.status === "enabling";
+  const running = entry.status === "enabled";
   if (!running || entry.safeModeExcluded !== null) return "off";
   if (inProfiles === undefined) return "unknown";
   return inProfiles ? "on" : "off";

@@ -142,7 +142,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       "the user did not confirm the kind and the name: the session was closed",
     );
     await resume(state, "intent", "the user did not confirm: ask what they want to change");
-    return commitThen(INITIAL_AUTHORING_STATE);
+    return commitThen({ ...INITIAL_AUTHORING_STATE, askRound: state.askRound + 1 });
   };
 
   const fixStep = async (
@@ -274,7 +274,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       {
         kind: "context",
         customType: "grp.authoring.notice.status",
-        content: `[authoring] ${calledBy}가 맡김, authoring_start로 시작: ${purpose}`,
+        content: `[authoring] ${calledBy}가 맡김, authoring_start로 시작(모델 도구나 자체 화면이 필요하면 뼈대는 app, 훅이 아님): ${purpose}`,
         display: true,
       },
       // followUp이라 대화가 한가하면 바로 모델 턴이 열린다. next로 두면 다음 사용자 말까지 대기 메시지로 쌓인다(F-11)
@@ -283,6 +283,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
     // 이름과 폴더는 아직 없다. 목적만 든 세션이고, 사용자에게 이름과 폴더를 정한 뒤 `authoring_start`로 시작한다
     const opened: AuthoringState = {
       ...INITIAL_AUTHORING_STATE,
+      askRound: state.askRound,
       phase: "intent",
       sessionId: `auth-handoff-${id ?? "purpose"}`,
       purpose,

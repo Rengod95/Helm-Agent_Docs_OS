@@ -63,9 +63,9 @@ describe("suggest plugin state (ext.list and profile.list)", () => {
     expect(suggestStateOf(undefined, undefined)).toEqual("unknown");
   });
 
-  test("an enabled or enabling suggest held by a profile is on", () => {
+  test("an enabled suggest held by a profile is on, and an enabling one is still off like the host reads it", () => {
     expect(suggestStateOf([row("suggest", "enabled")], true)).toEqual("on");
-    expect(suggestStateOf([row("suggest", "enabling")], true)).toEqual("on");
+    expect(suggestStateOf([row("suggest", "enabling")], true)).toEqual("off");
   });
 
   test("an enabled suggest that no profile holds is off (taken out of the profile)", () => {

@@ -23,6 +23,8 @@ Choose per item. One plugin may have a native `card` and an app `page`.
 
 Scaffold modes: `native` (`authoring_scaffold` mode `native`) makes a plain plugin with one declarative page, for lists, tables, forms, and status that are small and stable. `app` (mode `app`) makes a page with its own HTML and JS, for free-form dragging, a canvas, or custom drawing; it needs a reason in `app.reason`.
 
+App screens run in a sandboxed frame with `allow-scripts` only, so form submit is blocked and a `<form>` does nothing. Do not use `<form>`, `type="submit"`, `onsubmit`, or a `submit` listener: use `<button type="button">` with a click handler, plus a `keydown` for Enter on the input (skip it while `event.isComposing`). `authoring_validate` warns `app_form_submit` when it sees one.
+
 ## Slots
 
 | `placement` | Where it shows | Modes | Limit per plugin |
