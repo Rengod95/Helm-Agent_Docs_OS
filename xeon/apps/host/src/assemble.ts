@@ -128,6 +128,7 @@ import {
 } from "./assembly/schedule.ts";
 import { createStoreScheduleLeader, schedulerLeaderIsLive } from "./assembly/schedule-leader.ts";
 import { threadlessNoticeOf, threadlessNoticesOf } from "./assembly/threadless-notices.ts";
+import { createUnattendedThreads } from "./assembly/unattended-threads.ts";
 import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
 import type { WebStatusHolder } from "./assembly/web-providers.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
@@ -740,6 +741,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
   /** 예약 서비스. 서비스 등록 뒤(4단계)에 채운다. 닫을 때 아직 없으면 건너뛴다 */
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
+  // 예약이 만든 무인 대화의 목록. 예약 실행기가 적고 ask_user가 읽는다(F-07)
+  const unattendedThreads = createUnattendedThreads();
   /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
   /** 돌려 보기의 격리(후보는 이 자식에서만 돈다). 플러그인 호스트 조립이 있을 때만 채운다 */
@@ -1323,6 +1326,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         scheduler: runtime.scheduler,
         ids,
         chunkNumbering,
+        unattendedThreads,
         threadlessNotices: () =>
           scheduleSlot.service === undefined ? [] : threadlessNoticesOf(scheduleSlot.service),
         localIds,
@@ -1552,6 +1556,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const scheduleLeases = store.value.service.leases;
     const scheduleRuns = (): boolean => ticksHere || schedulerLeaderIsLive(scheduleLeases, clock);
     const schedule = createHostSchedule({
+      unattended: unattendedThreads,
       ...(ticksHere
         ? {
             leader: createStoreScheduleLeader({

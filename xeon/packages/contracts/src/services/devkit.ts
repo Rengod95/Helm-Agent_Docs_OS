@@ -481,6 +481,11 @@ export interface DevkitService {
   sourceOf?(name: string): Promise<DevkitResult<SourceFacts>>;
   /** 플러그인의 초안 목록, 최신 먼저(M5c §4.9.2). 구현이 없으면 빌더의 `authoring_drafts`가 거절한다 */
   draftList?(name: string): Promise<DevkitResult<{ readonly drafts: readonly DraftSummary[] }>>;
+  /**
+   * 대화의 마지막 turn id(없으면 null). 빌더가 Test run 대화에서 제출의 증거 turn을 스스로 고른다(F-46: 사람이 turn id를 알려 줄 수 없다).
+   * 구현이 없으면 빌더는 모델이 넘긴 `turnId`만 쓴다
+   */
+  latestTurn?(threadId: string): Promise<DevkitResult<string | null>>;
   /** 테스트 대화의 맥락 참조(M5c §4.8.8, 도구 `authoring_context`). 구현이 없으면 도구가 거절한다 */
   craftContext?(threadId: string): Promise<DevkitResult<CraftContextView>>;
   /**

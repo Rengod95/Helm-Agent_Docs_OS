@@ -51,6 +51,7 @@ import type {
 import { messageOf } from "../util.ts";
 import { toLogFields } from "./ports.ts";
 import { createFileScheduleStore } from "./schedule-store.ts";
+import type { UnattendedThreads } from "./unattended-threads.ts";
 
 // L2.schedule.spec §4.4.9, L4.host-service.spec §4.17. 예약 상태 기계(`@fresnel/cap-schedule`)에 호스트의 포트를 잇는다.
 // 실행은 새 thread를 만들고 그 thread에 무인 입력을 넣는다. 그 입력은 `schedule` 출처의 followUp이라 turn의 `interactive`가 거짓이다.
@@ -73,6 +74,8 @@ export interface ScheduleRunnerPorts {
 }
 
 export interface HostScheduleDeps {
+  /** 실행이 만든 대화를 무인으로 적는 목록. 없으면 적지 않는다 */
+  readonly unattended?: UnattendedThreads;
   readonly os: Pick<OsService, "dirs" | "time" | "watch">;
   /** 예약 상태 파일을 호스트끼리 겹쳐 쓰지 않게 하는 프로세스 사이 잠금(`OsServiceHandle.fileLock`) */
   readonly fileLock: FileLock;
@@ -365,6 +368,7 @@ function runnerOf(deps: HostScheduleDeps): ScheduleRunner {
         return err(startFailed(`thread create failed: ${messageOf(created.error.cause)}`));
       }
       const threadId = created.value.threadId;
+      deps.unattended?.add(threadId);
 
       const lease = await attemptAsync(() => ports.locks.tryAcquire(threadId, deps.ownerKind));
       if (!lease.ok) return err(startFailed(`lease failed: ${messageOf(lease.error.cause)}`));

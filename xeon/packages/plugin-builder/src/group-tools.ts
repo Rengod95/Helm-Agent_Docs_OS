@@ -110,6 +110,10 @@ function checkSession(env: ToolsEnv, sessionId: string): JsonValue | undefined {
   return undefined;
 }
 
+/** 확인 카드를 기다리는 도구 결과의 안내. 모델이 같은 것을 ask_user로 다시 묻지 않게 한다(F-08) */
+const CARD_HINT =
+  "A confirmation card is shown to the user. Wait until the user presses it. Do not ask the same thing with ask_user, and do not call this tool again.";
+
 function awaitingIntent(state: Readonly<AuthoringState>): JsonValue | undefined {
   if (state.phase === "intent" || !state.intentConfirmed)
     return refusal("awaiting_confirmation", "the user has not confirmed the kind and the name yet");
@@ -224,7 +228,8 @@ async function request(
   extra: Partial<AuthoringState> = {},
 ): Promise<JsonValue> {
   const state = env.g.state();
-  if (state.pending === action) return { ok: true, status: "awaiting_confirmation", action };
+  if (state.pending === action)
+    return { ok: true, status: "awaiting_confirmation", action, hint: CARD_HINT };
   if (state.pending !== null)
     return refusal("busy", `the user is still confirming ${state.pending}`);
   if (state.denied === action) {
@@ -235,7 +240,7 @@ async function request(
   const woke = await wakeDrive(env);
   if (woke !== undefined) return woke;
   await patch(env, { pending: action, askRound: state.askRound + 1, ...extra });
-  return { ok: true, status: "awaiting_confirmation", action };
+  return { ok: true, status: "awaiting_confirmation", action, hint: CARD_HINT };
 }
 
 export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
@@ -243,7 +248,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const guide = tool(
     "authoring_guide",
-    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, review inbox, build flow). Without a topic it lists the topics.",
+    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, review inbox, build flow, short code examples of a tool and a method: topic fresnel-plugin-authoring, file hooks-and-tools). Read it instead of searching the disk. Without a topic it lists the topics.",
     Type.Object(
       {
         topic: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
@@ -274,7 +279,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const kinds = tool(
     "authoring_kinds",
-    "Plugin authoring: list the kinds of plugin or extension that can be built, with their status and the decisions the author must make.",
+    "Plugin authoring: list the kinds of plugin or extension that can be built, with their status and the decisions the author must make. If the plugin needs a model tool or its own screen, it is a group (mode app or drive), not a hook.",
     Type.Object(
       { layer: Type.Optional(Type.String()), query: Type.Optional(Type.String()) },
       { additionalProperties: false },
@@ -306,7 +311,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin authoring: open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence from the user's words. In a test chat (craft chat) the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true keeps it waiting the same way.",
+    "Plugin authoring: use this when the user asks to make, build or create a plugin (a Fresnel plugin, not a generic program or package). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence from the user's words. In a test chat (craft chat) the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true keeps it waiting the same way.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -386,6 +391,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         sessionId,
         nameCheck: { ok: true },
         awaiting: "user confirmation of kind and name",
+        hint: CARD_HINT,
       };
     },
   );
@@ -411,7 +417,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const scaffold = tool(
     "authoring_scaffold",
-    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module, inject: an instructions file, drive: a drive step function in a group, app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function) and the composition draft. The manifest needs purpose (one sentence, the user's words) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
+    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module that watches or changes the conversation and cannot register tools; inject: an instructions file; drive: a drive step function in a group; app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function. If the plugin needs a model tool or its own screen, choose app or drive, a group, not hook) and the composition draft. The manifest needs purpose (one sentence, the user's words) and description (one plain sentence a user reads on the plugin card); pass description here or write both into plugin.json before authoring_validate.",
     Type.Object(
       {
         ...sessionShape,
@@ -515,7 +521,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const trial = tool(
     "authoring_trial",
-    "Open a Test run thread that carries this folder as a draft (nothing is installed). The user confirms before it starts (cost). The user then talks to the plugin in that thread; authoring_submit needs the turnId of one of its turns.",
+    "Open a Test run thread that carries this folder as a draft (nothing is installed). The user confirms before it starts (cost). The user then talks to the plugin in that thread (they can open it from the Test screen). authoring_submit picks the latest turn of that thread as evidence by itself, so do not ask the user for a turn id.",
     Type.Object({ ...sessionShape }, { additionalProperties: false }),
     "write",
     async (input) => {
@@ -590,7 +596,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
   // 확인을 묻지 않는 까닭은 위 파일 머리 주석에 있다. 증거는 시험 대화의 턴 하나다(M5c §4.7.1: 담당 AI의 제출은 증거 한 개 이상).
   const submit = tool(
     "authoring_submit",
-    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial), and the turnId of a turn in that Test run as evidence.",
+    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial) in which the user has tried the plugin at least once. The evidence is the latest turn of the Test run thread; pass turnId only to choose another turn.",
     Type.Object(
       {
         ...sessionShape,
@@ -611,13 +617,19 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       if (state.trial === null)
         return refusal(
           "no_evidence",
-          "the review needs evidence from a Test run: call authoring_trial first, then submit with the turnId of that Test run",
+          "the review needs evidence from a Test run: call authoring_trial first, then ask the user to try the plugin in that Test run, then submit",
         );
-      const turnId = optStr(input, "turnId");
+      // 증거 turn은 모델이 넘긴 값이 우선이고, 없으면 시험 대화의 마지막 turn이다(사람이 turn id를 알려 줄 수 없다, F-46)
+      let turnId = optStr(input, "turnId");
+      if (turnId === undefined && devkit.latestTurn !== undefined) {
+        const latest = await devkit.latestTurn(state.trial.threadId);
+        if (!latest.ok) return failure(latest.error);
+        turnId = latest.value ?? undefined;
+      }
       if (turnId === undefined)
         return refusal(
           "no_evidence",
-          `the review needs evidence: pass turnId, a turn of the Test run thread ${state.trial.threadId}`,
+          "the Test run has no turn yet: ask the user to try the plugin in the Test run thread (the Test screen opens it), then call authoring_submit again. Do not ask the user for a turn id",
         );
       // 목적은 도구 입력이 우선이고, 없으면 맡기기나 시작에서 받은 목적을 쓴다(M5c §4.9.6)
       const purpose = optStr(input, "purpose") ?? state.purpose ?? undefined;

@@ -67,6 +67,7 @@ import {
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { createWebPolicyWriter } from "./web-policy-writer.ts";
 import { loopExtensionUnit } from "@fresnel/core-loop";
+import { askReachesPerson, type UnattendedThreads } from "./unattended-threads.ts";
 import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
 import { sessionPlugin } from "@fresnel/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
@@ -131,6 +132,8 @@ export interface ExtensionDeps {
   readonly chunkNumbering: ChunkNumbering;
   /** 대화에 묶이지 않은 알림의 원천(예약 실행 기록에서 계산한다). 알림 목록이 읽는다 */
   readonly threadlessNotices: () => readonly Notice[];
+  /** 무인 대화(예약이 만든 대화). `ask_user`가 화면이 붙은 대화의 Drive turn에서도 묻게 하는 판정에 쓴다. 없으면 호출 문맥만 본다 */
+  readonly unattendedThreads?: UnattendedThreads;
   /** 로컬 id(원장, 캐시 행). L0.os의 createLocalIdFactory */
   readonly localIds: LocalIdFactory;
   readonly logger: Logger;
@@ -503,8 +506,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: layersSource(settings),
           ids: deps.ids,
           core: dialogCore,
-          // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
-          interactive: (context) => context.interactive !== false,
+          // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다.
+          // 화면이 붙은 대화의 Drive turn은 문맥이 비대화형이어도 묻는다(F-07). 예약 같은 무인 대화는 그대로 묻지 않는다
+          interactive: (context) => askReachesPerson(context, deps.unattendedThreads),
           // 프로젝트 명령(.fresnel/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           workspaceOf: workspaceOfId,

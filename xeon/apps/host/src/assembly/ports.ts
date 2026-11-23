@@ -747,6 +747,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value?.craftChat !== undefined) : found;
     },
+    lastTurnIdOf(threadId) {
+      const found = session.query.thread(threadId);
+      return found.ok ? ok(found.value?.lastTurnId ?? null) : found;
+    },
     async list(params) {
       // 필터는 저장된 값(정규 경로)과 같은 형태로 견준다(HS-76)
       let workspace: string | undefined;

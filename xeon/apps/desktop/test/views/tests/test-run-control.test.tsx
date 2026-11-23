@@ -39,6 +39,7 @@ const handlers: TestsViewHandlers = {
   confirmRun: NOOP,
   cancelRun: NOOP,
   control: NOOP,
+  open: NOOP,
   copy: NOOP,
 };
 
@@ -218,5 +219,12 @@ describe("새 테스트 시작", () => {
       "req-2",
     );
     expect(failed).toEqual({ ok: false, failure: "offline" });
+  });
+});
+
+describe("F-46 open the Test run chat", () => {
+  test("a Test run row with a thread shows the Open chat button next to its controls (the handler gets the thread id)", () => {
+    const html = viewOf(INITIAL_TESTS_UI, "thr_1");
+    expect(html).toContain("대화 열기");
   });
 });

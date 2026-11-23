@@ -195,13 +195,18 @@ function hasKey<K extends string>(value: object, key: K): value is Record<K, unk
   return key in value;
 }
 
-/** 모듈의 `default` 또는 named `extension` 중 함수인 쪽(X.loading-trust.spec §4.4.2). `default`가 먼저다 */
+/** 모듈의 `default` 또는 named `extension` 중 함수인 쪽(X.loading-trust.spec §4.4.2). `default`가 먼저다. 함수 대신 `entry` 함수를 가진 객체(그룹 모듈)도 받는다 */
 function exportedEntry(module: unknown): UnknownCallable | undefined {
   if (typeof module !== "object" || module === null) return undefined;
   for (const key of ["default", "extension"] as const) {
     if (hasKey(module, key)) {
       const value = module[key];
       if (isCallable(value)) return value;
+      // 그룹 모듈(`export default defineOrchestration(...)`)은 `entry` 함수를 가진 객체다. 그 함수가 엔트리다
+      if (typeof value === "object" && value !== null && hasKey(value, "entry")) {
+        const grouped = value["entry"];
+        if (isCallable(grouped)) return grouped;
+      }
     }
   }
   return undefined;

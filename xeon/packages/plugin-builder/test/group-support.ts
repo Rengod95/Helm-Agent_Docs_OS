@@ -143,6 +143,8 @@ interface DevkitProbe {
   readonly calls: string[];
   /** `submit`에 넘어온 입력(증거와 목적을 시험이 본다) */
   readonly submits: DevkitSubmitInput[];
+  /** 시험 대화의 마지막 turn id(시험이 바꾼다). null이면 아직 turn이 없다 */
+  latestTurn: string | null;
   validation: ValidationReport;
 }
 
@@ -155,6 +157,7 @@ export function devkitProbe(): DevkitProbe {
     calls,
     submits,
     validation: OK_REPORT,
+    latestTurn: "turn_latest",
     devkit: {
       kinds: async () => KIND_CATALOG,
       scaffold: async (input) => {
@@ -188,6 +191,10 @@ export function devkitProbe(): DevkitProbe {
       pack: async (input) => {
         calls.push(`pack:${input.dir}`);
         return ok({ path: `${input.dir}/dist/package`, files: ["a"], sha256: "a".repeat(64) });
+      },
+      latestTurn: async (threadId) => {
+        calls.push(`latestTurn:${threadId}`);
+        return ok(probe.latestTurn);
       },
       submit: async (input) => {
         calls.push(`submit:${input.dir}`);

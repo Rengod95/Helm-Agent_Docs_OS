@@ -472,6 +472,8 @@ export interface ThreadPort {
   workspaceOf(threadId: ThreadId): Result<string | null, ReadFailure>;
   /** 테스트 대화(표지가 있는 대화)인가. 모르는 대화는 거짓이다. 읽기 실패는 오류 값이다(M5c §4.8.5) */
   isCraftChat(threadId: ThreadId): Result<boolean, ReadFailure>;
+  /** 대화의 마지막 turn id(turn이 없으면 null, 모르는 대화도 null). 빌더가 Test run의 증거 turn을 스스로 고르는 데 쓴다 */
+  lastTurnIdOf?(threadId: ThreadId): Result<TurnId | null, ReadFailure>;
   /** 대화 제목(없는 제목은 null). 모르는(지워진) 대화는 undefined다. 최근 턴 목록이 제목을 붙이고 지워진 대화의 턴을 거르는 데 쓴다 */
   titleOf(threadId: ThreadId): Result<{ readonly title: string | null } | undefined, ReadFailure>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */

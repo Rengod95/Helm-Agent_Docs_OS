@@ -289,7 +289,7 @@ test("authoring.drive.handoff-a: a closed session handed a purpose opens a purpo
         content: "[authoring] helm가 플러그인 제작을 맡겼다: 로그 정리 도구",
         display: true,
       },
-      when: "next",
+      when: "followUp",
       requestId: "authoring:handoff:nabcdefghijklm",
     },
   ]);
