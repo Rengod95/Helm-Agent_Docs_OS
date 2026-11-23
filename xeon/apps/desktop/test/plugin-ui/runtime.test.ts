@@ -96,7 +96,7 @@ describe("plugin ui runtime", () => {
     expect(windows.roots).toEqual([]);
   });
 
-  test("an extension that is off or left out by safe mode loses its app roots and frames, and comes back when turned on", async () => {
+  test("an app of an extension left out of every profile still opens, and one left out by safe mode loses its app root and frame", async () => {
     let extensions = [extListEntryOf("helm", { status: "disabled" })];
     const h = harness({
       ...table([setting("x.ui.apps", true)]),
@@ -104,12 +104,14 @@ describe("plugin ui runtime", () => {
     });
     await h.runtime.refresh();
     expect([...h.runtime.getState().inactive]).toEqual(["helm"]);
-    expect(h.runtime.framesAllowed(app)).toBe(false);
-    expect(h.roots).toEqual([{ entries: [] }]);
+    expect(h.runtime.framesAllowed(app)).toBe(true);
+    expect(h.roots.at(-1)).toEqual({ entries: [expect.objectContaining({ extension: "helm" })] });
 
     extensions = [extListEntryOf("helm", { safeModeExcluded: "safe mode" })];
     await h.runtime.refresh();
     expect([...h.runtime.getState().inactive]).toEqual(["helm"]);
+    expect(h.runtime.framesAllowed(app)).toBe(false);
+    expect(h.roots.at(-1)).toEqual({ entries: [] });
 
     extensions = [extListEntryOf("helm")];
     await h.runtime.refresh();

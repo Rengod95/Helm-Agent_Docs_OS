@@ -2826,6 +2826,7 @@
   "desktop.plugin.state.empty": "이 플러그인은 앱을 내지 않아요",
   "desktop.plugin.state.frameBlocked": "이 앱은 자체 코드가 필요해요. 설정에서 허용하면 보여요",
   "desktop.plugin.state.invalid": "이 앱을 열 수 없어요: {reason}",
+  "desktop.plugin.state.rootBlocked": "이 앱의 화면 파일이 승인된 설치 위치에 없어서 열 수 없어요. 플러그인을 다시 승인하거나 설치해 보세요.",
   "desktop.plugin.state.loading": "불러오는 중…",
   "desktop.plugin.state.offline": "엔진에 연결되면 보여요",
   "desktop.plugin.state.queryFailed": "앱에 쓸 값을 읽지 못했어요",

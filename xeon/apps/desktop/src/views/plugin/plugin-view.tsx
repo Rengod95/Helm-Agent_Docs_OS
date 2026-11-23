@@ -840,15 +840,15 @@ export function PluginView(props: {
   else if (loaded === "offline") body = <Note text={t("desktop.plugin.state.offline")} />;
   // 꺼졌거나 안전 모드가 된 확장은 열린 프레임과 폴링을 거두고 알림만 보인다(본문을 그리지 않으면 거둬진다)
   else if (loaded.context.safeMode) body = stop(t("desktop.plugin.state.disabled"), "warning");
-  else if (inactive || !loaded.context.enabled) {
+  else if ((inactive && entry.mode !== "app") || !loaded.context.enabled) {
     // 꺼졌거나 이 대화의 프로필에 없다. 앱 자리(작업 공간, 대화 옆)에서는 프로필 글과 관리 단추를 둔다
     body =
       onManage === undefined
         ? stop(t("desktop.plugin.state.disabled"), "warning")
         : stop(t("desktop.apps.state.notInProfile"), "warning", true);
   } else if (entry.mode === "app" && rootSkipped !== undefined && runtime.framesAllowed(entry)) {
-    // 셸이 이 앱의 root를 받지 않았다. 그리면 프레임 주소가 404이므로 이유만 보인다
-    body = stop(t("desktop.plugin.state.invalid", { reason: rootSkipped.kind }), "danger");
+    // 셸이 이 앱의 root를 받지 않았다. 그리면 프레임 주소가 404이므로 사람이 읽을 한 줄만 보인다(오류 코드는 보이지 않는다)
+    body = stop(t("desktop.plugin.state.rootBlocked"), "danger");
   } else if (entry.mode === "app" && runtime.framesAllowed(entry)) {
     body = frameDisabled ? (
       <DisabledNote runtime={runtime} keyName={key} />
