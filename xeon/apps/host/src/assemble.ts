@@ -122,7 +122,7 @@ import {
 } from "./assembly/groups.ts";
 import {
   createProposalPort,
-  suggestEnabledOf,
+  suggestGateOf,
   type KnowledgeWireHolder,
 } from "./assembly/proposals.ts";
 import {
@@ -1765,8 +1765,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       web,
       proposals: createProposalPort({
         knowledge: () => knowledgeWire.current,
-        // 제안 플러그인(`suggest`)의 켜짐은 확장 등록 상태가 정한다(ext.list와 같은 원천). 꺼지면 목록과 결정이 unavailable이다
-        suggestEnabled: () => suggestEnabledOf(ext.registrations()),
+        // 제안 플러그인(`suggest`)의 켜짐은 등록이 `enabled`이고 어느 프로필(공통 묶음 포함)에든 든 것이다. 호출 때마다 프로필 목록을 읽는다.
+        // 포트는 조립 순서상 나중에 올라오므로 호출 때 찾는다(없으면 읽지 못한 것이라 닫힌다)
+        suggestEnabled: () =>
+          suggestGateOf({
+            registrations: () => ext.registrations(),
+            profiles: () =>
+              portsHandle?.ports.m4.profileTestRun.list() ??
+              Promise.resolve(err({ kind: "ports_not_ready" })),
+            report: (message, fields) => {
+              logger.warn(message, fields);
+            },
+          }),
         report: (message, fields) => {
           logger.warn(message, fields);
         },

@@ -54,7 +54,8 @@ wire 이름은 `ext.suggest.<동사>`다.
 
 호스트 wire `proposal.list`와 `proposal.decide`는 제안 플러그인이 켜져 있을 때만 지식 대기열을 연다(HS-79 (5)).
 
-- 판정 원천: `ext.registrations()`의 루트 등록(이름 `suggest`)의 `status`가 `enabled`인가다. `ext.list`가 쓰는 원천과 같다. 꺼졌거나, 프로필에서 빠졌거나, 설치되지 않았으면 거짓이다. `enabling`이나 `disabling`은 거짓이다.
+- 켜짐은 두 조건이 모두 참일 때다. (a) `ext.registrations()`의 루트 등록(이름 `suggest`)의 `status`가 `enabled`다(`ext.list`가 쓰는 원천과 같다. `enabling`이나 `disabling`은 거짓이다). (b) 어느 프로필에든 `suggest`가 들어 있다. 전역 공통 묶음 `common`의 플러그인 목록도 본다. 프로필에서 빼면 꺼진 것이다. 등록이 없으면(설치되지 않았으면) 거짓이다.
+- 읽는 때: 호출 때마다 두 조건을 다시 읽고 값을 캐시에 두지 않는다. 프로필을 바꾼 다음 호출부터 반영된다. 판정 함수는 `suggestEnabledOf(registrations, pluginsInProfiles)`이고, 프로필 목록을 못 읽으면(읽기 실패나 던짐) 거짓으로 닫은 채 `proposal.suggest_gate_unreadable`을 기록한다. 이전 판정은 쓰지 않는다.
 - 꺼짐: `proposal.list`는 `unavailable: ["knowledge"]`와 빈 목록이다(출처 `learning`의 응답은 그대로다). `proposal.decide`는 `{ ok: false, reason: "unavailable", detail: "the suggest plugin is off" }`다.
 - 다시 켜면 다음 호출부터 열린다. 게이트는 호출 때마다 읽으므로 따로 알림을 받지 않는다.
 - 결정 길은 내장 `host-proposals-bridge`가 주는 대기열 어댑터(`KnowledgeProposalWire`)를 그대로 쓴다. 제안 플러그인에 결정 권한을 주지 않는다.
@@ -82,7 +83,7 @@ wire 이름은 `ext.suggest.<동사>`다.
 2. `count`는 `pending`만 세고, 200에서 `capped`를 참으로 준다(`test/unit/queue.test.ts`).
 3. 매니페스트는 권한으로 `knowledge.ledger` 하나만 요구하고, 두 메서드는 읽기 전용이며, 도구와 훅과 저장소 쓰기가 없다(`test/unit/manifest.test.ts`, `test/unit/methods.test.ts`).
 4. 번들 빌드 산출물은 매니페스트 검증을 통과하고, 외부 import 목록이 §6과 같다(`test/unit/build.test.ts`). 릴리스 검토 경로가 `actor: "release"`로 받는다(`apps/host/test/assembly/plugins/release.test.ts`).
-5. 켜짐이면 호스트 wire 결과가 기존과 같고, 꺼짐이면 `unavailable`이며, 다시 켜면 열린다(`apps/host/test/assembly/proposals.test.ts`). 번들을 설치한 엔진은 열려 있고, 번들이 없는 엔진은 `unavailable`이다(`apps/host/test/int/proposals.int.test.ts`).
+5. 켜짐이면 호스트 wire 결과가 기존과 같고, 꺼짐이면 `unavailable`이며, 다시 넣으면 열린다(`apps/host/test/assembly/proposals.test.ts`). 프로필에서 빼면 `proposal.list`와 `proposal.decide`가 `unavailable`로 답하고, 다시 넣으면 열린다(`apps/host/test/int/proposals.int.test.ts`, 실제 엔진). 번들을 설치한 엔진은 열려 있고, 번들이 없는 엔진은 `unavailable`이다(같은 파일).
 6. 기본 목록은 `helm`, `suggest`이고 계정 회전은 개발 모드에서만 더한다(`apps/host/test/assembly/default-plugins.test.ts`).
 
 ## 9. 미결 사항

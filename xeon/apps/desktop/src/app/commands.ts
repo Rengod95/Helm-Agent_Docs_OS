@@ -71,6 +71,7 @@ import {
   createWorkbenchCommands,
   subscribeDriveFrames,
   subscribeExtChanges,
+  subscribeProfilesChanges,
 } from "./workbench-commands.ts";
 import { createMessageCommands, type MessageCommands } from "./message-commands.ts";
 import type { Session } from "./session.ts";
@@ -634,6 +635,10 @@ export function createCommands(
         return connection === null
           ? () => {}
           : subscribeDriveFrames(connection, threadId, listener);
+      },
+      (listener) => {
+        const connection = session.connection();
+        return connection === null ? () => {} : subscribeProfilesChanges(connection, listener);
       },
     ),
     setup: createSetupCommands(

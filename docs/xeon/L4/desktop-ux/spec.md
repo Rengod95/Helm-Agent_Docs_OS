@@ -1658,7 +1658,7 @@ Drive 카드 정보표(lcM6c, lcM6d). 엔진에 없는 값은 지어내지 않�
 
 - 목적: 학습 플러그인과 지식 기능의 쓰기 제안을 한 목록에서 검토합니다(SC-06).
 - 진입: 주 내비 ⌘3, 받은 요청의 제안 묶음, 알림.
-- 켜짐 [결정: 사용자, 제안도 플러그인으로 바꾸고 내장·기본 켜기지만 끌 수 있는 일반 플러그인으로 둔다]: 제안은 `suggest` 플러그인이 켜져 있을 때만 있습니다. 내비 줄, ⌘3, 명령 팔레트의 화면 이동 줄, 받은 요청의 제안 줄(대기 수가 0이라 함께 빠짐)이 모두 따릅니다. 켜짐은 `ext.list`의 `suggest` 항목에서 읽습니다(상태 `enabled`·`enabling`이고 안전 모드에서 빠지지 않음, 플러그인 목록의 켜짐과 같은 뜻). 읽기 전이나 연결이 없을 때는 숨깁니다(깜빡임 방지). 꺼진 채 이 화면이 열려 있으면 대화 화면으로 돌아갑니다. 꺼져 있으면 대기 수를 읽지 않고 0입니다. 구현: `apps/desktop/src/views/proposal-suggest.ts`, `proposal-gate.tsx`, `shell/start-panel.tsx`(`NavAvailable`).
+- 켜짐 [결정: 사용자, 제안도 플러그인으로 바꾸고 내장·기본 켜기지만 끌 수 있는 일반 플러그인으로 둔다]: 제안은 `suggest` 플러그인이 켜져 있을 때만 있습니다. 내비 줄, ⌘3, 명령 팔레트의 화면 이동 줄, 받은 요청의 제안 줄(대기 수가 0이라 함께 빠짐)이 모두 따릅니다. 켜짐은 두 조건이 모두 참일 때입니다. 하나는 `ext.list`의 `suggest` 항목이 상태 `enabled`·`enabling`이고 안전 모드에서 빠지지 않음입니다(플러그인 목록의 켜짐과 같은 뜻). 다른 하나는 프로필 목록(`profile.list`)의 프로필 가운데 어디에든(전역 공통 묶음 포함) `suggest`가 들어 있음입니다. 프로필에서 빼면 꺼진 것입니다. 두 목록은 확장 목록 알림과 `profile.changed` 알림마다 다시 읽습니다. 읽기 전이나 연결이 없을 때, 또는 프로필 목록을 못 읽었을 때는 숨깁니다(깜빡임 방지). 확장 목록에서 이미 꺼졌으면 프로필과 무관하게 꺼짐입니다. 꺼진 채 이 화면이 열려 있으면 대화 화면으로 돌아갑니다. 꺼져 있으면 대기 수를 읽지 않고 0입니다. 구현: `apps/desktop/src/views/proposal-suggest.ts`(`suggestStateOf`, `suggestInProfilesOf`), `proposal-gate.tsx`, `shell/start-panel.tsx`(`NavAvailable`), `app/workbench-commands.ts`(`subscribeProfilesChanges`).
 
 | 항목 | 출처 |
 |---|---|

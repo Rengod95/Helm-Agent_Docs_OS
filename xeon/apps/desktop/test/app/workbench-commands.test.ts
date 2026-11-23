@@ -30,6 +30,7 @@ import {
   hasScopeChange,
   isExtSettingsChange,
   subscribeExtChanges,
+  subscribeProfilesChanges,
 } from "../../src/app/workbench-commands.ts";
 import { fakeConnection } from "../state/fake-connection.ts";
 import { evt, STORE, SUB, thr, trn } from "../state/helpers.ts";
@@ -319,7 +320,8 @@ describe("크래프트 명령의 wire 호출", () => {
     const listed: ProfileListResult = { profiles: [QUIET], common, rev: 1 };
     const { app, params } = await liveApp({ results: { "profile.list": listed } });
     expect(await app.commands.workbench.profiles()).toEqual({ ok: true, value: [QUIET] });
-    expect(paramsOf(params, "profile.list")).toEqual([{}]);
+    expect(await app.commands.workbench.profileList()).toEqual({ ok: true, value: listed });
+    expect(paramsOf(params, "profile.list")).toEqual([{}, {}]);
     await app.stop();
   });
 
@@ -826,4 +828,17 @@ describe("확장 목록을 다시 읽을 알림", () => {
     expect(woke).toBe(1);
     await app.stop();
   });
+});
+
+test("subscribeProfilesChanges wakes on profile.changed only, and stops after unsubscribe", () => {
+  const fake = fakeConnection({});
+  let woke = 0;
+  const stop = subscribeProfilesChanges(fake.connection, () => void (woke += 1));
+  fake.emit("profile.changed", { rev: 2, ids: ["default"], commonChanged: false });
+  expect(woke).toBe(1);
+  fake.emit("settings.invalidated", { keys: [], scopes: ["user"], threadId: null });
+  expect(woke).toBe(1);
+  stop();
+  fake.emit("profile.changed", { rev: 3, ids: [], commonChanged: true });
+  expect(woke).toBe(1);
 });

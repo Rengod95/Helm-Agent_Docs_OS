@@ -115,6 +115,48 @@ realTest(
 );
 
 realTest(
+  "taking suggest out of the profile closes the knowledge queue at the next call, and putting it back reopens it",
+  async () => {
+    const { engine } = await start();
+    // 코어가 기대는 단위(`cap-workspace`, `cap-dialog`)는 빼지 못한다. 나머지 목록만 바꾼다
+    const profileWith = async (names: readonly string[]) => {
+      const current = await engine.ports.m4.profileTestRun.get("default");
+      expect(current.ok).toBe(true);
+      const baseRev = current.ok ? current.value.rev : null;
+      const saved = await engine.ports.m4.profileTestRun.put(
+        {
+          id: "default",
+          title: "default",
+          plugins: ["cap-workspace", "cap-dialog", ...names].map((name) => ({ name })),
+          settings: [],
+          startDrive: null,
+        },
+        baseRev,
+      );
+      expect(saved.ok).toBe(true);
+    };
+    // 기본 프로필에는 공장 값으로 제안 플러그인이 든다. 빼기 전에는 열려 있다
+    expect((await engine.ports.proposals.list({}, SIGNAL)).unavailable).toEqual([]);
+
+    await profileWith(["helm"]);
+    expect(await engine.ports.proposals.list({}, SIGNAL)).toEqual({
+      proposals: [],
+      nextCursor: null,
+      unavailable: ["knowledge"],
+    });
+    expect(
+      await engine.ports.proposals.decide(
+        { source: "knowledge", id: "knp_1", decision: "reject" },
+        SIGNAL,
+      ),
+    ).toEqual({ ok: false, reason: "unavailable", detail: "the suggest plugin is off" });
+
+    await profileWith(["helm", "suggest"]);
+    expect((await engine.ports.proposals.list({}, SIGNAL)).unavailable).toEqual([]);
+  },
+);
+
+realTest(
   "a knowledge-only decision kind on the knowledge source is unsupported and a missing knowledge proposal is not_found",
   async () => {
     const { engine } = await start();

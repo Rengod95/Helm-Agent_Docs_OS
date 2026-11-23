@@ -1,13 +1,22 @@
 import { expect, test } from "bun:test";
+import { err, ok } from "@fresnel/contracts";
 import { CapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
 import type {
+  CommonSet,
+  Profile,
   ProposalDecideParams,
   ProposalDecideResult,
   ProposalRow,
 } from "@fresnel/contracts/wire";
 import type { KnowledgeProposalListInput, KnowledgeProposalWire } from "@fresnel/cap-knowledge";
 import type { RegistrationStatus } from "@fresnel/contracts/extensions";
-import { createProposalPort, suggestEnabledOf } from "../../src/assembly/proposals.ts";
+import {
+  createProposalPort,
+  pluginNamesInProfiles,
+  suggestEnabledOf,
+  suggestGateOf,
+  type SuggestRegistration,
+} from "../../src/assembly/proposals.ts";
 
 // M3-REQ-18: `proposal.list`·`proposal.decide`의 포트. 학습 그룹은 빌트인에서 빠졌다(AGE-49): 목록은 지식 대기열만 읽고, 학습 출처는 늘 `unavailable`이고
 // 결정은 거절한다. 가짜 지식 대기열 위의 시험이다. 실제 엔진 위의 시험은 test/int/proposals.int.test.ts다.
@@ -56,6 +65,8 @@ function rig(options: {
   readonly knowledge?: readonly ProposalRow[] | "down" | "throws";
   /** 제안 플러그인이 켜져 있는가. 생략하면 켜져 있다 */
   readonly suggestEnabled?: boolean;
+  /** 게이트를 직접 준다(등록과 프로필에서 `suggestGateOf`로 정하는 시험). 주면 `suggestEnabled`는 쓰지 않는다 */
+  readonly gate?: () => Promise<boolean>;
 }) {
   const gate = { suggestEnabled: options.suggestEnabled ?? true };
   const calls: Calls = { knowledgeLists: [], knowledgeDecides: [], reports: [] };
@@ -98,7 +109,7 @@ function rig(options: {
   };
   const port = createProposalPort({
     knowledge: () => (options.knowledge === "down" ? undefined : wire),
-    suggestEnabled: () => gate.suggestEnabled,
+    suggestEnabled: options.gate ?? (async () => gate.suggestEnabled),
     report: (message) => {
       calls.reports.push(message);
     },
@@ -339,19 +350,160 @@ test("turning the suggest plugin back on opens the list and the decision again a
 });
 
 /** 등록 정보 한 줄의 대역. 게이트가 읽는 두 칸만 둔다 */
-function registration(
-  id: string,
-  status: RegistrationStatus,
-): { id: string; status: RegistrationStatus } {
+function registration(id: string, status: RegistrationStatus): SuggestRegistration {
   return { id, status };
 }
 
-test("suggestEnabledOf is true only for the enabled root registration named suggest", () => {
-  expect(suggestEnabledOf([registration("suggest", "enabled")])).toBe(true);
-  expect(suggestEnabledOf([registration("suggest", "disabled")])).toBe(false);
-  expect(suggestEnabledOf([registration("suggest", "enabling")])).toBe(false);
-  expect(suggestEnabledOf([registration("suggest", "disabling")])).toBe(false);
-  expect(suggestEnabledOf([registration("helm", "enabled")])).toBe(false);
-  expect(suggestEnabledOf([registration("suggest/child", "enabled")])).toBe(false);
-  expect(suggestEnabledOf([])).toBe(false);
+/** 프로필 한 개의 대역. 게이트가 읽는 칸(플러그인 목록)만 실제 값으로 채운다 */
+function profileWith(id: string, plugins: readonly string[]): Profile {
+  return {
+    id,
+    title: id,
+    builtin: id === "default",
+    plugins: plugins.map((name) => ({ name })),
+    settings: [],
+    startDrive: null,
+    updatedAt: "2026-11-24T00:00:00.000Z",
+    rev: 1,
+  };
+}
+
+function commonWith(plugins: readonly string[]): CommonSet {
+  return {
+    plugins: plugins.map((name) => ({ name })),
+    settings: [],
+    updatedAt: "2026-11-24T00:00:00.000Z",
+    rev: 1,
+  };
+}
+
+test("suggestEnabledOf is true only for the enabled root registration named suggest that some profile holds", () => {
+  const held = new Set(["suggest"]);
+  expect(suggestEnabledOf([registration("suggest", "enabled")], held)).toBe(true);
+  expect(suggestEnabledOf([registration("suggest", "disabled")], held)).toBe(false);
+  expect(suggestEnabledOf([registration("suggest", "enabling")], held)).toBe(false);
+  expect(suggestEnabledOf([registration("suggest", "disabling")], held)).toBe(false);
+  expect(suggestEnabledOf([registration("helm", "enabled")], held)).toBe(false);
+  expect(suggestEnabledOf([registration("suggest/child", "enabled")], held)).toBe(false);
+  expect(suggestEnabledOf([], held)).toBe(false);
+  // 등록이 켜져 있어도 어느 프로필에도 없으면 꺼짐이다
+  expect(suggestEnabledOf([registration("suggest", "enabled")], new Set(["helm"]))).toBe(false);
+  expect(suggestEnabledOf([registration("suggest", "enabled")], new Set())).toBe(false);
+});
+
+test("pluginNamesInProfiles reads every profile and the common set", () => {
+  const names = pluginNamesInProfiles({
+    profiles: [profileWith("default", ["helm", "suggest"]), profileWith("quiet", ["helm"])],
+    common: commonWith(["cap-web"]),
+  });
+  expect([...names].toSorted()).toEqual(["cap-web", "helm", "suggest"]);
+  expect([...pluginNamesInProfiles({ profiles: [], common: commonWith([]) })]).toEqual([]);
+});
+
+test("the gate follows profile membership: removing suggest from every profile closes the list and the decision, putting it back opens them", async () => {
+  // 프로필 목록은 호출 때마다 읽는다. 바꾼 뒤 다음 호출에 반영돼야 한다
+  let profiles: readonly Profile[] = [profileWith("default", ["helm", "suggest"])];
+  const reports: string[] = [];
+  const gate = (): Promise<boolean> =>
+    suggestGateOf({
+      registrations: () => [registration("suggest", "enabled")],
+      profiles: () => Promise.resolve(ok({ profiles, common: commonWith([]) })),
+      report: (message) => {
+        reports.push(message);
+      },
+    });
+  const { port, calls } = rig({ knowledge: [row({ id: "knp_1", createdAt: 5 })], gate });
+
+  expect((await port.list({}, SIGNAL)).unavailable).toEqual([]);
+
+  profiles = [profileWith("default", ["helm"])];
+  expect(await port.list({}, SIGNAL)).toEqual({
+    proposals: [],
+    nextCursor: null,
+    unavailable: ["knowledge"],
+  });
+  expect(
+    await port.decide(
+      { source: "knowledge", id: "knp_1", decision: "approve", revision: 1 },
+      SIGNAL,
+    ),
+  ).toEqual({ ok: false, reason: "unavailable", detail: "the suggest plugin is off" });
+  expect(calls.knowledgeDecides).toEqual([]);
+  expect(reports).toEqual([]);
+
+  profiles = [profileWith("default", ["helm", "suggest"])];
+  const reopened = await port.list({}, SIGNAL);
+  expect(reopened.unavailable).toEqual([]);
+  expect(reopened.proposals.map((entry) => entry.id)).toEqual(["knp_1"]);
+  expect(
+    (await port.decide({ source: "knowledge", id: "knp_1", decision: "reject" }, SIGNAL)).ok,
+  ).toBe(true);
+});
+
+test("suggest held only by the common set keeps the gate open", async () => {
+  const open = await suggestGateOf({
+    registrations: () => [registration("suggest", "enabled")],
+    profiles: () =>
+      Promise.resolve(
+        ok({ profiles: [profileWith("quiet", ["helm"])], common: commonWith(["suggest"]) }),
+      ),
+    report: () => {},
+  });
+  expect(open).toBe(true);
+});
+
+test("without a registration or with a disabled one the gate is closed even when a profile holds suggest", async () => {
+  const profiles = [profileWith("default", ["helm", "suggest"])];
+  const closedWith = (regs: readonly SuggestRegistration[]): Promise<boolean> =>
+    suggestGateOf({
+      registrations: () => regs,
+      profiles: () => Promise.resolve(ok({ profiles, common: commonWith([]) })),
+      report: () => {},
+    });
+  expect(await closedWith([])).toBe(false);
+  expect(await closedWith([registration("suggest", "disabled")])).toBe(false);
+  expect(await closedWith([registration("suggest", "enabling")])).toBe(false);
+});
+
+test("when the profile list cannot be read the gate closes and the reason is logged, not the previous answer", async () => {
+  const reports: { message: string; fields: unknown }[] = [];
+  let failing = false;
+  const gate = (): Promise<boolean> =>
+    suggestGateOf({
+      registrations: () => [registration("suggest", "enabled")],
+      profiles: () =>
+        failing
+          ? Promise.resolve(err({ kind: "corrupt" }))
+          : Promise.resolve(
+              ok({ profiles: [profileWith("default", ["suggest"])], common: commonWith([]) }),
+            ),
+      report: (message, fields) => {
+        reports.push({ message, fields });
+      },
+    });
+  expect(await gate()).toBe(true);
+
+  failing = true;
+  expect(await gate()).toBe(false);
+  expect(reports).toEqual([
+    { message: "proposal.suggest_gate_unreadable", fields: { reason: "corrupt" } },
+  ]);
+
+  const { port } = rig({ knowledge: [row({ id: "knp_1" })], gate });
+  expect((await port.list({}, SIGNAL)).unavailable).toEqual(["knowledge"]);
+});
+
+test("a profile read that throws also closes the gate and is logged", async () => {
+  const reports: { message: string; fields: unknown }[] = [];
+  const closed = await suggestGateOf({
+    registrations: () => [registration("suggest", "enabled")],
+    profiles: () => Promise.reject(new Error("boom")),
+    report: (message, fields) => {
+      reports.push({ message, fields });
+    },
+  });
+  expect(closed).toBe(false);
+  expect(reports).toEqual([
+    { message: "proposal.suggest_gate_unreadable", fields: { reason: "threw" } },
+  ]);
 });
