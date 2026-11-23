@@ -5109,7 +5109,7 @@
   "desktop.projects.remove.cancel": "Cancel",
   "desktop.projects.notice.dismiss": "Dismiss",
   "desktop.projects.notice.sameFolder.title": "{count, plural, one{# other conversation running in this folder} other{# other conversations running in this folder}}",
-  "desktop.projects.notice.sameFolder.body": "Both can change files in this folder.",
+  "desktop.projects.notice.sameFolder.body": "They can all change files in this folder.",
   "desktop.projects.notice.sameFolder.info": "Nothing is blocked. To work apart, a worktree plugin can give each conversation its own folder. Folder: {path}",
   "desktop.projects.notice.pending.title": "{count, plural, one{# plugin from this project waiting for review} other{# plugins from this project waiting for review}}",
   "desktop.projects.notice.pending.body": "They won't run until you approve them.",
