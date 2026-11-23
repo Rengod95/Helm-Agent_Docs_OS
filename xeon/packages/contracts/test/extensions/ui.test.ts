@@ -10,6 +10,7 @@ import {
   BRIDGE_OPS,
   UI_LIMITS,
   bridgeMessageWithinLimit,
+  checkUiTreeActions,
   validateManifest,
   validateUiTree,
   type UiNode,
@@ -192,6 +193,78 @@ describe("validateUiTree", () => {
         children: Array.from({ length: UI_LIMITS.treeNodes - 1 }, () => leaf),
       }).ok,
     ).toBe(true);
+  });
+});
+
+describe("checkUiTreeActions (Board and SortableList name write methods)", () => {
+  const methods = [
+    { verb: "board", readOnly: true },
+    { verb: "move", readOnly: false },
+    { verb: "add", readOnly: false },
+  ];
+  const board: UiNode = {
+    type: "Board",
+    props: { move: "move", add: "add" },
+    bind: { columns: { path: "/board/columns" }, cards: { path: "/board/cards" } },
+  };
+
+  test("a board naming declared write methods, nested in a Stack, has no issues", () => {
+    expect(checkUiTreeActions({ type: "Stack", children: [board] }, methods)).toEqual([]);
+  });
+
+  test("a board without move or add is a read-only board and passes", () => {
+    const { props: _props, ...plain } = board;
+    expect(checkUiTreeActions(plain, methods)).toEqual([]);
+  });
+
+  test("an undeclared verb, a read verb and a non-string verb each give one readable issue", () => {
+    const tree: UiNode = {
+      type: "Stack",
+      children: [
+        { ...board, props: { move: "shift", add: "board" } },
+        { type: "SortableList", props: { move: 3 }, bind: { items: { path: "/list/items" } } },
+      ],
+    };
+    expect(checkUiTreeActions(tree, methods)).toEqual([
+      {
+        code: "ui_invalid",
+        path: "/children/0/props/move",
+        message:
+          'Board.move names "shift", but manifest methods does not declare it: add { "verb": "shift", "readOnly": false, ... } to methods',
+      },
+      {
+        code: "ui_invalid",
+        path: "/children/0/props/add",
+        message: 'Board.add names "board", a read method: name a write method (readOnly: false)',
+      },
+      {
+        code: "ui_invalid",
+        path: "/children/1/props/move",
+        message: "SortableList.move must be the verb of a write method (a string)",
+      },
+    ]);
+  });
+
+  test("a missing required bind is reported once per key", () => {
+    const tree: UiNode = { type: "Board", bind: { columns: { path: "/board/columns" } } };
+    expect(checkUiTreeActions(tree, methods)).toEqual([
+      {
+        code: "ui_invalid",
+        path: "/bind",
+        message: 'Board needs bind "cards" (a data path to an array)',
+      },
+    ]);
+    expect(checkUiTreeActions({ type: "SortableList" }, methods)).toEqual([
+      {
+        code: "ui_invalid",
+        path: "/bind",
+        message: 'SortableList needs bind "items" (a data path to an array)',
+      },
+    ]);
+  });
+
+  test("other widgets are not looked at, even with a prop named move", () => {
+    expect(checkUiTreeActions({ type: "Text", props: { move: "nope" } }, [])).toEqual([]);
   });
 });
 

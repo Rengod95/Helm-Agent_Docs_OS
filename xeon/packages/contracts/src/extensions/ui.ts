@@ -335,6 +335,92 @@ export function validateUiTree(input: unknown): UiTreeResult {
   return issues.length > 0 ? { ok: false, issues } : { ok: true, tree: parsed.value };
 }
 
+// ── 쓰기 메서드를 부르는 위젯(ADR-0021 §3.4.1, AGE-78 natParts) ──────────────────
+
+/**
+ * 끌어 옮긴 결과를 확장의 쓰기 메서드로 보내는 위젯. 위젯 카탈로그의 정본은 L4 렌더러지만, 로더(X)와 제작 검사(L1)가
+ * 매니페스트 `methods`와 맞춰 보도록 이 두 위젯의 "메서드 이름 prop"과 "꼭 있어야 하는 bind"는 여기 둔다.
+ * - `Board`: `move`는 `{ id, column, index }`로, `add`는 `{ column, title }`로 부른다. bind `columns`, `cards`가 필요하다.
+ * - `SortableList`: `move`는 `{ id, index }`로 부른다. bind `items`가 필요하다.
+ * 메서드 prop을 두지 않으면 그 동작이 없는 읽기 전용 위젯이다
+ */
+export const UI_ACTION_WIDGETS: Readonly<
+  Record<
+    string,
+    { readonly methodProps: readonly string[]; readonly requiredBinds: readonly string[] }
+  >
+> = {
+  Board: { methodProps: ["move", "add"], requiredBinds: ["columns", "cards"] },
+  SortableList: { methodProps: ["move"], requiredBinds: ["items"] },
+};
+
+/** 트리가 이름으로 가리킬 수 있는 메서드. 매니페스트 `methods`의 동사와 읽기 전용 여부다 */
+export interface UiMethodRef {
+  readonly verb: string;
+  readonly readOnly: boolean;
+}
+
+/**
+ * 스키마를 통과한 트리에서 `UI_ACTION_WIDGETS` 노드를 찾아 메서드 prop과 bind를 본다. 순수 함수다.
+ * 메서드 prop은 글자여야 하고, 매니페스트 `methods`가 선언한 쓰기 메서드(`readOnly: false`)의 동사여야 한다.
+ * 꼭 있어야 하는 bind가 없으면 그 위젯은 아무것도 그리지 못하므로 이것도 issue다. 코드는 모두 `ui_invalid`다
+ */
+export function checkUiTreeActions(
+  tree: UiNode,
+  methods: readonly UiMethodRef[],
+): readonly UiTreeIssue[] {
+  const byVerb = new Map(methods.map((method) => [method.verb, method]));
+  const issues: UiTreeIssue[] = [];
+  const visit = (node: UiNode, path: string): void => {
+    const spec = Object.hasOwn(UI_ACTION_WIDGETS, node.type)
+      ? UI_ACTION_WIDGETS[node.type]
+      : undefined;
+    if (spec !== undefined) {
+      for (const key of spec.requiredBinds) {
+        if (node.bind !== undefined && Object.hasOwn(node.bind, key)) continue;
+        issues.push({
+          code: "ui_invalid",
+          path: `${path}/bind`,
+          message: `${node.type} needs bind "${key}" (a data path to an array)`,
+        });
+      }
+      for (const key of spec.methodProps) {
+        const value =
+          node.props !== undefined && Object.hasOwn(node.props, key) ? node.props[key] : undefined;
+        if (value === undefined) continue;
+        const at = `${path}/props/${key}`;
+        if (typeof value !== "string") {
+          issues.push({
+            code: "ui_invalid",
+            path: at,
+            message: `${node.type}.${key} must be the verb of a write method (a string)`,
+          });
+          continue;
+        }
+        const method = byVerb.get(value);
+        if (method === undefined) {
+          issues.push({
+            code: "ui_invalid",
+            path: at,
+            message: `${node.type}.${key} names "${value}", but manifest methods does not declare it: add { "verb": "${value}", "readOnly": false, ... } to methods`,
+          });
+        } else if (method.readOnly) {
+          issues.push({
+            code: "ui_invalid",
+            path: at,
+            message: `${node.type}.${key} names "${value}", a read method: name a write method (readOnly: false)`,
+          });
+        }
+      }
+    }
+    for (const [index, child] of (node.children ?? []).entries()) {
+      visit(child, `${path}/children/${index}`);
+    }
+  };
+  visit(tree, "");
+  return issues;
+}
+
 // ── Plugin App 다리 메시지(ADR-0021 §3.4.2) ──────────────────────────────────
 
 export const BRIDGE_VERSION = 1 as const;
