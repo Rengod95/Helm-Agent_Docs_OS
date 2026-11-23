@@ -137,6 +137,20 @@ function NewThreadRow(props: {
   );
 }
 
+const ALWAYS_AVAILABLE = (): boolean => true;
+
+/**
+ * 화면의 `useAvailable`이 거짓이면 내비 줄을 그리지 않는다(플러그인이 꺼진 제안 줄). 훅은 항목마다 이 부품 안에서 부르고,
+ * 훅이 없는 화면은 `ALWAYS_AVAILABLE`을 불러 항목마다 훅 호출 순서가 같다. 읽기 전(unknown)에도 거짓이다
+ */
+function NavAvailable(props: {
+  readonly def: ScreenDef | undefined;
+  readonly children: ReactNode;
+}): ReactNode {
+  const available = (props.def?.useAvailable ?? ALWAYS_AVAILABLE)();
+  return available ? props.children : null;
+}
+
 const shortcutOf = (item: NavItem, keyLabel: (id: ActionId) => string): string | undefined =>
   item.action === undefined ? undefined : keyLabel(item.action);
 
@@ -302,17 +316,19 @@ export function StartPanel(props: StartPanelProps): ReactNode {
         <nav aria-label={navLabel} className="px-1.5 pb-2">
           <ul className="m-0 grid list-none gap-0.5 p-0">
             {items.map((item) => (
-              <li key={item.id}>
-                <RailNavButton
-                  def={props.registry.screen(item.id)}
-                  label={t(item.label)}
-                  shortcut={shortcutOf(item, props.keyLabel)}
-                  active={!props.settingsOpen && item.id === screen}
-                  onSelect={() => {
-                    props.onNavigate(item.id);
-                  }}
-                />
-              </li>
+              <NavAvailable key={item.id} def={props.registry.screen(item.id)}>
+                <li>
+                  <RailNavButton
+                    def={props.registry.screen(item.id)}
+                    label={t(item.label)}
+                    shortcut={shortcutOf(item, props.keyLabel)}
+                    active={!props.settingsOpen && item.id === screen}
+                    onSelect={() => {
+                      props.onNavigate(item.id);
+                    }}
+                  />
+                </li>
+              </NavAvailable>
             ))}
           </ul>
         </nav>
@@ -321,15 +337,16 @@ export function StartPanel(props: StartPanelProps): ReactNode {
           <ListNavigation aria-label={navLabel} kind="navigation" size="xs">
             <ListNavigationGroup>
               {items.map((item) => (
-                <NavRow
-                  key={item.id}
-                  def={props.registry.screen(item.id)}
-                  label={t(item.label)}
-                  active={!props.settingsOpen && item.id === screen}
-                  onSelect={() => {
-                    props.onNavigate(item.id);
-                  }}
-                />
+                <NavAvailable key={item.id} def={props.registry.screen(item.id)}>
+                  <NavRow
+                    def={props.registry.screen(item.id)}
+                    label={t(item.label)}
+                    active={!props.settingsOpen && item.id === screen}
+                    onSelect={() => {
+                      props.onNavigate(item.id);
+                    }}
+                  />
+                </NavAvailable>
               ))}
             </ListNavigationGroup>
           </ListNavigation>

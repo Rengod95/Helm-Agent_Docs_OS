@@ -284,17 +284,24 @@ const AREA_LABEL: Readonly<Record<Area, MessageId>> = {
   workbench: "desktop.shell.area.workbench",
 };
 
-/** 화면 이동 행. 현재 영역의 내비 항목이 먼저 오고, 다른 영역의 항목이 뒤에 온다 */
-export function screenTargetsOf(current: Area): readonly ScreenTarget[] {
+/**
+ * 화면 이동 행. 현재 영역의 내비 항목이 먼저 오고, 다른 영역의 항목이 뒤에 온다. `shown`이 거짓인 화면(꺼진 제안)은 빠진다
+ */
+export function screenTargetsOf(
+  current: Area,
+  shown: (screen: string) => boolean = () => true,
+): readonly ScreenTarget[] {
   const other: Area = current === "chat" ? "workbench" : "chat";
   return [current, other].flatMap((area) =>
-    NAV_BY_AREA[area].map((item) => ({
-      area,
-      screen: item.id,
-      label: item.label,
-      areaLabel: AREA_LABEL[area],
-      action: item.action,
-    })),
+    NAV_BY_AREA[area]
+      .filter((item) => shown(item.id))
+      .map((item) => ({
+        area,
+        screen: item.id,
+        label: item.label,
+        areaLabel: AREA_LABEL[area],
+        action: item.action,
+      })),
   );
 }
 

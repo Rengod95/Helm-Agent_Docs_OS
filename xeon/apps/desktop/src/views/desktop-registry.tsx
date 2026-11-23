@@ -41,7 +41,8 @@ import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { useFailedScheduleCount } from "./pages/schedules/schedule-badge.ts";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
-import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
+import { ProposalsGate } from "./proposal-gate.tsx";
+import { useSuggestState } from "./proposal-suggest.ts";
 import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { TasksSummary, TasksTab } from "./panels/tasks/tasks-tab.tsx";
 import { RunningSummary, RunningTab } from "./panels/running/running-tab.tsx";
@@ -266,7 +267,8 @@ function ProposalsMark(): ReactNode {
   );
 }
 
-// 내비 배지는 대기 제안 수다(0이면 안 보인다). 수는 `ProposalPendingProvider`가 읽는다(SC-06 1단계)
+// 내비 배지는 대기 제안 수다(0이면 안 보인다). 수는 `ProposalPendingProvider`가 읽는다(SC-06 1단계).
+// 내비 줄과 화면은 `suggest` 플러그인이 켜져 있을 때만 있다(`proposal-suggest.ts`). 꺼지면 줄이 사라지고 화면은 대화로 돌아간다
 const PROPOSALS_SCREEN: ScreenDef = {
   id: "proposals",
   area: "chat",
@@ -274,7 +276,8 @@ const PROPOSALS_SCREEN: ScreenDef = {
   icon: <Lightbulb />,
   Mark: ProposalsMark,
   Badge: (p) => p.render(useProposalPending().count),
-  render: () => <ProposalsScreen />,
+  useAvailable: () => useSuggestState() === "on",
+  render: () => <ProposalsGate />,
 };
 
 const CONNECTION_SCREEN: ScreenDef = {

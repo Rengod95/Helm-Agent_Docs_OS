@@ -53,6 +53,7 @@ import {
   skillFailureIdOf,
   skillScopeIdOf,
   sourceFilterIdOf,
+  bannerSourcesOf,
   statusFilterIdOf,
   unavailableTextIdOf,
 } from "./proposals-text.ts";
@@ -192,7 +193,7 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
         </Alert>
       )}
       {state.list.status === "ready"
-        ? state.list.unavailable.map((source) => (
+        ? bannerSourcesOf(state.list.unavailable).map((source) => (
             <Alert key={source} tone="warning">
               {t(unavailableTextIdOf(source))}
             </Alert>

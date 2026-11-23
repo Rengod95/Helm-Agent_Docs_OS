@@ -10,12 +10,17 @@ import {
   type Context,
   type ReactNode,
 } from "react";
-import { useLinkPhase } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
-import { readPendingCount, watchPendingCount } from "./proposal-pending.ts";
+import {
+  pendingCountShownOf,
+  pendingReadsOf,
+  readPendingCount,
+  watchPendingCount,
+} from "./proposal-pending.ts";
+import { useSuggestState } from "./proposal-suggest.ts";
 
 // 대기 제안 수를 한 곳에서만 읽는다(사이드바 배지와 받은 요청 제안 줄이 같은 값을 쓴다). `Providers`가 감싼다.
-// 연결이 살아 있을 때만 다시 읽고, 끊기면 마지막 수를 둔다. 문맥이 없으면 0이고 `refresh`는 아무 일도 하지 않는다.
+// 제안 플러그인이 켜져 있을 때만 다시 읽고(꺼졌으면 호스트를 부르지 않고 0), 끊기면 마지막 수를 둔다. 문맥이 없으면 0이고 `refresh`는 아무 일도 하지 않는다.
 
 export interface ProposalPending {
   /** 대기 제안 수. 목록을 못 읽으면 0이다 */
@@ -39,13 +44,14 @@ export function ProposalPendingProvider(props: {
   readonly floor?: number;
 }): ReactNode {
   const commands = useCommands();
-  const live = useLinkPhase() === "live";
+  const suggest = useSuggestState();
+  const reads = pendingReadsOf(suggest);
   const [count, setCount] = useState(0);
   // 늦게 온 읽기가 새 읽기의 값을 덮지 않도록 읽기마다 번호를 매긴다
   const latest = useRef(0);
 
   const read = useCallback((): void => {
-    if (!live) return;
+    if (!reads) return;
     latest.current += 1;
     const seq = latest.current;
     const run = async (): Promise<void> => {
@@ -55,11 +61,11 @@ export function ProposalPendingProvider(props: {
       if (seq === latest.current) setCount(next);
     };
     detach(run(), rethrow);
-  }, [commands, live]);
+  }, [commands, reads]);
 
-  // 한 주기 호출(setInterval)만 세우고 언마운트나 연결이 끊기면 모두 끊는다
+  // 한 주기 호출(setInterval)만 세우고 언마운트, 연결이 끊기거나 제안 플러그인이 꺼지면 모두 끊는다
   useEffect(() => {
-    if (!live) return undefined;
+    if (!reads) return undefined;
     return watchPendingCount({
       read,
       every: (ms, listener) => {
@@ -79,12 +85,10 @@ export function ProposalPendingProvider(props: {
           listener(delivered.notice.kind);
         }),
     });
-  }, [commands, live, read]);
+  }, [commands, reads, read]);
 
   const floor = props.floor ?? 0;
-  const value = useMemo<ProposalPending>(
-    () => ({ count: Math.max(count, floor), refresh: read }),
-    [count, floor, read],
-  );
+  const shown = pendingCountShownOf(suggest, count, floor);
+  const value = useMemo<ProposalPending>(() => ({ count: shown, refresh: read }), [shown, read]);
   return <ProposalPendingContext value={value}>{props.children}</ProposalPendingContext>;
 }
