@@ -5,6 +5,7 @@ import { INTERNAL_PLUGIN_LAYERS, type InternalPluginLayer } from "./internal-plu
 import { DependencyKindSchema, type DependencyKind } from "./manifest.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { SCRIPT_LIMITS, type ScriptUse } from "./plugin-script.ts";
+import { BRIDGE_CAPABILITIES, UiModeSchema, type BridgeCapability, type UiMode } from "./ui.ts";
 
 // F.extensions.spec §3.1.3 플러그인 카드 [M5c-1]. 정본: docs/xeon/review/m5/profile-project-loader.md §3.1.
 // 카드는 플러그인마다 같은 자리에 보이는 공통 스키마 값이다. 모든 값은 폴더와 매니페스트에서 정적으로 얻는다.
@@ -181,14 +182,35 @@ const SkillEntryShape = Type.Object(
 );
 
 /**
+ * 자체 코드(app) 화면의 선언. 매니페스트 `app.reason`(왜 기본 UI로 부족한지)과 `app.capabilities`(다리 권한)를 그대로 싣는다.
+ * 리뷰 카드가 이 값을 보여 준다(ADR-0021 §3.4.3)
+ */
+export interface PluginUiAppDecl {
+  readonly reason: string;
+  readonly capabilities: readonly BridgeCapability[];
+}
+const PluginUiAppDeclShape = Type.Object(
+  {
+    reason: Type.String({ maxLength: 256 }),
+    capabilities: Type.Array(Type.Union(BRIDGE_CAPABILITIES.map((name) => Type.Literal(name))), {
+      maxItems: BRIDGE_CAPABILITIES.length,
+    }),
+  },
+  { additionalProperties: false },
+);
+
+/**
  * 카드가 보는 화면 선언 하나. [이름 변경] `ui.ts`의 `UiDecl`(매니페스트 `ui` 블록)과 이름이 겹쳐 `PluginUiDecl`로 쓴다.
- * 저장 문자열이 아니라 읽기 전용 계산값이다
+ * 저장 문자열이 아니라 읽기 전용 계산값이다. `mode`와 `app`은 선택 필드라 옛 카드(둘 다 없음)도 파싱된다.
+ * `mode`는 그리는 방식(매니페스트 생략은 native, 명령 항목은 화면이 없어 없다)이고, `app`은 mode가 app인 화면에만 있다
  */
 export interface PluginUiDecl {
   readonly id: string;
   readonly placement: string;
   readonly readsState: string | null;
   readonly modelVisible: UiModelVisibility;
+  readonly mode?: UiMode;
+  readonly app?: PluginUiAppDecl;
 }
 const PluginUiDeclShape = Type.Object(
   {
@@ -196,6 +218,8 @@ const PluginUiDeclShape = Type.Object(
     placement: Id,
     readsState: Type.Union([Id, Type.Null()]),
     modelVisible: UiModelVisibilityShape,
+    mode: Type.Optional(UiModeSchema),
+    app: Type.Optional(PluginUiAppDeclShape),
   },
   { additionalProperties: false },
 );

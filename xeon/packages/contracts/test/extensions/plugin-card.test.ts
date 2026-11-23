@@ -150,6 +150,31 @@ describe("plugin card schema (M5c-1)", () => {
     ).toBe(false);
   });
 
+  test("a UI declaration may carry its drawing mode and an own-code app's reason and capabilities; a card without them still parses", () => {
+    roundTrip(PluginUiDeclSchema, {
+      id: "graph",
+      placement: "panel",
+      readsState: null,
+      modelVisible: "none",
+      mode: "app",
+      app: { reason: "Needs a canvas", capabilities: ["files", "secrets"] },
+    });
+    roundTrip(PluginUiDeclSchema, {
+      id: "main",
+      placement: "page",
+      readsState: null,
+      modelVisible: "none",
+    });
+    const base = { id: "graph", placement: "panel", readsState: null, modelVisible: "none" };
+    expect(parse(PluginUiDeclSchema, { ...base, mode: "web" }).ok).toBe(false);
+    expect(
+      parse(PluginUiDeclSchema, { ...base, app: { reason: "r", capabilities: ["shell"] } }).ok,
+    ).toBe(false);
+    expect(
+      parse(PluginUiDeclSchema, { ...base, app: { reason: "r", capabilities: [], extra: 1 } }).ok,
+    ).toBe(false);
+  });
+
   test("a setting definition keeps an unknown default value", () => {
     for (const value of ["text", 3, null, { nested: true }]) {
       roundTrip(PluginSettingDefSchema, {
