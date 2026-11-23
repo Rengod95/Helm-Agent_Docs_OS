@@ -109,3 +109,16 @@ const NAMES: Readonly<Record<string, Parameters<typeof t>[0]>> = {
   authoring_submit: "desktop.item.authoring.name.submit",
   authoring_stop: "desktop.item.authoring.name.stop",
 };
+
+/**
+ * 시험 실행(`authoring_trial`)이 열린 테스트 대화의 id. 확인을 거쳐 시험이 열렸을 때만 결과(`status: "done"`)에 `result.threadId`가 있다.
+ * 다른 도구, 확인을 기다리는 결과, 실패한 결과, 글이 JSON이 아니면 null이다
+ */
+export function trialThreadOf(toolName: string, output: string | undefined): string | null {
+  if (toolName !== "authoring_trial" || output === undefined) return null;
+  const parsed = parseJson(output);
+  const result = parsed.ok ? recordOf(parsed.value) : null;
+  if (result === null || result["ok"] !== true || result["status"] !== "done") return null;
+  const threadId = recordOf(result["result"])?.["threadId"];
+  return typeof threadId === "string" && threadId !== "" ? threadId : null;
+}

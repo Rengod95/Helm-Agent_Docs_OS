@@ -194,7 +194,7 @@ describe("risksOf", () => {
     ).toEqual([
       { kind: "toolHooks", hooks: ["tool.call.before"] },
       { kind: "requestHooks", hooks: ["request.system.before", "guard.output.before"] },
-      { kind: "methods", methods: [write, read], writes: 1 },
+      { kind: "methods", methods: [write], writes: 1 },
       { kind: "capability", capability: "files" },
       { kind: "otherHooks", count: 1 },
     ]);
@@ -203,6 +203,15 @@ describe("risksOf", () => {
       { kind: "methods", methods: [read], writes: 0 },
     ]);
     expect(risksOf(undefined, undefined, [])).toEqual([]);
+  });
+
+  test("the count of write methods and the listed methods come from the same list", () => {
+    const list = { verb: "list", readOnly: true, approval: false };
+    const add = { verb: "add", readOnly: false, approval: false };
+    const remove = { verb: "remove", readOnly: false, approval: false };
+    expect(risksOf(undefined, [list, add, remove], [])).toEqual([
+      { kind: "methods", methods: [add, remove], writes: 2 },
+    ]);
   });
 });
 

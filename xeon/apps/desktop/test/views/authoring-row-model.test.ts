@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { authoringRowOf } from "../../src/views/authoring-row-model.ts";
+import { authoringRowOf, trialThreadOf } from "../../src/views/authoring-row-model.ts";
 
 // 제작 대화 도구 행: 내부 이름과 JSON 대신 단계 이름과 결과에서 읽은 숫자·상태를 보인다.
 
@@ -49,5 +49,28 @@ describe("authoringRowOf", () => {
         JSON.stringify({ ok: true, status: "awaiting_confirmation" }),
       ),
     ).toEqual({ name: "묶기", detail: "확인을 기다리는 중" });
+  });
+});
+
+describe("trialThreadOf", () => {
+  const done = JSON.stringify({
+    ok: true,
+    status: "done",
+    action: "trial",
+    result: { threadId: "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ" },
+  });
+  test("returns the trial thread of a confirmed Test run", () => {
+    expect(trialThreadOf("authoring_trial", done)).toBe("thr_01HZZZZZZZZZZZZZZZZZZZZZZZ");
+  });
+  test("returns null while the confirmation card waits, for other tools, and for odd text", () => {
+    expect(
+      trialThreadOf(
+        "authoring_trial",
+        JSON.stringify({ ok: true, status: "awaiting_confirmation", action: "trial" }),
+      ),
+    ).toBeNull();
+    expect(trialThreadOf("authoring_package", done)).toBeNull();
+    expect(trialThreadOf("authoring_trial", "not json")).toBeNull();
+    expect(trialThreadOf("authoring_trial", undefined)).toBeNull();
   });
 });

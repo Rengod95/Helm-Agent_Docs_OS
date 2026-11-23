@@ -452,7 +452,10 @@ export function risksOf(
   if (request.length > 0) risks.push({ kind: "requestHooks", hooks: request });
   const list = methods ?? [];
   const writes = list.filter((method) => !method.readOnly).length;
-  if (writes > 0) risks.push({ kind: "methods", methods: list, writes });
+  // 바꾸는 메서드가 있으면 수(`writes`)와 나열이 같은 목록에서 나온다: 읽기 메서드는 나열하지 않는다(W-07)
+  if (writes > 0) {
+    risks.push({ kind: "methods", methods: list.filter((method) => !method.readOnly), writes });
+  }
   for (const capability of capabilities) risks.push({ kind: "capability", capability });
   if (other > 0) risks.push({ kind: "otherHooks", count: other });
   if (list.length > 0 && writes === 0) risks.push({ kind: "methods", methods: list, writes: 0 });
