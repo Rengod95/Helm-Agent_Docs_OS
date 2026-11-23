@@ -58,11 +58,12 @@ export interface OpenView {
 /**
  * 처음 보는 시점: 루프 전체(레일 양 끝과 판들)가 들어가는 배율로 연다. 그 배율이 OPEN_ZOOM_MIN보다 작으면(좁은 화면)
  * OPEN_ZOOM_MIN으로 열고 루프가 시작하는 왼쪽 끝을 화면 왼쪽에 붙인다(나머지는 옆으로 옮겨 본다).
+ * `given`이 있으면 그 배율로 자리만 잡는다(캔버스가 배율 칸에 맞춰 배치를 다시 잰 뒤 고른 배율, cvZoom).
  * 세로는 들어가면 남는 자리의 위 ⅓에, 넘치면 위 끝을 붙인다. `avail`은 여백을 뺀 화면 상자(화면 픽셀)
  */
-export function openViewOf(bounds: Box, avail: Box): OpenView {
+export function openViewOf(bounds: Box, avail: Box, given?: number): OpenView {
   const fit = Math.min(avail.w / bounds.w, avail.h / bounds.h);
-  const zoom = Math.min(OPEN_ZOOM_MAX, Math.max(OPEN_ZOOM_MIN, fit));
+  const zoom = given ?? Math.min(OPEN_ZOOM_MAX, Math.max(OPEN_ZOOM_MIN, fit));
   const w = bounds.w * zoom;
   const h = bounds.h * zoom;
   const overflowRight = w > avail.w + 1;

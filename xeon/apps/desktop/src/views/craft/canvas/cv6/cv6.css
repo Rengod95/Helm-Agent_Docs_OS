@@ -665,13 +665,16 @@
     box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 40%, transparent);
   }
 
-  /* 카드 몸(가까이): 사방 12. 칸 사이는 참고 그림대로 12, 11, 11, 12. 낮은 배율에서는 여백 화면 8 */
+  /* 카드 몸(가까이): 사방 12. 칸 사이는 참고 그림대로 12, 11, 11, 12. 낮은 배율에서는 여백 화면 8.
+     배율 칸이 바뀌어 판 높이가 옮겨 가는 동안(180ms) 새 단계의 내용이 카드 밖으로 비어져 나오지 않게 카드 모양으로 자른다(cvZoom) */
   .cv6-plate-body {
     position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
     padding: var(--cv6-pad);
+    border-radius: inherit;
+    overflow: hidden;
     pointer-events: none;
   }
 

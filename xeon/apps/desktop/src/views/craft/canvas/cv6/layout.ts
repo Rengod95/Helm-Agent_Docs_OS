@@ -23,6 +23,7 @@ import {
 import { t } from "@fresnel/client/i18n";
 import { descriptionTextOf, purposeTextOf } from "../shared-meta.ts";
 import { descriptionOf } from "./sample-ext.ts";
+import { NEAR_METRICS, type StepMetrics } from "./lod.ts";
 
 /**
  * 판 한 장: 네 종류가 같은 크기다. 참고 그림의 카드(317 × 308, 안쪽 글 다섯 줄)를 실제 px로 옮긴 값이고, 안쪽 글을 네 줄까지 둔다.
@@ -31,14 +32,14 @@ import { descriptionOf } from "./sample-ext.ts";
  * 책갈피(탭)는 이 상자 바깥, 윗변 위에 솟는다
  */
 const PLATE_W = 316;
-export const PLATE_H = 289;
+export const PLATE_H: number = NEAR_METRICS.full;
 
 /**
  * 적은 판: 목적도 설명도 없는 플러그인(필수가 되기 전에 설치된 것). 목적 줄을 그리지 않고 안쪽 면에는 붙는 자리 꼬리표와
  * "설명이 없어요" 경고 한 줄(구슬)만 둔다 [결정: 2026-11-23 사용자, AGE-31].
  * 가까이에서 12 + 머리 20 + 10 + 안쪽 면(8 + 꼬리표 18 + 5 + 경고 20 + 8) 59 + 11 + 알약 24 + 12 + 푸터 16 + 12 = 196
  */
-export const PLATE_LEAN_H = 196;
+export const PLATE_LEAN_H: number = NEAR_METRICS.lean;
 
 /** 목적이 비었나. 표본은 목적이 카탈로그 키라 늘 있다 */
 export function purposeMissing(p: Plugin): boolean {
@@ -53,15 +54,21 @@ export function cardDescription(p: Plugin): string | null {
   return sample === null ? null : t(sample);
 }
 
-/** 판 높이: 목적도 설명도 없으면 적은 판, 아니면 PLATE_H. 묶음(받침판, 더미) 안의 판은 줄을 맞추려고 늘 PLATE_H다 */
-export function plateHeightOf(p: Plugin): number {
-  return purposeMissing(p) && cardDescription(p) === null ? PLATE_LEAN_H : PLATE_H;
+/**
+ * 판 높이: 배치 눈금 칸(`lod.ts`의 metricsOf)이 정한다. 가까이에서는 목적도 설명도 없으면 적은 판, 아니면 PLATE_H.
+ * 중간에서는 목적이 없으면 목적 줄만큼, 설명이 없으면 안쪽 면 두 줄만큼 준다. 멀리는 모두 같다.
+ * 묶음(받침판) 안의 판은 줄을 맞추려고 늘 그 칸의 온전한 높이다
+ */
+export function plateHeightOf(p: Plugin, m: StepMetrics = NEAR_METRICS): number {
+  const noPurpose = purposeMissing(p);
+  const noDescription = cardDescription(p) === null;
+  if (noPurpose && noDescription) return m.lean;
+  return m.full - (noPurpose ? m.noPurpose : 0) - (noDescription ? m.noDescription : 0);
 }
 /** 탭이 카드 윗변 위로 솟는 높이의 상한(멀리 단계). 판 위에 늘 이만큼 비워 둔다 */
 export const TAB_ROOM = 36;
-/** 더미 안 판 사이: 위 판의 순서 번호와 아래 판의 탭이 함께 들어갈 만큼 */
-const STACK_GAP = TAB_ROOM + 16;
-const COL_GAP = 24;
+// 더미 안 판 사이(위 판의 순서 번호와 아래 판의 탭이 함께 들어갈 만큼)와 옆 더미 사이는 배치 눈금 칸(`StepMetrics`)의
+// stackGap, colGap이다: 화면에서 세로 32, 가로 24로 고르다(100%에서 52, 24)
 /** 한 더미의 판 수: 붙은 수의 제곱근쯤(둘 이상). 넘치면 옆에 새 더미를 세운다. 낮고 넓게 두어 맞춤 보기가 읽을 만한 배율이 되게 */
 function wrapOf(count: number): number {
   return Math.max(2, Math.ceil(Math.sqrt(count * 0.8)));
@@ -231,11 +238,11 @@ function bundleLane(members: readonly Placed[]): Lane {
   return feed * 2 > members.length ? "feed" : "hook";
 }
 
-/** 받침판: 구성원 판이 매니페스트 순서대로 왼쪽에서 오른쪽으로 나란히 선다 */
-function pedestalSize(count: number): { w: number; h: number } {
+/** 받침판: 구성원 판이 매니페스트 순서대로 왼쪽에서 오른쪽으로 나란히 선다. 높이는 그 칸의 온전한 판을 따른다 */
+function pedestalSize(count: number, m: StepMetrics): { w: number; h: number } {
   return {
-    w: PED_PAD * 2 + count * PLATE_W + (count - 1) * COL_GAP,
-    h: PED_HEAD + PLATE_H + PED_PAD,
+    w: PED_PAD * 2 + count * PLATE_W + (count - 1) * m.colGap,
+    h: PED_HEAD + m.full + PED_PAD,
   };
 }
 
@@ -248,10 +255,16 @@ type Item =
   | { readonly type: "plate"; readonly placed: Placed }
   | { readonly type: "bundle"; readonly id: string; readonly members: readonly Placed[] };
 
-function itemSize(item: Item, collapsed: ReadonlySet<string>): { w: number; h: number } {
-  if (item.type === "plate") return { w: PLATE_W, h: plateHeightOf(item.placed.plugin) };
-  if (collapsed.has(item.id)) return { w: PILE_W, h: PILE_H };
-  return pedestalSize(item.members.length);
+/** 한 배치의 공통 값: 접힌 묶음과 배치 눈금 칸 */
+interface Sizing {
+  readonly collapsed: ReadonlySet<string>;
+  readonly m: StepMetrics;
+}
+
+function itemSize(item: Item, z: Sizing): { w: number; h: number } {
+  if (item.type === "plate") return { w: PLATE_W, h: plateHeightOf(item.placed.plugin, z.m) };
+  if (z.collapsed.has(item.id)) return { w: PILE_W, h: PILE_H };
+  return pedestalSize(item.members.length, z.m);
 }
 
 /** 더미(세로로 쌓인 것)들. 한 더미에 wrapOf(판 수)까지, 넘치면 옆 더미로 */
@@ -272,23 +285,31 @@ function columnsOf(items: readonly Item[]): Item[][] {
   return cols;
 }
 
-function colWidth(col: readonly Item[], collapsed: ReadonlySet<string>): number {
-  return Math.max(...col.map((it) => itemSize(it, collapsed).w));
+function colWidth(col: readonly Item[], z: Sizing): number {
+  return Math.max(...col.map((it) => itemSize(it, z).w));
 }
 
-function colHeight(col: readonly Item[], collapsed: ReadonlySet<string>): number {
-  return col.reduce((s, it, i) => s + itemSize(it, collapsed).h + (i > 0 ? STACK_GAP : 0), 0);
+function colHeight(col: readonly Item[], z: Sizing): number {
+  return col.reduce((s, it, i) => s + itemSize(it, z).h + (i > 0 ? z.m.stackGap : 0), 0);
 }
 
-function widthOf(cols: readonly (readonly Item[])[], collapsed: ReadonlySet<string>): number {
+function widthOf(cols: readonly (readonly Item[])[], z: Sizing): number {
   if (cols.length === 0) return 0;
-  return cols.reduce((s, c, i) => s + colWidth(c, collapsed) + (i > 0 ? COL_GAP : 0), 0);
+  return cols.reduce((s, c, i) => s + colWidth(c, z) + (i > 0 ? z.m.colGap : 0), 0);
 }
 
+/**
+ * 프로필의 배치. `metrics`는 배치 눈금 칸의 판 높이와 판 사이다(기본은 가까이). 캔버스는 배율이 칸을 넘을 때 이것을 바꾸고,
+ * 두 칸 사이를 옮겨 가는 동안에는 `mixMetrics`로 섞은 값을 넘긴다(배치가 값에 이어져 있어 판과 선이 부드럽게 움직인다)
+ */
 export function layoutProfile(
   profile: CanvasProfile,
   collapsed: ReadonlySet<string>,
+  metrics: StepMetrics = NEAR_METRICS,
 ): ProfileLayout {
+  const z: Sizing = { collapsed, m: metrics };
+  const colGap = metrics.colGap;
+  const stackGap = metrics.stackGap;
   const placed = placedOf(profile);
   const membersOf = (id: string): Placed[] =>
     placed.filter((p) => p.source.type === "bundle" && p.source.id === id);
@@ -351,14 +372,14 @@ export function layoutProfile(
     // 스타트 Drive의 선이 입력 받기로 곧게 내려가는 자리를 재료 줄에 비워 둔다
     if (s.type === "boundary" && s.id === "input-received" && profile.startDrive !== null)
       passWidth = 28;
-    const aw = Math.max(widthOf(aCols, collapsed), passWidth);
-    const bw = widthOf(bCols, collapsed);
+    const aw = Math.max(widthOf(aCols, z), passWidth);
+    const bw = widthOf(bCols, z);
     const prev = STOPS[i - 1];
     let x = prev === undefined ? 0 : prevX + minStep(prev, s);
     if (aw > 0) x = Math.max(x, aboveRight + aw / 2);
     if (bw > 0) x = Math.max(x, belowRight + bw / 2);
-    if (aw > 0) aboveRight = x + aw / 2 + COL_GAP;
-    if (bw > 0) belowRight = x + bw / 2 + COL_GAP;
+    if (aw > 0) aboveRight = x + aw / 2 + colGap;
+    if (bw > 0) belowRight = x + bw / 2 + colGap;
     stopX.push(x);
     prevX = x;
     for (const a of anchors) {
@@ -411,7 +432,7 @@ export function layoutProfile(
     lane: Lane,
     stackIndex: number,
   ): { w: number; h: number } => {
-    const size = itemSize(it, collapsed);
+    const size = itemSize(it, z);
     const plateOf = (
       m: Placed,
       px: number,
@@ -422,7 +443,7 @@ export function layoutProfile(
       x: px,
       y: py,
       w: PLATE_W,
-      h: inBundle === null ? plateHeightOf(m.plugin) : PLATE_H,
+      h: inBundle === null ? plateHeightOf(m.plugin, metrics) : metrics.full,
       placed: m,
       stackIndex: k,
       lane,
@@ -448,7 +469,7 @@ export function layoutProfile(
     });
     if (!isCollapsed) {
       it.members.forEach((m, k) => {
-        plates.push(plateOf(m, x + PED_PAD + k * (PLATE_W + COL_GAP), y + PED_HEAD, k, it.id));
+        plates.push(plateOf(m, x + PED_PAD + k * (PLATE_W + colGap), y + PED_HEAD, k, it.id));
       });
     }
     return size;
@@ -542,45 +563,45 @@ export function layoutProfile(
   for (const [a, cols] of aboveCols) {
     if (cols.length === 0) continue;
     const cx = anchorX.get(a) ?? 0;
-    let x = cx - widthOf(cols, collapsed) / 2;
+    let x = cx - widthOf(cols, z) / 2;
     const plateCols: { cx: number; plates: PlateGeo[] }[] = [];
     for (const col of cols) {
-      const cw = colWidth(col, collapsed);
-      const ch = colHeight(col, collapsed);
+      const cw = colWidth(col, z);
+      const ch = colHeight(col, z);
       // 재료 줄은 레일에서 위로 쌓는다: 첫 판(호출 순서 1)이 레일에 가깝다
       let y = feedBottom;
       feedTop = Math.min(feedTop, feedBottom - ch);
       const mine: PlateGeo[] = [];
       col.forEach((it, k) => {
-        const size = itemSize(it, collapsed);
+        const size = itemSize(it, z);
         y -= size.h;
         placeItem(it, x + (cw - size.w) / 2, y, "feed", k);
         const last = plates[plates.length - 1];
         if (it.type === "plate" && last !== undefined) mine.push(last);
-        y -= STACK_GAP;
+        y -= stackGap;
       });
       if (mine.length > 0) plateCols.push({ cx: x + cw / 2, plates: mine });
-      x += cw + COL_GAP;
+      x += cw + colGap;
     }
     wireColumns(a, plateCols, "top");
   }
   for (const [a, cols] of belowCols) {
     if (cols.length === 0) continue;
     const cx = anchorX.get(a) ?? 0;
-    let x = cx - widthOf(cols, collapsed) / 2;
+    let x = cx - widthOf(cols, z) / 2;
     const plateCols: { cx: number; plates: PlateGeo[] }[] = [];
     for (const col of cols) {
-      const cw = colWidth(col, collapsed);
+      const cw = colWidth(col, z);
       let y = hookTop;
       const mine: PlateGeo[] = [];
       col.forEach((it, k) => {
-        const size = placeItem(it, x + (cw - itemSize(it, collapsed).w) / 2, y, "hook", k);
+        const size = placeItem(it, x + (cw - itemSize(it, z).w) / 2, y, "hook", k);
         const last = plates[plates.length - 1];
         if (it.type === "plate" && last !== undefined) mine.push(last);
-        y += size.h + STACK_GAP;
+        y += size.h + stackGap;
       });
       if (mine.length > 0) plateCols.push({ cx: x + cw / 2, plates: mine });
-      x += cw + COL_GAP;
+      x += cw + colGap;
     }
     wireColumns(a, plateCols, "bottom");
   }
@@ -611,7 +632,7 @@ export function layoutProfile(
   let rowBottom = driveBottom;
   let rowHeight = 0;
   for (const it of ordered) {
-    const size = itemSize(it, collapsed);
+    const size = itemSize(it, z);
     let x = cursor;
     if (it.type === "bundle") {
       const xs = it.members.flatMap((m) =>
@@ -1025,4 +1046,55 @@ function route(
     lx: (sx + tx) / 2,
     ly: my - 8,
   };
+}
+
+// ── 배율 칸이 바뀔 때 제자리에 남기기(cvZoom, AGE-31) ─────────────────
+
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * 판 높이가 바뀌는 동안 화면에 붙들어 둘 자리: 포인터(또는 화면 가운데)에서 가장 가까운 판과, 그 판에 대한 점의 자리.
+ * 가로는 판 왼쪽 변에서의 거리(너비는 바뀌지 않는다). 세로는 판 안이면 높이에 대한 비율, 위나 아래면 가까운 변에서의 거리다
+ */
+export interface Hold {
+  readonly name: string;
+  readonly dx: number;
+  readonly y:
+    | { readonly at: "in"; readonly f: number }
+    | { readonly at: "top" | "bottom"; readonly d: number };
+}
+
+/** 점(배치 좌표)에서 가장 가까운 판으로 붙들 자리를 만든다. 판이 없으면 null */
+export function holdAt(layout: ProfileLayout, p: Point): Hold | null {
+  let best: PlateGeo | null = null;
+  let bestD = Number.POSITIVE_INFINITY;
+  for (const r of layout.plates) {
+    const ox = Math.max(r.x - p.x, 0, p.x - (r.x + r.w));
+    const oy = Math.max(r.y - p.y, 0, p.y - (r.y + r.h));
+    const d = Math.hypot(ox, oy);
+    if (d < bestD) {
+      bestD = d;
+      best = r;
+    }
+  }
+  if (best === null) return null;
+  const dx = p.x - best.x;
+  if (p.y < best.y) return { name: best.placed.plugin.name, dx, y: { at: "top", d: p.y - best.y } };
+  if (p.y > best.y + best.h)
+    return { name: best.placed.plugin.name, dx, y: { at: "bottom", d: p.y - (best.y + best.h) } };
+  const f = best.h > 0 ? (p.y - best.y) / best.h : 0;
+  return { name: best.placed.plugin.name, dx, y: { at: "in", f } };
+}
+
+/** 붙든 자리가 이 배치에서 어디인가. 그 판이 없으면 null */
+export function holdPoint(layout: ProfileLayout, h: Hold): Point | null {
+  const r = layout.plates.find((p) => p.placed.plugin.name === h.name);
+  if (r === undefined) return null;
+  const x = r.x + h.dx;
+  const at = h.y;
+  if (at.at === "in") return { x, y: r.y + at.f * r.h };
+  return { x, y: (at.at === "top" ? r.y : r.y + r.h) + at.d };
 }

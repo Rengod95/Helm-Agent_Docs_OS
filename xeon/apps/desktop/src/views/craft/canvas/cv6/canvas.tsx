@@ -31,9 +31,10 @@ import { ProgressOrb } from "../../../effects/progress-orb.tsx";
 import { InfoTip } from "../../info-tip.tsx";
 import { useCraftTheme } from "../../craft-theme.ts";
 import { Icon, KIND_COLOR, KindTile } from "./glyphs.tsx";
-import { RAIL_HALF, layoutProfile, type ProfileLayout, type Rect } from "./layout.ts";
+import { RAIL_HALF, type ProfileLayout, type Point, type Rect } from "./layout.ts";
 import { dotGrid, dotShift, GLOW_REACH, HIDE_ATTRIBUTION, openViewOf } from "./floor.ts";
-import { zoomInverse } from "./lod.ts";
+import { stepOf, zoomInverse } from "./lod.ts";
+import { useStepLayout } from "./step-view.ts";
 import {
   addPlugin,
   bundleIdOfMember,
@@ -59,6 +60,7 @@ import {
 } from "./model.ts";
 import {
   CanvasActionsContext,
+  LodContext,
   NODE_TYPES,
   type CanvasActions,
   type CanvasNode,
@@ -128,7 +130,10 @@ function pointOrderOf(hooks: readonly PointHook[], profile: CanvasProfile): Poin
 /** 이보다 좁은 창에서는 사이드 패널을 타일 막대로 접은 채 연다 */
 const WIDE_ENOUGH = 1280;
 /** 맞춤 보기 여백(화면 픽셀). 위는 프로필 머리, 아래는 도구 막대, 오른쪽은 앱의 세로 도구 자리 */
-const FIT_PAD = { top: "72px", left: "28px", right: "60px", bottom: "64px" } as const;
+const FIT_PAD = { top: 72, left: 28, right: 60, bottom: 64 } as const;
+/** 확대의 범위 */
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 1.8;
 /** 처음 시점의 여백(화면 픽셀): 위는 프로필 머리(40) 아래 24, 오른쪽은 앱의 세로 도구 자리 */
 const OPEN_PAD = { top: 76, left: 32, right: 64, bottom: 72 } as const;
 const REL_KINDS: readonly RelationKind[] = ["handoff", "depends", "reads", "creates", "replaces"];
@@ -210,6 +215,11 @@ function anchorPoint(layout: ProfileLayout, a: Anchor): { x: number; y: number }
   return { x: spot.x, y: laneOf(a) === "feed" ? -RAIL_HALF : RAIL_HALF };
 }
 
+/** 배치 좌표를 화면 좌표(React Flow 좌표)로 민다(`step-view.ts`의 offset) */
+function shiftRect(r: Rect, o: Point): Rect {
+  return { x: r.x + o.x, y: r.y + o.y, w: r.w, h: r.h };
+}
+
 function rectIn(layout: ProfileLayout, id: string): Rect | null {
   if (id === "@builder") return layout.builder;
   if (id.startsWith("bundle:")) return layout.bundles.find((b) => `bundle:${b.id}` === id) ?? null;
@@ -263,7 +273,12 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
   // 그리는 모양: 저장된 프로필 + 리뷰를 기다리는 합치기·떼기 결과(반투명 판). 저장과 바꾸기는 `profile`로만 한다
   const shown = useMemo(() => withPending(profile, store.pending), [profile, store.pending]);
-  const layout = useMemo(() => layoutProfile(shown, store.collapsed), [shown, store.collapsed]);
+  // 사용자가 직접 옮기거나 확대하기 전까지는 캔버스 크기가 바뀔 때마다(처음 잴 때, 패널을 접고 펼 때) 처음 시점으로 다시 맞춘다
+  const autoFit = useRef(true);
+  // 배율 칸마다 판 높이와 판 사이가 바뀌는 배치(cvZoom). 노드 자리와 시점 계산은 `offset`만큼 민 좌표를 쓴다
+  const view = useStepLayout(shown, store.collapsed, { wrapRef, autoFit, reduced });
+  const { layout, offset, layoutAt, fly } = view;
+  const lod = view.metrics.lod;
   const empty = profile.entries.length === 0;
   const placed = useMemo(() => placedOf(shown), [shown]);
   const relations = useMemo(() => relationsOf(shown), [shown]);
@@ -275,19 +290,53 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     [profile],
   );
 
+  /**
+   * 배율을 고르는 맞춤이 그 배율의 배치를 보게 한다: 고른 배율의 칸으로 배치를 다시 재어 칸이 같아질 때까지(세 번까지).
+   * 두 칸 사이를 오가면 낮은 배율을 고른다(낮은 배율의 배치가 더 작아 늘 들어간다)
+   */
+  const settle = useCallback(
+    (zoomFor: (b: Rect) => number): { readonly zoom: number; readonly bounds: Rect } => {
+      let z = zoomFor(layout.bounds);
+      for (let i = 0; i < 3; i++) {
+        const nz = zoomFor(layoutAt(shown, store.collapsed, z).bounds);
+        if (stepOf(nz, null) === stepOf(z, null)) {
+          z = nz;
+          break;
+        }
+        z = Math.min(z, nz);
+      }
+      return { zoom: z, bounds: shiftRect(layoutAt(shown, store.collapsed, z).bounds, offset) };
+    },
+    [layout, layoutAt, shown, store.collapsed, offset],
+  );
   // 맞춤 보기: 배치가 아는 테두리(판·묶음·레일·빌더)로 맞춘다. 끝없이 긴 바닥 띠는 넣지 않는다.
   // 처음(ReactFlow가 준비되면), 맞춤 단추, 패널을 접고 펼 때(폭이 바뀐 다음 프레임). 프로필을 바꾸면 index.tsx가 새로 그린다
   const fitLayout = useCallback(
     (duration: number): void => {
-      const b = layout.bounds;
+      const box = wrapRef.current?.getBoundingClientRect();
+      if (box === undefined || box.width === 0) return;
+      const avail = {
+        x: FIT_PAD.left,
+        y: FIT_PAD.top,
+        w: box.width - FIT_PAD.left - FIT_PAD.right,
+        h: box.height - FIT_PAD.top - FIT_PAD.bottom,
+      };
+      const { zoom: z, bounds: b } = settle((r) =>
+        Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(avail.w / r.w, avail.h / r.h))),
+      );
+      fly(duration);
       detachView(
-        rf.fitBounds(
-          { x: b.x, y: b.y, width: b.w, height: b.h },
-          { padding: FIT_PAD, duration: reduced ? 0 : duration },
+        rf.setViewport(
+          {
+            x: avail.x + (avail.w - b.w * z) / 2 - b.x * z,
+            y: avail.y + (avail.h - b.h * z) / 2 - b.y * z,
+            zoom: z,
+          },
+          { duration: reduced ? 0 : duration },
         ),
       );
     },
-    [layout, rf, reduced],
+    [settle, fly, rf, reduced],
   );
   /**
    * 처음 보는 시점: 루프 전체(레일 양 끝 포함)가 들어가는 배율로 연다(50~80%). 그보다 작아져야 하면 50%로 열고 루프의 시작을
@@ -297,16 +346,16 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     const box = wrapRef.current?.getBoundingClientRect();
     if (box === undefined || box.width === 0) return;
     const top = empty ? OPEN_PAD.top + 48 : OPEN_PAD.top;
-    const v = openViewOf(layout.bounds, {
+    const avail = {
       x: OPEN_PAD.left,
       y: top,
       w: box.width - OPEN_PAD.left - OPEN_PAD.right,
       h: box.height - top - OPEN_PAD.bottom,
-    });
+    };
+    const s = settle((b) => openViewOf(b, avail).zoom);
+    const v = openViewOf(s.bounds, avail, s.zoom);
     detachView(rf.setViewport({ x: v.x, y: v.y, zoom: v.zoom }, { duration: 0 }));
-  }, [layout, rf, empty]);
-  // 사용자가 직접 옮기거나 확대하기 전까지는 캔버스 크기가 바뀔 때마다(처음 잴 때, 패널을 접고 펼 때) 처음 시점으로 다시 맞춘다
-  const autoFit = useRef(true);
+  }, [settle, rf, empty]);
   const paneW = useViewportStore((s) => s.width);
   const paneH = useViewportStore((s) => s.height);
   useEffect(() => {
@@ -318,31 +367,46 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     setPaletteOpen((o) => !o);
   }, []);
 
-  const rectOf = useCallback((id: string): Rect | null => rectIn(layout, id), [layout]);
+  /** 이 모양에서 노드(판, 묶음, 빌더)가 배율 `z`의 배치에서 서는 자리(민 좌표) */
+  const rectAt = useCallback(
+    (p: CanvasProfile, c: ReadonlySet<string>, id: string) =>
+      (z: number): Rect | null => {
+        const r = rectIn(layoutAt(p, c, z), id);
+        return r === null ? null : shiftRect(r, offset);
+      },
+    [layoutAt, offset],
+  );
 
-  /** 노드로 시점을 옮긴다: 플로팅 판이 가리지 않는 왼쪽 빈 자리 가운데로. 멀면 읽을 만큼 확대 */
+  /**
+   * 노드로 시점을 옮긴다: 플로팅 판이 가리지 않는 왼쪽 빈 자리 가운데로. 멀면 읽을 만큼 확대.
+   * 가는 곳은 도착 배율의 배치로 잰다(배율 칸이 바뀌면 판 높이와 자리가 바뀌므로). 가는 동안은 판을 붙들지 않는다
+   */
   const glideTo = useCallback(
-    (r: Rect | null, keepZoom: boolean): void => {
+    (find: (z: number) => Rect | null, keepZoom: boolean): void => {
       const box = wrapRef.current?.getBoundingClientRect();
-      if (r === null || box === undefined) return;
+      const r0 = find(zoom);
+      if (r0 === null || box === undefined) return;
       autoFit.current = false;
       const free = box.width - PANEL_W - 32;
       // 판 하나는 읽을 만큼(92~105%) 키우고, 넓은 받침판은 빈 자리에 다 들어오게 줄인다
-      const room = Math.min((free - 64) / r.w, (box.height - 180) / r.h);
+      const room = Math.min((free - 64) / r0.w, (box.height - 180) / r0.h);
       const z = keepZoom ? zoom : Math.max(0.4, Math.min(Math.max(zoom, 0.92), 1.05, room));
+      const r = find(z) ?? r0;
       const shift = (box.width / 2 - free / 2) / z;
+      const duration = reduced ? 0 : 420;
+      fly(duration);
       detachView(
         rf.setCenter(r.x + r.w / 2 + shift, r.y + r.h / 2, {
           zoom: z,
-          duration: reduced ? 0 : 420,
+          duration,
         }),
       );
     },
-    [zoom, rf, reduced],
+    [zoom, rf, reduced, fly],
   );
   const glide = useCallback(
-    (id: string, keepZoom: boolean): void => glideTo(rectOf(id), keepZoom),
-    [glideTo, rectOf],
+    (id: string, keepZoom: boolean): void => glideTo(rectAt(shown, store.collapsed, id), keepZoom),
+    [glideTo, rectAt, shown, store.collapsed],
   );
 
   /** 포커스: 접힌 묶음 안이면 먼저 펼친다(펼친 뒤 배치가 바뀌면 이어서 옮긴다) */
@@ -362,12 +426,12 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         // 접힌 묶음 안이면 펼치고, 펼친 배치에서의 자리로 간다
         const open = new Set([...store.collapsed].filter((b) => b !== inBundle.id));
         setCollapsed(inBundle.id, false);
-        glideTo(rectIn(layoutProfile(profile, open), id), false);
+        glideTo(rectAt(profile, open, id), false);
         return;
       }
       glide(id, false);
     },
-    [placed, store.collapsed, profile, glide, glideTo],
+    [placed, store.collapsed, profile, glide, glideTo, rectAt],
   );
 
   const selectFromCanvas = useCallback(
@@ -417,9 +481,9 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       commit(next, t("desktop.craft.canvas.cv3.say.added", { name }));
       setSelected(name);
       setArrive((a) => ({ id: name, n: a.n + 1 }));
-      glideTo(rectIn(layoutProfile(next, store.collapsed), name), false);
+      glideTo(rectAt(next, store.collapsed, name), false);
     },
-    [profile, store.collapsed, glideTo, commit],
+    [profile, store.collapsed, glideTo, commit, rectAt],
   );
 
   const remove = useCallback(
@@ -717,7 +781,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       {
         id: "floor",
         type: "floor",
-        position: { x: b.x - 80, y: b.y - 80 },
+        position: { x: b.x - 80 + offset.x, y: b.y - 80 + offset.y },
         data: {
           layout,
           lit: related,
@@ -733,7 +797,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       {
         id: "links",
         type: "links",
-        position: { x: b.x - 80, y: b.y - 80 },
+        position: { x: b.x - 80 + offset.x, y: b.y - 80 + offset.y },
         data: { layout, visible: visibleRel, lit: litRel },
         draggable: false,
         selectable: false,
@@ -747,7 +811,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       list.push({
         id,
         type: g.collapsed ? "pile" : "pedestal",
-        position: { x: g.x, y: g.y },
+        position: { x: g.x + offset.x, y: g.y + offset.y },
         data: { geo: g, mark: markOf(id), arrive: arrive.id === id ? arrive.n : 0 },
         draggable: false,
         selectable: false,
@@ -772,7 +836,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       list.push({
         id: `p:${name}`,
         type: "plate",
-        position: { x: p.x, y: p.y },
+        position: { x: p.x + offset.x, y: p.y + offset.y },
         data: {
           geo: p,
           mark: markOf(name),
@@ -801,7 +865,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       list.push({
         id,
         type: "point",
-        position: { x: k.x - POINT_HALF, y: top },
+        position: { x: k.x - POINT_HALF + offset.x, y: top + offset.y },
         data: { anchor: k.anchor, mark: id === selected ? "selected" : "none" },
         width: POINT_HALF * 2,
         height: bottom - top,
@@ -816,7 +880,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       list.push({
         id: "@builder",
         type: "builder",
-        position: { x: layout.builder.x, y: layout.builder.y },
+        position: { x: layout.builder.x + offset.x, y: layout.builder.y + offset.y },
         data: { mark: markOf("@builder") },
         draggable: false,
         selectable: false,
@@ -837,6 +901,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     store.allRelations,
     profile,
     facts,
+    offset,
   ]);
 
   // 빛: 고른 판 뒤에 하나. 다른 노드와 따로 만들어, 고름이 바뀔 때 판들의 데이터는 그대로 둔다
@@ -848,7 +913,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       {
         id: "glow",
         type: "glow",
-        position: { x: r.x - GLOW_REACH, y: r.y - GLOW_REACH },
+        position: { x: r.x - GLOW_REACH + offset.x, y: r.y - GLOW_REACH + offset.y },
         data: { x: r.x, y: r.y, w: r.w, h: r.h, kind: pluginOf(selected)?.kind ?? null },
         width: r.w + GLOW_REACH * 2,
         height: r.h + GLOW_REACH * 2,
@@ -859,7 +924,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         zIndex: 0,
       },
     ];
-  }, [layout, selected]);
+  }, [layout, selected, offset]);
   const allNodes = useMemo(() => [...glowNodes, ...nodes], [glowNodes, nodes]);
 
   const onWrapKey = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -994,375 +1059,378 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
   return (
     <CanvasActionsContext value={actions}>
-      {/* Esc는 어디에 포커스가 있든(목록 줄 포함) 떠 있는 상세를 닫는다 */}
-      <div
-        className="cv6-root flex min-h-0 flex-1"
-        data-scheme={theme}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && selected !== null) setSelected(null);
-        }}
-      >
-        <div ref={paletteRef} className="flex">
-          <Palette
-            profile={profile}
-            current={store.current}
-            bundles={bundleList}
-            focused={selected}
-            open={paletteOpen}
-            choices={store.order.map((id) => ({ id, title: titleOf(store, id) }))}
-            onProfile={(id) => {
-              setSelected(null);
-              setFailure(null);
-              detach(chooseProfile(commands, id), rethrow);
-            }}
-            onPick={focusOn}
-            onAdd={add}
-            onRemove={remove}
-            onRemoveBundle={removeBundleById}
-            onPointerDown={(name, e) => {
-              startPointer(name, "palette", e);
-            }}
-            onToggle={togglePalette}
-            onCreate={merge.create}
-          />
-        </div>
+      <LodContext value={lod}>
+        {/* Esc는 어디에 포커스가 있든(목록 줄 포함) 떠 있는 상세를 닫는다 */}
         <div
-          ref={wrapRef}
-          className={`cv6-stage relative min-h-0 min-w-0 flex-1 overflow-hidden${drag?.over === "canvas" && drag.from === "palette" ? " cv6-drop" : ""}`}
-          onKeyDown={onWrapKey}
+          className="cv6-root flex min-h-0 flex-1"
+          data-scheme={theme}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && selected !== null) setSelected(null);
+          }}
         >
-          <DotFloor />
-          <span aria-hidden="true" className="cv6-vignette" />
-          <ReactFlow
-            className="cv6-flow"
-            nodes={allNodes}
-            edges={[]}
-            nodeTypes={NODE_TYPES}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable={false}
-            nodesFocusable
-            edgesFocusable={false}
-            disableKeyboardA11y
-            deleteKeyCode={null}
-            selectionKeyCode={null}
-            multiSelectionKeyCode={null}
-            zoomOnDoubleClick={false}
-            minZoom={0.2}
-            maxZoom={1.8}
-            onMoveStart={(e) => {
-              if (e !== null) autoFit.current = false;
-            }}
-            proOptions={HIDE_ATTRIBUTION}
-            aria-label={t("desktop.craft.canvas.cv3.canvas")}
-            onPaneClick={() => {
-              setSelected(null);
-            }}
-          />
-
-          <MoreRight
-            bounds={layout.bounds}
-            onMore={() => {
-              autoFit.current = false;
-              const v = rf.getViewport();
-              const step = ((wrapRef.current?.clientWidth ?? 800) * 0.6) / v.zoom;
-              detachView(
-                rf.setViewport(
-                  { x: v.x - step * v.zoom, y: v.y, zoom: v.zoom },
-                  { duration: reduced ? 0 : 360 },
-                ),
-              );
-            }}
-          />
-
-          {/* 위 왼쪽: 프로필 머리 */}
-          <div className="glass glass-shadow-3 rounded-toolbar absolute top-3 left-3 z-10 flex h-10 items-center gap-3 ps-3.5 pe-3">
-            <span className="text-[13px] font-semibold text-text-primary">
-              {titleOf(store, store.current) ?? t(sampleTitle(store.current))}
-            </span>
-            <span className="flex items-center gap-3 text-[12px] text-text-tertiary tabular-nums">
-              <span>
-                {t("desktop.craft.canvas.cv6.count.plugins", {
-                  n: placed.filter((x) => pendingItemOf(x.plugin.name) === null).length,
-                })}
-              </span>
-              <span>{t("desktop.craft.canvas.cv6.count.base", { n: profile.base.length })}</span>
-              <span>{t("desktop.craft.canvas.cv6.count.bundles", { n: bundleList.length })}</span>
-            </span>
-            {profile.startDrive === null ? (
-              <span className="text-[12px] text-text-tertiary">
-                {t("desktop.craft.canvas.cv3.head.noStart")}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-                <KindTile kind="drive" size={16} />
-                {t("desktop.craft.canvas.cv3.head.start", { name: profile.startDrive })}
-              </span>
-            )}
-            {pendingReview > 0 ? (
-              <span className="cv6-pill cv6-pill-warn">
-                {t("desktop.craft.canvas.cv3.head.review", { n: pendingReview })}
-              </span>
-            ) : null}
-            {store.live?.saving === store.current ? (
-              <span className="flex items-center gap-1.5 text-[12px] text-text-tertiary">
-                <ProgressOrb />
-                {t("desktop.craft.canvas.cv9.point.saving")}
-              </span>
-            ) : null}
+          <div ref={paletteRef} className="flex">
+            <Palette
+              profile={profile}
+              current={store.current}
+              bundles={bundleList}
+              focused={selected}
+              open={paletteOpen}
+              choices={store.order.map((id) => ({ id, title: titleOf(store, id) }))}
+              onProfile={(id) => {
+                setSelected(null);
+                setFailure(null);
+                detach(chooseProfile(commands, id), rethrow);
+              }}
+              onPick={focusOn}
+              onAdd={add}
+              onRemove={remove}
+              onRemoveBundle={removeBundleById}
+              onPointerDown={(name, e) => {
+                startPointer(name, "palette", e);
+              }}
+              onToggle={togglePalette}
+              onCreate={merge.create}
+            />
           </div>
-          {notice === null || failure !== null ? null : (
-            <div
-              role="status"
-              data-canvas-notice=""
-              className="glass glass-shadow-3 rounded-toolbar absolute top-16 left-3 z-10 flex h-9 items-center gap-2 ps-3.5 pe-1.5 text-ui-sm text-text-primary"
-            >
-              <span aria-hidden="true" className="cv6-orb" data-tone={notice.tone} />
-              {notice.text}
-              {notice.itemId === null ? null : (
-                <Button
+          <div
+            ref={wrapRef}
+            className={`cv6-stage relative min-h-0 min-w-0 flex-1 overflow-hidden${drag?.over === "canvas" && drag.from === "palette" ? " cv6-drop" : ""}`}
+            onKeyDown={onWrapKey}
+          >
+            <DotFloor />
+            <span aria-hidden="true" className="cv6-vignette" />
+            <ReactFlow
+              className="cv6-flow"
+              nodes={allNodes}
+              edges={[]}
+              nodeTypes={NODE_TYPES}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              nodesFocusable
+              edgesFocusable={false}
+              disableKeyboardA11y
+              deleteKeyCode={null}
+              selectionKeyCode={null}
+              multiSelectionKeyCode={null}
+              zoomOnDoubleClick={false}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
+              onMoveStart={(e) => {
+                if (e !== null) autoFit.current = false;
+              }}
+              proOptions={HIDE_ATTRIBUTION}
+              aria-label={t("desktop.craft.canvas.cv3.canvas")}
+              onPaneClick={() => {
+                setSelected(null);
+              }}
+            />
+
+            <MoreRight
+              bounds={shiftRect(layout.bounds, offset)}
+              railY={offset.y}
+              onMore={() => {
+                autoFit.current = false;
+                const v = rf.getViewport();
+                const step = ((wrapRef.current?.clientWidth ?? 800) * 0.6) / v.zoom;
+                detachView(
+                  rf.setViewport(
+                    { x: v.x - step * v.zoom, y: v.y, zoom: v.zoom },
+                    { duration: reduced ? 0 : 360 },
+                  ),
+                );
+              }}
+            />
+
+            {/* 위 왼쪽: 프로필 머리 */}
+            <div className="glass glass-shadow-3 rounded-toolbar absolute top-3 left-3 z-10 flex h-10 items-center gap-3 ps-3.5 pe-3">
+              <span className="text-[13px] font-semibold text-text-primary">
+                {titleOf(store, store.current) ?? t(sampleTitle(store.current))}
+              </span>
+              <span className="flex items-center gap-3 text-[12px] text-text-tertiary tabular-nums">
+                <span>
+                  {t("desktop.craft.canvas.cv6.count.plugins", {
+                    n: placed.filter((x) => pendingItemOf(x.plugin.name) === null).length,
+                  })}
+                </span>
+                <span>{t("desktop.craft.canvas.cv6.count.base", { n: profile.base.length })}</span>
+                <span>{t("desktop.craft.canvas.cv6.count.bundles", { n: bundleList.length })}</span>
+              </span>
+              {profile.startDrive === null ? (
+                <span className="text-[12px] text-text-tertiary">
+                  {t("desktop.craft.canvas.cv3.head.noStart")}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-[12px] text-text-secondary">
+                  <KindTile kind="drive" size={16} />
+                  {t("desktop.craft.canvas.cv3.head.start", { name: profile.startDrive })}
+                </span>
+              )}
+              {pendingReview > 0 ? (
+                <span className="cv6-pill cv6-pill-warn">
+                  {t("desktop.craft.canvas.cv3.head.review", { n: pendingReview })}
+                </span>
+              ) : null}
+              {store.live?.saving === store.current ? (
+                <span className="flex items-center gap-1.5 text-[12px] text-text-tertiary">
+                  <ProgressOrb />
+                  {t("desktop.craft.canvas.cv9.point.saving")}
+                </span>
+              ) : null}
+            </div>
+            {notice === null || failure !== null ? null : (
+              <div
+                role="status"
+                data-canvas-notice=""
+                className="glass glass-shadow-3 rounded-toolbar absolute top-16 left-3 z-10 flex h-9 items-center gap-2 ps-3.5 pe-1.5 text-ui-sm text-text-primary"
+              >
+                <span aria-hidden="true" className="cv6-orb" data-tone={notice.tone} />
+                {notice.text}
+                {notice.itemId === null ? null : (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => {
+                      const id = notice.itemId;
+                      if (id !== null) merge.openReview(id);
+                    }}
+                  >
+                    {t("desktop.craft.members.send.open")}
+                  </Button>
+                )}
+                <IconButton
                   size="xs"
                   variant="ghost"
+                  label={t("desktop.craft.split.close")}
                   onClick={() => {
-                    const id = notice.itemId;
-                    if (id !== null) merge.openReview(id);
+                    setNotice(null);
                   }}
                 >
-                  {t("desktop.craft.members.send.open")}
-                </Button>
-              )}
-              <IconButton
-                size="xs"
-                variant="ghost"
-                label={t("desktop.craft.split.close")}
-                onClick={() => {
-                  setNotice(null);
-                }}
-              >
-                <Icon name="close" size={12} />
-              </IconButton>
-            </div>
-          )}
-          {failure === null ? null : (
-            <div
-              role="status"
-              className="glass glass-shadow-3 rounded-toolbar absolute top-16 left-3 z-10 flex h-9 items-center gap-2 px-3.5 text-[12.5px] text-text-primary"
-            >
-              <span aria-hidden="true" className="cv6-orb" data-tone="danger" />
-              {failure}
-            </div>
-          )}
-
-          {/* 아래 오른쪽 도구 막대: 막대 하나만 면(caustic FloatingBar의 유리)을 갖고, 안의 단추는 전부 ghost다.
-              앱의 확대 막대(`craft/finder.tsx`의 ZoomBar)와 같은 부품·크기: 관계 보기, 범례(정보), 확대·축소, 맞춤 */}
-          <div className="absolute right-3 bottom-3 z-10">
-            <FloatingBar label={t("desktop.craft.canvas.cv3.tool.label")} size="sm">
-              <FloatingBarItem
-                icon={<Icon name="links" size={16} />}
-                active={store.allRelations}
-                aria-label={t("desktop.craft.canvas.cv3.tool.relations")}
-                title={t("desktop.craft.canvas.cv3.tool.relations")}
-                onClick={() => {
-                  updateStore((s) => ({ ...s, allRelations: !s.allRelations }));
-                }}
-              />
-              <span className="grid size-control-sm place-items-center">
-                <InfoTip
-                  label={t("desktop.craft.canvas.cv3.legend.label")}
-                  text={[
-                    t("desktop.craft.canvas.cv3.legend.layers"),
-                    ...REL_KINDS.map((k) => `${t(RELATION_WORD[k])}: ${t(RELATION_HINT[k])}`),
-                    t("desktop.craft.canvas.cv3.legend.keys"),
-                    t("desktop.craft.canvas.cvMerge.legend.menu"),
-                  ]}
-                />
-              </span>
-              <FloatingBarSeparator />
-              <ZoomControl
-                variant="ghost"
-                size="sm"
-                readout="static"
-                value={`${String(Math.round(zoom * 100))}%`}
-                label={t("desktop.craft.canvas.cv3.tool.zoom")}
-                zoomOutLabel={t("desktop.craft.canvas.cv3.tool.zoomOut")}
-                zoomInLabel={t("desktop.craft.canvas.cv3.tool.zoomIn")}
-                onZoomOut={() => {
-                  detachView(rf.zoomOut({ duration: reduced ? 0 : 160 }));
-                }}
-                onZoomIn={() => {
-                  detachView(rf.zoomIn({ duration: reduced ? 0 : 160 }));
-                }}
-              />
-              <FloatingBarSeparator />
-              <FloatingBarItem
-                icon={<Maximize aria-hidden />}
-                aria-label={t("desktop.craft.canvas.cv3.tool.fit")}
-                title={t("desktop.craft.canvas.cv3.tool.fit")}
-                onClick={() => {
-                  autoFit.current = true;
-                  fitLayout(260);
-                }}
-              />
-            </FloatingBar>
-          </div>
-
-          {/* 관계 보기를 켜면 선의 문법을 보이게 둔다(그림 옆의 말) */}
-          {store.allRelations ? (
-            <div className="glass glass-shadow-3 rounded-xl absolute bottom-16 right-3 z-10 flex flex-col gap-1 px-3 py-2.5">
-              {REL_KINDS.map((k) => (
-                <span key={k} className="flex items-center gap-2 text-[12px] text-text-secondary">
-                  <RelationSwatch kind={k} />
-                  {t(RELATION_WORD[k])}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          {empty ? (
-            <div className="pointer-events-none absolute inset-x-0 top-16 z-10 flex justify-center">
-              <div className="glass glass-shadow-3 rounded-toolbar flex items-center gap-2 px-3.5 py-2 text-[13px] text-text-secondary">
-                <Icon name="left" size={14} />
-                {t("desktop.craft.canvas.cv3.empty")}
+                  <Icon name="close" size={12} />
+                </IconButton>
               </div>
-            </div>
-          ) : null}
+            )}
+            {failure === null ? null : (
+              <div
+                role="status"
+                className="glass glass-shadow-3 rounded-toolbar absolute top-16 left-3 z-10 flex h-9 items-center gap-2 px-3.5 text-[12.5px] text-text-primary"
+              >
+                <span aria-hidden="true" className="cv6-orb" data-tone="danger" />
+                {failure}
+              </div>
+            )}
 
-          {selected !== null && selected.startsWith("bundle:") && selectedBundle !== undefined ? (
-            <BundleDetail
-              key={selected}
-              id={selectedBundle.id}
-              members={placed.filter(
-                (p) => p.source.type === "bundle" && p.source.id === selectedBundle.id,
-              )}
-              collapsed={store.collapsed.has(selectedBundle.id)}
-              actions={panelActions}
-            />
-          ) : selected === "@builder" ? (
-            <BuilderDetail
-              created={relations.filter((r) => r.kind === "creates").map((r) => r.to)}
-              actions={panelActions}
-            />
-          ) : selectedPoint !== null ? (
-            <PointDetail
-              key={selected}
-              anchor={selectedPoint}
-              profile={profile}
-              order={pointOrder}
-              issues={pointIssues}
-              saving={store.live?.saving === store.current}
-              actions={panelActions}
-            />
-          ) : selected !== null && pluginOf(selected) !== undefined ? (
-            <PluginDetail
-              key={selected}
-              name={selected}
-              profile={profile}
-              placed={selectedPlaced}
-              actions={panelActions}
-            />
-          ) : null}
-
-          {drag?.from === "canvas" ? (
-            <div className="pointer-events-none absolute top-16 left-3 z-20 glass glass-shadow-3 rounded-xl px-3 py-2 text-[12.5px] text-text-secondary">
-              {bundleIdOfMember(drag.name) !== null
-                ? t("desktop.craft.canvas.cvMerge.hint.detach")
-                : drag.onto === null
-                  ? t("desktop.craft.canvas.cvMerge.hint.drop")
-                  : dropHint(dropChoicesOf(profile, drag.name, drag.onto, facts))}
+            {/* 아래 오른쪽 도구 막대: 막대 하나만 면(caustic FloatingBar의 유리)을 갖고, 안의 단추는 전부 ghost다.
+              앱의 확대 막대(`craft/finder.tsx`의 ZoomBar)와 같은 부품·크기: 관계 보기, 범례(정보), 확대·축소, 맞춤 */}
+            <div className="absolute right-3 bottom-3 z-10">
+              <FloatingBar label={t("desktop.craft.canvas.cv3.tool.label")} size="sm">
+                <FloatingBarItem
+                  icon={<Icon name="links" size={16} />}
+                  active={store.allRelations}
+                  aria-label={t("desktop.craft.canvas.cv3.tool.relations")}
+                  title={t("desktop.craft.canvas.cv3.tool.relations")}
+                  onClick={() => {
+                    updateStore((s) => ({ ...s, allRelations: !s.allRelations }));
+                  }}
+                />
+                <span className="grid size-control-sm place-items-center">
+                  <InfoTip
+                    label={t("desktop.craft.canvas.cv3.legend.label")}
+                    text={[
+                      t("desktop.craft.canvas.cv3.legend.layers"),
+                      ...REL_KINDS.map((k) => `${t(RELATION_WORD[k])}: ${t(RELATION_HINT[k])}`),
+                      t("desktop.craft.canvas.cv3.legend.keys"),
+                      t("desktop.craft.canvas.cvMerge.legend.menu"),
+                    ]}
+                  />
+                </span>
+                <FloatingBarSeparator />
+                <ZoomControl
+                  variant="ghost"
+                  size="sm"
+                  readout="static"
+                  value={`${String(Math.round(zoom * 100))}%`}
+                  label={t("desktop.craft.canvas.cv3.tool.zoom")}
+                  zoomOutLabel={t("desktop.craft.canvas.cv3.tool.zoomOut")}
+                  zoomInLabel={t("desktop.craft.canvas.cv3.tool.zoomIn")}
+                  onZoomOut={() => {
+                    detachView(rf.zoomOut({ duration: reduced ? 0 : 160 }));
+                  }}
+                  onZoomIn={() => {
+                    detachView(rf.zoomIn({ duration: reduced ? 0 : 160 }));
+                  }}
+                />
+                <FloatingBarSeparator />
+                <FloatingBarItem
+                  icon={<Maximize aria-hidden />}
+                  aria-label={t("desktop.craft.canvas.cv3.tool.fit")}
+                  title={t("desktop.craft.canvas.cv3.tool.fit")}
+                  onClick={() => {
+                    autoFit.current = true;
+                    fitLayout(260);
+                  }}
+                />
+              </FloatingBar>
             </div>
-          ) : null}
-          {drop === null ? null : (
-            <DropPicker
-              x={drop.x}
-              y={drop.y}
-              choices={drop.choices}
-              onMerge={() => {
-                openMerge(drop.onto, drop.name);
-              }}
-              onLink={() => {
-                linkTo(drop.name, drop.onto);
-              }}
-              onMove={() => {
-                reorder(drop.name, drop.onto);
-              }}
+
+            {/* 관계 보기를 켜면 선의 문법을 보이게 둔다(그림 옆의 말) */}
+            {store.allRelations ? (
+              <div className="glass glass-shadow-3 rounded-xl absolute bottom-16 right-3 z-10 flex flex-col gap-1 px-3 py-2.5">
+                {REL_KINDS.map((k) => (
+                  <span key={k} className="flex items-center gap-2 text-[12px] text-text-secondary">
+                    <RelationSwatch kind={k} />
+                    {t(RELATION_WORD[k])}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {empty ? (
+              <div className="pointer-events-none absolute inset-x-0 top-16 z-10 flex justify-center">
+                <div className="glass glass-shadow-3 rounded-toolbar flex items-center gap-2 px-3.5 py-2 text-[13px] text-text-secondary">
+                  <Icon name="left" size={14} />
+                  {t("desktop.craft.canvas.cv3.empty")}
+                </div>
+              </div>
+            ) : null}
+
+            {selected !== null && selected.startsWith("bundle:") && selectedBundle !== undefined ? (
+              <BundleDetail
+                key={selected}
+                id={selectedBundle.id}
+                members={placed.filter(
+                  (p) => p.source.type === "bundle" && p.source.id === selectedBundle.id,
+                )}
+                collapsed={store.collapsed.has(selectedBundle.id)}
+                actions={panelActions}
+              />
+            ) : selected === "@builder" ? (
+              <BuilderDetail
+                created={relations.filter((r) => r.kind === "creates").map((r) => r.to)}
+                actions={panelActions}
+              />
+            ) : selectedPoint !== null ? (
+              <PointDetail
+                key={selected}
+                anchor={selectedPoint}
+                profile={profile}
+                order={pointOrder}
+                issues={pointIssues}
+                saving={store.live?.saving === store.current}
+                actions={panelActions}
+              />
+            ) : selected !== null && pluginOf(selected) !== undefined ? (
+              <PluginDetail
+                key={selected}
+                name={selected}
+                profile={profile}
+                placed={selectedPlaced}
+                actions={panelActions}
+              />
+            ) : null}
+
+            {drag?.from === "canvas" ? (
+              <div className="pointer-events-none absolute top-16 left-3 z-20 glass glass-shadow-3 rounded-xl px-3 py-2 text-[12.5px] text-text-secondary">
+                {bundleIdOfMember(drag.name) !== null
+                  ? t("desktop.craft.canvas.cvMerge.hint.detach")
+                  : drag.onto === null
+                    ? t("desktop.craft.canvas.cvMerge.hint.drop")
+                    : dropHint(dropChoicesOf(profile, drag.name, drag.onto, facts))}
+              </div>
+            ) : null}
+            {drop === null ? null : (
+              <DropPicker
+                x={drop.x}
+                y={drop.y}
+                choices={drop.choices}
+                onMerge={() => {
+                  openMerge(drop.onto, drop.name);
+                }}
+                onLink={() => {
+                  linkTo(drop.name, drop.onto);
+                }}
+                onMove={() => {
+                  reorder(drop.name, drop.onto);
+                }}
+                onClose={() => {
+                  setDrop(null);
+                }}
+              />
+            )}
+            {menu === null || menuName === null ? null : (
+              <PlateMenu
+                key={menuName}
+                x={menu.x}
+                y={menu.y}
+                name={menuName}
+                merge={{
+                  refusal: mergeRefusalOf(menuName, facts),
+                  partners: mergePartnersOf(menuName, facts),
+                }}
+                link={{
+                  refusal: linkFromRefusalOf(menuName, facts),
+                  partners: linkPartnersOf(menuName, facts),
+                }}
+                detach={
+                  bundleIdOfMember(menuName) === null
+                    ? null
+                    : { refusal: detachRefusalOf(menuName, facts) }
+                }
+                onOpen={() => {
+                  selectFromCanvas(menuName);
+                }}
+                onMerge={(partner) => {
+                  openMerge(menuName, partner);
+                }}
+                onLink={(partner) => {
+                  linkTo(menuName, partner);
+                }}
+                onDetach={() => {
+                  const { root, member } = memberPartsOf(menuName);
+                  setDetachFailure(null);
+                  setDetaching({ plate: menuName, member, name: defaultDetachName(root, member) });
+                }}
+                onClose={() => {
+                  setMenu(null);
+                }}
+              />
+            )}
+            <MergeDialog
+              open={mergeStart !== null}
+              entries={facts.entries}
+              actions={merge.split}
+              {...(mergeStart === null ? {} : { start: mergeStart })}
               onClose={() => {
-                setDrop(null);
+                setMergeStart(null);
               }}
             />
-          )}
-          {menu === null || menuName === null ? null : (
-            <PlateMenu
-              key={menuName}
-              x={menu.x}
-              y={menu.y}
-              name={menuName}
-              merge={{
-                refusal: mergeRefusalOf(menuName, facts),
-                partners: mergePartnersOf(menuName, facts),
-              }}
-              link={{
-                refusal: linkFromRefusalOf(menuName, facts),
-                partners: linkPartnersOf(menuName, facts),
-              }}
-              detach={
-                bundleIdOfMember(menuName) === null
-                  ? null
-                  : { refusal: detachRefusalOf(menuName, facts) }
-              }
-              onOpen={() => {
-                selectFromCanvas(menuName);
-              }}
-              onMerge={(partner) => {
-                openMerge(menuName, partner);
-              }}
-              onLink={(partner) => {
-                linkTo(menuName, partner);
-              }}
-              onDetach={() => {
-                const { root, member } = memberPartsOf(menuName);
-                setDetachFailure(null);
-                setDetaching({ plate: menuName, member, name: defaultDetachName(root, member) });
-              }}
+            <DetachConfirm
+              target={detaching}
+              busy={detachBusy}
+              failure={detachFailure}
+              onConfirm={confirmDetach}
               onClose={() => {
-                setMenu(null);
+                setDetaching(null);
               }}
             />
-          )}
-          <MergeDialog
-            open={mergeStart !== null}
-            entries={facts.entries}
-            actions={merge.split}
-            {...(mergeStart === null ? {} : { start: mergeStart })}
-            onClose={() => {
-              setMergeStart(null);
-            }}
-          />
-          <DetachConfirm
-            target={detaching}
-            busy={detachBusy}
-            failure={detachFailure}
-            onConfirm={confirmDetach}
-            onClose={() => {
-              setDetaching(null);
-            }}
-          />
-        </div>
-        {drag !== null && dragPlugin !== undefined ? (
-          <div
-            className="cv6-ghost cv6-chrome pointer-events-none fixed top-0 left-0 z-50 flex h-9 items-center gap-2 px-2.5"
-            style={{ transform: `translate(${String(drag.x + 12)}px, ${String(drag.y + 10)}px)` }}
-          >
-            <KindTile kind={dragPlugin.kind} size={20} />
-            <span className="text-[13px] text-text-primary">{dragPlugin.name}</span>
-            <span className="text-[11.5px]" style={{ color: KIND_COLOR[dragPlugin.kind] }}>
-              {t(KIND_WORD[dragPlugin.kind])}
-            </span>
           </div>
-        ) : null}
-        <div aria-live="polite" className="sr-only">
-          {say}
+          {drag !== null && dragPlugin !== undefined ? (
+            <div
+              className="cv6-ghost cv6-chrome pointer-events-none fixed top-0 left-0 z-50 flex h-9 items-center gap-2 px-2.5"
+              style={{ transform: `translate(${String(drag.x + 12)}px, ${String(drag.y + 10)}px)` }}
+            >
+              <KindTile kind={dragPlugin.kind} size={20} />
+              <span className="text-[13px] text-text-primary">{dragPlugin.name}</span>
+              <span className="text-[11.5px]" style={{ color: KIND_COLOR[dragPlugin.kind] }}>
+                {t(KIND_WORD[dragPlugin.kind])}
+              </span>
+            </div>
+          ) : null}
+          <div aria-live="polite" className="sr-only">
+            {say}
+          </div>
         </div>
-      </div>
+      </LodContext>
     </CanvasActionsContext>
   );
 }
@@ -1423,14 +1491,19 @@ function DotFloor(): ReactNode {
  * 둘 다 화면 밖이면 가장자리 안쪽에 머문다.
  * 넘침 여부와 그 높이가 바뀔 때만 다시 그린다
  */
-function MoreRight(props: { readonly bounds: Rect; readonly onMore: () => void }): ReactNode {
-  const { bounds } = props;
+function MoreRight(props: {
+  readonly bounds: Rect;
+  /** 레일 가운데의 세로 자리(민 좌표) */
+  readonly railY: number;
+  readonly onMore: () => void;
+}): ReactNode {
+  const { bounds, railY: rail } = props;
   const over = useViewportStore(
     (s) => bounds.x * s.transform[2] + s.transform[0] + bounds.w * s.transform[2] > s.width + 24,
   );
   const railY = useViewportStore((s) => {
-    const below = s.transform[1] + RAIL_HALF * s.transform[2] + 34;
-    const above = s.transform[1] - RAIL_HALF * s.transform[2] - 34;
+    const below = s.transform[1] + (rail + RAIL_HALF) * s.transform[2] + 34;
+    const above = s.transform[1] + (rail - RAIL_HALF) * s.transform[2] - 34;
     const floor = Math.max(72, s.height - 72);
     // 블록 아래가 화면 밑으로 넘치면 블록 위로 올린다(가장자리에 눌려 블록 이름을 덮지 않게)
     if (below <= floor) return Math.round(Math.max(below, 72));
