@@ -98,10 +98,14 @@ describe("displayRanges", () => {
 });
 
 describe("displayVisibleLength (streaming holdback)", () => {
-  test("a finished word before a space is shown, the open tail is held", () => {
+  test("plain text is shown to the end, the open tail is held only when it may start a secret", () => {
     const redactor = createRedactor();
-    const text = "hello wor";
-    expect(redactor.displayVisibleLength(text)).toBe("hello ".length);
+    expect(redactor.displayVisibleLength("hello wor")).toBe("hello wor".length);
+    expect(redactor.displayVisibleLength("hello sk-ab")).toBe("hello ".length);
+    expect(redactor.displayVisibleLength("hello the password: abc")).toBe("hello the ".length);
+    expect(redactor.displayVisibleLength("hello the password: abcdefghij")).toBe(
+      "hello the password: abcdefghij".length,
+    );
   });
 
   test("a partial known value at the tail is held until the rest arrives", () => {
@@ -116,7 +120,7 @@ describe("displayVisibleLength (streaming holdback)", () => {
     const redactor = registered("correct horse battery");
     expect(redactor.displayVisibleLength("say correct horse")).toBe("say ".length);
     expect(redactor.displayVisibleLength("say correct horse battery ok")).toBe(
-      "say correct horse battery ".length,
+      "say correct horse battery ok".length,
     );
   });
 
