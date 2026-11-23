@@ -573,6 +573,49 @@ export function needsTarget(item: Pick<ReviewItem, "kind">, target: Target): boo
   return item.kind === "new" && target.kind === "unset";
 }
 
+/** 스타트 Drive가 승인 때 옮겨지는 곳: 새 플러그인(새 플러그인이 Drive일 때), 아니면 비워진다(엔진 `planned`) */
+type DriveMove = "toNew" | "cleared";
+
+/**
+ * 합치기·떼기 항목을 고른 프로필에 승인하면 바뀌는 것(AGE-72, 승인 전 한 줄). 엔진 `planned`(`apps/host/src/assembly/m4/plugin-edit.ts`)와 같은 규칙을 그 프로필 하나에 적용한다.
+ * - `swap`: 뺄 플러그인이 프로필에 있다. 새 플러그인은 그 가운데 가장 앞선 자리에 든다(`removed`는 프로필 순서).
+ * - `after`: 뺄 것이 없고 `placeAfter`가 프로필에 있다. 그 바로 뒤에 든다.
+ * - `end`: 뺄 것도 놓을 자리도 없어 맨 뒤에 덧붙고, 스타트 Drive만 옮겨진다. 바뀌는 것이 없으면 null이다.
+ */
+export type PlanPreview =
+  | { readonly kind: "swap"; readonly removed: readonly string[]; readonly drive: DriveMove | null }
+  | { readonly kind: "after"; readonly after: string; readonly drive: DriveMove | null }
+  | { readonly kind: "end"; readonly drive: DriveMove };
+
+/** 계획이 없거나, 새 플러그인이 아니거나, 대상이 프로필이 아니면(보관만, 고르지 않음) null이다 */
+export function planPreviewOf(
+  item: Pick<ReviewItem, "kind" | "name" | "profilePlan" | "card">,
+  target: Target,
+  profiles: readonly Pick<Profile, "id" | "plugins" | "startDrive">[],
+): PlanPreview | null {
+  const plan = item.profilePlan;
+  if (item.kind !== "new" || plan === undefined || target.kind !== "profile") return null;
+  const profile = profiles.find((candidate) => candidate.id === target.profileId);
+  if (profile === undefined) return null;
+  // 새 플러그인 자신은 뺄 대상이 아니다(엔진과 같다)
+  const outs = new Set(plan.swapOut.filter((name) => name !== item.name));
+  const names = profile.plugins.map((ref) => ref.name);
+  const removed = names.filter((name) => outs.has(name));
+  const after =
+    plan.placeAfter !== null && names.includes(plan.placeAfter) ? plan.placeAfter : null;
+  // 시작 Drive가 없으면 옮길 것도 없다(`driveFrom`도 null이면 null === null로 옮김이 되지 않게 먼저 거른다)
+  const startDrive = profile.startDrive;
+  const moves = startDrive !== null && (outs.has(startDrive) || startDrive === plan.driveFrom);
+  const drive: DriveMove | null = moves
+    ? item.card.does.drive === null
+      ? "cleared"
+      : "toNew"
+    : null;
+  if (removed.length > 0) return { kind: "swap", removed, drive };
+  if (after !== null) return { kind: "after", after, drive };
+  return drive === null ? null : { kind: "end", drive };
+}
+
 /**
  * 승인 결정. 갱신은 이미 그 플러그인을 쓰는 프로필 모두에 새 버전이 들어가므로(§4.7.3, `profileIds: []`) 대상을 묻지 않는다.
  * 제거는 대상이 없다. 목적 문장이 비었으면 승인하면서 채운다

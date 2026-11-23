@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Bug } from "@fresnel/contracts";
 import type { CardScriptEnv } from "@fresnel/contracts/extensions";
-import type { ReviewItem } from "@fresnel/contracts/wire";
+import type { Profile, ReviewItem } from "@fresnel/contracts/wire";
 import {
   approveDecisionOf,
   approveOutcomeOf,
@@ -21,6 +21,7 @@ import {
   pendingOf,
   placeOf,
   placesOf,
+  planPreviewOf,
   purposeDraftOf,
   needsTarget,
   rejectDecisionOf,
@@ -34,6 +35,7 @@ import {
   hookOriginLineOf,
   isHandEdit,
   warningsOf,
+  type Target,
 } from "../../../src/views/craft/review/review-model.ts";
 import {
   SAMPLE_PROFILES,
@@ -548,5 +550,129 @@ describe("손으로 고친 갱신(isHandEdit)", () => {
         card: { ...HAND.card, origin: { kind: "project", projectId: "prj_helm" } },
       }),
     ]).toEqual([false, false, false]);
+  });
+});
+
+const to = (profileId: string): Target => ({ kind: "profile", profileId });
+const profileOf = (
+  id: string,
+  names: readonly string[],
+  startDrive: string | null = null,
+): Profile => ({
+  id,
+  title: id,
+  builtin: false,
+  plugins: names.map((name) => ({ name })),
+  settings: [],
+  startDrive,
+  updatedAt: "2026-11-20T00:00:00.000Z",
+  rev: 1,
+});
+
+describe("merge and split preview (AGE-72)", () => {
+  // 승인하면 고른 프로필에 생길 일을 한 줄로 보인다. 엔진 `planned`와 같은 규칙을 그 프로필 하나에 적용한다
+  const MERGED: ReviewItem = {
+    ...DRIVE,
+    name: "merged",
+    profilePlan: { swapOut: ["alpha", "beta"], placeAfter: null, driveFrom: null },
+  };
+
+  test("a merge removes the originals the profile holds, in the profile's order", () => {
+    expect(planPreviewOf(MERGED, to("p"), [profileOf("p", ["beta", "keep", "alpha"])])).toEqual({
+      kind: "swap",
+      removed: ["beta", "alpha"],
+      drive: null,
+    });
+    expect(planPreviewOf(MERGED, to("p"), [profileOf("p", ["keep", "alpha"])])).toEqual({
+      kind: "swap",
+      removed: ["alpha"],
+      drive: null,
+    });
+  });
+
+  test("nothing to say: a profile with none of the originals, a removed plan with no profile chosen, a library target, an update, or no plan", () => {
+    const profiles = [profileOf("p", ["keep"])];
+    expect([
+      planPreviewOf(MERGED, to("p"), profiles),
+      planPreviewOf(MERGED, { kind: "library" }, [profileOf("p", ["alpha"])]),
+      planPreviewOf(MERGED, { kind: "unset" }, [profileOf("p", ["alpha"])]),
+      planPreviewOf(MERGED, to("gone"), [profileOf("p", ["alpha"])]),
+      planPreviewOf({ ...MERGED, kind: "update" }, to("p"), [profileOf("p", ["alpha"])]),
+      planPreviewOf(DRIVE, to("p"), [profileOf("p", ["alpha"])]),
+    ]).toEqual([null, null, null, null, null, null]);
+  });
+
+  test("a split places the new plugin right after placeAfter when the profile holds it, and nothing when it does not", () => {
+    const split: ReviewItem = {
+      ...LINT,
+      name: "part",
+      profilePlan: { swapOut: [], placeAfter: "keep", driveFrom: null },
+    };
+    expect(planPreviewOf(split, to("p"), [profileOf("p", ["keep", "x"])])).toEqual({
+      kind: "after",
+      after: "keep",
+      drive: null,
+    });
+    const gone: ReviewItem = {
+      ...split,
+      profilePlan: { swapOut: [], placeAfter: "nope", driveFrom: null },
+    };
+    expect(planPreviewOf(gone, to("p"), [profileOf("p", ["keep"])])).toBeNull();
+  });
+
+  test("the start Drive moves when it is one of the originals or the driveFrom; a null start Drive never moves", () => {
+    const split: ReviewItem = {
+      ...DRIVE,
+      name: "part",
+      profilePlan: { swapOut: [], placeAfter: "keep", driveFrom: "keep" },
+    };
+    expect([
+      planPreviewOf(MERGED, to("p"), [profileOf("p", ["alpha", "keep"], "alpha")]),
+      planPreviewOf(split, to("p"), [profileOf("p", ["keep", "x"], "keep")]),
+      planPreviewOf(split, to("p"), [profileOf("p", ["keep", "x"], "x")]),
+      planPreviewOf(MERGED, to("p"), [profileOf("p", ["alpha"], null)]),
+    ]).toEqual([
+      { kind: "swap", removed: ["alpha"], drive: "toNew" },
+      { kind: "after", after: "keep", drive: "toNew" },
+      { kind: "after", after: "keep", drive: null },
+      { kind: "swap", removed: ["alpha"], drive: null },
+    ]);
+  });
+
+  test("a new plugin that is not a Drive clears the start Drive it takes over", () => {
+    const merged: ReviewItem = {
+      ...LINT,
+      name: "merged",
+      profilePlan: { swapOut: ["alpha", "beta"], placeAfter: null, driveFrom: null },
+    };
+    expect(planPreviewOf(merged, to("p"), [profileOf("p", ["alpha"], "alpha")])).toEqual({
+      kind: "swap",
+      removed: ["alpha"],
+      drive: "cleared",
+    });
+  });
+
+  test("a Drive move with nothing removed or placed says the new plugin goes to the end", () => {
+    const end: ReviewItem = {
+      ...DRIVE,
+      name: "part",
+      profilePlan: { swapOut: [], placeAfter: null, driveFrom: "x" },
+    };
+    expect(planPreviewOf(end, to("p"), [profileOf("p", ["x"], "x")])).toEqual({
+      kind: "end",
+      drive: "toNew",
+    });
+  });
+
+  test("the new plugin's own name in swapOut is not a removal, as in the engine", () => {
+    const self: ReviewItem = {
+      ...MERGED,
+      profilePlan: { swapOut: ["merged", "alpha"], placeAfter: null, driveFrom: null },
+    };
+    expect(planPreviewOf(self, to("p"), [profileOf("p", ["merged", "alpha"])])).toEqual({
+      kind: "swap",
+      removed: ["alpha"],
+      drive: null,
+    });
   });
 });

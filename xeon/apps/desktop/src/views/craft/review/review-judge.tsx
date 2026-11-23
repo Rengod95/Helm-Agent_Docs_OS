@@ -33,6 +33,7 @@ import {
   keeperOf,
   missingForTarget,
   needsTarget,
+  planPreviewOf,
   purposeDraftOf,
   rejectDecisionOf,
   shortHash,
@@ -40,6 +41,7 @@ import {
   type ApproveOutcome,
   type CostLine,
   type DecideFailure,
+  type PlanPreview,
   type Target,
   type Versions,
   type Warning,
@@ -130,6 +132,25 @@ function CodeNotice(props: { readonly card: PluginCard }): ReactNode {
 /** 이 기기에 없는 플러그인 이름들을 ‘a’, ‘b’로 */
 function quoted(names: readonly string[]): string {
   return names.map((name) => `‘${name}’`).join(", ");
+}
+
+/**
+ * 합치기·떼기 미리 보기 한 줄(AGE-72): 승인하면 고른 프로필에서 빠지는 것과 들어오는 것, 스타트 Drive의 옮김. 이름은 플러그인 이름이다(프로필 제목이 아니다).
+ */
+function planText(preview: PlanPreview, name: string): string {
+  const placed = quoted([name]);
+  const main =
+    preview.kind === "swap"
+      ? t("desktop.craft.review.plan.swap", { removed: quoted(preview.removed), name: placed })
+      : preview.kind === "after"
+        ? t("desktop.craft.review.plan.after", { after: quoted([preview.after]), name: placed })
+        : t("desktop.craft.review.plan.end", { name: placed });
+  if (preview.drive === null) return main;
+  const drive =
+    preview.drive === "toNew"
+      ? t("desktop.craft.review.plan.driveTo", { name: placed })
+      : t("desktop.craft.review.plan.driveCleared");
+  return `${main} ${drive}`;
 }
 
 /**
@@ -503,6 +524,7 @@ function DecidePanel(props: {
   }, [phase.kind]);
 
   const note = item.kind === "new" ? targetNote(target) : null;
+  const preview = planPreviewOf(item, target, profiles);
   const targetMissing =
     item.kind === "new" ? missingForTarget(props.missing, target, item.name) : [];
   // 3656의 사유 가운데 경고(이미 있던 없는 플러그인)는 거절 사유가 아니다. 거절 사유만 위험 색으로 보인다
@@ -570,6 +592,9 @@ function DecidePanel(props: {
             ))}
             <SelectOption value={LIBRARY}>{t("desktop.craft.review.after.library")}</SelectOption>
           </Select>
+          {preview === null ? null : (
+            <span className="rv-field-hint">{planText(preview, item.name)}</span>
+          )}
           {note === null ? null : <span className="rv-field-hint">{t(note)}</span>}
           <MissingNote names={targetMissing} />
         </label>

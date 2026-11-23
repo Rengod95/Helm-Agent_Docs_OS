@@ -437,3 +437,23 @@ describe("fifth round (m6R5)", () => {
     expect(FETCH).toContain("따로 알릴 위험이 없어요");
   });
 });
+
+describe("merge and split preview (AGE-72)", () => {
+  const DRIVE_SAMPLE = ITEMS.filter((item) => item.itemId === "rvw_sample_drive");
+
+  test("a merge into the chosen profile says what leaves and what comes in, above the timing note", () => {
+    const merged = DRIVE_SAMPLE.map((item): ReviewItem => ({
+      ...item,
+      name: "merged-helper",
+      profilePlan: { swapOut: ["helm"], placeAfter: null, driveFrom: null },
+    }));
+    const html = render(ready(merged));
+    expect(html).toContain(
+      "승인하면 이 프로필에서 ‘helm’ 플러그인이 빠지고 ‘merged-helper’ 플러그인이 들어와요.",
+    );
+    expect(html.indexOf("‘merged-helper’ 플러그인이 들어와요.")).toBeLessThan(
+      html.indexOf("다음 턴부터 실려요."),
+    );
+    expect(render(ready(DRIVE_SAMPLE))).not.toContain("플러그인이 들어와요.");
+  });
+});
