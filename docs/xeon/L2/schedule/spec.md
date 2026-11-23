@@ -1389,12 +1389,12 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 | 종류 | 기한 | 비고 |
 |---|---|---|
-| `interval` | 생성 시각 + 간격, 이후 간격마다 | 간격은 300초 이상. 미만이면 생성이 `interval_too_short`로 거부된다 |
+| `interval` | 생성 시각 + 간격, 이후 간격마다. `firstAtMs`가 있으면 첫 기한이 그 시각이고 이후 간격마다다("매일 9시" = 다음 9시와 86400초) | 간격은 300초 이상. 미만이면 생성이 `interval_too_short`로 거부된다. `firstAtMs`가 지난 시각이면 `at_in_past`다 |
 | `at` | 지정한 시각 한 번 | 지난 시각은 `at_in_past`. 실행하거나 건너뛴 뒤 꺼진다 |
 | `file_watch` | 기한 없음. 경로가 바뀐 뒤 디바운스가 지나면 다음 틱에서 실행 | 틱 주기보다 짧은 디바운스는 틱 주기로 처리된다. 감시자가 이 프로세스에 있으므로 대기 예약 수에 센다 |
 | `remote` | 기한 없음. `fire` 호출 때만 | 대기 예약 수에 세지 않는다 |
 
-`fire`(지금 한 번 실행)는 원격 트리거 외에 켜진 `interval`, `at` 예약도 받는다. 실행은 그 예약의 트리거 종류로 남고 기한 계산은 바뀌지 않으며(`at`은 기한에도 한 번 돈다), 겹침, 최소 간격, 시간당 상한 검사는 그대로 적용한다. `repeat`와 `file_watch`는 스스로 이어지는 흐름이라 `not_remote`다 [결정: 오케스트레이터 기본값, AGE-77 scnFix F-31]. cron·`schedule.timers`는 이 저장소에 구현이 없고 모델 도구 `schedule_create`는 간격과 한 번(`at`)만 받는다: 스펙 §3.5와의 차이로 보고했고 만들지 않았다(F-30).
+`fire`(지금 한 번 실행)는 원격 트리거 외에 켜진 `interval`, `at` 예약도 받는다. 실행은 그 예약의 트리거 종류로 남고 기한 계산은 바뀌지 않으며(`at`은 기한에도 한 번 돈다), 겹침, 최소 간격, 시간당 상한 검사는 그대로 적용한다. `repeat`와 `file_watch`는 스스로 이어지는 흐름이라 `not_remote`다 [결정: 오케스트레이터 기본값, AGE-77 scnFix F-31]. cron·`schedule.timers`는 이 저장소에 구현이 없고 모델 도구 `schedule_create`는 간격, 한 번(`at`), 그리고 둘을 함께 준 "시각부터 간격마다"(매일 9시)를 받는다. 간격이 고정 초라 서머타임이 있는 지역은 해마다 한두 번 한 시간 어긋나고 요일 선택은 없다: cron 식은 스펙 §3.5와의 차이로 남는다(F-30) [결정: 오케스트레이터 기본값, AGE-77 scnEng F-30].
 | `repeat` | 실행이 정착한 뒤 간격 뒤에 다시 실행(옛 이름 `loop`, ADR-0022 §3.6) | `maxIterations`와 `expiresAtMs`가 필수다. 대기 예약이 아니라 live task로 센다(`liveSchedulerTasks`, M3-10) |
 
 - 상태 파일(`<dirs.state>/schedule/state.json`)은 `version: 2`다. `version: 1` 파일은 읽을 때 `upgradeScheduleState`(`packages/cap-schedule/src/migrate.ts`)가 `trigger.kind`와 run의 `firedBy`의 `loop`를 `repeat`로 바꿔 한 번 올린다. 저장은 항상 `version: 2`다 [결정: 2026-11-01 사용자, 저장된 예약 정의는 이전 단계 하나를 둔다].
@@ -1414,7 +1414,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
   - 제목과 프롬프트는 값을 그대로 바꾼다. 엔진은 프롬프트를 검사하지 않는다. 와이어 스키마(`minLength: 1`)가 빈 문자열을 거른다. 공백만 있는 프롬프트는 `update`가 그대로 받는다. `create`는 같은 입력을 `prompt_empty`로 거른다.
   - 끄기(켜진 항목에 `enabled: false`): `enabled`는 false, `nextDueAt`은 null이다. `stoppedReason`은 그대로 둔다. 켜진 항목의 사유는 null이므로 `cancelled`가 남지 않고, `create`에서 `enabled: false`로 만든 항목과 같은 상태가 된다. 감시 항목은 감시를 내린다. 진행 중인 실행은 멈추지 않는다(`cancel`과 같다). 꺼진 반복 예약은 진행 중 실행이 정착해도 다음 기한을 잡지 않는다.
   - 켜기(꺼진 항목에 `enabled: true`): `stoppedReason`을 null로 지운다(`cancelled` 포함). 다음 기한은 트리거 종류마다 다음과 같다.
-    - `interval`: 켜는 시각 + `everySeconds`다(`create`와 같다). [결정: 오케스트레이터 기본값, M4 W-07]
+    - `interval`: 켜는 시각 + `everySeconds`다(`create`와 같다). `firstAtMs`가 있으면 그 시각에 맞는 다음 시각이다. [결정: 오케스트레이터 기본값, M4 W-07]
     - `at`: `atMs`가 켜는 시각보다 뒤이면 `atMs`를 쓴다. 지났으면 켜지 않는다 [제안]. 지난 시각의 한 번짜리 예약에 바로 실행하는 기한을 만들지 않고, `create`가 `at_in_past`로 거부하는 상태를 켜진 채 만들지 않으려는 것이다.
     - `repeat`: 켜는 시각 + `intervalSeconds`를 쓴다. `create`는 첫 회차를 바로 잡지만 켜기는 한 간격 뒤에 잡는다 [결정: 오케스트레이터 기본값, M4 W-07]. 반복 횟수가 `maxIterations`에 이르렀거나 다음 회차 시각이 `expiresAtMs` 이상이면 켜지 않는다 [제안: 정착 뒤 만료 판정과 같은 식].
     - `file_watch`, `remote`: 기한이 없다. 감시 항목은 서비스가 떠 있으면 `create`처럼 감시를 다시 건다 [결정: 오케스트레이터 기본값, M4 W-07].

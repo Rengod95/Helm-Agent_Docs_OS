@@ -33,7 +33,11 @@ const FILE_MODE = 0o600;
 const nullable = <Inner extends TSchema>(inner: Inner) => Type.Union([inner, Type.Null()]);
 
 const TriggerSchema = Type.Union([
-  Type.Object({ kind: Type.Literal("interval"), everySeconds: Type.Number() }),
+  Type.Object({
+    kind: Type.Literal("interval"),
+    everySeconds: Type.Number(),
+    firstAtMs: Type.Optional(Type.Number()),
+  }),
   Type.Object({ kind: Type.Literal("at"), atMs: Type.Number() }),
   Type.Object({
     kind: Type.Literal("file_watch"),
