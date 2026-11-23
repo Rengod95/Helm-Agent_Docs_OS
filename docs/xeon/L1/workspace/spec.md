@@ -69,6 +69,7 @@ binds: [xeon/packages/core-workspace/**]
 6. 시크릿: `secretEnv`의 값은 이 패키지를 지나지 않는다. 참조(`secret://`)만 `fresnel.exec`에 넘기고, 승인 증거는 `CallContext.approval`을 그대로 옮긴다. 증거가 없으면 `fresnel.secrets`가 거부한다.
 7. 쓰기 원자성: `atomicWrite`는 같은 디렉터리의 임시 파일(`.<이름>.fresnel-tmp-<uuid>`)에 쓰고 `flushFile` 뒤 `renameFile`로 바꾼다. `expectedBefore`가 있으면 이름 바꾸기 직전에 내용을 다시 읽어 다르면 `edit_conflict`로 거부한다. 실패하면 임시 파일을 지운다.
 8. 같은 파일 줄세우기: 같은 파일 시스템의 `write`·`edit`은 경로 해석을 호출 순서대로 하고, 같은 정규 경로의 변경은 한 번에 하나만 돈다. 다른 프로세스나 `bash`에는 효과가 없다(그쪽은 `expectedBefore`가 맡는다).
+9. 산출물 훑기(AGE-77 S-08, `shell/artifact-scan.ts`): 셸 실행 앞뒤로 작업 폴더(cwd)를 `listDir`로 훑어, 그려 볼 수 있는 파일(확장자 목록은 F `artifact-files.ts`의 `viewableKindOfPath`)의 크기와 수정 시각을 견준다. 새로 생기거나 크기나 수정 시각이 바뀐 것을 결과의 `artifactFiles`로 싣는다(바뀐 것이 없으면 키를 두지 않는다, 경로순 `MAX_ARTIFACT_FILES`개까지). 범위: 작업 폴더 아래 `SHELL_SCAN_MAX_DEPTH`(3) 마디까지, `node_modules`와 점으로 시작하는 폴더(`.git` 포함)는 들어가지 않고, 심볼릭 링크는 따르지도 싣지도 않으며, 보호 경로 규칙(`protectedPaths`)에 걸리는 파일은 뺀다. 상한: 세는 파일 수가 `SHELL_SCAN_MAX_FILES`(5000)를 넘거나, 한 번 훑는 시간이 `SHELL_SCAN_TIMEOUT_MS`(1000ms)를 넘거나, 기준 폴더를 못 읽으면 그 훑기는 포기하고 목록을 싣지 않는다. 읽기 전용 호출은 쓰기 root가 없어 훑지 않는다. 종료 코드가 0이 아니어도 실행이 끝났으면 훑는다(아티팩트 판은 오류 결과를 판으로 보지 않는다). 실행 자체가 실패하거나 시간 초과로 끝나면 훑지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -76,6 +77,7 @@ binds: [xeon/packages/core-workspace/**]
 - 보호 경로는 허용 root 안에 있어도 `denied`(`protected_path`)다. 루트 밖 경로는 `denied`(`outside_root`)이고, 아직 없는 마디에 `..`가 있으면 `denied`(`parent_traversal`)다.
 - 예외 하나: 프로젝트 없는 대화의 기본 작업 폴더(`<데이터>/default-project/<threadId>`)는 데이터 폴더 안이지만, 그 대화 자신의 폴더 안은 `fresnel_data` 거부에서 뺀다(첫 root가 그 폴더일 때만). 다른 대화의 기본 폴더와 데이터 폴더의 나머지, 설정, 시크릿은 그대로 막는다.
 - 셸 제한 시간 초과는 `timeout`이고 그때까지의 출력을 `detail`에 싣는다. 시간 초과 종료 코드는 -1이다.
+- 산출물 훑기의 포기(상한 초과, 시간 초과, 기준 폴더 읽기 실패)는 실패가 아니다. 셸 호출은 그대로 성공하고 목록만 싣지 않는다.
 
 ## 6. 설정 노출
 
@@ -97,6 +99,7 @@ binds: [xeon/packages/core-workspace/**]
 - 이동한 시험 다섯 개(`roots`, `errors`, `output`, `shell`, `fork-records`)가 통과한다(`just check packages/core-workspace`의 test 단계).
 - `cap-workspace`의 기능 id `workspace.files`, `workspace.shell`, `workspace.images`와 `plugin.ts`의 등록 결과가 바뀌지 않는다(`plugin.test.ts`).
 - `core-tools`의 기본 규칙은 기능 id `workspace.files`를 `WorkspaceFiles.id`(F 정의)로 참조한다. 문자열 하드코딩이 없다(D-32).
+- `packages/core-workspace/test/shell-artifacts.test.ts`가 값을 견준다: 스크립트가 만든 svg가 `artifactFiles`에 실리고 결과 글은 그대로이며, 제외 폴더와 깊이 3 밖, 보호 경로, 읽기 전용 호출은 싣지 않고, 파일 수와 시간 상한을 넘으면 포기한다.
 
 ## 10. 미결 사항
 

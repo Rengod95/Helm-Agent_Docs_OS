@@ -11,6 +11,7 @@ import { useOpenThread, useThreadSummaries } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { ProgressOrb } from "../effects/progress-orb.tsx";
+import { isDefaultFolderPath } from "../new-thread-model.ts";
 import { listedThreadsOf } from "../thread-groups.ts";
 import { rowLabelOf } from "../thread-nav-model.ts";
 import { noticeActionsOf, projectOfThread, sameFolderRunningOf } from "./project-model.ts";
@@ -100,12 +101,16 @@ function SameFolderNotice(): ReactNode {
   if (dismissed === key) return null;
   // 펼침은 지금 목록에만 걸린다: 다른 대화가 더 돌기 시작하면 다시 셋까지 접힌다
   const view = noticeActionsOf(others, expanded === key);
+  // 프로젝트 없는 대화의 내부 기본 폴더(`default-project/<id>`)는 사용자가 고른 폴더가 아니라 경로를 보이지 않는다
+  const sameFolderInfo = isDefaultFolderPath(open.workspace, open.threadId)
+    ? t("desktop.projects.notice.sameFolder.infoNoPath")
+    : t("desktop.projects.notice.sameFolder.info", { path: open.workspace });
   return (
     <NoticeCard
       kind="same-folder"
       title={t("desktop.projects.notice.sameFolder.title", { count: others.length })}
       body={t("desktop.projects.notice.sameFolder.body")}
-      info={t("desktop.projects.notice.sameFolder.info", { path: open.workspace })}
+      info={sameFolderInfo}
       onDismiss={() => {
         setDismissed(key);
       }}

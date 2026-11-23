@@ -16,6 +16,7 @@ export * from "./secrets.ts";
 export * from "./provider.ts";
 export * from "./sandbox-block.ts";
 export * from "./file-change.ts";
+export * from "./artifact-files.ts";
 export * from "./workspace-failure.ts";
 // 내장 L2 기능 정의(F.capabilities.spec §3.9). 정의 파일은 L2 도메인마다 하나다.
 export * from "./defs/workspace.ts";

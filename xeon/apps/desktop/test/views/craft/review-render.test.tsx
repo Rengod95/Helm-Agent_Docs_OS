@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { err } from "@fresnel/contracts";
+import type { InjectInventory } from "@fresnel/contracts/extensions";
 import type { ReviewItem } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
@@ -455,5 +456,38 @@ describe("merge and split preview (AGE-72)", () => {
       html.indexOf("다음 턴부터 실려요."),
     );
     expect(render(ready(DRIVE_SAMPLE))).not.toContain("플러그인이 들어와요.");
+  });
+});
+
+describe("own-code reason (rerun3 T-06)", () => {
+  const REASON = "지도를 자체 코드로 그린다";
+  // 자체 코드로 그리는 페이지 화면 하나: 앱 줄과 "자체 코드로 그리는 화면" 목록에 같은 까닭이 실린다
+  const OWN_CODE_PAGE: InjectInventory = {
+    instructions: { always: [], skills: [] },
+    tools: [],
+    mcpServers: [],
+    agents: [],
+    providers: [],
+    commands: [],
+    ui: [
+      {
+        id: "map",
+        placement: "page",
+        readsState: null,
+        modelVisible: "none",
+        mode: "app",
+        app: { reason: REASON, capabilities: ["files"] },
+      },
+    ],
+    replaces: [],
+  };
+  const withOwnCode = (item: ReviewItem): ReviewItem => ({
+    ...item,
+    card: { ...item.card, does: { ...item.card.does, inject: OWN_CODE_PAGE } },
+  });
+  const OWN_CODE = LINT.map(withOwnCode);
+
+  test("the reason sentence is shown once, in the own-code screen list, not again in the app line", () => {
+    expect(render(ready(OWN_CODE)).split(REASON).length - 1).toBe(1);
   });
 });

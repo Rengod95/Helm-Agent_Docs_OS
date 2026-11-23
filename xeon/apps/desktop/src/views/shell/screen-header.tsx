@@ -61,6 +61,11 @@ export interface ScreenHeaderProps {
   readonly hidden?: boolean;
   /** true면 바로 뒤 내용에 공용 위 간격을 주지 않는다. 안쪽 위 여백을 이미 가진 대화 기록(머리에 붙어야 하는 스크롤 영역)용 */
   readonly flush?: boolean;
+  /**
+   * true면 좁은 창에서 제목이 줄지 않고(`shrink-0`) 컨트롤이 줄어든다(메트릭 머리, rerun3 T-05). 기본은 제목이 줄고 컨트롤이 자리를 지킨다.
+   * 컨트롤 줄 안의 요소도 `min-w-0`·`shrink`여야 실제로 줄어든다
+   */
+  readonly titleFixed?: boolean;
 }
 
 export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
@@ -73,7 +78,13 @@ export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
       <PanelExpandButton />
       <PlaygroundTabStrip />
       {props.lead}
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+      <div
+        className={
+          props.titleFixed === true
+            ? "flex shrink-0 items-center gap-2.5"
+            : "flex min-w-0 flex-1 items-center gap-2.5"
+        }
+      >
         {typeof props.title === "string" ? (
           <h1
             id={props.titleId}
@@ -92,7 +103,15 @@ export function ScreenHeader(props: ScreenHeaderProps): ReactNode {
         {props.meta}
       </div>
       {props.controls === undefined ? null : (
-        <div className="flex min-w-0 flex-none items-center gap-2">{props.controls}</div>
+        <div
+          className={
+            props.titleFixed === true
+              ? "ms-auto flex min-w-0 shrink items-center gap-2"
+              : "flex min-w-0 flex-none items-center gap-2"
+          }
+        >
+          {props.controls}
+        </div>
       )}
       {props.action}
     </header>

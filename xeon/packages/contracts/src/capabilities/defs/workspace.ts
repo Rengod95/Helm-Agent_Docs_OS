@@ -15,6 +15,11 @@ import {
   type TUnsafe,
 } from "typebox";
 import { parseJson } from "../../base/index.ts";
+import {
+  ARTIFACT_FILES_KEY,
+  ArtifactFileEntrySchema,
+  MAX_ARTIFACT_FILES,
+} from "../artifact-files.ts";
 import { SandboxBlockSchema, type SandboxBlock } from "../sandbox-block.ts";
 import type { CapabilityApi, CapabilityDef } from "../capability.ts";
 import type { MethodDef } from "../method.ts";
@@ -673,6 +678,7 @@ export const RunOutput: TObject<{
     TUnion<[TLiteral<"escape">, TLiteral<"run_unsandboxed">, TLiteral<"disabled">]>
   >;
   sandboxBlocks: TOptional<TArray<TUnsafe<SandboxBlock>>>;
+  artifactFiles: TOptional<TArray<typeof ArtifactFileEntrySchema>>;
 }> = Type.Object(
   {
     exitCode: Type.Integer(),
@@ -694,6 +700,10 @@ export const RunOutput: TObject<{
     ),
     /** 샌드박스가 막은 것(L0.sandbox.spec §4.2 11번). 막은 것이 없으면 키가 없다. 실패한 실행에도 싣는다 */
     sandboxBlocks: Type.Optional(Type.Array(SandboxBlockSchema, { maxItems: 256 })),
+    /** 실행 전후로 견준 작업 폴더의 그려 볼 수 있는 파일 가운데 새로 생기거나 바뀐 것(S-08). 훑기를 포기했거나 읽기 전용 호출이면 키가 없다. 결과 글에는 싣지 않고 `details`로만 나간다(F.capabilities.spec §3.14) */
+    artifactFiles: Type.Optional(
+      Type.Array(ArtifactFileEntrySchema, { maxItems: MAX_ARTIFACT_FILES }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -717,7 +727,13 @@ function renderRun(out: Static<typeof RunOutput>): ToolContent {
   const head = out.truncated
     ? `[Leading output omitted${out.fullOutputPath ? `, full output: ${out.fullOutputPath}` : ""}]\n`
     : "";
-  return { content: [{ type: "text", text: head + out.output }], structuredContent: out };
+  // 산출물 목록은 결과 글과 구조 값에 싣지 않고 `details`의 예약 키로만 낸다(모델이 보는 글은 바뀌지 않는다)
+  const { artifactFiles, ...rest } = out;
+  return {
+    content: [{ type: "text", text: head + out.output }],
+    structuredContent: rest,
+    ...(artifactFiles === undefined ? {} : { details: { [ARTIFACT_FILES_KEY]: artifactFiles } }),
+  };
 }
 
 type ShellMethods = {

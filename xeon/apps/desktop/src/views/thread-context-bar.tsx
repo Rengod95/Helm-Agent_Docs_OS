@@ -201,14 +201,23 @@ function FolderItem(props: {
       <ChevronDown className="size-3 shrink-0 opacity-70" />
     </button>
   );
-  return props.interactive ? <FolderMenu path={folder.path} anchor={anchor} /> : anchor;
+  return props.interactive ? (
+    <FolderMenu path={folder.path} isDefault={folder.isDefault} anchor={anchor} />
+  ) : (
+    anchor
+  );
 }
 
-function FolderMenu(props: { readonly path: string; readonly anchor: ReactNode }): ReactNode {
+function FolderMenu(props: {
+  readonly path: string;
+  /** 프로젝트 없는 대화의 기본 폴더면 "폴더 없음"이 현재 항목이다 */
+  readonly isDefault: boolean;
+  readonly anchor: ReactNode;
+}): ReactNode {
   const folderPick = useFolderPick();
   const startThread = useStartNewThread(folderPick ?? undefined);
   const recent = recentWorkspacesOf(useThreadSummaries());
-  const start = (path: string | undefined): void => {
+  const start = (path: string | null | undefined): void => {
     detach(
       startThread(path).then(() => undefined),
       rethrow,
@@ -217,6 +226,15 @@ function FolderMenu(props: { readonly path: string; readonly anchor: ReactNode }
   return (
     <Menu trigger={props.anchor} side="top" align="start" size="sm" className="min-w-64 max-w-96">
       <MenuHeading>{t("desktop.threadContext.folder.menuHeading")}</MenuHeading>
+      <MenuItem
+        icon={props.isDefault ? <Check /> : <Folder />}
+        onSelect={() => {
+          start(null);
+        }}
+      >
+        {t("desktop.threadContext.folder.none")}
+      </MenuItem>
+      {recent.length === 0 ? null : <MenuSeparator />}
       {recent.map((item) => {
         const current = item.path === props.path;
         const tail = pathTailOf(item.path);
@@ -242,7 +260,7 @@ function FolderMenu(props: { readonly path: string; readonly anchor: ReactNode }
       })}
       {folderPick === null ? null : (
         <>
-          {recent.length === 0 ? null : <MenuSeparator />}
+          <MenuSeparator />
           <MenuItem
             icon={<FolderOpen />}
             onSelect={() => {

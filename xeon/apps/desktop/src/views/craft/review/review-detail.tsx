@@ -434,7 +434,7 @@ function AppRows(props: { readonly rows: readonly AppRow[] }): ReactNode {
   );
 }
 
-/** 앱 줄 하나: 자리, 이름, 방식. 자체 코드(app)면 아래에 까닭과 다리 권한을 잇는다 */
+/** 앱 줄 하나: 자리, 이름, 방식. 자체 코드(app)면 아래에 다리 권한을 잇는다. 까닭은 "자체 코드로 그리는 화면" 목록이 한 번 보인다(rerun3 T-06) */
 function AppLine(props: { readonly row: AppRow }): ReactNode {
   const { row } = props;
   return (
@@ -448,14 +448,6 @@ function AppLine(props: { readonly row: AppRow }): ReactNode {
           </CausticChip>
         )}
       </div>
-      {row.mode === "app" && row.reason !== null ? (
-        <div className="flex items-baseline gap-3">
-          <span className="w-20 shrink-0 text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.app.reason")}
-          </span>
-          <span className="min-w-0 max-w-[72ch] text-ui-sm text-text-secondary">{row.reason}</span>
-        </div>
-      ) : null}
       {row.mode === "app" ? (
         <div className="flex flex-wrap items-baseline gap-3">
           <span className="w-20 shrink-0 text-ui-sm text-text-tertiary">

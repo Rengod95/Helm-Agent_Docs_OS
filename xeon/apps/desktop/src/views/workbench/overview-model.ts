@@ -75,6 +75,28 @@ export function doesLeadOfCard(card: PluginCard): DoesLead | null {
   });
 }
 
+/**
+ * 첫 문장: 첫 줄 안에서 `.`·`!`·`?`·`。` 뒤에 공백이나 글 끝이 오는 곳까지다(`v1.2`처럼 점 뒤가 글자면 문장이 끝나지 않는다).
+ * 그런 곳이 없으면 첫 줄 전부다
+ */
+export function firstSentenceOf(text: string): string {
+  const firstLine = text.split("\n")[0] ?? text;
+  return (/^.*?[.!?。](?=\s|$)/u.exec(firstLine)?.[0] ?? firstLine).trim();
+}
+
+/**
+ * 플러그인 카드의 한 줄(rerun3 T-04). 목적이 있으면 "하는 일" 첫 줄과 같고, 목적이 없으면 설명의 첫 문장이다.
+ * 둘 다 없으면 null이다(카드는 "목적이 없어요"를 쓴다). 설명의 첫 문장은 설명 줄을 또 그리지 않는 글(`fromDescription`)이다
+ */
+export function cardLeadOf(card: PluginCard): DoesLead | null {
+  const lead = doesLeadOfCard(card);
+  if (lead !== null) return lead;
+  const description = cardTextIn(card, "description");
+  return description === null
+    ? null
+    : { text: firstSentenceOf(description), fromDescription: true };
+}
+
 /** Hook 수: 훅 칸이 없으면 0 */
 export function hookCountOf(card: PluginCard): number {
   return card.does.hook?.hooks.length ?? 0;

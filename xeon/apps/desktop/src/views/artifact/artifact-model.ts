@@ -1,24 +1,18 @@
 import { attempt, parseJson } from "@fresnel/contracts";
+import {
+  artifactFilesOf,
+  viewableKindOfPath,
+  type ViewableArtifactKind,
+} from "@fresnel/contracts/capabilities";
 import type { ItemId, ItemRecord, JsonValue } from "@fresnel/contracts/conversation";
 
 // 산출물 모델(순수, 던지지 않는다). 대화 transcript만으로 파일 쓰기·편집(write, edit)과 등록 산출물(artifact_create, artifact_update)의
-// 버전을 다시 만든다. 새 저장소는 없다. 버전 본문은 호출 인자에서 오고, 편집은 편집 도구와 같은 규칙으로 적용한다.
-// 적용이 어긋나면 그 버전의 본문은 null이다(다시 만들 수 없음). 결과가 없거나 오류인 호출은 버전이 아니다.
+// 버전을 다시 만든다. 셸(bash)은 실행 앞뒤로 견준 산출물 목록(결과 `details.artifactFiles`, AGE-77 S-08)으로 파일 버전을 만든다.
+// 새 저장소는 없다. 버전 본문은 호출 인자에서 오고, 편집은 편집 도구와 같은 규칙으로 적용한다.
+// 적용이 어긋나면 그 버전의 본문은 null이다(다시 만들 수 없음). 셸 버전의 본문은 모르므로 null이고 미리보기는 폴더의 실제 파일을 읽는다.
+// 결과가 없거나 오류인 호출은 버전이 아니다.
 
-export type ArtifactKind = "html" | "svg" | "image" | "markdown";
-
-const KIND_OF_EXTENSION: ReadonlyMap<string, ArtifactKind> = new Map<string, ArtifactKind>([
-  ["html", "html"],
-  ["htm", "html"],
-  ["svg", "svg"],
-  ["png", "image"],
-  ["jpg", "image"],
-  ["jpeg", "image"],
-  ["gif", "image"],
-  ["webp", "image"],
-  ["md", "markdown"],
-  ["markdown", "markdown"],
-]);
+export type ArtifactKind = ViewableArtifactKind;
 
 const KIND_OF_MEDIA_TYPE: ReadonlyMap<string, ArtifactKind> = new Map<string, ArtifactKind>([
   ["text/html", "html"],
@@ -43,13 +37,9 @@ function lastSegmentOf(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
-/** 확장자로 보는 산출물 종류. 대소문자를 가리지 않는다. 확장자가 없거나 목록에 없으면 null */
+/** 확장자로 보는 산출물 종류. 확장자 목록은 F(`artifact-files.ts`)의 단일 출처를 쓴다. 확장자가 없거나 목록에 없으면 null */
 export function artifactKindOfPath(path: string): ArtifactKind | null {
-  const name = lastSegmentOf(path);
-  const dot = name.lastIndexOf(".");
-  // 맨 앞의 점은 숨김 파일 이름이지 확장자가 아니다
-  if (dot <= 0) return null;
-  return KIND_OF_EXTENSION.get(name.slice(dot + 1).toLowerCase()) ?? null;
+  return viewableKindOfPath(path);
 }
 
 /** 미디어 타입으로 보는 산출물 종류. `;` 뒤 매개변수와 대소문자를 무시한다 */
@@ -59,7 +49,8 @@ export function artifactKindOfMediaType(mediaType: string): ArtifactKind | null 
   return KIND_OF_MEDIA_TYPE.get(bare) ?? null;
 }
 
-type ArtifactOp = "write" | "edit" | "create" | "update";
+/** `shell`은 셸 실행이 만든 판이다. 본문은 모르고 미리보기는 폴더의 실제 파일을 읽는다 */
+type ArtifactOp = "write" | "edit" | "create" | "update" | "shell";
 
 export interface ArtifactVersion {
   readonly number: number;
@@ -376,6 +367,32 @@ function applyUpdate(drafts: Map<string, Draft>, call: Call, result: CallResult 
   addVersion(draft, call, "update", text);
 }
 
+/**
+ * 셸 호출의 산출물. 결과 `details.artifactFiles`(실행 앞뒤로 견준 새 파일과 바뀐 파일)마다 그 파일의 판을 하나 더한다.
+ * 본문은 모른다(null). 실행이 끝나지 않았거나 오류 결과면 판이 아니다. 목록이 없으면 아무것도 없다.
+ */
+function applyShell(
+  drafts: Map<string, Draft>,
+  call: Call,
+  result: CallResult | null,
+  workspace: string | null,
+): void {
+  if (result === null || result.isError) return;
+  for (const file of artifactFilesOf(result.details)) {
+    const kind = viewableKindOfPath(file.path);
+    if (kind === null) continue;
+    const path = normalizeArtifactPath(file.path, workspace);
+    const draft = draftOf(
+      drafts,
+      `file:${path}`,
+      { kind: "file", path },
+      kind,
+      lastSegmentOf(path),
+    );
+    addVersion(draft, call, "shell", null);
+  }
+}
+
 function applyCall(
   drafts: Map<string, Draft>,
   call: Call,
@@ -384,6 +401,8 @@ function applyCall(
 ): void {
   if (call.name === "write" || call.name === "edit") {
     applyFileCall(drafts, call, result, workspace);
+  } else if (call.name === "bash") {
+    applyShell(drafts, call, result, workspace);
   } else if (call.name === "artifact_create") {
     applyCreate(drafts, call, result);
   } else if (call.name === "artifact_update") {

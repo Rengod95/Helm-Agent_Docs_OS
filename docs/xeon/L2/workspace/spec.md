@@ -565,6 +565,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 6. 제한 시간: 입력 `timeoutSec` → 설정 기본값 순. 넘기면 `timeout` 오류이고 프로세스 그룹 전체를 종료한다(`L0.exec.spec`).
    무인 호출(`CallContext.interactive === false`, 예약과 루프)은 상한을 더 받는다. 유효 제한 시간은 요청 값과 상한 가운데 짧은 쪽이고, 요청이 없으면 상한이다.
    상한은 `unattendedTimeoutMs` 의존에서 읽으며, 의존이 없으면 상한을 걸지 않는다. 규칙은 `L0.exec.spec` §3.8.1과 같고, 대화형 호출은 바뀌지 않는다.
+7. 산출물 목록(AGE-77 S-08): 실행 앞뒤로 작업 폴더를 훑어 새로 생기거나 바뀐 그려 볼 수 있는 파일(html, svg, 그림, markdown)을 결과 `RunOutput`의 `artifactFiles`(경로, `op`, 크기, 수정 시각)로 싣는다. `renderRun`은 이 값을 `details.artifactFiles`로만 옮기고, 결과 글(`content`)과 `structuredContent`는 바꾸지 않는다. 모델에 가는 글은 그대로다. 훑기 범위와 상한은 `L1.workspace.spec` §4의 9번이고, 아티팩트 판이 이 목록을 받는 규칙은 `L4.desktop-ux.spec` §6.6.2다.
 
 ### 4.3 경로 해석과 탈출 검사
 

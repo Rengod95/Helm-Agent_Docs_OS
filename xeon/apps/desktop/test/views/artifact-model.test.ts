@@ -607,3 +607,110 @@ describe("외부 주소와 폴더 밖 참조", () => {
     expect(outsideRefsOf(text)).toEqual(Array.from({ length: 8 }, (_, i) => `../n${i}.png`));
   });
 });
+
+describe("artifactsOf: 셸 산출물 (AGE-77 S-08)", () => {
+  const chart = { path: "/Users/u/p/out/chart.svg", op: "create", size: 9, mtimeMs: 1700 };
+
+  test("bash 결과의 artifactFiles마다 판 하나를 더한다. 본문은 모르고(null), 경로는 작업 폴더 기준이다", () => {
+    const entries = artifacts(
+      [
+        assistant(1, [toolCall("c1", "bash", { command: "python3 make.py" })]),
+        resultOf(2, "c1", { text: "chart written", details: { artifactFiles: [chart] } }),
+      ],
+      "/Users/u/p",
+    );
+    expect(entries).toEqual([
+      {
+        key: "file:out/chart.svg",
+        source: { kind: "file", path: "out/chart.svg" },
+        kind: "svg",
+        title: "chart.svg",
+        versions: [{ number: 1, callId: "c1", itemId: itm(1), op: "shell", text: null }],
+        pending: false,
+      },
+    ]);
+  });
+
+  test("오류 결과와 목록이 없는 결과는 판이 아니고, 결과가 없는 호출은 대기도 아니다", () => {
+    const entries = artifacts(
+      [
+        assistant(1, [toolCall("c1", "bash", { command: "a" })]),
+        resultOf(2, "c1", {
+          isError: true,
+          text: "exit code 1",
+          details: { artifactFiles: [chart] },
+        }),
+        assistant(3, [toolCall("c2", "bash", { command: "b" })]),
+        resultOf(4, "c2", { text: "ok" }),
+        assistant(5, [toolCall("c3", "bash", { command: "c" })]),
+      ],
+      "/Users/u/p",
+    );
+    expect(entries).toEqual([]);
+  });
+
+  test("셸이 만든 판 뒤의 편집은 본문을 모르므로 null이다", () => {
+    const entries = artifacts(
+      [
+        assistant(1, [toolCall("c1", "bash", { command: "gen" })]),
+        resultOf(2, "c1", { details: { artifactFiles: [chart] } }),
+        assistant(3, [
+          toolCall("c2", "edit", {
+            path: "out/chart.svg",
+            edits: [{ oldText: "x", newText: "y" }],
+          }),
+        ]),
+        resultOf(4, "c2", { text: "Edited" }),
+      ],
+      "/Users/u/p",
+    );
+    expect(entries[0]?.versions.map((v) => [v.op, v.text])).toEqual([
+      ["shell", null],
+      ["edit", null],
+    ]);
+  });
+
+  test("같은 파일을 다시 쓰면 판이 늘고, 쓰기의 본문이 다음 편집의 바탕이 된다", () => {
+    const entries = artifacts(
+      [
+        assistant(1, [toolCall("c1", "bash", { command: "gen" })]),
+        resultOf(2, "c1", { details: { artifactFiles: [chart] } }),
+        assistant(3, [toolCall("c2", "write", { path: "out/chart.svg", content: "<svg>w</svg>" })]),
+        resultOf(4, "c2", { text: "Wrote" }),
+        assistant(5, [
+          toolCall("c3", "edit", {
+            path: "out/chart.svg",
+            edits: [{ oldText: "w", newText: "e" }],
+          }),
+        ]),
+        resultOf(6, "c3", { text: "Edited" }),
+      ],
+      "/Users/u/p",
+    );
+    expect(entries[0]?.versions.map((v) => [v.op, v.text])).toEqual([
+      ["shell", null],
+      ["write", "<svg>w</svg>"],
+      ["edit", "<svg>e</svg>"],
+    ]);
+  });
+
+  test("작업 폴더 밖의 파일은 절대 경로가 키이고, 목록 밖 확장자는 뺀다", () => {
+    const entries = artifacts(
+      [
+        assistant(1, [toolCall("c1", "bash", { command: "gen" })]),
+        resultOf(2, "c1", {
+          details: {
+            artifactFiles: [
+              { path: "/tmp/other/a.html", op: "create", size: 1, mtimeMs: 1 },
+              { path: "/Users/u/p/data.json", op: "create", size: 1, mtimeMs: 1 },
+            ],
+          },
+        }),
+      ],
+      "/Users/u/p",
+    );
+    expect(entries.map((e) => [e.key, e.source, e.kind])).toEqual([
+      ["file:/tmp/other/a.html", { kind: "file", path: "/tmp/other/a.html" }, "html"],
+    ]);
+  });
+});

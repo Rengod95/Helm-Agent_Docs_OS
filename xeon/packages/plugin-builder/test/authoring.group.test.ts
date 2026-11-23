@@ -295,7 +295,7 @@ test("authoring.resume: an answer to the confirmation queues a followUp so the s
         kind: "context",
         customType: "grp.authoring.notice.status",
         content:
-          "[authoring] the user confirmed the kind and the name: continue with authoring_compose and authoring_scaffold",
+          "[authoring] the user confirmed the kind and the name: continue without asking through authoring_trial",
         display: false,
       },
     ],

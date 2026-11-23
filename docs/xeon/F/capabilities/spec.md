@@ -955,6 +955,27 @@ export function fileChangesOf(details: JsonValue | null): readonly FileChangeEnt
 - `fileChangesOf`(순수 함수)는 새 형식을 먼저 읽는다. 키가 없으면 옛 `FileChange` 한 건을 `source: "observed"` 항목 하나로 읽는다. `op`은 `existed`가 참이면 `modify`, 거짓이면 `create`다. `null`과 모양이 맞지 않는 값은 빈 목록이다. 키가 있는데 모양이 틀리면 옛 형식으로 넘어가지 않고 빈 목록이다.
 - 플러그인 도구의 `ctx.changes.report`는 `Omit<FileChangeEntry, "source">`를 받는다. `source`는 코어가 `"reported"`로 정하므로 호출자가 적지 않는다. 코어는 받은 값을 `FileChangeEntrySchema`로 검증하고 모양이 틀린 항목은 버린다(M5e §4.7, F-4). `ToolChangeReport`와 `ReportedFileChange`는 `extensions/ports.ts`에 둔다.
 
+### 3.14 셸 산출물 목록 (`artifact-files.ts`)
+
+[결정: 2026-11-23 AGE-77 S-08] 셸(`bash`)이 만든 파일은 대화 기록의 `write`·`edit` 호출에 없어 아티팩트 판이 볼 수 없었다. 셸이 실행 전후로 작업 폴더를 견줘 새로 생기거나 바뀐 그려 볼 수 있는 파일을 도구 결과 `details`의 예약 키 `artifactFiles`에 싣는다. 정의 파일은 `artifact-files.ts` 하나다.
+
+```ts
+export type ViewableArtifactKind = "html" | "svg" | "image" | "markdown";
+export const VIEWABLE_EXTENSION_KINDS: ReadonlyMap<string, ViewableArtifactKind>;
+export function viewableKindOfPath(path: string): ViewableArtifactKind | null;
+export const ArtifactFileEntrySchema: TObject<{ path, op, size, mtimeMs }>;
+export const ARTIFACT_FILES_KEY = "artifactFiles" as const;
+export const MAX_ARTIFACT_FILES = 32;
+export function artifactFilesOf(details: JsonValue | null): readonly ArtifactFileEntry[];
+```
+
+- 확장자 목록(`VIEWABLE_EXTENSION_KINDS`)은 단일 출처다. html·htm, svg, png·jpg·jpeg·gif·webp, md·markdown이고, 아티팩트 판(`L4.desktop-ux.spec` §6.6.2)이 이 목록으로 종류를 정한다. 대소문자를 가리지 않고, 맨 앞의 점이 있는 이름과 목록 밖의 확장자는 해당하지 않는다.
+- `ArtifactFileEntrySchema`는 닫힌 모양이다. `path`(절대 경로), `op`(`create`는 호출 전에 없었고 `modify`는 크기나 수정 시각이 바뀌었다), `size`, `mtimeMs`를 가진다.
+- `bash` 결과의 `RunOutput`에 선택 필드 `artifactFiles`가 있다. `renderRun`은 이 필드를 `details.artifactFiles`로만 옮기고, 결과 글(`content`)과 `structuredContent`에는 싣지 않는다. 모델이 보는 글은 바뀌지 않는다.
+- `artifactFilesOf`(순수 함수)는 키가 없거나 `null`이거나 모양이 틀리면 빈 목록이다. 다른 키(`truncation`, `sandboxBlocks`, 도구가 낸 값)는 무시한다.
+- 목록은 `MAX_ARTIFACT_FILES`(32)개까지다. 넘으면 경로순으로 앞의 32개만 싣는다. 훑기 자체의 상한과 포기 규칙은 `L1.workspace.spec`의 셸 절이 정한다.
+- 이 키는 `fileChanges`와 달리 코어 파이프라인이 합치거나 지우지 않는다. 도구나 훅이 같은 키를 내면 그 값이 그대로 나간다. 오류로 끝난 호출의 결과도 이 키를 실을 수 있지만, 아티팩트 판은 오류 결과를 판으로 보지 않는다.
+
 ## 4. 동작 규칙
 
 ### 4.1 버전과 범위

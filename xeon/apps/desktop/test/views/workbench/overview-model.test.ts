@@ -4,8 +4,10 @@ import { activeLocale, setActiveLocale, t, type Locale } from "@fresnel/client/i
 import type { InjectInventory, PluginCard } from "@fresnel/contracts/extensions";
 import type { Profile } from "@fresnel/contracts/wire";
 import {
+  cardLeadOf,
   cardTextIn,
   cardTextOf,
+  firstSentenceOf,
   hookCountOf,
   profilesWithOf,
   readinessWordOf,
@@ -80,6 +82,35 @@ describe("개요의 글 칸", () => {
     expect(inLocale("ko", () => cardTextIn(card({ description: "설명" }), "description"))).toBe(
       "설명",
     );
+  });
+});
+
+describe("카드의 한 줄(목적이 없으면 설명의 첫 문장)", () => {
+  test("a purpose is the line, and a description is not repeated", () => {
+    expect(cardLeadOf(card({ purpose: "보드를 관리해요", description: "설명. 둘째." }))).toEqual({
+      text: "보드를 관리해요",
+      fromDescription: false,
+    });
+  });
+
+  test("without a purpose the line is the first sentence of the description", () => {
+    expect(
+      cardLeadOf(
+        card({ purpose: null, description: "Helm이 목표를 나눠 조사해요. 결과를 모아요." }),
+      ),
+    ).toEqual({ text: "Helm이 목표를 나눠 조사해요.", fromDescription: true });
+  });
+
+  test("with neither a purpose nor a description there is no line", () => {
+    expect(cardLeadOf(card({ purpose: null }))).toBeNull();
+    expect(cardLeadOf(card({ purpose: "  ", description: "  " }))).toBeNull();
+  });
+
+  test("the first sentence ends at a period followed by a space or the end, not inside v1.2", () => {
+    expect(firstSentenceOf("Reads files. Writes them.")).toBe("Reads files.");
+    expect(firstSentenceOf("v1.2로 올려요")).toBe("v1.2로 올려요");
+    expect(firstSentenceOf("첫 줄에 마침표 없음\n둘째 줄. 셋째.")).toBe("첫 줄에 마침표 없음");
+    expect(firstSentenceOf("끝에 마침표.")).toBe("끝에 마침표.");
   });
 });
 

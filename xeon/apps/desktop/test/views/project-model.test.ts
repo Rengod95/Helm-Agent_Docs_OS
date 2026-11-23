@@ -183,6 +183,20 @@ describe("same folder and settings helpers", () => {
     expect(sameFolderRunningOf(undefined, others)).toEqual([]);
   });
 
+  test("a child the open conversation spawned shares its folder as expected, so only the others are named", () => {
+    const open = summary(thr(1), { workspace: "/w/app" });
+    const child = summary(thr(2), {
+      workspace: "/w/app",
+      status: "running",
+      spawnedBy: { threadId: thr(1), kind: "subagent" },
+    });
+    const other = summary(thr(3), { workspace: "/w/app", status: "running" });
+    expect(sameFolderRunningOf(open, [child]).map((thread) => thread.threadId)).toEqual([]);
+    expect(sameFolderRunningOf(open, [child, other]).map((thread) => thread.threadId)).toEqual([
+      thr(3),
+    ]);
+  });
+
   test("names are trimmed and 1 to 128 characters", () => {
     expect(checkProjectName("  api  ")).toBe("api");
     expect(checkProjectName("   ")).toBeNull();

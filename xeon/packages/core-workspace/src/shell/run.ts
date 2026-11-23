@@ -1,10 +1,21 @@
 import { assertNever } from "@fresnel/contracts";
-import { WorkspaceShell, type CallContext, type SecretRef } from "@fresnel/contracts/capabilities";
-import type { CancelScope, SecretEnvRequest, ShellApi } from "@fresnel/contracts/services";
+import {
+  WorkspaceShell,
+  type ArtifactFileEntry,
+  type CallContext,
+  type SecretRef,
+} from "@fresnel/contracts/capabilities";
+import {
+  matchProtectedPath,
+  type CancelScope,
+  type SecretEnvRequest,
+  type ShellApi,
+} from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
-import { isWithin, resolveWorkspacePath, WRITE_ANYWHERE } from "../roots.ts";
+import { isWithin, resolveWorkspacePath, WRITE_ANYWHERE, type AllowedRoots } from "../roots.ts";
 import { scopedDeps } from "../scope.ts";
+import { artifactChanges, snapshotArtifacts, type ArtifactSnapshot } from "./artifact-scan.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 import { unattendedTimeoutSec } from "./unattended.ts";
 
@@ -84,7 +95,11 @@ function blockedBySandbox(outcome: BashOutcome): boolean {
   return (outcome.sandbox?.blocks ?? []).length > 0 || DENIAL_TEXT.test(outcome.output);
 }
 
-function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
+function toRunOutput(
+  outcome: BashOutcome,
+  durationMs: number,
+  artifactFiles?: ArtifactFileEntry[],
+): RunResult {
   const blocks = outcome.sandbox?.blocks;
   return {
     exitCode: outcome.exitCode,
@@ -99,7 +114,23 @@ function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
       : {}),
     // 샌드박스가 막은 것(L0.sandbox.spec §4.2 11번). L1이 화면과 모델 글의 이유로 바꾼다(L1.tools.spec §4.12.3)
     ...(blocks === undefined ? {} : { sandboxBlocks: blocks }),
+    // 실행 앞뒤로 견준 작업 폴더의 산출물(S-08). 결과 글이 아니라 details로 나간다(F.capabilities.spec §3.14)
+    ...(artifactFiles === undefined ? {} : { artifactFiles }),
   };
+}
+
+/** 작업 폴더의 산출물 훑기. 보호 경로 규칙(`protectedPaths`)에 걸리는 파일은 목록에서 뺀다 */
+function scanArtifacts(
+  deps: Pick<WorkspaceDeps, "env" | "roots">,
+  roots: AllowedRoots,
+  cwd: string,
+): Promise<ArtifactSnapshot | null> {
+  const entries = deps.roots.protectedPaths([...roots.read, ...roots.write]);
+  return snapshotArtifacts(
+    deps.env,
+    cwd,
+    (path) => matchProtectedPath(entries, path, "read") !== undefined,
+  );
 }
 
 // 호출마다 호출한 대화의 작업 폴더로 의존을 맞춘다(scopedDeps, open-issues M-06). 기본 cwd, 샌드박스 쓰기 root가 그 폴더가 된다.
@@ -152,6 +183,9 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
             ? unattendedTimeoutSec(requestedSec, deps.unattendedTimeoutMs?.())
             : requestedSec;
         const secretEnv = secretEnvOf(input, callContext);
+        // 산출물 훑기(S-08): 실행 앞뒤로 작업 폴더를 견준다. 읽기 전용 호출은 쓰기 root가 없어 새 파일이 생기지 않으므로 훑지 않는다
+        const before =
+          callContext?.sandbox === "read-only" ? null : await scanArtifacts(deps, roots, cwd);
         const startedAt = deps.clock.now();
         // 읽기 전용 프로필 호출(서브에이전트 정의의 `permissions.sandbox`): 쓰기 루트 없음, 네트워크 차단.
         // 샌드박스를 쓸 수 없으면 wrapShell이 실행하지 않고 거부한다(L0.sandbox.spec §4.2)
@@ -191,6 +225,11 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
         };
         const ran = await execute();
         const durationMs = Math.max(0, deps.clock.now() - startedAt);
+        // 실행 자체가 실패하거나 시간 초과로 끝나면 훑지 않는다. 종료 코드가 0이 아니어도 실행이 끝났으면 훑는다
+        const after = before === null || !ran.ok ? null : await scanArtifacts(deps, roots, cwd);
+        // 바뀐 것이 없으면 키를 두지 않는다(대부분의 호출은 목록이 없다)
+        const changed = before === null || after === null ? [] : artifactChanges(before, after);
+        const artifactFiles = changed.length === 0 ? undefined : changed;
 
         if (!ran.ok) {
           const { error, partial, fullOutputPath } = ran.error;
@@ -214,7 +253,7 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
           }
           throw error;
         }
-        const plain = toRunOutput(ran.value, durationMs);
+        const plain = toRunOutput(ran.value, durationMs, artifactFiles);
         const output =
           readOnly && plain.exitCode !== 0 && blockedBySandbox(ran.value)
             ? { ...plain, output: `${plain.output}${READ_ONLY_NOTE}` }
