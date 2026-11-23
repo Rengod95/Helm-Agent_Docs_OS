@@ -11,13 +11,9 @@ test("every chat and workbench nav item opens a registered screen with an icon",
     "schedules",
     "plugins",
     "profile",
-    "overview",
     "craftReview",
     "extensions",
     "tests",
-    "metrics",
-    "compose",
-    "engine",
     "craft-metrics",
   ]);
   const missing = ids.filter((id) => registry.screen(id) === undefined);

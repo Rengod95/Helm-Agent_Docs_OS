@@ -1,4 +1,4 @@
-// 크래프트 개요의 캔버스 본문: 지도·순서·링크 세 보기와 자세히 보기. 목록 띠와 원천 연결은 `views/workbench/craft-screen.tsx`가 맡는다.
+// 옛 크래프트 개요의 캔버스 본문: 지도·순서·링크 세 보기와 자세히 보기. 개요 화면은 내비에서 빠져 지금 이것을 그리는 화면이 없다(시험만 그린다).
 // `CraftProvider` 안에서만 그린다.
 import { CENTER, type View } from "@fresnel/client/workbench/canvas";
 import { useRef, type ReactNode } from "react";

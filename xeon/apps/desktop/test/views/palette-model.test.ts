@@ -263,24 +263,16 @@ describe("palette screen navigation", () => {
       "screen:chat:schedules",
       "screen:chat:plugins",
       "screen:workbench:profile",
-      "screen:workbench:overview",
       "screen:workbench:craftReview",
       "screen:workbench:extensions",
       "screen:workbench:tests",
-      "screen:workbench:metrics",
-      "screen:workbench:compose",
-      "screen:workbench:engine",
       "screen:workbench:craft-metrics",
     ]);
     expect(screenTargetsOf("workbench").map((t) => t.screen)).toEqual([
       "profile",
-      "overview",
       "craftReview",
       "extensions",
       "tests",
-      "metrics",
-      "compose",
-      "engine",
       "craft-metrics",
       "proposals",
       "schedules",
@@ -303,7 +295,7 @@ describe("palette screen navigation", () => {
     expect(proposals?.action).toBe("nav.3");
     // 받은 요청은 사이드바 탐색에 없다. 화면은 남아 있고 바로 가기 없이 팔레트로만 열린다
     expect(screenTargetsOf("chat").find((t) => t.screen === "inbox")?.action).toBeUndefined();
-    expect(screenTargetsOf("chat").find((t) => t.screen === "overview")?.action).toBeUndefined();
+    expect(screenTargetsOf("chat").find((t) => t.screen === "overview")).toBeUndefined();
     // 대화와 연결은 내비 줄이 없어 화면 이동 행도 없다(DP-69). 연결은 명령 `connection.open`으로 연다
     expect(screenTargetsOf("chat").find((t) => t.screen === "chat")).toBeUndefined();
     expect(screenTargetsOf("chat").find((t) => t.screen === "connection")).toBeUndefined();
@@ -315,11 +307,14 @@ describe("palette screen navigation", () => {
       area: "chat",
       screen: "proposals",
     });
-    expect(decodeValue(screenValue("workbench", "metrics"))).toEqual({
+    expect(decodeValue(screenValue("workbench", "craft-metrics"))).toEqual({
       kind: "screen",
       area: "workbench",
-      screen: "metrics",
+      screen: "craft-metrics",
     });
+    // 내비에서 뺀 화면은 팔레트 값이 아니다
+    expect(decodeValue("screen:workbench:overview")).toBeNull();
+    expect(decodeValue("screen:workbench:engine")).toBeNull();
     expect(decodeValue("screen:chat:overview")).toBeNull();
     expect(decodeValue("screen:nowhere:chat")).toBeNull();
     expect(decodeValue("screen:chat")).toBeNull();

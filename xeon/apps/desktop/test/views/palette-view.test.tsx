@@ -103,16 +103,16 @@ describe("palette body (server render)", () => {
   });
 
   test("the current area's screens show first and the other area's follow (behind the more row once the five rows are full)", async () => {
-    // 대화 영역 화면은 셋(DP-69)이라 다섯 줄 안에 크래프트 화면 앞 둘(프로필, 개요)이 이어서 보인다
+    // 대화 영역 화면은 셋(DP-69)이라 다섯 줄 안에 크래프트 화면 앞 둘(프로필, 리뷰)이 이어서 보인다
     const chat = await render({ live: false, titles: [], selected: false });
     expect(chat).toContain("예약");
-    expect(chat.indexOf("예약")).toBeLessThan(chat.indexOf("개요"));
-    expect(chat).not.toContain("측정");
-    // 크래프트 영역은 화면이 다섯을 넘어 앞 다섯(프로필, 개요, 리뷰, 플러그인, 테스트)만 보이고 대화 영역 화면은 더 보기 뒤에 있다
+    expect(chat.indexOf("예약")).toBeLessThan(chat.indexOf("프로필"));
+    expect(chat).not.toContain("메트릭");
+    // 크래프트 영역은 화면이 다섯(프로필, 리뷰, 플러그인, 테스트, 메트릭)이라 다섯 줄이 차고 대화 영역 화면은 더 보기 뒤에 있다
     const workbench = await render({ live: false, titles: [], selected: false, area: "workbench" });
     expect(workbench).toContain("프로필");
-    expect(workbench).toContain("개요");
-    expect(workbench).not.toContain("측정");
+    expect(workbench).toContain("메트릭");
+    expect(workbench).not.toContain("개요");
     expect(workbench).not.toContain("예약");
   });
 

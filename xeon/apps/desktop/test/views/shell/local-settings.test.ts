@@ -80,6 +80,21 @@ describe("shell persistence", () => {
     expect(restored.places.chat).toEqual({ screen: "schedules", scroll: 500, endTab: "inbox" });
   });
 
+  test("a saved workbench screen missing from the nav opens the profile, and nav screens and trace are kept", async () => {
+    const gone = ["overview", "metrics", "compose", "engine", "plugins"];
+    const kept = ["profile", "craftReview", "extensions", "tests", "craft-metrics", "trace"];
+    const opened = await Promise.all(
+      [...gone, ...kept].map(async (screen) => {
+        const fake = fakeIpc();
+        const s = createLocalSettings(fake.ipc);
+        await s.load();
+        await s.set(LOCAL.areaWorkbench, { screen, scroll: 7, endTab: "inbox" });
+        return restoreShell(initialShell(1400), s).places.workbench.screen;
+      }),
+    );
+    expect(opened).toEqual([...gone.map(() => "profile"), ...kept]);
+  });
+
   test("the context is not persisted", async () => {
     const fake = fakeIpc();
     const s = createLocalSettings(fake.ipc);

@@ -147,7 +147,7 @@ export function addonMovesOf(
       workbench?.openDetail(name);
     },
     buildPlugin: () => {
-      go("overview");
+      go("extensions");
       workbench?.requestBuilder(null);
     },
   };

@@ -128,10 +128,13 @@ describe("Shell slots", () => {
     expect(out).not.toContain("채팅 화면 내용");
   });
 
-  test("the workbench area lists six workbench items, no plugin pages item, and no thread list", () => {
+  test("the workbench area lists five workbench items, no plugin pages item, and no thread list", () => {
     const out = render(1400, (model) => switchArea(model, "workbench"));
-    for (const label of ["개요", "플러그인", "테스트", "성능 측정", "구성", "엔진"]) {
+    for (const label of ["프로필", "리뷰", "플러그인", "테스트", "메트릭"]) {
       expect(out).toContain(label);
+    }
+    for (const label of ["개요", "성능 측정", "구성", "엔진"]) {
+      expect(out).not.toContain(label);
     }
     expect(out).not.toContain("플레이그라운드");
     expect(out).not.toContain("대화 목록 슬롯");

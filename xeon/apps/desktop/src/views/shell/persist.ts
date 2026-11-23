@@ -2,7 +2,14 @@
 // 앱을 다시 켜면 "전체"에서 시작한다.
 import { LOCAL } from "../../settings-store/index.ts";
 import type { LocalSettings } from "../../settings-store/index.ts";
+import { NAV_BY_AREA } from "./nav.ts";
 import type { Area, ShellModel } from "../../state/shell/index.ts";
+
+/** 작업대 영역에서 열 수 있는 화면. 내비 줄 다섯과 목적 화면(트레이스)이다 */
+const WORKBENCH_SCREENS: ReadonlySet<string> = new Set([
+  ...NAV_BY_AREA.workbench.map((item) => item.id),
+  "trace",
+]);
 
 /** 저장해 둔 값을 얹은 처음 상태. 폭 단계가 compact이면 저장된 시작 영역 열림은 쓰지 않는다(시트로 뜨므로 닫힌 채 시작해야 한다) */
 export function restoreShell(base: ShellModel, settings: LocalSettings): ShellModel {
@@ -12,15 +19,15 @@ export function restoreShell(base: ShellModel, settings: LocalSettings): ShellMo
   return {
     ...base,
     area: settings.get(LOCAL.areaCurrent) ?? base.area,
-    // 플러그인 화면이 대화 영역 내비로 옮겨 가기 전에 작업대 자리로 저장된 값은 개요로 돌린다
+    // 내비에 없는 화면(옛 플러그인 화면, 개요, 성능 측정, 구성, 엔진)이 저장돼 있으면 프로필로 연다
     places: {
       chat: chat ?? base.places.chat,
       workbench:
         workbench === undefined
           ? base.places.workbench
-          : workbench.screen === "plugins"
-            ? { ...workbench, screen: "overview" }
-            : workbench,
+          : WORKBENCH_SCREENS.has(workbench.screen)
+            ? workbench
+            : { ...workbench, screen: "profile" },
     },
     startOpen: base.layout === "compact" ? base.startOpen : (sidebar ?? base.startOpen),
   };

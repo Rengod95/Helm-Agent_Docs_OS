@@ -202,7 +202,7 @@ describe("크래프트로 가는 동작", () => {
     expect(shell.read.getState().places.workbench.screen).toBe("extensions");
     expect(workbench.read.getState().detail).toBe("viewdemo");
     moves.buildPlugin();
-    expect(shell.read.getState().places.workbench.screen).toBe("overview");
+    expect(shell.read.getState().places.workbench.screen).toBe("extensions");
     expect(workbench.read.getState().builder).not.toBeNull();
   });
 });

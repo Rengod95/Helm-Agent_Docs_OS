@@ -17,6 +17,7 @@ import {
   useToggleRequest,
 } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
+import { BuilderEntry } from "./builder-entry.tsx";
 import { ExtDetail } from "./ext-detail.tsx";
 import { BindingsPanel } from "./bindings-panel.tsx";
 import { InstallDialog } from "./install-dialog.tsx";
@@ -261,6 +262,7 @@ export function ExtensionsScreen(): ReactNode {
           }}
         />
       </div>
+      <BuilderEntry controller={controller} />
     </div>
   );
 }

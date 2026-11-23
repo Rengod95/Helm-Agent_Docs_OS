@@ -331,12 +331,12 @@ export function AutoOffNotice(props: {
 }
 
 /** 알림의 답을 보내는 쪽. 개요 화면이 컨트롤러로 채우고, 선택 카드(`ExtNotice`)가 이 값으로 답한다 */
-export interface AutoOffActions {
+interface AutoOffActions {
   readonly keepOn: (name: string) => void;
   readonly keepOff: (name: string) => void;
 }
 
-export const AutoOffActionsContext: React.Context<AutoOffActions | null> =
+const AutoOffActionsContext: React.Context<AutoOffActions | null> =
   createContext<AutoOffActions | null>(null);
 
 /**
