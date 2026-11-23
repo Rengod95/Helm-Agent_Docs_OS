@@ -109,9 +109,22 @@ const PREFIX_RULES: readonly PrefixRule[] = [
   { kind: "jwt", find: findJwts },
 ];
 
+const KV_KEYS =
+  "api[_-]?key|secret|client[_-]?secret|access[_-]?key|private[_-]?key|token|password|passwd|pass|pwd|dsn|authorization";
 // 18 §3.10.4 규칙 3. authorization 값 앞의 Bearer·Basic 같은 방식어는 값 밖에 둔다.
-const KV_PATTERN =
-  /(api[_-]?key|secret|client[_-]?secret|access[_-]?key|private[_-]?key|token|password|passwd|pass|pwd|dsn|authorization)(['"]?\s*[:=]\s*['"]?(?:(?:Bearer|Basic|Token)\s+)?)(?!\/\/)([^\s'"]{8,})/gi;
+// 따옴표 앞에 역슬래시가 붙을 수 있다(이스케이프된 JSON, 이중 이스케이프까지). 값 끝의 따옴표 앞 역슬래시는 값에 넣지 않는다.
+const KV_SEPARATOR = String.raw`(?:\\*['"])?\s*[:=]\s*(?:\\*['"])?(?:(?:Bearer|Basic|Token)\s+)?`;
+const KV_VALUE_CHAR = String.raw`[^\s'"\\]|\\(?!\\*['"])`;
+const KV_VALUE_CHAR_BOUNDED = String.raw`[^\s'"\\&;,]|\\(?!\\*['"])`;
+
+function kvPattern(valueChar: string): RegExp {
+  return new RegExp(`(${KV_KEYS})(${KV_SEPARATOR})(?!//)((?:${valueChar}){8,})`, "gi");
+}
+
+// 값이 &, ;, ,를 넘어 뒤 키까지 삼키면 뒤 키-값은 첫 패턴으로 다시 찾을 수 없다(`token=ABCDEFGH&Authorization: Bearer <값>`).
+// 그래서 구분 글자에서 끝나는 값의 두 번째 패턴을 원문 전체에 한 번 더 걸고, 첫 패턴이 덮지 못한 자리만 더한다.
+const KV_PATTERN = kvPattern(KV_VALUE_CHAR);
+const KV_PATTERN_BOUNDED = kvPattern(KV_VALUE_CHAR_BOUNDED);
 
 const MARKER_START = "[REDACTED:";
 
@@ -182,15 +195,38 @@ function maskPrefix(text: string, hits: Map<string, number>): string {
   return current;
 }
 
+/** 일치의 값 그룹 자리 */
+function spanOf(match: RegExpMatchArray): Span | null {
+  const value = match[3];
+  if (value === undefined || match.index === undefined) return null;
+  // 값 그룹은 일치의 끝에 있다
+  const start = match.index + match[0].length - value.length;
+  return { start, end: start + value.length };
+}
+/** 키-값의 값 자리(앞에서 뒤로, 겹치지 않음). 첫 패턴의 자리에 구분 글자에서 끝나는 패턴이 더 찾은 자리를 합친다 */
+function kvValueSpans(text: string): Span[] {
+  const primary: Span[] = [];
+  for (const match of text.matchAll(KV_PATTERN)) {
+    const span = spanOf(match);
+    if (span !== null) primary.push(span);
+  }
+  const merged: Span[] = [...primary];
+  let at = 0;
+  for (const match of text.matchAll(KV_PATTERN_BOUNDED)) {
+    const span = spanOf(match);
+    if (span === null) continue;
+    while (at + 1 < primary.length && (primary[at + 1]?.start ?? Infinity) <= span.start) at += 1;
+    const inside = primary[at];
+    if (inside !== undefined && inside.start <= span.start && span.end <= inside.end) continue;
+    merged.push(span);
+  }
+  return merged.toSorted((a, b) => a.start - b.start);
+}
+
 function maskKv(text: string, hits: Map<string, number>): string {
-  const afterPairs = text.replace(
-    KV_PATTERN,
-    (whole: string, key: string, sep: string, value: string) => {
-      if (value.startsWith(MARKER_START)) return whole;
-      bump(hits, "kv", 1);
-      return `${key}${sep}[REDACTED:kv]`;
-    },
-  );
+  const pairs = kvValueSpans(text).filter((span) => !text.startsWith(MARKER_START, span.start));
+  bump(hits, "kv", pairs.length);
+  const afterPairs = replaceSpans(text, pairs, "[REDACTED:kv]");
   const spans = findUserinfoValues(afterPairs).filter(
     (span) => !afterPairs.startsWith(MARKER_START, span.start),
   );
@@ -396,12 +432,8 @@ export function createRedactor(): RedactorImpl {
         found.push({ start: span.start, end: span.end, label: rule.kind, rank: 1 });
       }
     }
-    for (const match of text.matchAll(KV_PATTERN)) {
-      const value = match[3];
-      if (value === undefined) continue;
-      // 값 그룹은 일치의 끝에 있다
-      const start = match.index + match[0].length - value.length;
-      found.push({ start, end: start + value.length, label: "kv", rank: 2 });
+    for (const span of kvValueSpans(text)) {
+      found.push({ start: span.start, end: span.end, label: "kv", rank: 2 });
     }
     for (const span of findUserinfoValues(text)) {
       found.push({ start: span.start, end: span.end, label: "kv", rank: 2 });

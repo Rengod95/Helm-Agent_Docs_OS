@@ -39,7 +39,7 @@ function pieceFor(kind: number, secret: string): Piece {
     ["ghp_", ""],
     [`-----BEGIN RSA ${PRIV} KEY-----\n`, `\n-----END RSA ${PRIV} KEY-----`],
     ["-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\ntoken=", ""],
-    ["-----BEGIN rsa key----- note ", ""],
+    ["-----BEGIN rsa key----- note token=", ""],
   ];
   const shape = shapes[kind % shapes.length];
   const [lead, tail] = shape ?? ["", ""];

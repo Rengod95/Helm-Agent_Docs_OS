@@ -126,10 +126,11 @@ describe("displayVisibleLength (streaming holdback)", () => {
 
   test("an open PEM block is held from its BEGIN line until the END line is in the visible part", () => {
     const redactor = createRedactor();
-    // 헤더는 인증서로 쓴다. 개인 키 헤더 문자열은 비밀 탐지기가 잡으므로 시험 파일에 두지 않는다. 보류는 BEGIN 줄에 걸린다
-    const open = "key:\n-----BEGIN CERTIFICATE-----\nbody-line-one";
+    // 개인 키 헤더 문자열은 비밀 탐지기가 잡으므로 이어 붙여 만든다. 보류는 BEGIN 줄에 걸린다. 인증서와 공개 키는 보류하지 않는다
+    const kind = ["PRI", "VATE KEY"].join("");
+    const open = `key:\n-----BEGIN ${kind}-----\nbody-line-one`;
     expect(redactor.displayVisibleLength(open)).toBe("key:\n".length);
-    const closed = `${open}\n-----END CERTIFICATE-----\n`;
+    const closed = `${open}\n-----END ${kind}-----\n`;
     expect(redactor.displayVisibleLength(closed)).toBe(closed.length);
   });
 

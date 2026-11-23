@@ -143,7 +143,6 @@ function jwtOpenStart(text: string): number {
 
 const PEM_BEGIN = "-----BEGIN";
 const PEM_HEADER = /-----BEGIN ([A-Z ]*)-----/y;
-const PEM_END_ANY = /-----END [A-Z ]*-----/g;
 const PEM_END_PRIVATE = /-----END [A-Z ]*PRIVATE KEY-----/g;
 
 function hasMatchFrom(pattern: RegExp, text: string, from: number): boolean {
@@ -151,16 +150,37 @@ function hasMatchFrom(pattern: RegExp, text: string, from: number): boolean {
   return pattern.test(text);
 }
 
-/** 닫히지 않은 `-----BEGIN` 블록의 시작. 개인 키는 개인 키 끝 줄이, 그 밖의 블록은 아무 끝 줄이 와야 닫힌다 */
+/**
+ * `-----BEGIN` 뒤가 `" [A-Z ]*-----"`의 앞부분(글 끝까지 이어짐)인가. 아니면 머리줄이 될 수 없다.
+ * 대문자와 공백 뒤에 하이픈이 5개 미만이면 아직 열려 있다.
+ */
+function headerStillOpen(text: string, from: number): boolean {
+  const total = text.length;
+  if (from >= total) return true;
+  if (text.charAt(from) !== " ") return false;
+  let i = from;
+  while (i < total && (text.charAt(i) === " " || (code(text, i) >= 65 && code(text, i) <= 90)))
+    i += 1;
+  return total - i < 5 && /^-*$/.test(text.slice(i));
+}
+
+/** 닫히지 않은 개인 키 `-----BEGIN` 블록의 시작(머리줄이 덜 온 것 포함). 개인 키 끝 줄이 와야 닫힌다 */
 function pemOpenStart(text: string): number {
   let at = text.indexOf(PEM_BEGIN);
   while (at !== -1) {
     PEM_HEADER.lastIndex = at;
     const header = PEM_HEADER.exec(text);
-    if (header === null) return at;
+    if (header === null) {
+      // 머리줄이 아직 덜 왔으면 보류하고, 머리줄이 될 수 없다고 확정되면 풀고 다음 BEGIN을 본다
+      if (headerStillOpen(text, at + PEM_BEGIN.length)) return at;
+      at = text.indexOf(PEM_BEGIN, at + PEM_BEGIN.length);
+      continue;
+    }
     const end = at + header[0].length;
-    const isPrivate = (header[1] ?? "").endsWith("PRIVATE KEY");
-    if (!hasMatchFrom(isPrivate ? PEM_END_PRIVATE : PEM_END_ANY, text, end)) return at;
+    // 가림 대상은 개인 키뿐이다(redactor.ts의 PRIVATE KEY 패턴). 공개 키와 인증서는 보류하지 않는다
+    if ((header[1] ?? "").endsWith("PRIVATE KEY") && !hasMatchFrom(PEM_END_PRIVATE, text, end)) {
+      return at;
+    }
     at = text.indexOf(PEM_BEGIN, end);
   }
   return openLiteralBody(text, PEM_BEGIN, isTokenChar, 0);
@@ -200,6 +220,14 @@ function isQuote(char: string): boolean {
   return char === "'" || char === '"';
 }
 
+/** 따옴표 하나(앞에 역슬래시가 몇 개 붙어도 된다)를 건너뛴다. 역슬래시만 끝까지 이어지면 따옴표가 올 수 있으므로 끝까지 건너뛴다. 따옴표가 아니면 그대로 */
+function skipQuote(text: string, from: number): number {
+  let i = from;
+  while (i < text.length && text.charAt(i) === "\\") i += 1;
+  if (i < text.length) return isQuote(text.charAt(i)) ? i + 1 : from;
+  return i;
+}
+
 function skipWhitespace(text: string, from: number): number {
   let i = from;
   while (i < text.length && WHITESPACE.test(text.charAt(i))) i += 1;
@@ -220,14 +248,14 @@ function valueOpenAt(text: string, from: number): boolean {
 function kvRestOpen(text: string, from: number): boolean {
   const total = text.length;
   let i = from;
-  if (i < total && isQuote(text.charAt(i))) i += 1;
+  i = skipQuote(text, i);
   i = skipWhitespace(text, i);
   if (i >= total) return true;
   const separator = text.charAt(i);
   if (separator !== ":" && separator !== "=") return false;
   i = skipWhitespace(text, i + 1);
   if (i >= total) return true;
-  if (isQuote(text.charAt(i))) i += 1;
+  i = skipQuote(text, i);
   if (i >= total) return true;
   if (valueOpenAt(text, i)) return true;
   METHOD_WORD.lastIndex = i;
