@@ -110,6 +110,32 @@ function checkSession(env: ToolsEnv, sessionId: string): JsonValue | undefined {
   return undefined;
 }
 
+/**
+ * 뼈대만 있는 폴더는 시험하지 않는다(U-05). 뼈대는 검사를 통과하므로 검사만으로는 막히지 않는다. 판정 구현이 없으면 막지 않는다.
+ * 판정이 실패하면 그 오류를 돌려주고, 세션이나 폴더가 없으면 거절한다
+ */
+async function skeletonRefusal(
+  env: ToolsEnv,
+  state: Readonly<AuthoringState>,
+): Promise<JsonValue | undefined> {
+  if (env.devkit.isSkeletonOnly === undefined) return undefined;
+  if (state.kind === null || state.name === null || state.dir === null)
+    return refusal("no_session", "the session has no kind, name or folder");
+  const found = await env.devkit.isSkeletonOnly({
+    kind: state.kind,
+    name: state.name,
+    dir: state.dir,
+    ...(state.composition === null ? {} : { orchestration: { composition: state.composition } }),
+  });
+  if (!found.ok) return failure(found.error);
+  if (found.value)
+    return refusal(
+      "skeleton_only",
+      "the folder is still the skeleton as scaffolded: implement the requested feature in the files first, then pass authoring_validate, then call authoring_trial",
+    );
+  return undefined;
+}
+
 /** 확인 카드를 기다리는 도구 결과의 안내. 모델이 같은 것을 ask_user로 다시 묻지 않게 한다(F-08) */
 const CARD_HINT =
   "A confirmation card is shown to the user. Wait until the user presses it. Do not ask the same thing with ask_user, and do not call this tool again.";
@@ -311,7 +337,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; the user removes an installed plugin in the Craft plugin list). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
+    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it in the Craft list). Open a build session. With name only, it opens the source folder of an existing plugin (fix it). With kind, name and dir, it opens a new plugin, and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -536,7 +562,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const trial = tool(
     "authoring_trial",
-    "Open a Test run thread that carries this folder as a draft (nothing is installed). Calling it shows the user a confirmation card (cost): call it right away, do not ask in text first. The user then talks to the plugin in that thread (they can open it from the Test screen). authoring_submit picks the latest turn of that thread as evidence by itself, so do not ask the user for a turn id.",
+    "Open a Test run thread that carries this folder as a draft (nothing is installed). Calling it shows the user a confirmation card (cost): call it once the feature is built and validated, do not ask in text first. The user then talks to the plugin in that thread (they can open it from the Test screen). authoring_submit picks the latest turn of that thread as evidence by itself, so do not ask the user for a turn id.",
     Type.Object({ ...sessionShape }, { additionalProperties: false }),
     "write",
     async (input) => {
@@ -550,6 +576,8 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         state.phase === "compose"
       )
         return refusal("not_validated", "the extension must pass authoring_validate first");
+      const skeleton = await skeletonRefusal(env, state);
+      if (skeleton !== undefined) return skeleton;
       return request(env, "trial", state.trial === null ? undefined : json(state.trial));
     },
   );
@@ -658,11 +686,11 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       await patch(env, {
         submitted: { draftId: sent.value.draftId, itemId: sent.value.itemId },
       });
+      // 사람에게 할 말을 앞세우고 내부 번호(초안, 검토 항목)는 details에만 둔다(U-04): 보고에 번호가 옮겨 가지 않게 한다
       return {
         ok: true,
-        draftId: sent.value.draftId,
-        itemId: sent.value.itemId,
         notice: "검토함에서 승인해야 쓸 수 있다",
+        details: { draftId: sent.value.draftId, itemId: sent.value.itemId },
       };
     },
   );

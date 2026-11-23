@@ -146,6 +146,8 @@ interface DevkitProbe {
   /** 시험 대화의 마지막 turn id(시험이 바꾼다). null이면 아직 turn이 없다 */
   latestTurn: string | null;
   validation: ValidationReport;
+  /** 대상 폴더가 뼈대 그대로인가(`isSkeletonOnly`가 답한다). 기본은 고친 폴더다 */
+  skeleton: boolean;
 }
 
 const OK_REPORT: ValidationReport = { ok: true, issues: [] };
@@ -158,12 +160,14 @@ export function devkitProbe(): DevkitProbe {
     submits,
     validation: OK_REPORT,
     latestTurn: "turn_latest",
+    skeleton: false,
     devkit: {
       kinds: async () => KIND_CATALOG,
       scaffold: async (input) => {
         calls.push(`scaffold:${input.dir}`);
         return ok({ dir: input.dir, files: [".fresnel-plugin/plugin.json", "src/index.ts"] });
       },
+      isSkeletonOnly: () => Promise.resolve(ok(probe.skeleton)),
       validate: async (dir) => {
         calls.push(`validate:${dir}`);
         return ok(probe.validation);

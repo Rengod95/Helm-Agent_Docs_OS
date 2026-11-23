@@ -56,7 +56,7 @@ Limits and mode rules are checked by `validateManifest`. A declaration over the 
 - `app.capabilities`: shell features the app may use: `files`, `notify`, `settingsWrite`, `secrets`. A feature not listed here is refused (`not_declared`).
 - `fallback`: a native tree for CLI and for installs where app views are off. Missing fallback is a warning (AU-007).
 
-The page runs in a sandboxed iframe with no network, no inline scripts (load every script from a file), and no access to the app's storage. Colors come only from the theme tokens the shell pushes: `--bg`, `--fg`, `--dim`, `--panel`, `--border`, `--accent`. Spacing should use variables, not inline pixel values.
+The page runs in a sandboxed iframe with no network, no inline scripts (load every script from a file), and no access to the app's storage. Colors come only from the theme tokens the shell pushes: `--bg`, `--fg`, `--dim`, `--panel`, `--border`, `--accent`. Spacing should use variables, not inline pixel values, and separate items by spacing and layout, never with a middle dot (·) in the text.
 
 ## Bridge protocol
 

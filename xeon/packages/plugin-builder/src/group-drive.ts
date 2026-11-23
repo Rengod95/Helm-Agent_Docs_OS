@@ -131,7 +131,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       await resume(
         state,
         "intent",
-        "the user confirmed the kind and the name: continue without asking through authoring_trial",
+        "the user confirmed the kind and the name: continue without asking; scaffold, build the feature, validate, then authoring_trial",
       );
       const next: AuthoringState = { ...state, phase: "compose", intentConfirmed: true };
       return commitThen(next);
