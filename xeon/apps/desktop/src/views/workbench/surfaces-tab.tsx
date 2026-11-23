@@ -247,10 +247,15 @@ export function SurfacesTab(props: { readonly entry: Pick<ExtListEntry, "name"> 
               <ScreenRow
                 key={screen.key}
                 screen={screen}
+                placeFirst
                 pluginOff={row.off}
                 ops={ops}
                 hidden={layout.hidden.has(screen.key)}
-                end={controls(screen.title, screen.key, "panel")}
+                end={controls(
+                  `${t(screen.where === "panel" ? "desktop.addons.where.panel" : "desktop.addons.where.page")} ${screen.title}`,
+                  screen.key,
+                  "panel",
+                )}
               />
             ))}
           </ul>
@@ -263,13 +268,18 @@ export function SurfacesTab(props: { readonly entry: Pick<ExtListEntry, "name"> 
               <FeatureRow
                 key={feature.key}
                 feature={feature}
+                placeFirst
                 pluginOff={row.off}
                 ops={ops}
                 hidden={feature.kind !== "settings" && layout.hidden.has(feature.key)}
                 end={
                   feature.kind === "settings"
                     ? null
-                    : controls(feature.title, feature.key, featurePlaceOf(feature.kind))
+                    : controls(
+                        `${t(`desktop.addons.feature.${feature.kind}`)} ${feature.title}`,
+                        feature.key,
+                        featurePlaceOf(feature.kind),
+                      )
                 }
               />
             ))}

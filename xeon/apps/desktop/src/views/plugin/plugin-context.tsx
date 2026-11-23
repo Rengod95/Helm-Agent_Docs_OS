@@ -46,3 +46,17 @@ export function usePluginUiState(): PluginUiState {
   const { runtime } = usePluginUi();
   return useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
 }
+
+const NO_HIDDEN: ReadonlySet<string> = new Set();
+
+/** 사용자가 숨긴 화면 열쇠들(`x.ui.hidden`). 맥락이 없으면 비어 있다 */
+export function useHiddenUiKeys(): ReadonlySet<string> {
+  const value = useContext(PluginUiContext);
+  return useSyncExternalStore(
+    value === null ? noSubscribe : value.runtime.subscribe,
+    () => (value === null ? NO_HIDDEN : value.runtime.getState().layout.hidden),
+    () => NO_HIDDEN,
+  );
+}
+
+const noSubscribe = (): (() => void) => () => {};

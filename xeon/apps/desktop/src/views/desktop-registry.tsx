@@ -405,6 +405,7 @@ export function createDesktopRegistry(): ShellRegistry {
     id: "helm",
     area: "chat",
     source: "plugin",
+    hiddenKey: "helm/helm-panel",
     label: "desktop.plugin.tab.helm",
     description: "desktop.plugin.tab.helmDescription",
     icon: <Compass />,

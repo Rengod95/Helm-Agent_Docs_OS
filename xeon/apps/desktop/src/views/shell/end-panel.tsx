@@ -29,6 +29,7 @@ import {
 import type { EndTabDef, PluginEndTabDef, ShellRegistry, TabBadge } from "./registry.ts";
 import type { ActionId } from "./keybindings.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
+import { useHiddenUiKeys } from "../plugin/plugin-context.tsx";
 import { WELL_DEFAULT_WIDTH } from "./toaster-slot.ts";
 import { useWellWide } from "./well-wide.ts";
 
@@ -79,6 +80,14 @@ export function currentEndTabOf(
   id: string,
 ): EndTabDef | undefined {
   return tabs.find((x) => x.id === id) ?? pluginTabs.find((x) => x.id === id) ?? tabs[0];
+}
+
+/** 사용자가 숨긴 화면(`x.ui.hidden`)의 탭을 뺀 플러그인 패널들. 다 빠지면 빈 목록이라 "플러그인" 단추도 그리지 않는다 */
+export function shownPluginTabsOf(
+  tabs: readonly PluginEndTabDef[],
+  hidden: ReadonlySet<string>,
+): readonly PluginEndTabDef[] {
+  return tabs.filter((tab) => tab.hiddenKey === undefined || !hidden.has(tab.hiddenKey));
 }
 
 type KeyLabel = (id: ActionId) => string;
@@ -339,7 +348,8 @@ export function EndPanel(props: {
   const screen = useShell((s) => s.places[s.area].screen);
   const actions = useShellActions();
   const tabs = props.registry.endTabs(area, screen);
-  const pluginTabs = props.registry.pluginEndTabs(area, screen);
+  const hiddenKeys = useHiddenUiKeys();
+  const pluginTabs = shownPluginTabsOf(props.registry.pluginEndTabs(area, screen), hiddenKeys);
   const current = currentEndTabOf(tabs, pluginTabs, tabId);
   const currentIsPlugin = current !== undefined && pluginTabs.some((x) => x.id === current.id);
   // 지금 탭의 스토어 배지는 탭 내용을 그리기 전에 읽는다(내용이 스토어를 다시 읽기 시작해도 머리 수가 흔들리지 않는다)

@@ -188,6 +188,8 @@ export function ScreenRow(props: {
   readonly hidden?: boolean;
   /** 줄 끝 칸(크래프트 "화면과 설정" 탭의 순서 메뉴와 보이기 스위치). 플레이그라운드는 비운다 */
   readonly end?: ReactNode;
+  /** 참이면 자리 이름("전체 화면" 등)이 첫 줄, 제목이 둘째 줄이다(같은 제목이 두 자리에 있을 때 스위치와 줄을 짝짓는다) */
+  readonly placeFirst?: boolean;
 }): ReactNode {
   const { screen, ops } = props;
   return (
@@ -198,13 +200,32 @@ export function ScreenRow(props: {
         <Monitor aria-hidden className={ICON} />
       )}
       <span className="grid min-w-0 flex-1">
-        <span className="truncate text-ui font-medium text-text-primary">{screen.title}</span>
-        <span className="truncate text-ui text-text-tertiary">
-          {screen.issue ??
-            t(
-              screen.where === "panel" ? "desktop.addons.where.panel" : "desktop.addons.where.page",
-            )}
-        </span>
+        {props.placeFirst === true ? (
+          <>
+            <span className="truncate text-ui font-medium text-text-primary">
+              {t(
+                screen.where === "panel"
+                  ? "desktop.addons.where.panel"
+                  : "desktop.addons.where.page",
+              )}
+            </span>
+            <span className="truncate text-ui text-text-tertiary">
+              {screen.issue ?? screen.title}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="truncate text-ui font-medium text-text-primary">{screen.title}</span>
+            <span className="truncate text-ui text-text-tertiary">
+              {screen.issue ??
+                t(
+                  screen.where === "panel"
+                    ? "desktop.addons.where.panel"
+                    : "desktop.addons.where.page",
+                )}
+            </span>
+          </>
+        )}
       </span>
       {screen.app ? (
         <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
@@ -241,6 +262,8 @@ export function FeatureRow(props: {
   readonly hidden?: boolean;
   /** 줄 끝 칸(순서 메뉴와 보이기 스위치) */
   readonly end?: ReactNode;
+  /** 참이면 자리 이름이 첫 줄, 제목이 둘째 줄이다(`ScreenRow`와 같다) */
+  readonly placeFirst?: boolean;
 }): ReactNode {
   const { feature, ops } = props;
   const look = FEATURE[feature.kind];
@@ -249,10 +272,14 @@ export function FeatureRow(props: {
       {look.icon}
       <span className="grid min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-1">
-          <span className="truncate text-ui font-medium text-text-primary">{feature.title}</span>
+          <span className="truncate text-ui font-medium text-text-primary">
+            {props.placeFirst === true ? t(look.label) : feature.title}
+          </span>
           <InfoTip text={t(look.where)} />
         </span>
-        <span className="text-ui text-text-tertiary">{t(look.label)}</span>
+        <span className="text-ui text-text-tertiary">
+          {props.placeFirst === true ? feature.title : t(look.label)}
+        </span>
       </span>
       {feature.off && !props.pluginOff ? (
         <Badge size="sm">{t("desktop.addons.badge.off")}</Badge>
