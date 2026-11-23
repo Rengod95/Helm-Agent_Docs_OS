@@ -312,6 +312,36 @@ describe("bash", () => {
     );
   });
 
+  test("a folder pinned by an authoring session is the one read carve-out of the shell policy", async () => {
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    env.mkdir("/work/plugin");
+    const sandbox = fakeSandbox();
+    const threadId = fixedIdFactory().next("thr");
+    let pinned: string | undefined = "/work/plugin";
+    const shell = createShellApi(
+      depsFor(env, {
+        sandbox,
+        threads: {
+          workspaceOf: () => null,
+          envAt: () => env,
+          pinnedFolderOf: () => pinned,
+        },
+      }),
+    );
+    const context = {
+      threadId,
+      toolCallId: "call_1",
+      caller: { kind: "model", agent: "main" },
+    } as const;
+    await shell.run({ command: "ls" }, { context });
+    expect(sandbox.policies[0]?.readCarveOuts).toEqual(["/work/plugin"]);
+    // 고정이 풀리면 예외도 없다
+    pinned = undefined;
+    await shell.run({ command: "ls" }, { context });
+    expect(sandbox.policies[1]?.readCarveOuts).toBeUndefined();
+  });
+
   test("secret references go to exec as references only", async () => {
     const { env, shell } = setup();
     const threadId = fixedIdFactory().next("thr");

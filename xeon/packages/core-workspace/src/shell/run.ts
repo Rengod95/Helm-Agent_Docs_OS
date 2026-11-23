@@ -138,6 +138,10 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
           });
         }
         const roots = await deps.roots.roots(context);
+        const pinned =
+          callContext?.threadId === undefined
+            ? undefined
+            : base.threads?.pinnedFolderOf?.(callContext.threadId);
 
         // 3~4. 제한 시간: 입력 → 설정 기본값 순. 무인 호출은 상한을 더 받는다(L0.exec.spec §3.8.1). 실행한다
         const requestedSec =
@@ -164,6 +168,10 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
                 tempDir: deps.tempDir,
                 // 쓰기 root에 `/`가 있으면 쓰기 범위 제한이 없다. 좁은 대화(플러그인 만들기 시험)는 지금처럼 작업 폴더와 허용한 루트만 쓴다
                 ...(roots.write.includes(WRITE_ANYWHERE) ? { writeEverywhere: true } : {}),
+                // 제작 세션이 고정한 대상 폴더는 Fresnel 데이터 폴더 안(기본 작업 폴더 아래)에 있어도 셸이 읽게 한다. 보호 경로 규칙은 그대로고 이 폴더 하나만 예외다
+                ...(pinned === undefined || !roots.write.includes(WRITE_ANYWHERE)
+                  ? {}
+                  : { readCarveOuts: [pinned] }),
               });
           return runBashCommand(
             sandbox.wrapShell(deps.env, policy),

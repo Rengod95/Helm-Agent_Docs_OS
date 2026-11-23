@@ -438,11 +438,6 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           "exists",
           "this session opened an existing plugin's folder: edit it and call authoring_validate",
         );
-      if (state.files.length > 0)
-        return refusal(
-          "exists",
-          "the files were already created: edit them and call authoring_validate",
-        );
       const mode = SCAFFOLD_MODES.find((found) => found === input["mode"]);
       const description = optStr(input, "description");
       const made = await devkit.scaffold({
@@ -455,8 +450,17 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
         ...(state.composition === null
           ? {}
           : { orchestration: { composition: state.composition } }),
+        // 이미 뼈대를 만들었으면 다시 만든다: 뼈대 그대로인 파일은 새 뼈대로 바뀌고, 고친 파일이 있으면 devkit이 거부한다
+        ...(state.files.length > 0 ? { replace: true } : {}),
       });
-      if (!made.ok) return failure(made.error);
+      if (!made.ok) {
+        if (made.error.kind === "exists" && state.files.length > 0)
+          return refusal(
+            "exists",
+            `${made.error.message}. Edit the files in place and call authoring_validate, or move the edited files away and call authoring_scaffold again`,
+          );
+        return failure(made.error);
+      }
       await patch(env, {
         phase: "validate",
         files: [...made.value.files],

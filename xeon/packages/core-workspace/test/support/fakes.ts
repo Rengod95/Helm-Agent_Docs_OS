@@ -42,6 +42,7 @@ export function fakeSandbox(protectedPaths: readonly ProtectedPathEntry[] = []):
       writeDeny: [],
       network: { allowedDomains: [], deniedDomains: [] },
       allowEscape: false,
+      ...(input.readCarveOuts === undefined ? {} : { readCarveOuts: [...input.readCarveOuts] }),
       ...(input.profile === undefined ? {} : { profile: input.profile }),
     }),
     protectedPaths: () => protectedPaths,

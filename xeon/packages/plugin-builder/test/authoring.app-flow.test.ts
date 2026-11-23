@@ -2,7 +2,7 @@
 // → 검토 제출(`authoring_submit`). 뼈대와 검사는 실제 제작 코어(`scaffoldExtension`, `validateExtensionDir`)가 임시 폴더에 쓰고 읽는다.
 // 테스트 대화(`ext.test.run`의 testRun 종류, 빌더에서는 `authoring_trial`)와 검토 제출은 호출을 기록하는 대역이다(`devkitProbe`).
 // 흐름은 제출에서 끝난다. 설치나 승인 도구는 없고, 검사를 통과하지 않았거나 테스트 대화의 증거가 없으면 제출이 거절된다.
-import { rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { toJsonValue } from "@fresnel/contracts/conversation";
@@ -165,4 +165,36 @@ test("app flow: a missing app entry fails the app check, and the test run and th
   ).toMatchObject({ ok: false, error: { kind: "not_validated" } });
   expect(base.submits).toEqual([]);
   expect(base.calls.filter((call) => call.startsWith("testRun:"))).toEqual([]);
+});
+
+test("app flow: scaffold again with another mode swaps the untouched skeleton, and an edited file is kept with a reason and a next step", async () => {
+  const { devkit } = appDevkit();
+  const rig = await createOrchestrationRig({ devkit });
+  const dir = root.path("demo-swap");
+  await confirmedNewSession(rig, dir);
+  const hook = await rig.call("authoring_scaffold", {
+    sessionId: SESSION,
+    mode: "hook",
+    description: DESCRIPTION,
+  });
+  expect(hook).toMatchObject({ ok: true });
+  // 훅 뼈대를 만든 뒤 앱 뼈대로 바꾼다(S-05): 남은 뼈대 파일 때문에 거부하지 않는다
+  const app = await rig.call("authoring_scaffold", {
+    sessionId: SESSION,
+    mode: "app",
+    description: DESCRIPTION,
+  });
+  expect(app).toMatchObject({ ok: true });
+  expect(existsSync(join(dir, "ui", "app", "index.html"))).toBe(true);
+  // 사용자가 고친 파일은 덮지 않는다. 거부 글에 고친 파일과 다음 걸음이 있다
+  writeFileSync(join(dir, "src", "index.ts"), "// edited by hand\n");
+  const refused = await rig.call("authoring_scaffold", {
+    sessionId: SESSION,
+    mode: "hook",
+    description: DESCRIPTION,
+  });
+  expect(refused).toMatchObject({ ok: false, error: { kind: "exists" } });
+  expect(JSON.stringify(refused)).toContain("src/index.ts");
+  expect(JSON.stringify(refused)).toContain("authoring_validate");
+  expect(readFileSync(join(dir, "src", "index.ts"), "utf8")).toBe("// edited by hand\n");
 });
