@@ -154,6 +154,7 @@ import {
   pluginDeclsOf,
   pluginsOf,
   registrationIdOf,
+  type PluginStorePort,
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { DEFAULT_PLUGIN_NAMES } from "./default-plugins.ts";
@@ -180,6 +181,8 @@ export interface PortsDeps {
   readonly logger: Logger;
   readonly session: SessionService;
   readonly store: StoreService;
+  /** 플러그인 전용 저장소(`sys_plugin_store`)의 지우기. 제거 승인이 그 플러그인의 이름 공간을 지운다(X.primitives.spec §4.6.7) */
+  readonly pluginDataStore: Pick<PluginStorePort, "clear">;
   /**
    * 파일 되감기 포트. cap-workspace가 `fresnel.file-rewind`로 내놓은 서비스와 되감기 식별자 발급기다. 없으면(원본 저장 포트가
    * 없는 조립) 파일 되감기 메서드는 `notImplemented`다
@@ -1449,6 +1452,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       },
       loader: () => deps.extRead.loader(),
       refreshPluginSet: () => ports.m4.pluginSet.refresh(),
+      pluginDataStore: deps.pluginDataStore,
       facts: installedFacts,
       log: deps.logger,
     }),

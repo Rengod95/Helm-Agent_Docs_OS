@@ -142,7 +142,7 @@ describe("first open by several processes", () => {
       );
       expect(versions).toEqual({
         ok: true,
-        value: [{ version: 1 }, { version: 2 }, { version: 3 }],
+        value: [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }],
       });
       await Promise.all(children.map((child) => child.ask("exit")));
     } finally {

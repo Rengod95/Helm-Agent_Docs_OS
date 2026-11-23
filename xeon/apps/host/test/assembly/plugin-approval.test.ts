@@ -1,4 +1,8 @@
-import type { DependencyDecl, ExtensionManifest } from "@fresnel/contracts/extensions";
+import type {
+  DependencyDecl,
+  ExtensionManifest,
+  PluginStoreError,
+} from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { err, ok, type Logger } from "@fresnel/contracts";
 import type { ReviewItem } from "@fresnel/contracts/wire";
@@ -96,11 +100,16 @@ function depsOf(
     readonly loader?: ExtensionLoader | undefined;
     readonly refreshes?: { count: number };
     readonly warnings?: string[];
+    readonly errors?: string[];
+    readonly cleared?: string[];
+    readonly clear?: ApprovalHookDeps["pluginDataStore"]["clear"];
     readonly facts?: () => readonly PluginFact[];
   } = {},
 ): ApprovalHookDeps {
   const refreshes = overrides.refreshes ?? { count: 0 };
   const warnings = overrides.warnings ?? [];
+  const errors = overrides.errors ?? [];
+  const cleared = overrides.cleared ?? [];
   return {
     profiles: {
       checkPluginEdit: overrides.check ?? (() => Promise.resolve(ok(undefined))),
@@ -112,12 +121,22 @@ function depsOf(
       refreshes.count += 1;
       return Promise.resolve();
     },
+    pluginDataStore: {
+      clear:
+        overrides.clear ??
+        ((name) => {
+          cleared.push(name);
+          return Promise.resolve(ok(undefined));
+        }),
+    },
     facts: overrides.facts ?? (() => []),
     log: partial<Logger>({
       warn: (message: string) => {
         warnings.push(message);
       },
-      error: () => undefined,
+      error: (message: string) => {
+        errors.push(message);
+      },
     }),
   };
 }
@@ -211,6 +230,45 @@ test("a removal reflects only the plugin set, without touching the loader", asyn
     }),
   );
   await hooks.reflect?.(contextOf({ kind: "remove" }, null));
+  expect(refreshes.count).toBe(1);
+});
+
+test("a removal clears the removed plugin's own store and then reflects the plugin set", async () => {
+  const refreshes = { count: 0 };
+  const cleared: string[] = [];
+  const hooks = approvalHooksOf(depsOf({ refreshes, cleared }));
+  await hooks.reflect?.(contextOf({ kind: "remove" }, null));
+  expect(cleared).toEqual(["kit"]);
+  expect(refreshes.count).toBe(1);
+});
+
+test("a store clear that answers a failure is logged and does not undo the removal's reflect", async () => {
+  const refreshes = { count: 0 };
+  const errors: string[] = [];
+  const hooks = approvalHooksOf(
+    depsOf({
+      refreshes,
+      errors,
+      clear: () => Promise.resolve(err<PluginStoreError>({ kind: "storage_unavailable" })),
+    }),
+  );
+  await hooks.reflect?.(contextOf({ kind: "remove" }, null));
+  expect(errors).toEqual(["plugin.review.plugin_data_failed"]);
+  expect(refreshes.count).toBe(1);
+});
+
+test("a store clear that throws is logged and does not undo the removal's reflect", async () => {
+  const refreshes = { count: 0 };
+  const errors: string[] = [];
+  const hooks = approvalHooksOf(
+    depsOf({
+      refreshes,
+      errors,
+      clear: () => Promise.reject(new Error("store gone")),
+    }),
+  );
+  await hooks.reflect?.(contextOf({ kind: "remove" }, null));
+  expect(errors).toEqual(["plugin.review.plugin_data_failed"]);
   expect(refreshes.count).toBe(1);
 });
 

@@ -17,6 +17,7 @@ import { createNoneLockProvider } from "./lock/none.ts";
 import type { LockProvider } from "./lock/provider.ts";
 import { createMigrationRunner } from "./migrations.ts";
 import { syncCoreOwners } from "./owner-table.ts";
+import { createPluginStorePort } from "./plugin-store.ts";
 import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readIdentity } from "./pragmas.ts";
 import { isStrictBuild, SYS_OWNER } from "./prefix.ts";
 import { createLockProvider, selectPlatformPolicy } from "./select.ts";
@@ -521,6 +522,7 @@ function openStoreGuarded(options: OpenStoreOptions, context: OpenContext): Open
       root: createStoreDb(conn),
       blobPins: blobs.pins,
       gcBlobs: (gcOptions) => blobs.gc(gcOptions),
+      pluginStore: createPluginStorePort({ conn, clock: options.clock }),
       warnings,
       faults: options.faults ?? NO_FAULTS,
       close,

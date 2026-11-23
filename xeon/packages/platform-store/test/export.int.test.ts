@@ -154,7 +154,7 @@ describe("exportDatabase", () => {
     const newer = new Database(source);
     newer.run(
       `INSERT INTO sys_migrations (owner, version, checksum, applied_at, engine_version)
-       VALUES ('sys', 4, '${"1".repeat(64)}', 1, '9.9.9')`,
+       VALUES ('sys', 5, '${"1".repeat(64)}', 1, '9.9.9')`,
     );
     newer.close();
 
@@ -164,7 +164,7 @@ describe("exportDatabase", () => {
     try {
       expect(
         copy.query("SELECT version FROM sys_migrations WHERE owner = 'sys' ORDER BY version").all(),
-      ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
+      ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }]);
     } finally {
       copy.close();
     }

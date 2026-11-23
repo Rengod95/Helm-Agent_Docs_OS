@@ -24,7 +24,7 @@ binds: [xeon/packages/platform-store/**]
 - DB 위치 검사와 파일 권한
 - 쓰기·읽기 연결 설정(PRAGMA)과 종료 절차
 - `StoreDb.write`/`read` 트랜잭션 래퍼와 오류 매핑
-- `sys_*` 테이블 DDL(`sys_meta`, `sys_migrations`, `sys_migration_cursors`, `sys_prefixes`, `sys_leases`, `sys_blobs`, `sys_blob_refs`)
+- `sys_*` 테이블 DDL(`sys_meta`, `sys_migrations`, `sys_migration_cursors`, `sys_prefixes`, `sys_leases`, `sys_blobs`, `sys_blob_refs`, `sys_plugin_store`)
 - 마이그레이션 실행기(체크섬, 순서, 청크 마이그레이션 커서)
 - 테이블 접두사 소유 검사, 확장 접두사 테이블 등록과 삭제
 - 대화 소유 잠금(OS 잠금 + `sys_leases` epoch 펜싱)과 `LockProvider`
@@ -395,15 +395,16 @@ export declare function storePlugin(opened: OpenedStore): PlatformModule;   // n
 
 ### 3.3 sys 스키마 DDL
 
-[제안] owner `sys`의 마이그레이션을 세 단계로 나눈다. 단계는 구현 마일스톤과 같은 순서로 배포되고, §4.6 규칙대로 한 번 배포한 단계의 SQL은 고치지 않는다. 모든 테이블은 `STRICT`다.
+[제안] owner `sys`의 마이그레이션을 네 단계로 나눈다. 단계는 구현 마일스톤과 같은 순서로 배포되고, §4.6 규칙대로 한 번 배포한 단계의 SQL은 고치지 않는다. 모든 테이블은 `STRICT`다.
 
 | sys 버전 | 테이블 | 마일스톤 | 작업(`L0.store.plan`) |
 |---|---|---|---|
 | 1 | `sys_meta`, `sys_migrations`, `sys_migration_cursors`, `sys_prefixes` | M0 | ST-05 |
 | 2 | `sys_leases` | M0 | ST-12 |
 | 3 | `sys_blobs`, `sys_blob_refs` | M1 | ST-14 |
+| 4 | `sys_plugin_store` | AGE-78 | — (플러그인 전용 저장소, X.primitives §4.6.7) |
 
-- 아래 DDL은 세 단계를 합쳐 적은 것이다. 각 테이블 앞 주석이 단계다.
+- 아래 DDL은 네 단계를 합쳐 적은 것이다. 각 테이블 앞 주석이 단계다.
 - 단계 번호는 빈칸 없이 오르므로(§4.6 `migration_gap`) 3단계는 2단계 뒤에만 적용된다.
 - 복구 표식은 sys 테이블로 두지 않는다. `L1.persistence.spec` §4.8.1이 이벤트에서 만드는 `p_threads` 열(`running_since`, `resume_attempts`)로 정한다(§4.8).
 
@@ -469,11 +470,23 @@ CREATE TABLE sys_blob_refs (
   PRIMARY KEY (sha256, owner, ref_key)
 ) STRICT;
 CREATE INDEX sys_blob_refs_by_key ON sys_blob_refs (owner, ref_key);
+
+-- sys v4
+CREATE TABLE sys_plugin_store (
+  extension  TEXT NOT NULL,             -- 확장 이름(F ExtensionName). 이름 공간이다
+  key        TEXT NOT NULL,             -- 키 형식은 F PLUGIN_STORE_KEY_PATTERN(ext-host가 먼저 검사한다)
+  value      TEXT NOT NULL,             -- JSON 텍스트
+  bytes      INTEGER NOT NULL CHECK (bytes >= 0),   -- value의 UTF-8 바이트 수. 총량 집계에 쓴다
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (extension, key)
+) STRICT;
 ```
 
 - `sys_meta.store_id`: 새 파일을 만들 때 `sto_<ULID>`를 한 번 쓴다. `IdPrefix`에 `sto`가 없어서 [가정] `IdFactory` 대신 L0 내부 ULID 생성기로 만들고, `sto` 추가는 `F.wire-settings.spec` §10 미결 7의 결과를 따른다.
 - `sys_leases.released_at`: [제안] 반납 때 행을 지우지 않고 `released_at`만 채운다. `eng.transactions.design` §3.3 규칙 4("정상 종료 때 행을 지운다")와 다르다. 행을 지우면 다음 획득의 epoch가 1로 돌아가므로 epoch 단조성을 지키기 위해 남긴다. 그 문서 수정 요청은 §8.1 FR-S2다.
 - `sys_leases.kind`: 별도 소유 테이블을 두지 않고 `sys_leases` 행이 소유 표시를 겸한다(`kind` 열: cli|app|service) [결정: review.decisions-2 U-09]. 소유 판정은 OS 잠금과 epoch가 하고 `kind`·`pid`·`host`는 표시용이며, 표시 정보가 틀려도 안전하다. 이 문장은 `L0.process.spec` §4.5와 같다.
+- `sys_plugin_store`: [결정: 2026-11-24 설계, AGE-78] 플러그인 전용 저장소(X.primitives §4.6.7)의 행이다. 행 하나가 (확장 이름, 키) 하나다. 표는 `sys_` 접두라 sys 소유이고 루트 핸들로만 읽고 쓴다(범위 핸들을 만들지 않는다). 구현은 `OpenedStore.pluginStore`(F `PluginStorePort`)이고 `put`은 키 수와 총량을 같은 쓰기 트랜잭션 안에서 다시 세어 F `PLUGIN_STORE_LIMITS`를 넘기면 `store_full`을 돌려준다. 닫힌 저장소와 읽기 전용 열기의 쓰기는 `storage_unavailable`(cause에 원인)이다.
+  - 지우면 같이 지워진다: 플러그인을 제거하면 조립 루트(apps/host 승인 훅)가 `clear(extension)`으로 그 이름 공간을 지운다. `extensions.drop`(§3.1)은 이 표를 건드리지 않는다. 지우기가 실패해도 제거는 되돌리지 않고 로그에만 남긴다.
 - `sys_blob_refs`: [제안] 블롭 참조 기록이다. `core-persistence`는 `BlobRef`를 담은 이벤트를 커밋하는 같은 트랜잭션에서 `pinBlob(tx, sha256, owner, refKey)`(§3.4)를 부른다. GC는 이 테이블만 보고 판정하므로 이벤트 payload를 훑지 않는다.
 
 ### 3.4 내부 연산 시그니처

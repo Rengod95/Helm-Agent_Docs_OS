@@ -1,5 +1,6 @@
 import type { Clock, Result, Scheduler } from "@fresnel/contracts";
 import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { PluginStorePort } from "@fresnel/contracts/extensions";
 import type {
   FaultInjector,
   MigrationError,
@@ -144,6 +145,8 @@ export interface OpenedStore extends AsyncDisposable {
   readonly blobPins: BlobPins;
   /** 참조 없는 블롭 GC 한 번(L0.store.spec §4.9). 조립 루트가 `scheduler` 임대를 쥔 프로세스에서만 부른다 */
   readonly gcBlobs: BlobStore["gc"];
+  /** 플러그인 전용 저장소 포트(`sys_plugin_store`, X.primitives.spec §4.6.7). 조립 루트가 `ExtHostDeps.pluginStore`로 넘긴다 */
+  readonly pluginStore: PluginStorePort;
   /** 열기 때 모인 경고에 close()에서 생긴 경고가 더해진다 */
   readonly warnings: readonly StoreWarning[];
   /** options.faults 그대로. 없으면 아무것도 하지 않는 주입기 */

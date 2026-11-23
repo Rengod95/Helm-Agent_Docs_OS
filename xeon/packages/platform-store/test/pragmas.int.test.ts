@@ -39,7 +39,7 @@ describe("connection pragmas", () => {
     expect(pragma(store, "trusted_schema", "write")).toBe(0);
     expect(pragma(store, "temp_store", "write")).toBe(2);
     expect(pragma(store, "application_id", "write")).toBe(1179799116);
-    expect(pragma(store, "user_version", "write")).toBe(3);
+    expect(pragma(store, "user_version", "write")).toBe(4);
   });
 
   test("read connection is query_only", async () => {

@@ -1,5 +1,5 @@
 import { attemptAsync, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
-import { hardDependencyCycles } from "@fresnel/contracts/extensions";
+import { hardDependencyCycles, type PluginStorePort } from "@fresnel/contracts/extensions";
 import {
   checkDependencies,
   updateBreaks,
@@ -28,6 +28,8 @@ export interface ApprovalHookDeps {
   readonly loader: () => ExtensionLoader | undefined;
   /** 플러그인 집합(E(T))을 다시 맞춘다. 열린 대화의 적용을 다음 경계에 예약한다 */
   readonly refreshPluginSet: () => Promise<void>;
+  /** 플러그인 전용 저장소의 지우기(X.primitives.spec §4.6.7). 제거 승인이 그 플러그인의 이름 공간을 지운다 */
+  readonly pluginDataStore: Pick<PluginStorePort, "clear">;
   /** 설치된 플러그인 사실. 추가, 업데이트, 삭제가 의존을 이 집합으로 확인한다(AGE-33) */
   readonly facts: () => readonly PluginFact[];
   readonly log: Logger;
@@ -133,10 +135,29 @@ function failureOf(failure: PluginEditFailure): PluginPortFailure {
   return { kind: "profiles", failure };
 }
 
-/** 커밋 뒤에 실행 중인 판을 맞춘다. 새 플러그인은 싣지 않고(처음 대화에 들 때 싣는다), 수정은 검토본을 다시 읽고, 제거는 집합에서 뺀다. 끝나면 열린 대화를 맞춘다 */
+/**
+ * 제거된 플러그인의 전용 저장소를 지운다. 승인은 이미 커밋됐으므로 실패는 제거를 되돌리지 않고 로그에만 남긴다
+ * (X.primitives.spec §4.6.7, L0.store.spec §3.3 sys v4)
+ */
+async function clearPluginDataOf(deps: ApprovalHookDeps, name: string): Promise<void> {
+  const cleared = await attemptAsync(() => deps.pluginDataStore.clear(name));
+  if (!cleared.ok) {
+    deps.log.error("plugin.review.plugin_data_failed", {
+      name,
+      cause: String(cleared.error.cause),
+    });
+    return;
+  }
+  if (!cleared.value.ok) {
+    deps.log.error("plugin.review.plugin_data_failed", { name, kind: cleared.value.error.kind });
+  }
+}
+
+/** 커밋 뒤에 실행 중인 판을 맞춘다. 새 플러그인은 싣지 않고(처음 대화에 들 때 싣는다), 수정은 검토본을 다시 읽고, 제거는 저장소를 지우고 집합에서 뺀다. 끝나면 열린 대화를 맞춘다 */
 async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Promise<void> {
   const name = context.item.name;
   if (context.item.kind === "remove") {
+    await clearPluginDataOf(deps, name);
     await deps.refreshPluginSet();
     return;
   }

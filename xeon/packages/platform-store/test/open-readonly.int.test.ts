@@ -37,7 +37,7 @@ function markFuture(path: string): void {
   const newer = new Database(path);
   newer.run(
     `INSERT INTO sys_migrations (owner, version, checksum, applied_at, engine_version)
-     VALUES ('sys', 4, '${"1".repeat(64)}', 1, '9.9.9')`,
+     VALUES ('sys', 5, '${"1".repeat(64)}', 1, '9.9.9')`,
   );
   newer.close();
 }
@@ -62,7 +62,7 @@ describe("read-only open", () => {
     if (!opened.ok) return;
     own(opened.value);
     expect(opened.value.warnings).toEqual([
-      { kind: "read_only", reason: "future_version", owner: "sys", dbVersion: 4, codeVersion: 3 },
+      { kind: "read_only", reason: "future_version", owner: "sys", dbVersion: 5, codeVersion: 4 },
     ]);
   });
 
