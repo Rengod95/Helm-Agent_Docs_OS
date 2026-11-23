@@ -225,6 +225,10 @@ function fakeCommands(engine: FakeEngine): ProfileCanvasCommands {
       return Promise.resolve(ok({ profile: copy }));
     },
     bypassAllowed: () => Promise.resolve(ok(true)),
+    extensions: () => Promise.resolve(err({ kind: "unsupported" })),
+    extension: () => Promise.resolve(err({ kind: "unsupported" })),
+    plugin: () => Promise.resolve(err({ kind: "unsupported" })),
+    pendingReviews: () => Promise.resolve(err({ kind: "unsupported" })),
     remove: (id) => {
       engine.calls.push(`delete:${id}`);
       if (id === "default" || id === "craft")

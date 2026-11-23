@@ -4,7 +4,14 @@
 // 키보드(캔버스): 화살표 = 그 방향의 다음 노드, Enter = 상세, Shift+Enter = 안으로, Alt+↑↓ = 같은 자리 안 순서, Delete = 빼기, Esc = 닫기.
 // 끌기: 목록 줄을 캔버스에 놓으면 넣고(붙는 자리가 미리 밝아진다), 판을 목록으로 끌어 놓으면 뺀다.
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { FloatingBar, FloatingBarItem, FloatingBarSeparator, ZoomControl } from "@caustic/react";
+import {
+  Button,
+  FloatingBar,
+  FloatingBarItem,
+  FloatingBarSeparator,
+  IconButton,
+  ZoomControl,
+} from "@caustic/react";
 import { Maximize } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import { ReactFlow, useReactFlow, useViewportStore } from "@xyflow/react";
@@ -29,6 +36,10 @@ import { dotGrid, dotShift, GLOW_REACH, HIDE_ATTRIBUTION, openViewOf } from "./f
 import { zoomInverse } from "./lod.ts";
 import {
   addPlugin,
+  bundleIdOfMember,
+  bundleMetaFor,
+  pendingItemOf,
+  withPending,
   laneOf,
   inProfile,
   moveOnto,
@@ -64,7 +75,24 @@ import {
   type PanelActions,
   type PointOrder,
 } from "./panel.tsx";
-import { bundleMetaOf } from "../shared-meta.ts";
+import { MergeDialog, type MergeStart } from "../../members/split-dialogs.tsx";
+import {
+  defaultMergeName,
+  detachRefusalOf,
+  dropChoicesOf,
+  isMemberPlate,
+  linkFromRefusalOf,
+  linkPartnersOf,
+  memberPartsOf,
+  mergePartnersOf,
+  mergeRefusalOf,
+  NO_FACTS,
+  REFUSAL_TEXT,
+  type DropChoices,
+} from "./merge.ts";
+import { useCanvasMerge } from "./merge-source.ts";
+import { DetachConfirm, DropPicker, PlateMenu } from "./merge-ui.tsx";
+import { defaultDetachName } from "../../members/split-model.ts";
 import {
   chooseProfile,
   currentProfile,
@@ -114,8 +142,36 @@ interface Drag {
   readonly x: number;
   readonly y: number;
   readonly over: "canvas" | "palette" | "none";
-  /** 캔버스에서 끌 때 아래에 있는 같은 자리의 다른 판(놓으면 그 자리로 순서가 바뀐다) */
+  /** 캔버스에서 끌 때 아래에 있는 다른 판(놓으면 합치기, 의존으로 잇기, 같은 자리면 옮기기를 고른다) */
   readonly onto: string | null;
+  /** 멤버 판을 끌 때 묶음 받침판 밖에 있는가(놓으면 떼기 확인) */
+  readonly outside: boolean;
+}
+
+/** 놓은 뒤의 고르기(판 위에 판) */
+interface Drop {
+  readonly name: string;
+  readonly onto: string;
+  readonly x: number;
+  readonly y: number;
+  readonly choices: DropChoices;
+}
+
+/** 판 메뉴가 선 판과 자리 */
+interface PlateMenuAt {
+  readonly name: string;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** 묶음 받침판(또는 접힌 더미)이 화면 점을 덮는가 */
+function insideBundle(bundle: string, x: number, y: number): boolean {
+  const el = document.querySelector<HTMLElement>(
+    `.react-flow__node[data-id="${CSS.escape(`bundle:${bundle}`)}"]`,
+  );
+  if (el === null) return false;
+  const r = el.getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
 /** 화면 점 아래의 플러그인 판 이름 */
@@ -177,6 +233,25 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   const [drag, setDrag] = useState<Drag | null>(null);
   const [say, setSay] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(() => window.innerWidth >= WIDE_ENOUGH);
+  // 끌어서 합치기·잇기·떼기(cvMerge, AGE-72)
+  const merge = useCanvasMerge();
+  const facts = store.live?.facts ?? NO_FACTS;
+  const [drop, setDrop] = useState<Drop | null>(null);
+  const [menu, setMenu] = useState<PlateMenuAt | null>(null);
+  const [mergeStart, setMergeStart] = useState<MergeStart | null>(null);
+  const [detaching, setDetaching] = useState<{
+    readonly plate: string;
+    readonly member: string;
+    readonly name: string;
+  } | null>(null);
+  const [detachBusy, setDetachBusy] = useState(false);
+  const [detachFailure, setDetachFailure] = useState<string | null>(null);
+  /** 놓을 수 없을 때와 의존·떼기를 리뷰로 보낸 뒤의 한 줄(리뷰 항목이 있으면 "리뷰에서 보기") */
+  const [notice, setNotice] = useState<{
+    readonly text: string;
+    readonly tone: "warn" | "ok";
+    readonly itemId: string | null;
+  } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
 
@@ -186,10 +261,12 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     wrapRef.current?.style.setProperty("--cv6-inv", String(zoomInverse(zoom)));
   }, [zoom]);
 
-  const layout = useMemo(() => layoutProfile(profile, store.collapsed), [profile, store.collapsed]);
+  // 그리는 모양: 저장된 프로필 + 리뷰를 기다리는 합치기·떼기 결과(반투명 판). 저장과 바꾸기는 `profile`로만 한다
+  const shown = useMemo(() => withPending(profile, store.pending), [profile, store.pending]);
+  const layout = useMemo(() => layoutProfile(shown, store.collapsed), [shown, store.collapsed]);
   const empty = profile.entries.length === 0;
-  const placed = useMemo(() => placedOf(profile), [profile]);
-  const relations = useMemo(() => relationsOf(profile), [profile]);
+  const placed = useMemo(() => placedOf(shown), [shown]);
+  const relations = useMemo(() => relationsOf(shown), [shown]);
   const bundleList = useMemo(
     () =>
       profile.entries.flatMap((e) =>
@@ -375,7 +452,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       setCollapsed(id, next);
       setSay(
         t(next ? "desktop.craft.canvas.cv3.say.folded" : "desktop.craft.canvas.cv3.say.unfolded", {
-          name: bundleMetaOf(id).displayName,
+          name: bundleMetaFor(id).displayName,
         }),
       );
     },
@@ -392,19 +469,50 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     },
     [profile, commit],
   );
-  /** 끄는 판 아래의 판이 같은 자리이고 옮길 수 있으면 그 이름 */
-  const ontoOf = useCallback(
-    (name: string, x: number, y: number): string | null => {
-      const under = plateAt(x, y);
-      if (under === null || under === name) return null;
-      return moveOnto(profile, name, under) === profile ? null : under;
+  /** 끄는 판 아래의 다른 판 이름 */
+  const ontoOf = useCallback((name: string, x: number, y: number): string | null => {
+    const under = plateAt(x, y);
+    return under === null || under === name ? null : under;
+  }, []);
+  /** 캔버스 안에 놓았을 때: 멤버 판은 묶음 밖이면 떼기 확인, 합칠 수 있는 판 위면 고르기, 같은 자리의 다른 판이면 옮기기, 아니면 까닭 한 줄 */
+  const dropOnCanvas = useCallback(
+    (name: string, x: number, y: number): void => {
+      const bundle = bundleIdOfMember(name);
+      if (bundle !== null && isMemberPlate(name)) {
+        if (insideBundle(bundle, x, y)) return;
+        const refusal = detachRefusalOf(name, facts);
+        if (refusal !== null) {
+          setNotice({ text: t(REFUSAL_TEXT[refusal]), tone: "warn", itemId: null });
+          return;
+        }
+        const { root, member } = memberPartsOf(name);
+        setDetachFailure(null);
+        setDetaching({ plate: name, member, name: defaultDetachName(root, member) });
+        return;
+      }
+      const onto = plateAt(x, y);
+      if (onto === null || onto === name) return;
+      const choices = dropChoicesOf(profile, name, onto, facts);
+      if (choices.refusal !== null && choices.reorder) {
+        setNotice(null);
+        reorder(name, onto);
+        return;
+      }
+      if (choices.refusal !== null) {
+        const why = t(REFUSAL_TEXT[choices.refusal]);
+        setNotice({ text: why, tone: "warn", itemId: null });
+        setSay(why);
+        return;
+      }
+      setNotice(null);
+      setDrop({ name, onto, x, y, choices });
     },
-    [profile],
+    [facts, profile, reorder],
   );
-  const latest = useRef({ add, remove, reorder, ontoOf });
+  const latest = useRef({ add, remove, ontoOf, dropOnCanvas });
   useLayoutEffect(() => {
-    latest.current = { add, remove, reorder, ontoOf };
-  }, [add, remove, reorder, ontoOf]);
+    latest.current = { add, remove, ontoOf, dropOnCanvas };
+  }, [add, remove, ontoOf, dropOnCanvas]);
   const whereIs = useCallback((x: number, y: number): Drag["over"] => {
     const inRect = (r: DOMRect | undefined): boolean =>
       r !== undefined && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
@@ -426,7 +534,9 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
           from === "canvas" && over === "canvas"
             ? latest.current.ontoOf(name, m.clientX, m.clientY)
             : null;
-        setDrag({ name, from, x: m.clientX, y: m.clientY, over, onto });
+        const bundle = from === "canvas" ? bundleIdOfMember(name) : null;
+        const outside = bundle !== null && !insideBundle(bundle, m.clientX, m.clientY);
+        setDrag({ name, from, x: m.clientX, y: m.clientY, over, onto, outside });
       };
       const end = (m: PointerEvent): void => {
         window.removeEventListener("pointermove", move);
@@ -437,10 +547,8 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         const over = whereIs(m.clientX, m.clientY);
         if (from === "palette" && over === "canvas") latest.current.add(name);
         if (from === "canvas" && over === "palette") latest.current.remove(name);
-        if (from === "canvas" && over === "canvas") {
-          const onto = latest.current.ontoOf(name, m.clientX, m.clientY);
-          if (onto !== null) latest.current.reorder(name, onto);
-        }
+        if (from === "canvas" && over === "canvas")
+          latest.current.dropOnCanvas(name, m.clientX, m.clientY);
       };
       const cancel = (): void => {
         window.removeEventListener("pointermove", move);
@@ -471,6 +579,18 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
   };
   const onKey = (id: string, e: KeyboardEvent<HTMLElement>): void => {
     const name = id;
+    // 판 메뉴: 메뉴 키나 Shift+F10(합치기…, 의존으로 잇기…, 묶음에서 떼기를 키보드로)
+    if (
+      (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) &&
+      pluginOf(name) !== undefined &&
+      pendingItemOf(name) === null
+    ) {
+      e.preventDefault();
+      if (!(e.target instanceof HTMLElement)) return;
+      const r = e.target.getBoundingClientRect();
+      setMenu({ name, x: r.right, y: r.top });
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       if (e.shiftKey && pluginOf(name) !== undefined) props.onOpen(name);
@@ -535,6 +655,13 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
   const actions: CanvasActions = {
     select: selectFromCanvas,
+    menu: (name, at) => {
+      setMenu({ name, x: at.x, y: at.y });
+    },
+    review: (name) => {
+      const itemId = pendingItemOf(name);
+      if (itemId !== null) merge.openReview(itemId);
+    },
     open: props.onOpen,
     toggleBundle,
     pointerDown: (name, e) => {
@@ -627,13 +754,21 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
         focusable: g.collapsed,
         zIndex: g.collapsed ? 4 : 2,
         ariaLabel: t("desktop.craft.canvas.cv3.a11y.bundle", {
-          name: bundleMetaOf(g.id).displayName,
+          name: bundleMetaFor(g.id).displayName,
           n: g.members.length,
         }),
       });
     }
+    // 판을 끄는 동안(멤버 판이 아닐 때): 놓을 수 있는 판은 강조, 없는 판은 흐리게
+    const dropping =
+      drag?.from === "canvas" && bundleIdOfMember(drag.name) === null ? drag.name : null;
     for (const p of layout.plates) {
       const name = p.placed.plugin.name;
+      const pending = pendingItemOf(name) !== null;
+      const can =
+        dropping === null || dropping === name
+          ? null
+          : dropChoicesOf(profile, dropping, name, facts).refusal === null;
       list.push({
         id: `p:${name}`,
         type: "plate",
@@ -642,7 +777,9 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
           geo: p,
           mark: markOf(name),
           arrive: arrive.id === name ? arrive.n : 0,
-          dim: drag?.from === "canvas" && drag.name === name,
+          dim: (drag?.from === "canvas" && drag.name === name) || can === false,
+          drop: can === true ? "ok" : null,
+          pending,
         },
         draggable: false,
         selectable: false,
@@ -688,7 +825,19 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       });
     }
     return list;
-  }, [layout, related, selected, arrive, drag, dragTarget, visibleRel, litRel, store.allRelations]);
+  }, [
+    layout,
+    related,
+    selected,
+    arrive,
+    drag,
+    dragTarget,
+    visibleRel,
+    litRel,
+    store.allRelations,
+    profile,
+    facts,
+  ]);
 
   // 빛: 고른 판 뒤에 하나. 다른 노드와 따로 만들어, 고름이 바뀔 때 판들의 데이터는 그대로 둔다
   const glowNodes = useMemo((): CanvasNode[] => {
@@ -728,7 +877,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
     setSelected(null);
     commit(
       removeBundle(profile, id),
-      t("desktop.craft.canvas.cv3.say.removed", { names: bundleMetaOf(id).displayName }),
+      t("desktop.craft.canvas.cv3.say.removed", { names: bundleMetaFor(id).displayName }),
     );
   };
 
@@ -788,6 +937,61 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
           placed.filter((x) => x.plugin.anchor === selectedPoint).map((x) => x.plugin.name),
         );
 
+  // ── 합치기·잇기·떼기 ──
+  const openMerge = (first: string, second: string): void => {
+    setMergeStart({
+      picked: [first, second],
+      name: defaultMergeName(
+        first,
+        second,
+        facts.entries.map((e) => e.name),
+      ),
+    });
+  };
+  const linkTo = (from: string, to: string): void => {
+    setNotice(null);
+    detach(
+      merge.link(from, to, facts).then((done) => {
+        const text = done.ok
+          ? t(
+              done.itemId === null
+                ? "desktop.craft.canvas.cvMerge.say.linkedNotSent"
+                : "desktop.craft.canvas.cvMerge.say.linked",
+            )
+          : t(done.text);
+        setNotice({
+          text,
+          tone: done.ok && done.itemId !== null ? "ok" : "warn",
+          itemId: done.ok ? done.itemId : null,
+        });
+        setSay(text);
+        return undefined;
+      }),
+      rethrow,
+    );
+  };
+  const confirmDetach = (): void => {
+    if (detaching === null) return;
+    setDetachBusy(true);
+    setDetachFailure(null);
+    detach(
+      merge.detachMember(detaching.plate, facts).then((done) => {
+        setDetachBusy(false);
+        if (!done.ok) {
+          setDetachFailure(t(done.text));
+          return undefined;
+        }
+        setDetaching(null);
+        const text = t(done.sendFailed ?? "desktop.craft.split.sent");
+        setNotice({ text, tone: done.sendFailed === null ? "ok" : "warn", itemId: done.itemId });
+        setSay(text);
+        return undefined;
+      }),
+      rethrow,
+    );
+  };
+  const menuName = menu?.name ?? null;
+
   return (
     <CanvasActionsContext value={actions}>
       {/* Esc는 어디에 포커스가 있든(목록 줄 포함) 떠 있는 상세를 닫는다 */}
@@ -819,6 +1023,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
               startPointer(name, "palette", e);
             }}
             onToggle={togglePalette}
+            onCreate={merge.create}
           />
         </div>
         <div
@@ -876,7 +1081,11 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
               {titleOf(store, store.current) ?? t(sampleTitle(store.current))}
             </span>
             <span className="flex items-center gap-3 text-[12px] text-text-tertiary tabular-nums">
-              <span>{t("desktop.craft.canvas.cv6.count.plugins", { n: placed.length })}</span>
+              <span>
+                {t("desktop.craft.canvas.cv6.count.plugins", {
+                  n: placed.filter((x) => pendingItemOf(x.plugin.name) === null).length,
+                })}
+              </span>
               <span>{t("desktop.craft.canvas.cv6.count.base", { n: profile.base.length })}</span>
               <span>{t("desktop.craft.canvas.cv6.count.bundles", { n: bundleList.length })}</span>
             </span>
@@ -902,6 +1111,38 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
               </span>
             ) : null}
           </div>
+          {notice === null || failure !== null ? null : (
+            <div
+              role="status"
+              data-canvas-notice=""
+              className="glass glass-shadow-3 rounded-toolbar absolute top-16 left-3 z-10 flex h-9 items-center gap-2 ps-3.5 pe-1.5 text-ui-sm text-text-primary"
+            >
+              <span aria-hidden="true" className="cv6-orb" data-tone={notice.tone} />
+              {notice.text}
+              {notice.itemId === null ? null : (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => {
+                    const id = notice.itemId;
+                    if (id !== null) merge.openReview(id);
+                  }}
+                >
+                  {t("desktop.craft.members.send.open")}
+                </Button>
+              )}
+              <IconButton
+                size="xs"
+                variant="ghost"
+                label={t("desktop.craft.split.close")}
+                onClick={() => {
+                  setNotice(null);
+                }}
+              >
+                <Icon name="close" size={12} />
+              </IconButton>
+            </div>
+          )}
           {failure === null ? null : (
             <div
               role="status"
@@ -932,6 +1173,7 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
                     t("desktop.craft.canvas.cv3.legend.layers"),
                     ...REL_KINDS.map((k) => `${t(RELATION_WORD[k])}: ${t(RELATION_HINT[k])}`),
                     t("desktop.craft.canvas.cv3.legend.keys"),
+                    t("desktop.craft.canvas.cvMerge.legend.menu"),
                   ]}
                 />
               </span>
@@ -1022,16 +1264,88 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
 
           {drag?.from === "canvas" ? (
             <div className="pointer-events-none absolute top-16 left-3 z-20 glass glass-shadow-3 rounded-xl px-3 py-2 text-[12.5px] text-text-secondary">
-              {t(
-                orderFixed(drag.name)
-                  ? "desktop.craft.canvas.cv9.say.fixedOrder"
-                  : drag.onto === null
-                    ? "desktop.craft.canvas.cv9.say.dragHint"
-                    : "desktop.craft.canvas.cv9.say.dropToMove",
-                { name: orderFixed(drag.name) ? drag.name : (drag.onto ?? "") },
-              )}
+              {bundleIdOfMember(drag.name) !== null
+                ? t("desktop.craft.canvas.cvMerge.hint.detach")
+                : drag.onto === null
+                  ? t("desktop.craft.canvas.cvMerge.hint.drop")
+                  : dropHint(dropChoicesOf(profile, drag.name, drag.onto, facts))}
             </div>
           ) : null}
+          {drop === null ? null : (
+            <DropPicker
+              x={drop.x}
+              y={drop.y}
+              choices={drop.choices}
+              onMerge={() => {
+                openMerge(drop.onto, drop.name);
+              }}
+              onLink={() => {
+                linkTo(drop.name, drop.onto);
+              }}
+              onMove={() => {
+                reorder(drop.name, drop.onto);
+              }}
+              onClose={() => {
+                setDrop(null);
+              }}
+            />
+          )}
+          {menu === null || menuName === null ? null : (
+            <PlateMenu
+              key={menuName}
+              x={menu.x}
+              y={menu.y}
+              name={menuName}
+              merge={{
+                refusal: mergeRefusalOf(menuName, facts),
+                partners: mergePartnersOf(menuName, facts),
+              }}
+              link={{
+                refusal: linkFromRefusalOf(menuName, facts),
+                partners: linkPartnersOf(menuName, facts),
+              }}
+              detach={
+                bundleIdOfMember(menuName) === null
+                  ? null
+                  : { refusal: detachRefusalOf(menuName, facts) }
+              }
+              onOpen={() => {
+                selectFromCanvas(menuName);
+              }}
+              onMerge={(partner) => {
+                openMerge(menuName, partner);
+              }}
+              onLink={(partner) => {
+                linkTo(menuName, partner);
+              }}
+              onDetach={() => {
+                const { root, member } = memberPartsOf(menuName);
+                setDetachFailure(null);
+                setDetaching({ plate: menuName, member, name: defaultDetachName(root, member) });
+              }}
+              onClose={() => {
+                setMenu(null);
+              }}
+            />
+          )}
+          <MergeDialog
+            open={mergeStart !== null}
+            entries={facts.entries}
+            actions={merge.split}
+            {...(mergeStart === null ? {} : { start: mergeStart })}
+            onClose={() => {
+              setMergeStart(null);
+            }}
+          />
+          <DetachConfirm
+            target={detaching}
+            busy={detachBusy}
+            failure={detachFailure}
+            onConfirm={confirmDetach}
+            onClose={() => {
+              setDetaching(null);
+            }}
+          />
         </div>
         {drag !== null && dragPlugin !== undefined ? (
           <div
@@ -1051,6 +1365,14 @@ export function ProfileCanvas(props: { readonly onOpen: (name: string) => void }
       </div>
     </CanvasActionsContext>
   );
+}
+
+/** 끄는 판이 다른 판 위에 있을 때의 한 줄: 놓을 수 없으면 그 까닭, 있으면 고르기 안내 */
+function dropHint(choices: DropChoices): string {
+  if (choices.refusal !== null && choices.reorder)
+    return t("desktop.craft.canvas.cvMerge.drop.move");
+  if (choices.refusal !== null) return t(REFUSAL_TEXT[choices.refusal]);
+  return t("desktop.craft.canvas.cvMerge.hint.drop");
 }
 
 /** 표본 장면의 이름(엔진 프로필이 아닐 때) */

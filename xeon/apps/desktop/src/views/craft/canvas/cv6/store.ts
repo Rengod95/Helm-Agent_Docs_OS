@@ -9,6 +9,7 @@ import type { PermissionMode } from "@fresnel/contracts/services";
 import type {
   BlocksAppliedResult,
   CommonSet,
+  ExtListEntry,
   Profile,
   ProfileInput,
   ProfileIssue,
@@ -18,9 +19,13 @@ import { BUILD_CHECKS } from "../../../../app/build.ts";
 import type { CommandError, ProfileCanvasCommands } from "../profile-source.ts";
 import { initialScene } from "../shared-sample.ts";
 import { attachCount } from "./sample-ext.ts";
+import { hasMembers, membersOfManifest } from "../../members/members-model.ts";
+import { NO_FACTS, readTracked, writeTracked, type MergeFacts } from "./merge.ts";
 import {
   canvasCards,
   canvasProfileOf,
+  liveBundleOfCard,
+  memberPluginOf,
   newProfileInput,
   pluginOfCard,
   profileIdFrom,
@@ -33,6 +38,11 @@ import {
   attachProfile,
   installedPlugins,
   installLiveCatalog,
+  installPending,
+  pendingNames,
+  type LiveBundle,
+  type LiveExtras,
+  type Plugin,
   requiredByOf,
   profileFromSample,
   type CanvasProfile,
@@ -54,6 +64,8 @@ interface LiveData {
   readonly issues: Readonly<Record<string, readonly ProfileIssue[]>>;
   /** 쓰는 중인 프로필 id */
   readonly saving: string | null;
+  /** 합치기, 의존, 떼기의 범위를 가르는 설치 목록과 원본 폴더(cvMerge) */
+  readonly facts: MergeFacts;
 }
 
 type CanvasStatus = "sample" | "loading" | "ready" | "failed";
@@ -69,6 +81,8 @@ export interface CanvasStore {
   readonly collapsed: ReadonlySet<string>;
   readonly allRelations: boolean;
   readonly live: LiveData | null;
+  /** 리뷰를 기다리는 합치기·떼기 결과의 판 이름(cvMerge). 캔버스가 프로필 끝에 덧붙여 그린다 */
+  readonly pending: readonly string[];
 }
 
 /** 표본 보기를 쓰나: 개발 빌드이고 키가 켜져 있을 때만 */
@@ -103,6 +117,7 @@ function sampleStore(): CanvasStore {
     collapsed: new Set(),
     allRelations: false,
     live: null,
+    pending: [],
   };
 }
 
@@ -116,6 +131,7 @@ function loadingStore(): CanvasStore {
     collapsed: new Set(),
     allRelations: false,
     live: null,
+    pending: [],
   };
 }
 
@@ -202,14 +218,19 @@ export async function startLive(commands: ProfileCanvasCommands): Promise<void> 
   }
   const list = profiles.value.profiles;
   const common = profiles.value.common;
-  installLiveCatalog(
-    canvasCards(cards.value.plugins, referencedNames(list, common)).map(pluginOfCard),
-  );
+  const plugins = canvasCards(cards.value.plugins, referencedNames(list, common)).map(pluginOfCard);
+  const facts = await readMergeFacts(commands);
+  const extras = await readBundles(commands, plugins, facts.entries);
+  installLiveCatalog(plugins, {
+    ...extras,
+    unapproved: cards.value.plugins.filter((c) => c.review.state !== "approved").map((c) => c.name),
+  });
   const current = firstProfile(list, state.current);
   updateStore((s) => ({
     ...s,
     status: "ready",
     error: null,
+    pending: pendingNames(),
     current,
     order: list.map((p) => p.id),
     profiles: Object.fromEntries(list.map((p) => [p.id, canvasProfileOf(p, common)])),
@@ -220,9 +241,103 @@ export async function startLive(commands: ProfileCanvasCommands): Promise<void> 
       applied: s.live?.applied ?? {},
       issues: s.live?.issues ?? {},
       saving: null,
+      facts,
     },
   }));
+  await readPending(commands);
   if (current !== "") await readProfileDetail(commands, current);
+}
+
+/**
+ * 합치기의 사실(cvMerge): 설치 목록과, 앱에 들지 않은 플러그인마다의 원본 폴더. 읽지 못하면 비어 있다(합치기, 의존, 떼기가 모두 막힌다.
+ * 캔버스의 다른 일은 그대로 된다)
+ */
+async function readMergeFacts(commands: ProfileCanvasCommands): Promise<MergeFacts> {
+  const listed = await commands.extensions();
+  if (!listed.ok) return NO_FACTS;
+  const entries = listed.value.extensions;
+  const own = entries.filter((e) => e.origin !== "builtin");
+  const got = await Promise.all(
+    own.map(async (e) => {
+      const read = await commands.plugin(e.name);
+      return [e.name, read.ok ? (read.value.source?.path ?? null) : null] as const;
+    }),
+  );
+  const sources = new Map<string, string>();
+  for (const [name, path] of got) if (path !== null) sources.set(name, path);
+  return { entries, sources };
+}
+
+/**
+ * 엔진의 묶음(cvMerge): 사용자가 넣은(앱에 들지 않은) 멤버 있는 플러그인마다 설치본 매니페스트의 멤버를 판으로 만든다.
+ * 앱에 든 묶음(helm 따위)은 지금처럼 판 하나다(판 모양을 바꾸지 않는다). 매니페스트를 읽지 못하면 그 플러그인도 판 하나로 남는다.
+ * 뿌리 플러그인(id 없음)은 판이 되지 않는다: 합친 뿌리는 Hook이 없는 빈 선언이다
+ */
+async function readBundles(
+  commands: ProfileCanvasCommands,
+  plugins: readonly Plugin[],
+  entries: readonly ExtListEntry[],
+): Promise<LiveExtras> {
+  const owned = entries.filter(
+    (e) => e.origin !== "builtin" && hasMembers(e) && plugins.some((p) => p.name === e.name),
+  );
+  const read = await Promise.all(
+    owned.map(async (e) => {
+      const got = await commands.extension(e.name);
+      return { name: e.name, members: got.ok ? membersOfManifest(e.name, got.value.manifest) : [] };
+    }),
+  );
+  const members: Plugin[] = [];
+  const bundles: LiveBundle[] = [];
+  for (const r of read) {
+    const parent = plugins.find((p) => p.name === r.name);
+    if (parent === undefined || r.members.length === 0) continue;
+    const plates = r.members.map((m) => memberPluginOf(parent, m));
+    members.push(...plates);
+    bundles.push(
+      liveBundleOfCard(
+        parent,
+        plates.map((p) => p.name),
+      ),
+    );
+  }
+  return { members, bundles };
+}
+
+/** `readPending`의 차례 번호(마지막 읽기만 반투명 판을 정한다) */
+let pendingRead = 0;
+
+/**
+ * 이 캔버스가 리뷰에 낸 합치기·떼기 결과 가운데 아직 기다리는 것(cvMerge). 반투명 판으로 그린다. 기다리지 않게 된 항목(승인, 버림,
+ * 돌려보냄)은 기억에서 지운다: 승인되어 프로필에 들면 보통 판이 되고, 아니면 사라진다
+ */
+export async function readPending(commands: ProfileCanvasCommands): Promise<void> {
+  pendingRead += 1;
+  const seq = pendingRead;
+  const before = readTracked();
+  if (before.length === 0) {
+    installPending([]);
+    updateStore((s) => ({ ...s, pending: [] }));
+    return;
+  }
+  const listed = await commands.pendingReviews();
+  // 리뷰 변경 알림과 리뷰에 낸 결과가 거의 함께 읽기를 부른다: 늦게 끝난 옛 읽기가 새 읽기를 덮지 않게 마지막 읽기만 쓴다
+  if (!listed.ok || seq !== pendingRead) return;
+  const waiting = new Map(
+    listed.value.items
+      .filter((item) => item.state === "pending")
+      .map((item) => [item.itemId, item]),
+  );
+  // 읽는 사이에 새로 기억한 항목은 목록에 아직 없어도 남긴다(다음 읽기가 정한다)
+  const kept = readTracked().filter((id) => waiting.has(id) || !before.includes(id));
+  writeTracked(kept);
+  installPending(
+    kept.flatMap((id) => {
+      const item = waiting.get(id);
+      return item === undefined ? [] : [{ itemId: id, plugin: pluginOfCard(item.card) }];
+    }),
+  );
+  updateStore((s) => ({ ...s, pending: pendingNames() }));
 }
 
 /** 다른 프로필을 본다. 엔진 값이면 그 프로필의 적용 블록과 이슈를 읽는다 */

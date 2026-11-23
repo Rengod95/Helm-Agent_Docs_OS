@@ -2941,6 +2941,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 엔진 알림의 사람 말(경고 먼저, 같은 말은 한 번): `detach_code_needs_wiring` "코드는 새 폴더의 src/members에 복사만 했어요. 새 플러그인의 시작 파일에서 직접 이어 주세요.", `merge_code_needs_wiring` "코드는 옮기지 않았어요. 새 플러그인의 시작 파일에서 각 멤버의 코드를 직접 이어 주세요.", `merge_shared_files_not_copied`와 `detach_shared_files_not_copied` "설정, 화면, 도구 같은 공용 파일은 옮기지 않았어요. 필요하면 직접 복사해 주세요.", `merge_purpose_truncated` "목적 문장이 200자를 넘어 잘랐어요.", `merge_version_taken_from_first`, `merge_internal_dependency_dropped`도 한 문장씩이다. 모르는 경고는 "엔진 경고가 더 있어요. 리뷰에서 확인해 주세요." 한 줄이고 엔진 원문은 보이지 않는다.
 - 거절 사유(`reasons[].code`)의 한 문장: `out_dir_not_empty`, `out_dir_inside_source`, `name_invalid`, `name_conflict`, `member_not_found`, `capability_duplicate`, `replace_conflict`, `member_id_conflict`, `source_has_members`, `source_duplicate_name`, `tool_duplicate`, `layer_mixed_external`, 그리고 `denied` [근거: `apps/desktop/src/views/craft/members/split-model.ts`].
 
+- 프로필 캔버스(C3)에서도 같은 두 길을 연다: 판을 합칠 수 있는 판 위에 끌어 놓으면 합치기 상자가 두 이름과 기본 이름으로 채워져 열리고, 멤버 판을 묶음 밖으로 끌면 떼기를 기본값으로 확인 한 번에 낸다 [구현: cvMerge, 2026-11-23, AGE-72]. 동작은 `review/m6/craft-flows.md` §6.10의 구현 메모다.
+
 #### 6.24.5 의존 때문에 거절될 때 (m6Mb, AGE-33)
 
 - 끄기, 지우기, 승인이 `plugin.dependency`(3627)로 거절되면 무엇 때문인지를 목록으로 말한다. 제목은 까닭(`unmet` "꼭 기대는 플러그인이 준비되지 않아 승인할 수 없어요", `required_by` "이 플러그인에 꼭 기대는 것이 있어 할 수 없어요", `breaks_range` "새 버전이 기대는 쪽의 버전 범위를 벗어나 승인할 수 없어요")이고, 줄마다 "기대는 쪽 → 대상"(이름 뒤에 조사를 붙이지 않으려고 두 이름과 화살표로 그린다), 종류, 문제 말(`depended_on` "이 플러그인에 꼭 기대요", `target_disabled` "꺼져 있어요", `range_unmet`은 찾은 버전과 범위, `cycle` "서로 꼭 기대는 고리가 생겨요" 등)이다 [근거: `apps/desktop/src/views/craft/deps/dependency-refusal.tsx`].

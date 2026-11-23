@@ -16,12 +16,19 @@ import type {
   ProfileInput,
   ProfileIssue,
 } from "@fresnel/contracts/wire";
-import type { PermissionMode } from "@fresnel/contracts/services";
+import type { MemberInfo, PermissionMode } from "@fresnel/contracts/services";
 import { PERMISSION_MODE_KEY, profileModeFrom } from "../permission-mode-source.ts";
 import type { SharedPlugin } from "../shared-sample.ts";
 import type { PluginMeta } from "../shared-meta.ts";
 import { anchorOfPosition } from "./facts.ts";
-import type { Anchor, CanvasProfile, Kind, Plugin } from "./model.ts";
+import {
+  liveBundleOf,
+  type Anchor,
+  type CanvasProfile,
+  type Kind,
+  type LiveBundle,
+  type Plugin,
+} from "./model.ts";
 
 const HOOK_SET: ReadonlySet<string> = new Set(HOOK_NAMES);
 
@@ -52,9 +59,13 @@ export function anchorOfCard(card: PluginCard): Anchor {
   if (kind === "drive") return "drive";
   if (kind === "tool") return "feed:tools";
   if (kind === "inject") return "feed:context";
-  for (const hook of card.does.hook?.hooks ?? []) {
-    if (!isHookName(hook.name)) continue;
-    for (const position of HOOK_POSITIONS[hook.name].positions) {
+  return anchorOfHooks((card.does.hook?.hooks ?? []).map((h) => h.name).filter(isHookName));
+}
+
+/** Hook 이름들의 첫 자리. 자리를 아는 이름이 없으면 모델 앞이다 */
+function anchorOfHooks(hooks: readonly HookName[]): Anchor {
+  for (const hook of hooks) {
+    for (const position of HOOK_POSITIONS[hook].positions) {
       const at = anchorOfHookPosition(position);
       if (at !== null) return at;
     }
@@ -169,8 +180,57 @@ export function canvasProfileOf(profile: Profile, common: CommonSet): CanvasProf
     base,
     entries: profile.plugins
       .filter((ref) => !base.includes(ref.name))
-      .map((ref) => ({ type: "plugin", name: ref.name })),
+      .map((ref) => {
+        // 멤버 있는 플러그인(엔진 묶음)은 묶음 하나로 서고 판은 멤버마다다(cvMerge, AGE-72)
+        const bundle = liveBundleOf(ref.name);
+        return bundle === null
+          ? { type: "plugin", name: ref.name }
+          : { type: "bundle", id: bundle.id, members: bundle.members };
+      }),
     startDrive: profile.startDrive,
+  };
+}
+
+/**
+ * 멤버 하나의 판(cvMerge, AGE-72). 이름은 `<플러그인>/<멤버 id>`(Registration id)이고, 종류와 자리는 멤버의 선언(Drive, Hook 이름)에서
+ * 정한다: Drive면 Drive, Hook이 있으면 첫 Hook의 자리, 그 밖에는 Inject. 목적, 설명, 리뷰, 비용 같은 사람용 값은 플러그인 카드의 것이다
+ * (멤버마다의 카드는 엔진에 없다). 만든 곳(빌더)은 묶음에 한 번이라 멤버 판에서는 선을 긋지 않는다
+ */
+export function memberPluginOf(parent: Plugin, member: MemberInfo): Plugin {
+  const hooks = member.hooks.filter(isHookName);
+  const kind: Kind = member.drives ? "drive" : hooks.length > 0 ? "hook" : "inject";
+  const anchor =
+    kind === "drive" ? "drive" : kind === "hook" ? anchorOfHooks(hooks) : "feed:context";
+  const name = `${parent.name}/${member.id}`;
+  return {
+    name,
+    kind,
+    anchor,
+    shared: { ...parent.shared, name, kind },
+    meta: {
+      ...parent.meta,
+      displayName: member.title ?? member.id,
+      hooks,
+      createdByBuilder: false,
+      requiredBy: [],
+    },
+  };
+}
+
+/** 엔진 묶음의 머리 값(카드에서): 이름, 보이는 이름, 버전, 출처 */
+export function liveBundleOfCard(parent: Plugin, members: readonly string[]): LiveBundle {
+  return {
+    id: parent.name,
+    members,
+    meta: {
+      id: parent.name,
+      displayName: parent.meta.displayName,
+      purpose: "desktop.craft.canvas.cv9.purposeNone",
+      version: parent.meta.version,
+      author: "",
+      origin: parent.meta.origin,
+      hash: parent.meta.review.currentHash ?? "",
+    },
   };
 }
 
@@ -179,7 +239,8 @@ export function canvasProfileOf(profile: Profile, common: CommonSet): CanvasProf
  * 저장된 목록에서 공통 묶음과 겹쳐 캔버스가 보이지 않던 이름은 버리지 않고 끝에 둔다(공통 묶음이 먼저 서므로 뜻은 같다)
  */
 export function profileInputOf(canvas: CanvasProfile, saved: Profile): ProfileInput {
-  const names = canvas.entries.flatMap((e) => (e.type === "plugin" ? [e.name] : e.members));
+  // 묶음은 프로필에 이름 하나로 든다(멤버 판 이름을 쓰지 않는다)
+  const names = canvas.entries.map((e) => (e.type === "plugin" ? e.name : e.id));
   const kept = saved.plugins.map((ref) => ref.name).filter((name) => !names.includes(name));
   return {
     id: saved.id,

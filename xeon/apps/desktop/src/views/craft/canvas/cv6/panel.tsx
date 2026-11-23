@@ -27,6 +27,7 @@ import {
   orderFixed,
   swapPlugins,
   inProfile,
+  bundleMetaFor,
   placedOf,
   pluginOf,
   providerOf,
@@ -37,7 +38,7 @@ import {
   type Plugin,
   type RelationKind,
 } from "./model.ts";
-import { bundleMetaOf, purposeOf, usedByOf } from "../shared-meta.ts";
+import { purposeOf, usedByOf } from "../shared-meta.ts";
 import {
   anchorWord,
   BLOCK_WORD,
@@ -623,7 +624,7 @@ function RelationRows(props: {
     }
   const source = props.placed?.source;
   if (source?.type === "bundle") {
-    const meta = bundleMetaOf(source.id);
+    const meta = bundleMetaFor(source.id);
     rows.unshift(
       <li key="own" className="flex items-center gap-2 py-1 text-[13px]">
         <span className="flex w-7 shrink-0 justify-center text-text-tertiary">
@@ -728,7 +729,7 @@ export function PluginDetail(props: {
         ? t("desktop.craft.canvas.cv3.base")
         : placed.source.type === "bundle"
           ? t("desktop.craft.canvas.cv3.source.bundle", {
-              name: bundleMetaOf(placed.source.id).displayName,
+              name: bundleMetaFor(placed.source.id).displayName,
             })
           : t("desktop.craft.canvas.cv3.source.profile");
   const writes = (s.mcp?.tools ?? []).filter((x) => x.writes).length;
@@ -1239,7 +1240,7 @@ export function BundleDetail(props: {
   readonly collapsed: boolean;
   readonly actions: PanelActions;
 }): ReactNode {
-  const meta = bundleMetaOf(props.id);
+  const meta = bundleMetaFor(props.id);
   const kinds = [...new Set(props.members.map((m) => m.plugin.kind))];
   const anchors = new Set(props.members.map((m) => m.plugin.anchor).filter((a) => a !== "drive"));
   const head = (

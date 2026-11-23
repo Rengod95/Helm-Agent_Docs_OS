@@ -30,5 +30,10 @@ export function createProfileCanvasCommands(
       if (!got.ok) return got;
       return ok(got.value.settings.find((setting) => setting.key === BYPASS_ALLOWED_KEY)?.value);
     },
+    extensions: () => withConnection((c) => c.request("ext.list", {})),
+    extension: (name) => withConnection((c) => c.request("ext.get", { name })),
+    plugin: (name) => withConnection((c) => c.request("plugin.get", { name })),
+    pendingReviews: () =>
+      withConnection((c) => c.request("pluginReview.list", { state: "pending" })),
   };
 }

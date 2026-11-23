@@ -380,11 +380,18 @@ interface Candidate {
   readonly dir: string;
 }
 
+/** 처음 값(캔버스에서 판을 판 위에 놓아 연 합치기, cvMerge): 고른 플러그인(멤버 순서)과 새 이름 */
+export interface MergeStart {
+  readonly picked: readonly string[];
+  readonly name: string;
+}
+
 export function MergeDialog(props: {
   readonly open: boolean;
   readonly entries: readonly ExtListEntry[];
   readonly actions: SplitActions;
   readonly onClose: () => void;
+  readonly start?: MergeStart;
 }): ReactNode {
   return (
     <Dialog
@@ -404,11 +411,12 @@ function MergeBody(props: {
   readonly entries: readonly ExtListEntry[];
   readonly actions: SplitActions;
   readonly onClose: () => void;
+  readonly start?: MergeStart;
 }): ReactNode {
   const { actions, entries } = props;
   const [candidates, setCandidates] = useState<readonly Candidate[] | null>(null);
-  const [picked, setPicked] = useState<readonly string[]>([]);
-  const [name, setName] = useState("");
+  const [picked, setPicked] = useState<readonly string[]>(props.start?.picked ?? []);
+  const [name, setName] = useState(props.start?.name ?? "");
   const [dir, setDir] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [purpose, setPurpose] = useState("");

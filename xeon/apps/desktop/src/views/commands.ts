@@ -966,6 +966,14 @@ export interface ProfileCanvasCommands {
    * 실행 방식 줄(pfMode)이 메뉴에서 모두 허용을 보일지 정한다. 값은 단언하지 않고 그대로 돌려준다
    */
   bypassAllowed(): Promise<Result<unknown, CommandError>>;
+  /** `ext.list {}`: 설치 목록(출처, 층, 멤버). 캔버스의 묶음과 합치기 범위를 가른다(cvMerge) */
+  extensions(): Promise<Result<WireResult<"ext.list">, CommandError>>;
+  /** `ext.get { name }`: 설치본 매니페스트. 멤버 있는 플러그인의 멤버 판(Hook, Drive)을 읽는다(cvMerge) */
+  extension(name: string): Promise<Result<WireResult<"ext.get">, CommandError>>;
+  /** `plugin.get { name }`: 원본 폴더(`source.path`). 합치기, 의존, 떼기는 원본 폴더가 있어야 한다(cvMerge) */
+  plugin(name: string): Promise<Result<WireResult<"plugin.get">, CommandError>>;
+  /** `pluginReview.list { state: "pending" }`: 리뷰를 기다리는 항목. 캔버스의 반투명 판(cvMerge) */
+  pendingReviews(): Promise<Result<WireResult<"pluginReview.list">, CommandError>>;
 }
 
 export interface CraftMetricsCommands {

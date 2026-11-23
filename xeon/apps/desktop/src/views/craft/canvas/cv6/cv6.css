@@ -501,6 +501,30 @@
       var(--cv6-lift-card);
   }
 
+  /* 끌어서 합치기·잇기(cvMerge, AGE-72): 놓을 수 있는 판은 포커스 색 점선 테두리, 그 위에 있으면 실선. 놓을 수 없는 판은 .cv6-dim */
+  .cv6-plate[data-drop="ok"] .cv6-card {
+    outline: 1.5px dashed var(--cs-color-focus-ring);
+    outline-offset: var(--cs-space-0_75);
+  }
+
+  .cv6-plate[data-drop="ok"][data-mark="selected"] .cv6-card {
+    outline-style: solid;
+  }
+
+  /* 리뷰 대기 판(합치기·떼기 결과): 판은 반투명이고, 위 변의 "리뷰 대기" 표(구슬)만 또렷하다 */
+  .cv6-plate[data-pending="true"] > :not(.cv6-edge-marks) {
+    opacity: 0.5;
+  }
+
+  .cv6-plate[data-pending="true"] .cv6-card {
+    outline: 1px dashed color-mix(in srgb, var(--cs-color-warning-text) 70%, transparent);
+    outline-offset: -1px;
+  }
+
+  .cv6-mark-pending {
+    color: var(--cs-color-warning-text);
+  }
+
   /* 드래프트: 리뷰 전이라 카드 테두리가 점선이다(경고 색) */
   .cv6-plate[data-draft="true"] .cv6-card {
     outline: 1px dashed color-mix(in srgb, var(--cs-color-warning-text) 70%, transparent);
