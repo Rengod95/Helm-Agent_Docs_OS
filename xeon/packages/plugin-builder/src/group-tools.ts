@@ -3,7 +3,7 @@ import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/c
 import { CompositionDeclSchema, type ToolResourceDef } from "@fresnel/contracts/extensions";
 import {
   KIND_CATALOG_VERSION,
-  PLUGIN_MODES,
+  SCAFFOLD_MODES,
   type DevkitService,
 } from "@fresnel/contracts/services";
 import { checkOrchestrationName, type OrchestrationApi } from "@fresnel/orchestration-sdk";
@@ -411,11 +411,11 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const scaffold = tool(
     "authoring_scaffold",
-    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module, inject: an instructions file, drive: a drive step function in a group) and the composition draft.",
+    "Create the files of the plugin in the target folder from the template of its mode (hook: a hook module, inject: an instructions file, drive: a drive step function in a group, app: a Plugin App with its own UI folder (ui/app), one read method, one write method and a model tool that share one function) and the composition draft.",
     Type.Object(
       {
         ...sessionShape,
-        mode: Type.Optional(Type.Union(PLUGIN_MODES.map((mode) => Type.Literal(mode)))),
+        mode: Type.Optional(Type.Union(SCAFFOLD_MODES.map((mode) => Type.Literal(mode)))),
       },
       { additionalProperties: false },
     ),
@@ -436,7 +436,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           "exists",
           "the files were already created: edit them and call authoring_validate",
         );
-      const mode = PLUGIN_MODES.find((found) => found === input["mode"]);
+      const mode = SCAFFOLD_MODES.find((found) => found === input["mode"]);
       const made = await devkit.scaffold({
         kind: state.kind,
         name: state.name,
@@ -459,7 +459,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const validate = tool(
     "authoring_validate",
-    "Check the extension (manifest, composition, drive replay rules, authoring rules).",
+    "Check the extension (manifest, composition, drive replay rules, authoring rules, and the screens: an app's app.root folder and entry HTML must exist, and the declared methods must match the entry's registrations).",
     Type.Object(sessionShape, { additionalProperties: false }),
     "read",
     async (input) => {

@@ -121,7 +121,7 @@ test("authoring.fix.c: without a sourceOf in this build a name alone is refused,
 });
 
 /** 한 방식의 뼈대가 새 플러그인 세션에서 scaffold(방식)로 만들어지고 제출 도구까지 닿는다 */
-async function modeReachesSubmit(mode: "hook" | "inject" | "drive"): Promise<void> {
+async function modeReachesSubmit(mode: "hook" | "inject" | "drive" | "app"): Promise<void> {
   const base = devkitProbe();
   const scaffolds: ScaffoldInput[] = [];
   const devkit: DevkitService = {
@@ -142,7 +142,7 @@ async function modeReachesSubmit(mode: "hook" | "inject" | "drive"): Promise<voi
   expect(base.submits.map((input) => input.dir)).toEqual([DIR]);
 }
 
-for (const mode of ["hook", "inject", "drive"] as const) {
+for (const mode of ["hook", "inject", "drive", "app"] as const) {
   test(`authoring.modes.${mode}: the ${mode} mode reaches the submit tool, and the scaffold is asked for that mode`, async () => {
     await modeReachesSubmit(mode);
   });

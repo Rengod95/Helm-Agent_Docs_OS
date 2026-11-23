@@ -329,6 +329,8 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
 - 화면 트리는 `UiNode`(`{ type, props?, bind?, each?, when?, children? }`)입니다. `props`는 글자·숫자·불리언·null 값만 받고(색, CSS, HTML 키는 렌더러가 버립니다), `bind`는 속성 이름에서 JSON Pointer 경로(`format?`은 `UI_FORMATS`)로, `each`는 `{ path, as }`, `when`은 `{ path, op: "eq"|"ne"|"exists"|"missing", value? }`입니다. `validateUiTree(input)`이 스키마와 크기 상한(`UI_LIMITS`: 노드 2000개, 깊이 24)을 검사해 `{ ok: true, tree }` 또는 `{ ok: false, issues }`(`ui_invalid`, `ui_limit`)를 돌려줍니다. 순수 함수입니다.
 - Plugin App 다리 메시지 스키마는 `BridgeRequestSchema`(`{ v: 1, id, op, args }`), `BridgeResponseSchema`(`{ v: 1, id, ok: true, value }` 또는 `{ v: 1, id, ok: false, error: { kind, detail? } }`), `BridgePushSchema`(`{ v: 1, push, value }`, `push`는 `theme`, `host`, `event`, `invalidate`, `ping`이고 `ping`은 5초마다 `{ n }`을 보내 `pong` 요청 `{ n }`으로 답을 받는 생존 확인입니다. 2번 연속 답이 없으면 그 프레임을 내립니다), `BridgeReadySchema`(`{ v: 1, ready: true, bridge, nonce? }`, `nonce`는 8~64자이고 셸이 프레임 주소 조각 `#n=<nonce>`로 준 값을 되돌린다. 셸이 nonce를 냈으면 같은 값이 와야 포트를 넘긴다)입니다. 메서드 선언의 `label`(1~48자)은 확인 줄에 동사 대신 보이는 글이고 셸이 제어·방향 제어 글자를 지우고 보입니다 [결정: 2026-11-03 M4 T-VIEW]. `op`는 `BRIDGE_OPS`(호스트 API 아홉과 `resize`, `log`, `pong`), 오류 `kind`는 `BRIDGE_ERROR_KINDS`입니다. 메시지 크기 상한 1 MiB는 `bridgeMessageWithinLimit`이 보고, 초당 50개 제한은 호스트가 셉니다. `args`와 `value`의 내용 검사는 `op`별로 셸이 합니다.
 
+- [제안] 플러그인 빌더(`L3.authoring.spec` §3.2, §3.3)는 `authoring_scaffold`의 `mode: "app"`으로 앱 플러그인 뼈대(화면 `ui/app`, 읽기 메서드 `list`, 쓰기 메서드 `add`, 같은 함수를 쓰는 모델 도구)를 만들고, `authoring_validate`가 `app.root` 폴더와 `app.entry` 파일, 경로가 확장 폴더 안인지, 선언한 `methods`와 엔트리 등록이 맞는지 봅니다. 이 검사는 위의 모양 검사 위에 얹히며 계약의 규칙은 바꾸지 않습니다. `app.reason`이 뼈대 기본 글 그대로면 경고합니다(pgRe §4.3, ADR-0021 §3.5).
+
 #### 3.1.2 구성 선언 (`composition.ts`) [결정: 2026-10-31 사용자, X-16]
 
 정본은 `extensions/composition.ts`입니다. `orchestration.composition`은 플러그인의 선택 필드이고, 작성자가 직접 씁니다. 플러그인이 아닌 확장은 `group`이 없어 둘 곳이 없고, 최상위 `composition`·`phases`는 `legacy_field`로 거부합니다(안내 문장이 `orchestration.composition`을 가리킵니다). 런타임 동작을 바꾸지 않는 설계 모델이라 구성기와 작업대가 읽습니다. 선언이 없으면 구성기는 "구성 정보 없음" 블록 하나를 보이고 Hook 이름으로 구성을 추정하지 않습니다. Stage 이름 목록은 플러그인 빌더 카탈로그가 정합니다 [제안]. F는 이름 문법(`COMPOSITION_ID_PATTERN`)만 봅니다. `slot` → `stage`, `points` → `hooks`, op `"scope"` → `"register"`는 ADR-0022 §3.6을 따른 [제안]입니다.
@@ -423,7 +425,7 @@ export interface InjectInventory {
 export type CardLaunch = CardMcpLaunch;                           // [제안] CardMcpLaunch의 별칭(같은 모양)
 export interface InstructionEntry { readonly path: string; readonly bytes: number }
 export interface SkillEntry { readonly name: string; readonly path: string; readonly descriptionChars: number }
-export interface PluginUiDecl { readonly id: string; readonly placement: string; readonly readsState: string | null; readonly modelVisible: "none" | "partial" | "all" }
+export interface PluginUiDecl { readonly id: string; readonly placement: string; readonly readsState: string | null; readonly modelVisible: "none" | "partial" | "all"; readonly mode?: "native" | "app"; readonly app?: { readonly reason: string; readonly capabilities: readonly ("files" | "notify" | "settingsWrite" | "secrets")[] } } // [결정: 2026-11-23, pgRe 4.4] `mode`와 `app`은 선택 필드라 옛 카드(둘 다 없음)도 파싱된다. `app`은 mode가 app인 화면에만 있고(매니페스트 `app.reason`, `app.capabilities` 그대로), 리뷰 카드가 자리와 함께 보인다
 export interface PluginSettingDef { readonly key: string; readonly label: string; readonly default: unknown; readonly required: boolean; readonly secret: boolean }
 
 // 최소 로컬 정의. E 문서(review/m5/turn-record-metrics.md §3.3, §3.5)의 정본을 옮긴 것이고, E 구현이 생기면 import로 바꾸고 이 블록을 지운다
