@@ -164,7 +164,7 @@ export function startFailureText(error: StartFailure): string {
     case "not_drive":
       return "Helm의 구동 기능을 쓸 수 없어 탐구를 시작하지 못했습니다.";
     case "drive_error":
-      return "Helm 구동 기능에 오류가 있어 탐구를 시작하지 못했습니다. /group status로 확인하세요.";
+      return "Helm 구동 기능이 앞선 오류로 멈춰 있어 탐구를 시작하지 못했습니다. Helm을 껐다 다시 켠 뒤 시도하세요.";
     case "input_too_large":
       return "시작 입력이 너무 커서 탐구를 시작하지 못했습니다. 입력을 줄여 다시 시도하세요.";
     case "no_context":
