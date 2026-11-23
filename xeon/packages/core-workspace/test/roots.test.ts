@@ -305,3 +305,30 @@ describe("craftRoots (test conversation)", () => {
     expect(await defaultRoots(env, CONTEXT)).toEqual({ read: ["/work"], write: ["/work", "/"] });
   });
 });
+
+describe("the thread's own default folder inside the data folder", () => {
+  const dataEntry: ProtectedPathEntry = {
+    path: "/data",
+    match: "prefix",
+    access: "read_write",
+    reason: "fresnel_data",
+  };
+
+  test("is readable and writable, while other folders in the data folder stay denied", async () => {
+    const { env, resolve } = resolver("/data/default-project/thr_a", [dataEntry]);
+    env.put("/data/default-project/thr_a/README.md", "x");
+    env.put("/data/default-project/thr_b/README.md", "y");
+    env.put("/data/db/store.sqlite", "z");
+    expect((await resolve("README.md")).canonical).toBe("/data/default-project/thr_a/README.md");
+    expect((await resolve("notes.md", "write")).exists).toBe(false);
+    const other = await failure(resolve("/data/default-project/thr_b/README.md"));
+    expect(other.detail).toMatchObject({ reason: "outside_root" });
+  });
+
+  test("a folder outside default-project in the data folder is still protected", async () => {
+    const { env, resolve } = resolver("/data/db", [dataEntry]);
+    env.put("/data/db/store.sqlite", "z");
+    const denied = await failure(resolve("store.sqlite"));
+    expect(denied.detail).toMatchObject({ reason: "protected_path", protectedBy: "fresnel_data" });
+  });
+});

@@ -153,12 +153,15 @@ describe("schedule.entries inputs and the create tool", () => {
     expect(input !== undefined && "title" in input).toBe(false);
   });
 
-  test("both everySeconds and at, or neither, becomes an at trigger with atMs 0 that the method input rejects", () => {
-    const both = TOOL.toInput?.({ prompt: "p", everySeconds: 600, at: "2026-11-01T09:00:00Z" });
+  test("both everySeconds and at repeat from that time (daily 9:00), and neither becomes an at trigger with atMs 0 that the method input rejects", () => {
+    const both = TOOL.toInput?.({ prompt: "p", everySeconds: 86400, at: "2026-11-01T09:00:00Z" });
     const neither = TOOL.toInput?.({ prompt: "p" });
-    expect(both).toEqual({ trigger: { kind: "at", atMs: 0 }, prompt: "p" });
+    expect(both).toEqual({
+      trigger: { kind: "interval", everySeconds: 86400, firstAtMs: Date.UTC(2026, 10, 1, 9) },
+      prompt: "p",
+    });
     expect(neither).toEqual({ trigger: { kind: "at", atMs: 0 }, prompt: "p" });
-    expect(parse(CREATE.input, both).ok).toBe(false);
+    expect(parse(CREATE.input, both).ok).toBe(true);
     expect(parse(CREATE.input, neither).ok).toBe(false);
   });
 

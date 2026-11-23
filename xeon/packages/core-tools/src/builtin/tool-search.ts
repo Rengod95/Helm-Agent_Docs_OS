@@ -28,8 +28,8 @@ const ParamsSchema = Type.Object(
 // 검색은 영어 이름·설명을 영숫자 토큰으로 맞추므로 사용자가 다른 언어로 말해도 질의는 영어 키워드로 쓰게 한다
 const SEARCH_DESCRIPTION =
   "Search the tools that are not loaded yet and make the ones you find available from the next step. " +
-  "Not loaded: web search and fetch, browser, knowledge, memory and skills, MCP servers, artifacts, scheduling, sessions, review requests, subagents. " +
-  "Call this before saying a capability is unavailable. Query with short English keywords (tool names or what the tool does), even if the user writes another language.";
+  "Not loaded: web, browser, knowledge, memory and skills, MCP servers, artifacts, scheduling, sessions, plugin building (make a plugin for this app), review requests, subagents. " +
+  "Call this before saying a capability is unavailable. Query with short English keywords, even if the user writes another language.";
 
 function tokensOf(query: string): string[] {
   return query

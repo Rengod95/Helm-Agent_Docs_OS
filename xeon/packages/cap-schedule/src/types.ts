@@ -12,7 +12,7 @@ export const MIN_INTERVAL_SECONDS = 300;
 
 export type TriggerSpec =
   /** 타이머: 일정한 간격으로 반복 */
-  | { readonly kind: "interval"; readonly everySeconds: number }
+  | { readonly kind: "interval"; readonly everySeconds: number; readonly firstAtMs?: number }
   /** 타이머: 한 번 */
   | { readonly kind: "at"; readonly atMs: number }
   /** 파일 감시: 경로가 바뀌면 실행. 디바운스 뒤 한 번 */

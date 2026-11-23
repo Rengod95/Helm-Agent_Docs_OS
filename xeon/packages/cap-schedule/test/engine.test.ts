@@ -62,6 +62,27 @@ test("an interval timer fires on its due time in a cron session and records star
   expect(h.service.runs(entry.id)[0]).toMatchObject({ status: "finished", outcome: "completed" });
 });
 
+test("an interval with a first time (daily 9:00) first fires at that time, then every interval after it, and a missed day does not shift the anchor", async () => {
+  const h = await started(createHarness());
+  const DAY = 86_400;
+  const firstAtMs = h.clock.now + 3 * 3600 * SECOND;
+  const entry = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: DAY, firstAtMs },
+    prompt: "morning report",
+  });
+  expect(entry.nextDueAt).toBe(firstAtMs);
+  const past = await h.service.create({
+    trigger: { kind: "interval", everySeconds: DAY, firstAtMs: h.clock.now - 1 },
+    prompt: "x",
+  });
+  expect(past.ok).toBe(false);
+
+  h.clock.now = firstAtMs;
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(1);
+  expect(h.service.list()[0]?.nextDueAt).toBe(firstAtMs + DAY * SECOND);
+});
+
 test("intervals under 300 seconds are rejected at creation and a second fire inside the minimum interval is skipped", async () => {
   const h = await started(createHarness());
   const tooShort = await h.service.create({

@@ -52,10 +52,21 @@ async function eachSequential<T>(
   );
 }
 
+/** 간격 예약을 다시 켤 때의 다음 기한. 시각 기준이 있으면 그 기준에 맞는 다음 시각이고, 없으면 지금부터 한 간격 뒤다 */
+function nextIntervalDue(
+  trigger: { readonly everySeconds: number; readonly firstAtMs?: number },
+  now: number,
+): number {
+  const every = trigger.everySeconds * 1000;
+  if (trigger.firstAtMs === undefined) return now + every;
+  if (trigger.firstAtMs > now) return trigger.firstAtMs;
+  return trigger.firstAtMs + (Math.floor((now - trigger.firstAtMs) / every) + 1) * every;
+}
+
 function firstDueOf(input: CreateInput, now: number): number | null {
   switch (input.trigger.kind) {
     case "interval":
-      return now + input.trigger.everySeconds * 1000;
+      return input.trigger.firstAtMs ?? now + input.trigger.everySeconds * 1000;
     case "at":
       return input.trigger.atMs;
     case "repeat":
@@ -77,7 +88,7 @@ function reenableOf(entry: ScheduleEntry, now: number): Partial<ScheduleEntry> |
   const trigger = entry.trigger;
   switch (trigger.kind) {
     case "interval":
-      return { enabled: true, nextDueAt: now + trigger.everySeconds * 1000, stoppedReason: null };
+      return { enabled: true, nextDueAt: nextIntervalDue(trigger, now), stoppedReason: null };
     case "at":
       return trigger.atMs > now
         ? { enabled: true, nextDueAt: trigger.atMs, stoppedReason: null }
@@ -619,6 +630,11 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
         }
         if (trigger.everySeconds * 1000 < policy.minIntervalMs) {
           return { kind: "interval_too_short", minSeconds: Math.ceil(policy.minIntervalMs / 1000) };
+        }
+        if (trigger.firstAtMs !== undefined) {
+          if (!Number.isFinite(trigger.firstAtMs))
+            return { kind: "invalid_trigger", reason: "at_not_finite" };
+          if (trigger.firstAtMs <= now) return { kind: "at_in_past" };
         }
         return null;
       case "at":

@@ -274,7 +274,7 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
       {
         kind: "context",
         customType: "grp.authoring.notice.status",
-        content: `[authoring] ${calledBy}가 플러그인 제작을 맡겼다: ${purpose}`,
+        content: `[authoring] ${calledBy}가 맡김, authoring_start로 시작: ${purpose}`,
         display: true,
       },
       // followUp이라 대화가 한가하면 바로 모델 턴이 열린다. next로 두면 다음 사용자 말까지 대기 메시지로 쌓인다(F-11)

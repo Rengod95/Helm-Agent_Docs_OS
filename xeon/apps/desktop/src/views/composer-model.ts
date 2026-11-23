@@ -153,7 +153,14 @@ export function chipInputs(list: readonly QueuedInput[]): readonly QueuedInput[]
     (input) =>
       (input.sourceType === "user" || input.sourceType === "extension") &&
       !(input.preview.kind === "label" && input.preview.internal === true) &&
-      !(input.preview.kind === "label" && input.preview.labelKey === "helm"),
+      !(input.preview.kind === "label" && input.preview.labelKey === "helm") &&
+      // 확장이 `next`로 붙인 맥락 알림(빌더 안내 등)도 다음 턴에 저절로 붙는다. 사용자가 할 일이 없어 칩으로 남기지 않는다(R-04)
+      !(
+        input.sourceType === "extension" &&
+        input.preview.kind === "label" &&
+        input.preview.labelKey === "context" &&
+        !startableQueuedMode(input.mode)
+      ),
   );
 }
 

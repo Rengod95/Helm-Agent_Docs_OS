@@ -32,14 +32,19 @@ export const RunIdSchema: TString = Type.String({ pattern: "^run_[0-9A-Za-z]{1,6
 
 // ── 트리거 ─────────────────────────────────────────────────────────────
 
-const IntervalTriggerSchema: TObject<{ kind: TLiteral<"interval">; everySeconds: TInteger }> =
-  Type.Object(
-    {
-      kind: Type.Literal("interval"),
-      everySeconds: Type.Integer({ minimum: 1, maximum: 31536000 }),
-    },
-    { additionalProperties: false },
-  );
+// `firstAtMs`가 있으면 첫 실행은 그 시각이고 그 뒤로 `everySeconds`마다 돈다("매일 9시" = 다음 9시와 86400초). 없으면 지금부터 한 간격 뒤다
+const IntervalTriggerSchema: TObject<{
+  kind: TLiteral<"interval">;
+  everySeconds: TInteger;
+  firstAtMs: TOptional<TInteger>;
+}> = Type.Object(
+  {
+    kind: Type.Literal("interval"),
+    everySeconds: Type.Integer({ minimum: 1, maximum: 31536000 }),
+    firstAtMs: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: false },
+);
 
 const AtTriggerSchema: TObject<{ kind: TLiteral<"at">; atMs: TInteger }> = Type.Object(
   { kind: Type.Literal("at"), atMs: Type.Integer({ minimum: 1 }) },
@@ -484,17 +489,20 @@ const ScheduleCreateToolParams: TObject<{
 );
 
 /**
- * 도구 인자의 트리거. 간격과 시각 가운데 정확히 하나여야 한다. 둘 다 없거나 둘 다 있거나 시각을 읽지 못하면
- * `atMs: 0`을 준다. atMs의 최소값이 1이라 메서드 입력 검사가 `invalid_input`으로 거부한다. 순수 함수
+ * 도구 인자의 트리거. 간격만이면 간격, 시각만이면 한 번, 둘 다면 그 시각에 처음 돌고 간격마다 반복한다("매일 9시").
+ * 둘 다 없거나 시각을 읽지 못하면 `atMs: 0`을 준다. atMs의 최소값이 1이라 메서드 입력 검사가 `invalid_input`으로 거부한다. 순수 함수
  */
 function triggerOfToolParams(params: Static<typeof ScheduleCreateToolParams>): ScheduleTrigger {
   const { everySeconds, at } = params;
-  if (everySeconds !== undefined && at === undefined) {
+  const atMs = at === undefined ? undefined : Date.parse(at);
+  if (everySeconds !== undefined && atMs === undefined) {
     return { kind: "interval", everySeconds };
   }
-  if (at !== undefined && everySeconds === undefined) {
-    const atMs = Date.parse(at);
-    return { kind: "at", atMs: Number.isNaN(atMs) ? 0 : atMs };
+  if (everySeconds !== undefined && atMs !== undefined && !Number.isNaN(atMs)) {
+    return { kind: "interval", everySeconds, firstAtMs: atMs };
+  }
+  if (atMs !== undefined && everySeconds === undefined && !Number.isNaN(atMs)) {
+    return { kind: "at", atMs };
   }
   return { kind: "at", atMs: 0 };
 }
@@ -620,7 +628,7 @@ export const ScheduleEntries: CapabilityDef<
       name: "schedule_create",
       label: "Create Schedule",
       description:
-        "Schedules this prompt to run in a new session without the user, at the given interval or time. Use only when the user asked for it to run later. Provide only one of everySeconds and at.",
+        "Schedules this prompt to run in a new session without the user, at the given interval or time. Use only when the user asked for it to run later. at alone runs once, everySeconds alone repeats, both repeat from at (daily 9:00: next 9:00 and 86400).",
       method: "create",
       parameters: ScheduleCreateToolParams,
       toInput: createInputOfToolParams,

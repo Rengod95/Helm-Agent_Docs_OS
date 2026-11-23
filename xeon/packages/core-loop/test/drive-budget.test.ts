@@ -164,3 +164,49 @@ test("a user interrupt releases the drive lock as revoked and the drive runs aga
   // 임대가 다시 부여되어 단계가 한 번 더 불렸다
   expect(calls).toEqual(["drive", "drive", "drive"]);
 });
+
+const budgetUserEntry: ExtensionEntry = ({ manifest, register }) => {
+  register(manifest.name, {}, (g) => {
+    g.drive(
+      ({ last }) => {
+        if (last?.kind === "user") return Promise.resolve({ do: "turn", input: last.message });
+        if (last === null)
+          return Promise.resolve({ do: "turn", input: { kind: "user", content: "drive 0" } });
+        return Promise.resolve({ do: "yield" });
+      },
+      { limits: { maxTurns: 1 } },
+    );
+  });
+};
+
+test("a user message that arrives after the lease ran out of budget still starts a turn at once", async () => {
+  const h = await createHarness({
+    script: [answer("drive 0"), answer("reply to the person")],
+  });
+  await runWith(h, {
+    manifest: defineManifest({
+      schemaVersion: 2,
+      name: "budget-user",
+      version: "0.1.0",
+      entry: "./index.ts",
+      plugins: [{ layer: "L3", hooks: [], drives: true }],
+      orchestration: {},
+      trust: { level: "builtin" },
+    }),
+    entry: budgetUserEntry,
+    loadIndex: 3,
+    builtin: false,
+  });
+  const before = countKind(h.fake.events(h.threadId), "turn.started");
+  const admitted = await h.loop.admit({
+    threadId: h.threadId,
+    content: "hello",
+    via: "interactive",
+  });
+  await h.settle();
+  await h.host.settled();
+  await h.settle();
+  expect(countKind(h.fake.events(h.threadId), "turn.started")).toBe(before + 1);
+  expect(admitted.ok).toBe(true);
+  expect(h.models.requests).toHaveLength(2);
+});
