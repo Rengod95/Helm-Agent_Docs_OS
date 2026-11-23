@@ -310,7 +310,7 @@ export function CallRow(props: {
   // 혼자 선 실패 줄은 펼친다(묶음 안 실패 줄은 접고 한 줄 요약). 파일 변경은 "모두 보기"에서 펼친다. 요약 설정에서는 실패만 펼친다
   const want =
     mode === "default" &&
-    ((status.kind === "failed" && !grouped) ||
+    ((status.kind === "failed" && status.failure !== "badArgs" && !grouped) ||
       (change !== null && status.kind === "done" && detailSetting === "full"));
   const [open, toggle] = useDisclosure(want);
   if (mode === "hidden") return null;
@@ -367,8 +367,14 @@ export function CallRow(props: {
     );
   const hasDetail = detail !== null;
   // 묶음 안 실패 줄의 한 줄 요약. 펼치면 상자가 같은 글을 보이므로 감춘다
-  const failLine =
-    grouped && !open && view !== null && view.outcome.kind === "failed"
+  // 도구 인자 검증 오류(`badArgs`)는 묶음 밖에서도 접고, 영어 원문 대신 한 줄을 보인다. 원문은 펼치면 나온다
+  const badArgs =
+    view !== null && view.outcome.kind === "failed" && view.outcome.failure === "badArgs";
+  const failLine = badArgs
+    ? open
+      ? null
+      : t("desktop.item.badArgs.line")
+    : grouped && !open && view !== null && view.outcome.kind === "failed"
       ? failureLineOf(view.output)
       : null;
   return (

@@ -353,7 +353,8 @@ export type FailureKind =
   | "hookBlocked"
   | "hookThrew"
   | "guard"
-  | "sandbox";
+  | "sandbox"
+  | "badArgs";
 
 export type ToolOutcome =
   | { readonly kind: "done" }
@@ -398,6 +399,10 @@ function splitCode(text: string): { readonly code: string | null; readonly body:
   if (found === null) return { code: null, body: text };
   return { code: found[1] ?? null, body: text.slice(found[0].length) };
 }
+
+/** 도구 인자 검증 실패 원문의 머리(core-tools `validate`). 모델이 다시 부르므로 한 줄로 접고 원문은 펼침에 둔다 */
+const BAD_ARGS_HEAD =
+  /^(Validation failed for tool|Invalid arguments for tool|Tool ".*" has a parameter schema)/;
 
 const INTERRUPT_WORDS: ReadonlySet<string> = new Set(["aborted", "Aborted", "cancelled"]);
 
@@ -474,6 +479,14 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
       output: interruptedBodyOf(body),
     };
   }
+  if (BAD_ARGS_HEAD.test(body.trimStart())) {
+    return {
+      ...base,
+      leading: null,
+      outcome: { kind: "failed", failure: "badArgs" },
+      output: body,
+    };
+  }
   if (base.blocks.length > 0) {
     return {
       ...base,
@@ -508,6 +521,7 @@ const FAILURE_LABEL: Readonly<Record<FailureKind, MessageId>> = {
   hookThrew: "desktop.item.status.hookThrew",
   guard: "desktop.convo.status.guard",
   sandbox: "desktop.tool.blocked.status",
+  badArgs: "desktop.item.status.badArgs",
 };
 
 export function failureLabelOf(failure: FailureKind): string {
@@ -521,6 +535,7 @@ export function failureToneOf(failure: FailureKind): "danger" | "warning" | "neu
       return "danger";
     case "denied":
     case "interrupted":
+    case "badArgs":
       return "neutral";
     case "guard":
     case "hookBlocked":
