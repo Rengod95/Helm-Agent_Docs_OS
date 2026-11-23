@@ -52,6 +52,8 @@ export interface RegistrationInfo {
   /** requires 기능이 없어 켜지지 못한 경우의 부족 기능 */
   readonly waiting: readonly CapabilityId[];
   readonly drive: "none" | "registered" | "holding" | "error";
+  /** 사용자가 전체로 끄라고 했으면 참이다. 어느 프로필에도 없어 닫혀 있을 뿐인 scope와 가른다(AGE-78) */
+  readonly explicitOff?: boolean;
   readonly lastError?: { readonly code: PrimitiveErrorCode; readonly message: string };
 }
 
@@ -1214,6 +1216,7 @@ export function createRegistrationRuntime(
         generation: record.generationCount,
         waiting: record.waiting,
         drive,
+        ...(record.explicitOff ? { explicitOff: true } : {}),
         ...(record.lastError === undefined ? {} : { lastError: record.lastError }),
       };
     },

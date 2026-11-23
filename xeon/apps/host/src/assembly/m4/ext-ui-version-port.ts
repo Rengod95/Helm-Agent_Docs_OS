@@ -311,7 +311,10 @@ function uiListOf(source: ExtUiVersionSource | undefined): ExtUiListResult {
   return { items };
 }
 
-/** 꺼진 확장: 로더 상태가 활성이 아니거나(설정으로 끔, 실패), 등록이 모두 꺼졌다 */
+/**
+ * 꺼진 확장: 로더 상태가 활성이 아니거나(설정으로 끔, 실패), 등록이 모두 꺼졌고 사용자가 전체로 끈 것이 있다.
+ * 어느 프로필에도 없어 scope가 닫혀 있을 뿐이면 꺼진 것이 아니다. 설치된 앱은 열린다(AGE-78 질문 3)
+ */
 function offExtensions(
   host: ExtUiVersionSource["host"],
   infos: readonly LoadedExtensionInfo[],
@@ -322,7 +325,8 @@ function offExtensions(
     const mine = scopes.filter((scope) => scope.extension === info.name);
     return (
       mine.length > 0 &&
-      mine.every((scope) => scope.status === "disabled" || scope.status === "disabling")
+      mine.every((scope) => scope.status === "disabled" || scope.status === "disabling") &&
+      mine.some((scope) => scope.explicitOff === true)
     );
   });
   return new Set(off.map((info) => info.name));
