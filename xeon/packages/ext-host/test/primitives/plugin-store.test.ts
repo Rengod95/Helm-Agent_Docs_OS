@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import type { ExtMethodDecl, RegistrationApi } from "@fresnel/contracts/extensions";
+import { err, ok } from "@fresnel/contracts";
+import {
+  ToolsPortKey,
+  type ExtMethodDecl,
+  type RegistrationApi,
+  type ToolResourceDef,
+} from "@fresnel/contracts/extensions";
+import { Type } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { hostOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost, memoryPluginStore } from "../../src/testing/index.ts";
@@ -335,4 +342,88 @@ test("list returns keys in ascending order, filters by prefix, and delete of a m
     deleteMissing: "ok",
     afterDelete: [{ key: "a.two", value: 22 }],
   });
+});
+
+test("a model tool writes the same store a method reads, in any conversation, and a readOnly method still cannot write", async () => {
+  const port = memoryPluginStore();
+  const t = await createTestHost({ pluginStore: port });
+  const tools = new Map<string, ToolResourceDef>();
+  await t.host.registerPlatform({
+    name: "test-tools-port",
+    setup(ctx) {
+      ctx.providePort(ToolsPortKey, {
+        toolMappedFor: () => false,
+        executeForPlugin: () =>
+          Promise.resolve(err({ kind: "unavailable", message: "test double" })),
+        register(_owner, def) {
+          tools.set(def.name, def);
+          return ok(() => {
+            tools.delete(def.name);
+          });
+        },
+      });
+    },
+  });
+  const probe: Probe = { out: undefined, job: async (g) => g.pluginStore.get("tool.note") };
+  await t.host.install(
+    makeUnit(
+      { name: "ps-tool", loadIndex: 0, methods: [decl({ verb: "load", readOnly: true })] },
+      (g) => {
+        const api = hostOf(g);
+        api.registerMethod("load", {
+          handler: async () => {
+            probe.out = await probe.job(g, "load");
+            return null;
+          },
+        });
+        api.registerTool({
+          name: "ps_tool_save",
+          description: "save",
+          parameters: Type.Object({}),
+          replay: "unsafe",
+          execute: async () => g.pluginStore.put("tool.note", { text: "from the tool" }),
+        });
+      },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const def = tools.get("ps_tool_save");
+  if (def === undefined) throw new Error("tool is not registered");
+  const result = await def.execute(
+    {},
+    {
+      threadId: thread,
+      signal: new AbortController().signal,
+      toolCallId: "call-1",
+      caller: { kind: "model", agent: "main" },
+    },
+  );
+  expect(result).toEqual({ ok: true, value: undefined });
+  // 대화 없이 부른 메서드가 같은 값을 읽는다
+  await callVerb(t, "ps-tool", "load", null);
+  expect(probe.out).toEqual({ ok: true, value: { text: "from the tool" } });
+  // readOnly 메서드는 여전히 쓰지 못한다
+  probe.job = async (g) => codeOf(() => g.pluginStore.put("tool.note", { text: "x" }));
+  await callVerb(t, "ps-tool", "load", null);
+  expect(probe.out).toBe("read_only_method");
+});
+
+test("a store put and delete announce a data change of the extension, a failed put does not", async () => {
+  const port = memoryPluginStore();
+  const t = await createTestHost({ pluginStore: port });
+  const probe: Probe = { out: undefined, job: async () => null };
+  await t.host.install(storeUnit("ps-signal", [{ verb: "save" }], probe));
+  const seen: string[] = [];
+  t.host.onChange((change) => {
+    if (change.kind === "data") seen.push(`${change.extension}:${String(change.threadId)}`);
+  });
+  probe.job = async (g) => {
+    await g.pluginStore.put("n.one", { n: 1 });
+    await g.pluginStore.put("Bad Key", { n: 2 });
+    await g.pluginStore.delete("n.one");
+    return null;
+  };
+  await callVerb(t, "ps-signal", "save", null);
+  expect(seen).toEqual(["ps-signal:null", "ps-signal:null"]);
 });
