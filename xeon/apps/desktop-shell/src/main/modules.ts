@@ -7,6 +7,7 @@ import { engineModule } from "./engine.ts";
 import { inspectModule } from "./inspect.ts";
 import { logFolderShellModule } from "./log-folder-shell.ts";
 import { openExternalModule } from "./open-external.ts";
+import { revealPathShellModule } from "./reveal-path-shell.ts";
 import { secretEntryModule } from "./secret-entry.ts";
 import { secretRevealModule } from "./secret-reveal.ts";
 import { serviceShellModule } from "./service-mode-shell.ts";
@@ -31,6 +32,7 @@ export const MODULES: readonly ShellModule[] = [
   windowCaptureModule,
   openExternalModule,
   logFolderShellModule,
+  revealPathShellModule,
   dbToolsShellModule,
   serviceShellModule,
   remoteShellModule,

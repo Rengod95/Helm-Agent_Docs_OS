@@ -253,6 +253,7 @@ describe("browser-side shell commands", () => {
       "update_install_restart",
       "open_data_dir",
       "open_log_dir",
+      "reveal_path",
       "engine_retarget",
     ];
     const results = await Promise.all(names.map((name) => settled(api.invoke(name))));

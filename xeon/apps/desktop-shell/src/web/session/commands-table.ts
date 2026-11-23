@@ -56,6 +56,7 @@ export const COMMAND_TABLE: Readonly<Record<string, Disposition>> = {
   save_file: BROWSER,
   open_external: BROWSER,
   open_log_dir: HIDDEN,
+  reveal_path: HIDDEN,
 
   // 알림과 트레이
   notify_permission: BROWSER,

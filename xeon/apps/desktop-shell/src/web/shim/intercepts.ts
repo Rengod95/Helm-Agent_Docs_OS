@@ -28,6 +28,7 @@ const UNSUPPORTED_ON_WEB: readonly string[] = [
   "update_install_restart",
   "open_data_dir",
   "open_log_dir",
+  "reveal_path",
   "engine_retarget",
 ];
 
