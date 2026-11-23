@@ -713,7 +713,7 @@
     outline: 2px solid var(--cs-color-focus-ring);
   }
 
-  /* 목적 한 문장: 가까이 14/20 두 줄(자리는 늘 두 줄), 중간 화면 12/16 세 줄까지 */
+  /* 목적 한 문장: 가까이 14/20 두 줄(자리는 늘 두 줄), 중간 화면 12/16 한 줄(넘치면 말줄임표) */
   .cv6-desc {
     flex: none;
     margin: max(var(--cs-space-3), calc(var(--cs-space-2) * var(--cv6-z))) 0 0;
@@ -729,19 +729,20 @@
 
   .cv6-plate-body[data-lod="mid"] .cv6-desc {
     min-height: 0;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 1;
   }
 
-  /* 안쪽 면(가까이만): 꼬리표(붙는 자리) + 설명. 남는 높이를 채워 알약과 사실 줄이 늘 바닥에 선다 */
+  /* 안쪽 면(가까이와 중간): 꼬리표(붙는 자리) + 설명. 남는 높이를 채워 가까이에서는 알약과 사실 줄이 늘 바닥에 서고, 중간에서는 판이
+     비어 보이지 않는다. 여백과 꼬리표도 판의 다른 값처럼 "100%의 값"과 "화면 눈금 × 역수" 가운데 큰 것이다(85% 위에서는 참고 그림 그대로) */
   .cv6-card-well {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--cs-space-1_25);
+    gap: max(var(--cs-space-1_25), calc(var(--cs-space-1) * var(--cv6-z)));
     min-height: 0;
-    margin-top: var(--cs-space-2_5);
-    padding: var(--cs-space-2);
+    margin-top: max(var(--cs-space-2_5), calc(var(--cs-space-2) * var(--cv6-z)));
+    padding: max(var(--cs-space-2), calc(var(--cs-space-1_5) * var(--cv6-z)));
     border-radius: 6px;
     background: var(--cv6-well);
     box-shadow: inset 0 0 0 1px var(--cv6-well-edge);
@@ -753,12 +754,12 @@
     flex: none;
     align-items: center;
     max-width: 100%;
-    height: 18px;
-    padding: 0 var(--cs-space-1_5);
+    height: max(18px, calc(14px * var(--cv6-z)));
+    padding: 0 max(var(--cs-space-1_5), calc(var(--cs-space-1) * var(--cv6-z)));
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--cv6-tag-edge);
-    font-size: 12px;
-    line-height: 18px;
+    font-size: var(--cv6-tab-type);
+    line-height: max(18px, calc(14px * var(--cv6-z)));
     font-weight: 500;
     color: var(--cs-color-text-primary);
     white-space: nowrap;
@@ -768,8 +769,8 @@
 
   .cv6-well-text {
     margin: 0;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: var(--cv6-type);
+    line-height: var(--cv6-line);
     color: var(--cv6-body);
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -777,16 +778,27 @@
     overflow: hidden;
   }
 
+  /* 중간에서 안쪽 면 글은 세 줄까지: 가장 낮은 중간 배율(48%)에서 안쪽 면에 3.2줄이 들어간다 */
+  .cv6-plate-body[data-lod="mid"] .cv6-well-text {
+    -webkit-line-clamp: 3;
+  }
+
   /* "설명이 없어요": 구슬(8)과 글이 한 줄의 세로 가운데에 선다 */
   .cv6-well-text.cv6-missing {
     display: flex;
     align-items: center;
     gap: var(--cs-space-2);
-    height: 20px;
+    height: var(--cv6-line);
     color: var(--cs-color-text-secondary);
   }
 
-  /* 알약 칩: 겹친 판 아이콘 + 값 하나(14/500 흰, 낮은 배율에서 화면 12). 값이 없어도 줄 높이는 남긴다. 중간에서는 카드 바닥에 선다 */
+  /* "설명이 없어요"의 구슬도 낮은 배율에서 화면 6보다 작아지지 않는다 */
+  .cv6-missing .cv6-orb {
+    width: max(8px, calc(6px * var(--cv6-z)));
+    height: max(8px, calc(6px * var(--cv6-z)));
+  }
+
+  /* 알약 칩: 겹친 판 아이콘 + 값 하나(14/500 흰, 낮은 배율에서 화면 12). 값이 없어도 줄 높이는 남긴다. 가까이만 */
   .cv6-pill-row {
     display: flex;
     flex: none;
@@ -794,10 +806,6 @@
     height: max(24px, calc(20px * var(--cv6-z)));
     margin-top: var(--cs-space-3);
     min-width: 0;
-  }
-
-  .cv6-plate-body[data-lod="mid"] .cv6-pill-row {
-    margin-top: auto;
   }
 
   .cv6-chip-pill {

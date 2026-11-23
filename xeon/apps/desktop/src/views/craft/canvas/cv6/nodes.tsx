@@ -597,8 +597,8 @@ function NoDescription(props: { readonly withText: boolean }): ReactElement {
 
 /**
  * 카드 몸. 가까이(85% 이상)는 참고 그림의 카드 그대로: 머리(그림 + 이름 + 상태 + 세로 점 셋) → 목적 두 줄 → 안쪽 면(꼬리표: 붙는 자리,
- * 글: 설명) → 알약 → 사실 줄. 중간은 머리 → 목적 세 줄까지 → 알약, 멀리는 머리 한 줄만 카드 가운데에. 설명이 없으면 가까이는 안쪽 면에
- * "설명이 없어요"를, 중간과 멀리는 머리 끝에 경고 구슬을 둔다
+ * 글: 설명) → 알약 → 사실 줄. 중간은 머리 → 목적 한 줄 → 안쪽 면(설명 세 줄까지)으로 판을 채우고, 멀리는 머리 한 줄만 카드 가운데에.
+ * 설명이 없으면 가까이와 중간은 안쪽 면에 "설명이 없어요"를, 멀리는 머리 끝에 경고 구슬을 둔다
  */
 function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactNode {
   const actions = use(CanvasActionsContext);
@@ -610,7 +610,7 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
     <div className="cv6-head">
       <PartGlyph name={headIcon(p)} size={16} />
       <span className="cv6-name">{p.name}</span>
-      {description === null && !near ? <NoDescription withText={false} /> : null}
+      {description === null && props.lod === "far" ? <NoDescription withText={false} /> : null}
       {near ? <Marks geo={props.geo} lod={props.lod} /> : null}
       {near ? (
         <button
@@ -639,24 +639,24 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
     <div className="cv6-plate-body" data-lod={props.lod}>
       {head}
       {purpose === null ? null : <p className="cv6-desc">{purpose}</p>}
+      <div className="cv6-card-well">
+        <span className="cv6-tag">{t(anchorWord(p.anchor))}</span>
+        {description === null ? (
+          <NoDescription withText />
+        ) : (
+          <p className="cv6-well-text">{description}</p>
+        )}
+      </div>
       {near ? (
-        <div className="cv6-card-well">
-          <span className="cv6-tag">{t(anchorWord(p.anchor))}</span>
-          {description === null ? (
-            <NoDescription withText />
-          ) : (
-            <p className="cv6-well-text">{description}</p>
+        <div className="cv6-pill-row">
+          {pill === null ? null : (
+            <span className="cv6-chip-pill">
+              <PartGlyph name="layers" size={14} />
+              <span>{pill}</span>
+            </span>
           )}
         </div>
       ) : null}
-      <div className="cv6-pill-row">
-        {pill === null ? null : (
-          <span className="cv6-chip-pill">
-            <PartGlyph name="layers" size={14} />
-            <span>{pill}</span>
-          </span>
-        )}
-      </div>
       {near ? <Foot p={p} /> : null}
     </div>
   );
