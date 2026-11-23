@@ -1,5 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
-import type { SchemaProof, SchemaSound } from "../../base/index.ts";
+import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import {
   EvidenceRefSchema,
   PLUGIN_ENFORCEMENTS,
@@ -150,6 +150,28 @@ export interface ReviewFileEntry {
 }
 
 /**
+ * 합치기·떼기 승인이 대상 프로필을 어떻게 바꿀지(AGE-72). 승인 때 대상 프로필마다 적용한다.
+ * `swapOut`의 플러그인은 그 프로필 목록에서 빼고(소유 설정 키와 시작 Drive도), 새 플러그인은 그 가운데 가장 앞선 자리에 넣는다.
+ * 뺄 것이 없으면 `placeAfter` 바로 뒤, 그것도 없으면 맨 뒤다. 원래 플러그인은 지우지 않는다(라이브러리와 다른 프로필에 그대로 남는다).
+ */
+export interface ProfilePlan {
+  /** 승인 때 대상 프로필에서 뺄 확장 이름들(합치기의 원래 플러그인들) */
+  readonly swapOut: readonly string[];
+  /** 떼기: 이 확장 바로 뒤에 새 플러그인을 넣는다(원래 묶음). 없으면 null */
+  readonly placeAfter: string | null;
+  /** 대상 프로필의 시작 Drive가 이 이름이면(또는 swapOut에 든 이름이면) 새 플러그인으로 옮긴다. 없으면 null */
+  readonly driveFrom: string | null;
+}
+const ProfilePlanShape = closed({
+  swapOut: Type.Array(ExtensionNameSchema, { maxItems: 16 }),
+  placeAfter: Nullable(ExtensionNameSchema),
+  driveFrom: Nullable(ExtensionNameSchema),
+});
+export const ProfilePlanSchema: TUnsafe<ProfilePlan> = Type.Unsafe<ProfilePlan>(
+  ProfilePlanShape satisfies SchemaProof<ProfilePlan, typeof ProfilePlanShape>,
+);
+
+/**
  * 검토함의 한 줄. `card`는 후보 기준이고 `baseHash`가 가리키는 현재 검토본과의 차이는 `diff`에 있다.
  * 스펙은 `pluginReview.list`가 `files`와 `card`를 요약한다고 적지만(§3.4) 요약 방법은 정하지 않았다. [미결] 지금은 목록도 같은 스키마다
  */
@@ -176,6 +198,8 @@ export interface ReviewItem {
    * 목록에 있는 경로는 `pluginReview.file`의 `side: "base"`로 읽는다. 새 판에서 지워진 파일은 `files`에 없고 여기에만 있다 [제안] 이름 `baseFiles`
    */
   readonly baseFiles?: readonly ReviewFileEntry[];
+  /** 승인 때 대상 프로필에 적용할 합치기·떼기 계획. 있을 때만 싣는다(일반 항목에는 없다) */
+  readonly profilePlan?: ProfilePlan;
   readonly createdAt: string;
   readonly decidedAt: string | null;
   /** 돌려보내기 사유(1~2000자) */
@@ -198,6 +222,7 @@ const ReviewItemShape = closed({
   evidence: Type.Array(EvidenceRefSchema, { maxItems: 500 }),
   files: Type.Array(ReviewFileShape, { maxItems: 2000 }),
   baseFiles: Type.Optional(Type.Array(ReviewFileShape, { maxItems: 2000 })),
+  profilePlan: Type.Optional(ProfilePlanShape),
   createdAt: Iso,
   decidedAt: Type.Union([Iso, Type.Null()]),
   reason: Type.Union([Type.String({ minLength: 1, maxLength: 2000 }), Type.Null()]),
@@ -349,8 +374,16 @@ export const PluginReviewFileResultSchema: TUnsafe<PluginReviewFileResult> =
 
 export interface PluginReviewSubmitDraftParams {
   readonly draftId: string;
+  /** 승인 때 기본 대상 프로필(합치기·떼기의 원래 프로필). 없으면 항목은 프로필 없이 만든다 */
+  readonly originProfileId?: string;
+  /** 합치기·떼기 계획. 대기 항목에 싣고 승인 때 프로필에 적용한다 */
+  readonly profilePlan?: ProfilePlan;
 }
-const PluginReviewSubmitDraftParamsShape = request({ draftId: Id });
+const PluginReviewSubmitDraftParamsShape = request({
+  draftId: Id,
+  originProfileId: Type.Optional(Id),
+  profilePlan: Type.Optional(ProfilePlanShape),
+});
 export const PluginReviewSubmitDraftParamsSchema: TUnsafe<Req<PluginReviewSubmitDraftParams>> =
   Type.Unsafe<Req<PluginReviewSubmitDraftParams>>(
     PluginReviewSubmitDraftParamsShape satisfies SchemaProof<

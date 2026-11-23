@@ -1,6 +1,7 @@
 import type { Result } from "@fresnel/contracts";
 import type {
   PluginReviewFileResult,
+  ProfilePlan,
   ReviewDecision,
   ReviewFileSide,
   ReviewItem,
@@ -30,7 +31,11 @@ export interface PluginReviewPort {
     path: string,
     side?: ReviewFileSide,
   ): Promise<Result<PluginReviewFileResult, PluginPortFailure>>;
-  submitDraft(draftId: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
+  /** 제출이 함께 주는 값(선택). 준 것만 대기 항목에 싣는다(AGE-72) */
+  submitDraft(
+    draftId: string,
+    extra?: { readonly originProfileId?: string; readonly profilePlan?: ProfilePlan },
+  ): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   decide(
     itemId: string,
     decision: ReviewDecision,
@@ -68,7 +73,16 @@ export function createPluginReviewHandlers(
     "pluginReview.list": (params) => unwrap(port.list(params)),
     "pluginReview.get": (params) => unwrap(port.get(params.itemId)),
     "pluginReview.file": (params) => unwrap(port.file(params.itemId, params.path, params.side)),
-    "pluginReview.submitDraft": (params) => unwrap(port.submitDraft(params.draftId)),
+    "pluginReview.submitDraft": (params) =>
+      // 없는 칸은 싣지 않는다(정확한 선택 속성 규칙)
+      unwrap(
+        port.submitDraft(params.draftId, {
+          ...(params.originProfileId === undefined
+            ? {}
+            : { originProfileId: params.originProfileId }),
+          ...(params.profilePlan === undefined ? {} : { profilePlan: params.profilePlan }),
+        }),
+      ),
     "pluginReview.decide": async (params) => {
       const { item, appliedTo, missingPlugins } = await unwrap(
         port.decide(params.itemId, params.decision),

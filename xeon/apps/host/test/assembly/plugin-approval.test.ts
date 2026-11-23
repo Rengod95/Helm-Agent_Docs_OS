@@ -1,9 +1,9 @@
 import type { DependencyDecl, ExtensionManifest } from "@fresnel/contracts/extensions";
 import { expect, test } from "bun:test";
 import { err, ok, type Logger } from "@fresnel/contracts";
-import type { ReviewItem } from "@fresnel/contracts/wire";
+import type { ProfilePlan, ReviewItem } from "@fresnel/contracts/wire";
 import type { ExtensionLoader, LoadedExtensionInfo, ReloadApplied } from "@fresnel/ext-host";
-import type { PluginEditIssue } from "../../src/assembly/m4/plugin-edit.ts";
+import type { PluginEditIssue, PluginEditRequest } from "../../src/assembly/m4/plugin-edit.ts";
 import type { PluginEditFailure } from "../../src/handlers/m4/profile-test-run.ts";
 import type { PluginFact } from "../../src/assembly/m4/plugin-fact.ts";
 import {
@@ -87,6 +87,45 @@ test("a new plugin goes to the chosen profiles, then to the profile it came from
 
 test("an update only checks the profiles that list the plugin", () => {
   expect(editOf(contextOf({ kind: "update" }, FACT))).toEqual({ kind: "keep", plugin: FACT });
+});
+
+// AGE-72: 합치기·떼기 계획은 새 플러그인의 승인이 프로필에 넣을 때만 쓴다. 수정 승인은 계획이 있어도 검사만 한다.
+const PLAN: ProfilePlan = { swapOut: ["a", "b"], placeAfter: null, driveFrom: null };
+
+test("an approval carries the item's merge plan to the add, and an update with a plan is still only a check", () => {
+  expect(
+    editOf(
+      contextOf({ kind: "new", originProfileId: "p9", profilePlan: PLAN }, FACT, {
+        ...APPROVE,
+        profileIds: ["p1"],
+      }),
+    ),
+  ).toEqual({ kind: "add", plugin: FACT, profileIds: ["p1"], plan: PLAN });
+  expect(
+    editOf(contextOf({ kind: "new", originProfileId: "p9", profilePlan: PLAN }, FACT)),
+  ).toEqual({ kind: "add", plugin: FACT, profileIds: ["p9"], plan: PLAN });
+  expect(editOf(contextOf({ kind: "update", profilePlan: PLAN }, FACT))).toEqual({
+    kind: "keep",
+    plugin: FACT,
+  });
+});
+
+test("the commit hands the plan and the chosen profiles to the profile edit", async () => {
+  const requests: PluginEditRequest[] = [];
+  const hooks = approvalHooksOf(
+    depsOf({
+      apply: (request) => {
+        requests.push(request);
+        return Promise.resolve(ok({ profileIds: ["p1"], missingPlugins: [] }));
+      },
+    }),
+  );
+  expect(
+    await hooks.afterCommit?.(
+      contextOf({ kind: "new", profilePlan: PLAN }, FACT, { ...APPROVE, profileIds: ["p1"] }),
+    ),
+  ).toEqual(ok({ profileIds: ["p1"], missingPlugins: [] }));
+  expect(requests).toEqual([{ kind: "add", plugin: FACT, profileIds: ["p1"], plan: PLAN }]);
 });
 
 function depsOf(

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import type { CardDependencies } from "@fresnel/contracts/extensions";
-import type { ReviewItem } from "@fresnel/contracts/wire";
+import type { ProfilePlan, ReviewItem } from "@fresnel/contracts/wire";
 import { createLocalIdFactory, systemRandom } from "@fresnel/platform-os";
 import {
   createPluginReview,
@@ -17,7 +17,9 @@ import {
   type PluginStore,
 } from "../../../src/assembly/plugins/index.ts";
 import type { PluginFact } from "../../../src/assembly/m4/plugin-fact.ts";
-import type { PluginEditIssue } from "../../../src/assembly/m4/plugin-edit.ts";
+import type { PluginEditIssue, PluginEditRequest } from "../../../src/assembly/m4/plugin-edit.ts";
+import { approvalHooksOf } from "../../../src/assembly/plugins/approval.ts";
+import type { DraftSubmitExtra } from "../../../src/assembly/plugins/review.ts";
 import type { PluginPortFailure } from "../../../src/handlers/m5/plugins.ts";
 import type { PluginChange } from "../../../src/handlers/m5/plugin-review.ts";
 import { passThroughFileLock, removeTree, tempRoot, writeFiles } from "./support.ts";
@@ -922,6 +924,95 @@ test("the hooks see the candidate facts, the log names the applied profiles, and
   expect(
     valueOf(await rig.store.readLog()).map((entry) => [entry.decision, entry.profileIds]),
   ).toEqual([["approved", ["p1"]]]);
+});
+
+// AGE-72: 제출이 준 기본 프로필과 합치기 계획은 대기 항목에 실리고, 승인이 그것을 프로필 편집으로 넘긴다.
+
+const MERGE_PLAN: ProfilePlan = { swapOut: ["helm", "kit"], placeAfter: null, driveFrom: null };
+
+/** 초안을 만들어 검토함으로 보낸다. 항목 id를 돌려준다 */
+async function submitMerged(rig: Rig, name: string, extra?: DraftSubmitExtra): Promise<string> {
+  const folder = join(rig.root, "src", name);
+  writeFiles(folder, { ".fresnel-plugin/plugin.json": manifestOf(name, "Runs both") });
+  const draftId = valueOf(await rig.review.draftCreate(folder, "thr_maker")).draftId;
+  return valueOf(await rig.review.submitDraft(draftId, extra)).itemId;
+}
+
+/** 편집 요청에서 값만 본다. 사실 객체는 비교하지 않는다 */
+function summaryOf(request: PluginEditRequest): unknown {
+  return request.kind === "add"
+    ? { kind: "add", profileIds: request.profileIds, plan: request.plan ?? null }
+    : { kind: request.kind };
+}
+
+test("submitDraft stores the origin profile and the merge plan on the pending item; a later submit with values updates that item, and one without keeps them", async () => {
+  const rig = rigOf();
+  const folder = join(rig.root, "src", "merged-kit");
+  writeFiles(folder, { ".fresnel-plugin/plugin.json": manifestOf("merged-kit", "Runs both") });
+  const draftId = valueOf(await rig.review.draftCreate(folder, "thr_maker")).draftId;
+  const itemId = valueOf(await rig.review.submitDraft(draftId)).itemId;
+  expect(valueOf(await rig.review.get(itemId)).item.profilePlan).toBeUndefined();
+  expect(
+    valueOf(
+      await rig.review.submitDraft(draftId, { originProfileId: "p1", profilePlan: MERGE_PLAN }),
+    ).itemId,
+  ).toBe(itemId);
+  const stored = valueOf(await rig.review.get(itemId)).item;
+  expect([stored.originProfileId, stored.profilePlan]).toEqual(["p1", MERGE_PLAN]);
+  expect(valueOf(await rig.review.submitDraft(draftId, {})).itemId).toBe(itemId);
+  expect(valueOf(await rig.review.get(itemId)).item).toEqual(stored);
+});
+
+test("an approval hands the item's merge plan to the profile edit; sending back or discarding edits no profile", async () => {
+  const checked: PluginEditRequest[] = [];
+  const applied: PluginEditRequest[] = [];
+  const rig = hookedRigOf(
+    approvalHooksOf({
+      profiles: {
+        checkPluginEdit: (request) => {
+          checked.push(request);
+          return Promise.resolve(ok(undefined));
+        },
+        applyPluginEdit: (request) => {
+          applied.push(request);
+          return Promise.resolve(ok({ profileIds: ["p1"], missingPlugins: [] }));
+        },
+      },
+      loader: () => undefined,
+      refreshPluginSet: () => Promise.resolve(),
+      facts: () => [],
+      log: SILENT,
+    }),
+  );
+  const approvedItem = await submitMerged(rig, "merged-a", {
+    originProfileId: "p1",
+    profilePlan: MERGE_PLAN,
+  });
+  const outcome = valueOf(
+    await rig.review.decide(approvedItem, {
+      kind: "approve",
+      profileIds: [],
+      libraryOnly: false,
+      purpose: "Runs both",
+    }),
+  );
+  expect(outcome.appliedTo).toEqual(["p1"]);
+  expect(applied.map(summaryOf)).toEqual([{ kind: "add", profileIds: ["p1"], plan: MERGE_PLAN }]);
+
+  const sentBack = await submitMerged(rig, "merged-b", {
+    originProfileId: "p1",
+    profilePlan: MERGE_PLAN,
+  });
+  expect(
+    (await rig.review.decide(sentBack, { kind: "sendBack", reason: "Narrow the merge." })).ok,
+  ).toBe(true);
+  const discarded = await submitMerged(rig, "merged-c", {
+    originProfileId: "p1",
+    profilePlan: MERGE_PLAN,
+  });
+  expect((await rig.review.decide(discarded, { kind: "discard" })).ok).toBe(true);
+  expect(checked.map(summaryOf)).toEqual([{ kind: "add", profileIds: ["p1"], plan: MERGE_PLAN }]);
+  expect(applied.map(summaryOf)).toEqual([{ kind: "add", profileIds: ["p1"], plan: MERGE_PLAN }]);
 });
 
 // AGE-35: 초안 한 버전의 파일을 읽기만 하는 길(`draftFiles`, `draftFile`). 초안은 `drafts/<id>/tree`에 남아 있어 검토 항목이 닫혀도 읽힌다.
