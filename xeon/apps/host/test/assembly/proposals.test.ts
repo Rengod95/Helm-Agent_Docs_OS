@@ -6,7 +6,8 @@ import type {
   ProposalRow,
 } from "@fresnel/contracts/wire";
 import type { KnowledgeProposalListInput, KnowledgeProposalWire } from "@fresnel/cap-knowledge";
-import { createProposalPort } from "../../src/assembly/proposals.ts";
+import type { RegistrationStatus } from "@fresnel/contracts/extensions";
+import { createProposalPort, suggestEnabledOf } from "../../src/assembly/proposals.ts";
 
 // M3-REQ-18: `proposal.list`·`proposal.decide`의 포트. 학습 그룹은 빌트인에서 빠졌다(AGE-49): 목록은 지식 대기열만 읽고, 학습 출처는 늘 `unavailable`이고
 // 결정은 거절한다. 가짜 지식 대기열 위의 시험이다. 실제 엔진 위의 시험은 test/int/proposals.int.test.ts다.
@@ -53,7 +54,10 @@ interface Calls {
 function rig(options: {
   /** 지식 대기열의 행. `down`이면 지식 어댑터가 없고, `throws`면 읽기가 실패한다 */
   readonly knowledge?: readonly ProposalRow[] | "down" | "throws";
+  /** 제안 플러그인이 켜져 있는가. 생략하면 켜져 있다 */
+  readonly suggestEnabled?: boolean;
 }) {
+  const gate = { suggestEnabled: options.suggestEnabled ?? true };
   const calls: Calls = { knowledgeLists: [], knowledgeDecides: [], reports: [] };
   const wire: KnowledgeProposalWire = {
     list: (input, callOptions) => {
@@ -94,11 +98,18 @@ function rig(options: {
   };
   const port = createProposalPort({
     knowledge: () => (options.knowledge === "down" ? undefined : wire),
+    suggestEnabled: () => gate.suggestEnabled,
     report: (message) => {
       calls.reports.push(message);
     },
   });
-  return { port, calls };
+  return {
+    port,
+    calls,
+    setSuggestEnabled: (enabled: boolean): void => {
+      gate.suggestEnabled = enabled;
+    },
+  };
 }
 
 // ── proposal.list ───────────────────────────────────────────────────────
@@ -268,4 +279,79 @@ test("proposal.decide on the knowledge source says unavailable when the knowledg
     reason: "unavailable",
     detail: "knowledge store is not available",
   });
+});
+
+// ── 제안 플러그인의 켜짐 게이트 ─────────────────────────────────────────
+
+test("with the suggest plugin off, proposal.list reports knowledge unavailable with no rows and does not read the queue", async () => {
+  const { port, calls } = rig({ knowledge: [row({ id: "knp_1" })], suggestEnabled: false });
+  expect(await port.list({}, SIGNAL)).toEqual({
+    proposals: [],
+    nextCursor: null,
+    unavailable: ["knowledge"],
+  });
+  expect(calls.knowledgeLists).toEqual([]);
+});
+
+test("with the suggest plugin off, proposal.decide is refused as unavailable and nothing is decided", async () => {
+  const { port, calls } = rig({ knowledge: [], suggestEnabled: false });
+  expect(
+    await port.decide(
+      { source: "knowledge", id: "knp_1", decision: "approve", revision: 1 },
+      SIGNAL,
+    ),
+  ).toEqual({ ok: false, reason: "unavailable", detail: "the suggest plugin is off" });
+  expect(
+    await port.decide({ source: "knowledge", id: "knp_1", decision: "reject" }, SIGNAL),
+  ).toEqual({ ok: false, reason: "unavailable", detail: "the suggest plugin is off" });
+  expect(calls.knowledgeDecides).toEqual([]);
+});
+
+test("the gate does not change the learning source: it is still unavailable and the knowledge queue is not read", async () => {
+  const { port, calls } = rig({ knowledge: [row({ id: "knp_1" })], suggestEnabled: false });
+  expect(await port.list({ source: "learning" }, SIGNAL)).toEqual({
+    proposals: [],
+    nextCursor: null,
+    unavailable: ["learning"],
+  });
+  expect(calls.knowledgeLists).toEqual([]);
+});
+
+test("turning the suggest plugin back on opens the list and the decision again at the next call", async () => {
+  const { port, calls, setSuggestEnabled } = rig({
+    knowledge: [row({ id: "knp_1", createdAt: 5 })],
+    suggestEnabled: false,
+  });
+  expect((await port.list({}, SIGNAL)).unavailable).toEqual(["knowledge"]);
+  setSuggestEnabled(true);
+  const opened = await port.list({}, SIGNAL);
+  expect(opened.unavailable).toEqual([]);
+  expect(opened.proposals.map((entry) => entry.id)).toEqual(["knp_1"]);
+  expect(calls.knowledgeLists).toHaveLength(1);
+  setSuggestEnabled(false);
+  expect(
+    (await port.decide({ source: "knowledge", id: "knp_1", decision: "reject" }, SIGNAL)).ok,
+  ).toBe(false);
+  setSuggestEnabled(true);
+  expect(
+    (await port.decide({ source: "knowledge", id: "knp_1", decision: "reject" }, SIGNAL)).ok,
+  ).toBe(true);
+});
+
+/** 등록 정보 한 줄의 대역. 게이트가 읽는 두 칸만 둔다 */
+function registration(
+  id: string,
+  status: RegistrationStatus,
+): { id: string; status: RegistrationStatus } {
+  return { id, status };
+}
+
+test("suggestEnabledOf is true only for the enabled root registration named suggest", () => {
+  expect(suggestEnabledOf([registration("suggest", "enabled")])).toBe(true);
+  expect(suggestEnabledOf([registration("suggest", "disabled")])).toBe(false);
+  expect(suggestEnabledOf([registration("suggest", "enabling")])).toBe(false);
+  expect(suggestEnabledOf([registration("suggest", "disabling")])).toBe(false);
+  expect(suggestEnabledOf([registration("helm", "enabled")])).toBe(false);
+  expect(suggestEnabledOf([registration("suggest/child", "enabled")])).toBe(false);
+  expect(suggestEnabledOf([])).toBe(false);
 });

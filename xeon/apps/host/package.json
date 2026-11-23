@@ -49,6 +49,7 @@
     "@fresnel/plugin-helm": "workspace:*",
     "@fresnel/plugin-migration": "workspace:*",
     "@fresnel/plugin-provider-anthropic-oauth": "workspace:*",
+    "@fresnel/plugin-suggest": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {

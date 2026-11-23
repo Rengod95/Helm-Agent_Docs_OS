@@ -120,7 +120,11 @@ import {
   createHostOrchestrationService,
   isOrchestrationCatalogManifest,
 } from "./assembly/groups.ts";
-import { createProposalPort, type KnowledgeWireHolder } from "./assembly/proposals.ts";
+import {
+  createProposalPort,
+  suggestEnabledOf,
+  type KnowledgeWireHolder,
+} from "./assembly/proposals.ts";
 import {
   createHostSchedule,
   outsideWatchPathsOf,
@@ -1761,6 +1765,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       web,
       proposals: createProposalPort({
         knowledge: () => knowledgeWire.current,
+        // 제안 플러그인(`suggest`)의 켜짐은 확장 등록 상태가 정한다(ext.list와 같은 원천). 꺼지면 목록과 결정이 unavailable이다
+        suggestEnabled: () => suggestEnabledOf(ext.registrations()),
         report: (message, fields) => {
           logger.warn(message, fields);
         },

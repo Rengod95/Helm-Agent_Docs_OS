@@ -4,89 +4,21 @@ import {
   type CallOptions,
   type CapabilityApi,
   type KnowledgeLedger,
-  type Proposal,
-  type ProposalStatus,
 } from "@fresnel/contracts/capabilities";
-import type {
-  ProposalDecideParams,
-  ProposalDecideResult,
-  ProposalRow,
-  ProposalStatusWire,
+import {
+  knowledgeStatusesOf,
+  proposalRowOf,
+  type ProposalDecideParams,
+  type ProposalDecideResult,
+  type ProposalRow,
+  type ProposalStatusWire,
 } from "@fresnel/contracts/wire";
 
 // M3-REQ-91(D-M3-32 a): 승인 화면은 대기열 둘을 한 목록으로 합친다. 이 파일은 L2.knowledge 쪽 절반이다. 지식 대기열의 `Proposal`을
-// 합친 목록의 행(`ProposalRow`)으로 옮기고, `ledger.decide`의 오류를 결정 실패 이유로 옮긴다. 호스트의 `proposal.list`·
-// `proposal.decide` 처리기가 부른다(처리기는 이 패키지의 몫이 아니다).
+// 합친 목록의 행(`ProposalRow`)으로 옮기는 규칙은 F(`proposalRowOf`, `knowledgeStatusesOf`)에 있고, 여기서는 `ledger.decide`의 오류를
+// 결정 실패 이유로 옮긴다. 호스트의 `proposal.list`·`proposal.decide` 처리기가 부른다(처리기는 이 패키지의 몫이 아니다).
 
 type LedgerApi = CapabilityApi<typeof KnowledgeLedger>;
-
-/** 지식 대기열이 가진 상태. 합친 wire 상태 일곱 가운데 `approved`와 `reverted`는 학습 대기열만 쓴다 */
-const KNOWLEDGE_STATUSES: readonly ProposalStatus[] = [
-  "pending",
-  "applied",
-  "rejected",
-  "stale",
-  "expired",
-];
-
-function knowledgeStatusOf(status: ProposalStatusWire): ProposalStatus | undefined {
-  return KNOWLEDGE_STATUSES.find((known) => known === status);
-}
-
-/** 상태 필터를 지식 대기열의 상태로 좁힌다. 지식 상태가 하나도 없으면 undefined(빈 목록) */
-export function knowledgeStatusesOf(
-  wire: readonly ProposalStatusWire[] | undefined,
-): readonly ProposalStatus[] | undefined {
-  if (wire === undefined || wire.length === 0) return [];
-  const known = wire.flatMap((status) => {
-    const mapped = knowledgeStatusOf(status);
-    return mapped === undefined ? [] : [mapped];
-  });
-  return known.length === 0 ? undefined : known;
-}
-
-function reasonOf(status: ProposalStatus): string | null {
-  switch (status) {
-    case "stale":
-      return "base_stale";
-    case "expired":
-      return "expired";
-    case "pending":
-    case "applied":
-    case "rejected":
-      return null;
-    default:
-      return assertNever(status, "ProposalStatus");
-  }
-}
-
-/**
- * 지식 대기열의 제안 하나를 합친 목록의 행으로 옮긴다. `destructive`는 기준 해시를 요구하는 연산(기존 내용을 바꾸거나 지움)과
- * 롤백이다(L2.knowledge.spec §4.4.2). 학습 대기열에만 있는 필드(근거 이벤트, 유사 스킬, 사유 설명, 거절 메모, 만료 시각)는 빈 값이다.
- */
-export function proposalRowOf(proposal: Proposal): ProposalRow {
-  const { target } = proposal;
-  return {
-    source: "knowledge",
-    id: proposal.proposalId,
-    kind: target.kind,
-    op: proposal.op,
-    target: `${target.kind}:${target.name}`,
-    status: proposal.status,
-    destructive: proposal.baseHash !== null || proposal.op === "rollback",
-    diff: proposal.preview,
-    rationale: null,
-    evidence: [],
-    conflictsWith: null,
-    reason: reasonOf(proposal.status),
-    note: null,
-    revision: 1,
-    scope: target.kind === "skill" ? (target.scope ?? "user") : null,
-    afterUntrusted: proposal.afterUntrusted === true,
-    createdAt: proposal.createdAt,
-    expiresAt: null,
-  };
-}
 
 type DecideFailure = Extract<ProposalDecideResult, { ok: false }>;
 

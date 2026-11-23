@@ -111,6 +111,7 @@
         "@fresnel/plugin-guide": "workspace:*",
         "@fresnel/plugin-helm": "workspace:*",
         "@fresnel/plugin-provider-anthropic-oauth": "workspace:*",
+        "@fresnel/plugin-suggest": "workspace:*",
         "@fresnel/orchestration-sdk": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
         "@fresnel/platform-os": "workspace:*",
@@ -463,6 +464,19 @@
         "@types/bun": "catalog:",
       },
     },
+    "packages/plugin-suggest": {
+      "name": "@fresnel/plugin-suggest",
+      "version": "0.0.0",
+      "dependencies": {
+        "@fresnel/contracts": "workspace:*",
+        "@fresnel/orchestration-sdk": "workspace:*",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@fresnel/ext-host": "workspace:*",
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/plugin-learning": {
       "name": "@fresnel/plugin-learning",
       "version": "0.0.0",
@@ -809,6 +823,8 @@
     "@fresnel/plugin-helm": ["@fresnel/plugin-helm@workspace:packages/plugin-helm"],
 
     "@fresnel/plugin-learning": ["@fresnel/plugin-learning@workspace:packages/plugin-learning"],
+
+    "@fresnel/plugin-suggest": ["@fresnel/plugin-suggest@workspace:packages/plugin-suggest"],
 
     "@fresnel/plugin-provider-anthropic-oauth": ["@fresnel/plugin-provider-anthropic-oauth@workspace:packages/plugin-provider-anthropic-oauth"],
 

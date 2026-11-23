@@ -214,7 +214,8 @@ realTest(
     expect(full["notify.list"]).toBe("ok");
     expect(full["knowledge.skills.list"]).toBe("ok");
     expect(full["knowledge.memory.read"]).toBe("ok");
-    expect(full["proposal.list unavailable"]).toBe("[]");
+    // 이 엔진은 기본 묶음을 싣지 않아(`defaultGroups: false`) 제안 플러그인이 꺼져 있다. 그래서 지식 대기열은 게이트가 unavailable로 답한다(HS-79 (5))
+    expect(full["proposal.list unavailable"]).toBe(JSON.stringify(["knowledge"]));
     expect(full["orchestration.list"]).toBe(JSON.stringify([full.groupId]));
     expect(full.ask_user).toBe(true);
 
@@ -225,7 +226,7 @@ realTest(
     expect(noDialog.ask_user).toBe(false);
     // 나머지 세 부품의 메서드는 그대로다
     expect(noDialog["knowledge.skills.list"]).toBe("ok");
-    expect(noDialog["proposal.list unavailable"]).toBe("[]");
+    expect(noDialog["proposal.list unavailable"]).toBe(JSON.stringify(["knowledge"]));
   },
   120_000,
 );

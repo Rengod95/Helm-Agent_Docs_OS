@@ -172,18 +172,20 @@ test("a bundle without a valid manifest is a failed install that leaves nothing 
   expect(existsSync(join(stateDir, DEFAULT_PLUGINS_MARKER_FILE))).toBe(false);
 });
 
-// 기본 목록은 helm뿐이다. 계정 회전은 개발 모드에서만 더해진다(결정 2026-11-04 A1)
-test("the release default list is helm only, and account-rotation joins it only in dev mode", async () => {
-  expect(DEFAULT_PLUGIN_NAMES).toEqual(["helm"]);
-  expect(defaultPluginNamesFor(false)).toEqual(["helm"]);
-  expect(defaultPluginNamesFor(true)).toEqual(["helm", "account-rotation"]);
+// 기본 목록은 helm과 suggest(제안)다. 계정 회전은 개발 모드에서만 더해진다(결정 2026-11-04 A1)
+test("the release default list is helm and suggest, and account-rotation joins it only in dev mode", async () => {
+  expect(DEFAULT_PLUGIN_NAMES).toEqual(["helm", "suggest"]);
+  expect(defaultPluginNamesFor(false)).toEqual(["helm", "suggest"]);
+  expect(defaultPluginNamesFor(true)).toEqual(["helm", "suggest", "account-rotation"]);
   writeBundle("0.1.0", "account-rotation");
   expect(await install(defaultPluginNamesFor(false))).toEqual([
     { name: "helm", action: "no_bundle" },
+    { name: "suggest", action: "no_bundle" },
   ]);
   expect(existsSync(join(extensionsDir, "account-rotation"))).toBe(false);
   expect(await install(defaultPluginNamesFor(true))).toEqual([
     { name: "helm", action: "no_bundle" },
+    { name: "suggest", action: "no_bundle" },
     { name: "account-rotation", action: "installed", version: "0.1.0" },
   ]);
   expect(

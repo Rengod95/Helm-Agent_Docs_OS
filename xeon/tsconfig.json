@@ -92,6 +92,9 @@
       "path": "./packages/plugin-helm"
     },
     {
+      "path": "./packages/plugin-suggest"
+    },
+    {
       "path": "./packages/plugin-learning"
     },
     {

@@ -5,7 +5,11 @@ import {
   KnowledgeLedgerKey,
   type CallOptions,
 } from "@fresnel/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import {
+  defineManifest,
+  type ExtensionEntry,
+  type RegistrationStatus,
+} from "@fresnel/contracts/extensions";
 import type {
   ProposalDecideResult,
   ProposalListParams,
@@ -17,6 +21,7 @@ import { createKnowledgeProposalWire, type KnowledgeProposalWire } from "@fresne
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import type { ProposalPort } from "../types.ts";
+import { SUGGEST_PLUGIN_NAME } from "./default-plugins.ts";
 
 // M3-REQ-18. 승인 화면이 읽는 제안 대기열은 L2.knowledge 하나다. 학습 그룹은 빌트인에서 빠졌다(2026-11-18 사용자, AGE-49): 학습 출처(`source: "learning"`)의 목록은
 // 늘 `unavailable`이고 결정은 거절한다. 이 파일은 조립 루트 코드다(DR-14 예외 2).
@@ -30,6 +35,11 @@ const TIE_PAD = 50;
 export interface ProposalPortDeps {
   /** 지식 기능이 있으면 대기열 어댑터, 없으면 undefined */
   readonly knowledge: () => KnowledgeProposalWire | undefined;
+  /**
+   * 제안 플러그인(`suggest`)이 켜져 있는가. 꺼졌거나, 프로필에서 빠졌거나, 설치되지 않았으면 거짓이다. 거짓이면 목록의 지식 출처는
+   * `unavailable`이고 결정은 `unavailable`이다. 다시 켜면 다음 호출부터 열린다(읽을 때마다 본다)
+   */
+  readonly suggestEnabled: () => boolean;
   /** 오류 기록(결정에 쓰지 않는 실패: 알 수 없는 오류 코드) */
   readonly report: (message: string, fields: LogFields) => void;
 }
@@ -75,6 +85,16 @@ function afterCursor(row: RowKey, cursor: RowKey | undefined): boolean {
   return cursor === undefined || compareKeys(row, cursor) > 0;
 }
 
+/**
+ * 제안 플러그인이 켜져 있는가. 루트 등록(이름 `suggest`)의 상태가 `enabled`이면 참이다. 등록이 없으면(설치되지 않았거나 프로필에서 빠짐)
+ * 거짓이다. 확장 목록(`ext.list`)과 같은 원천인 `ext.registrations()`를 읽는다
+ */
+export function suggestEnabledOf(
+  registrations: readonly { readonly id: string; readonly status: RegistrationStatus }[],
+): boolean {
+  return registrations.some((info) => info.id === SUGGEST_PLUGIN_NAME && info.status === "enabled");
+}
+
 /** 호스트(사용자)가 부른 호출 문맥. 결정과 목록은 사람의 일이다(`ledger.decide`는 호스트 호출만 받는다) */
 function hostCall(signal: AbortSignal): CallOptions {
   return { signal, context: { caller: { kind: "host" } } };
@@ -95,6 +115,7 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
     cursor: RowKey | undefined,
     signal: AbortSignal,
   ): Promise<readonly ProposalRow[] | undefined> {
+    if (!deps.suggestEnabled()) return undefined;
     const wire = deps.knowledge();
     if (wire === undefined) return undefined;
     const read = await attemptAsync(() =>
@@ -145,6 +166,9 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
     async decide(params, signal) {
       if (params.source === "learning") {
         return decideFailure("unavailable", "the learning plugin is not built in");
+      }
+      if (!deps.suggestEnabled()) {
+        return decideFailure("unavailable", "the suggest plugin is off");
       }
       const wire = deps.knowledge();
       if (wire === undefined)

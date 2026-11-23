@@ -14,11 +14,14 @@ import { Type } from "typebox";
 // X.loading-trust.spec §4.4.7. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행에 사용자 확장 위치로 복사한다. 조립 루트 코드(DR-14 예외 2).
 // 사용자가 설치본을 지웠으면 다시 설치하지 않는다: 호스트 상태 파일(`<state>/default-plugins.json`)에 설치한 적이 있다는 표지를 남긴다.
 
+/** 제안 플러그인 이름. 호스트 wire `proposal.list`·`proposal.decide`가 이 플러그인의 켜짐을 본다(assembly/proposals.ts) */
+export const SUGGEST_PLUGIN_NAME = "suggest";
+
 /**
  * 기본 플러그인 이름. 번들 디렉터리 `<defaultPluginsDir>/<name>/`이 설치 원본이다.
  * 계정 회전은 배포에서 뺐다(결정 2026-11-04 A1). 위장 provider(`provider-anthropic-oauth`)도 들지 않는다(L1.models.spec §4.11.4)
  */
-export const DEFAULT_PLUGIN_NAMES: readonly string[] = ["helm"];
+export const DEFAULT_PLUGIN_NAMES: readonly string[] = ["helm", SUGGEST_PLUGIN_NAME];
 
 /**
  * 개발 모드(`l3.authoring.devMode`)에서만 더 설치하는 플러그인. 배포 번들에는 없어서 개발 번들 디렉터리에 만들어 둔 때만 설치된다.
