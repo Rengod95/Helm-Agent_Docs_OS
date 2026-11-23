@@ -19,6 +19,20 @@ describe("emptyThreadViewOf", () => {
     ).toEqual({ kind: "folder", name: "fresnel", path: "/w/fresnel" });
   });
 
+  test("a default folder (thread id or default-project parent) hides the number and path", () => {
+    const base = { dismissed: false, recent: RECENT, canPick: true };
+    expect(
+      emptyThreadViewOf({
+        ...base,
+        threadId: "thr_01M84",
+        workspace: "/d/default-project/thr_01M84",
+      }),
+    ).toEqual({ kind: "bare" });
+    expect(emptyThreadViewOf({ ...base, workspace: "/d/default-project/other" })).toEqual({
+      kind: "bare",
+    });
+  });
+
   test("a thread without a folder shows the picker with the recent folders", () => {
     expect(
       emptyThreadViewOf({ workspace: null, dismissed: false, recent: RECENT, canPick: false }),

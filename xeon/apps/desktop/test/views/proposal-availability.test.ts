@@ -5,6 +5,7 @@ import {
   screenShownOf,
   suggestInProfilesOf,
   suggestStateOf,
+  tabRowsShownOf,
   SUGGEST_PLUGIN_NAME,
 } from "../../src/views/proposal-suggest.ts";
 import type { ProfilesRead } from "../../src/views/convo/profile-listing.ts";
@@ -179,5 +180,14 @@ describe("learning band", () => {
 
   test("nothing unavailable means no band", () => {
     expect(bannerSourcesOf([])).toEqual([]);
+  });
+});
+
+describe("tabRowsShownOf", () => {
+  const rows = [{ name: "suggest" }, { name: "helm" }];
+  test("the suggest tab is kept only when the plugin is on", () => {
+    expect(tabRowsShownOf(rows, "on")).toEqual(rows);
+    expect(tabRowsShownOf(rows, "off")).toEqual([{ name: "helm" }]);
+    expect(tabRowsShownOf(rows, "unknown")).toEqual([{ name: "helm" }]);
   });
 });

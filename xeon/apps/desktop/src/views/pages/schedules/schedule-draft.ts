@@ -66,16 +66,11 @@ export function emptyDraft(nowMs: number): ScheduleDraft {
 function triggerDraftOf(trigger: ScheduleTrigger, base: TriggerDraft): TriggerDraft {
   switch (trigger.kind) {
     case "interval":
-      return {
-        ...base,
-        kind: "interval",
-        intervalSeconds: String(trigger.everySeconds),
-        // 첫 실행 시각이 있는 하루 간격은 복제해도 "매일 시각"으로 연다
-        dailyTime:
-          trigger.firstAtMs !== undefined && trigger.everySeconds === DAY_MS / 1000
-            ? clockInputOf(trigger.firstAtMs)
-            : "",
-      };
+      // 첫 실행 시각이 있는 하루 간격은 저장 모양이 "매일"과 같으므로 복제해도 "매일"로 연다
+      if (trigger.firstAtMs !== undefined && trigger.everySeconds === DAY_MS / 1000) {
+        return { ...base, kind: "daily", dailyTime: clockInputOf(trigger.firstAtMs) };
+      }
+      return { ...base, kind: "interval", intervalSeconds: String(trigger.everySeconds) };
     case "at":
       return { ...base, kind: "at", atMs: trigger.atMs };
     case "file_watch":

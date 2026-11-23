@@ -10,7 +10,14 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import type { CommandError } from "../commands.ts";
 import { useCommands } from "../commands.ts";
 import { profileTitleOf } from "../convo/profile-chip-model.ts";
-import { inProfile, profileSetOf, withPlugin, type ProfileSet } from "./profile-use.ts";
+import {
+  inProfile,
+  profileCountOf,
+  profileSetOf,
+  putLabelKeyOf,
+  withPlugin,
+  type ProfileSet,
+} from "./profile-use.ts";
 
 /** 프로필 목록 읽기. 엔진에 붙으면 한 번 읽고, 넣고 뺀 뒤 `reload`로 다시 읽는다. null은 아직 못 읽었다는 뜻이다 */
 export interface ProfileSetLoad {
@@ -67,7 +74,12 @@ export function ProfilePutMenu(props: {
   const live = useLinkPhase() === "live";
   const [busy, setBusy] = useState<string | null>(null);
   const { set } = props.load;
-  const label = props.label ?? t("desktop.workbench.use.put");
+  // 들어 있는 프로필 수를 단추 글에 드러낸다(0개면 "프로필에 넣기"). 오류 알림처럼 글을 정해 준 곳은 그 글을 쓴다
+  const count = set === null ? 0 : profileCountOf(props.name, set.profiles);
+  const labelKey = putLabelKeyOf(count);
+  const label =
+    props.label ??
+    (labelKey === "desktop.workbench.use.put" ? t(labelKey) : t(labelKey, { count }));
 
   const flip = (profileId: string): void => {
     const profile = set?.profiles.find((p) => p.id === profileId);

@@ -47,6 +47,23 @@ export function inProfile(profile: Pick<Profile, "plugins">, name: string): bool
   return profile.plugins.some((ref) => ref.name === name);
 }
 
+/** 이 플러그인을 넣은 프로필의 수 */
+export function profileCountOf(
+  name: string,
+  profiles: readonly Pick<Profile, "plugins">[],
+): number {
+  return profiles.filter((profile) => inProfile(profile, name)).length;
+}
+
+/**
+ * "프로필에 넣기" 단추의 글 키(AGE-77 S-09 마). 들어 있는 프로필이 없으면 그대로 "프로필에 넣기", 있으면 그 수("프로필 N개")다
+ */
+export function putLabelKeyOf(
+  count: number,
+): "desktop.workbench.use.put" | "desktop.workbench.use.profiles" {
+  return count === 0 ? "desktop.workbench.use.put" : "desktop.workbench.use.profiles";
+}
+
 /** 프로필에 플러그인 하나를 끝에 넣은 저장 값. 이름, 설정, 시작 Drive는 저장된 그대로다. 이미 있으면 그대로 둔다 */
 export function withPlugin(profile: Profile, name: string): ProfileInput {
   return {

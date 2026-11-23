@@ -1,5 +1,5 @@
 import { t } from "@fresnel/client/i18n";
-import { SCHEDULE_BOUNDS, type ScheduleTriggerKind, type TriggerDraft } from "@fresnel/client";
+import { SCHEDULE_BOUNDS, type TriggerDraft, type TriggerDraftKind } from "@fresnel/client";
 import { assertNever } from "@fresnel/contracts";
 import {
   Alert,
@@ -53,7 +53,7 @@ function textOf(ref: MessageRef | undefined): ReactNode {
   return ref === undefined ? undefined : t(ref.id, ref.args);
 }
 
-function kindOf(value: string): ScheduleTriggerKind | null {
+function kindOf(value: string): TriggerDraftKind | null {
   return TRIGGER_KINDS.find((kind) => kind === value) ?? null;
 }
 
@@ -271,32 +271,29 @@ function TriggerInputs(props: {
 }): ReactNode {
   const { draft, error, onChange } = props;
   switch (draft.kind) {
-    case "interval": {
-      const daily = (draft.dailyTime ?? "") !== "";
+    case "interval":
       return (
-        <>
-          {daily ? null : (
-            <IntervalSecondsField
-              value={draft.intervalSeconds}
-              error={error("intervalSeconds")}
-              onChange={(intervalSeconds) => {
-                onChange({ intervalSeconds });
-              }}
-            />
-          )}
-          <Field label={t("desktop.schedules.form.dailyAt")} size="sm" error={error("dailyTime")}>
-            <Input
-              size="sm"
-              type="time"
-              value={draft.dailyTime ?? ""}
-              onValueChange={(dailyTime) => {
-                onChange({ dailyTime });
-              }}
-            />
-          </Field>
-        </>
+        <IntervalSecondsField
+          value={draft.intervalSeconds}
+          error={error("intervalSeconds")}
+          onChange={(intervalSeconds) => {
+            onChange({ intervalSeconds });
+          }}
+        />
       );
-    }
+    case "daily":
+      return (
+        <Field label={t("desktop.schedules.form.dailyAt")} size="sm" error={error("dailyTime")}>
+          <Input
+            size="sm"
+            type="time"
+            value={draft.dailyTime ?? ""}
+            onValueChange={(dailyTime) => {
+              onChange({ dailyTime });
+            }}
+          />
+        </Field>
+      );
     case "at":
       return (
         <Field label={t("desktop.schedules.form.at")} size="sm" error={error("atMs")}>

@@ -258,6 +258,23 @@ describe("프로필 → 캔버스 프로필과 저장 값", () => {
   });
 });
 
+describe("캔버스에서 뺀 항목", () => {
+  test("뺀 이름은 저장 값에 다시 들어가지 않는다", () => {
+    const canvas = canvasProfileOf(SAVED, COMMON);
+    const removed = removePlugin(canvas, "guard-c");
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) return;
+    expect(profileInputOf(removed.profile, SAVED).plugins.map((r) => r.name)).toEqual([
+      "helm",
+      "guard-a",
+      "guard-b",
+      "files",
+      "gone",
+      "style",
+    ]);
+  });
+});
+
 /** 도구 실행 앞 자리의 호출 순서 */
 function order(p: CanvasProfile): readonly string[] {
   return placedOf(p)

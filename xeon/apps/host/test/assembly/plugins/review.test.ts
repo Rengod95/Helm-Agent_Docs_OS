@@ -69,6 +69,7 @@ function openRig(
   hooks?: ApprovalHooks,
   projectRoots: () => Promise<readonly DiscoverProjectRoot[]> = () => Promise.resolve([]),
   facts?: () => readonly PluginFact[],
+  pluginData?: { readonly keys: number },
 ): Rig {
   const store = createPluginStore({
     root: join(root, "plugin-store"),
@@ -99,6 +100,9 @@ function openRig(
     },
     ...(hooks === undefined ? {} : { approvalHooks: hooks }),
     ...(facts === undefined ? {} : { facts }),
+    ...(pluginData === undefined
+      ? {}
+      : { pluginData: { usage: () => Promise.resolve(ok({ keys: pluginData.keys, bytes: 0 })) } }),
   });
   const notified: PluginChange[] = [];
   review.onChanged((change) => notified.push(change));
@@ -422,6 +426,21 @@ test("pending items and the reviewed copies survive a restart of the services", 
   const again = openRig(rig.root);
   const listed = valueOf(await again.review.list({ state: "pending" })).items;
   expect(listed.map((item) => item.itemId)).toEqual([itemId]);
+});
+
+async function removePreviewStateOf(keys: number): Promise<unknown> {
+  const root = tempRoot("plugin-review-");
+  roots.push(root);
+  const rig = openRig(root, undefined, undefined, undefined, { keys });
+  await approvedKit(rig);
+  valueOf(await rig.review.requestRemove("kit"));
+  const pending = valueOf(await rig.review.list({ state: "pending" })).items;
+  return pending[0]?.removal?.removes;
+}
+
+test("a remove preview says the stored data goes too only when the plugin store holds keys", async () => {
+  expect(await removePreviewStateOf(3)).toEqual({ state: true, records: null });
+  expect(await removePreviewStateOf(0)).toEqual({ state: false, records: null });
 });
 
 test("a remove request is an item that stays pending until approved, and approving it clears the reviewed current", async () => {
@@ -994,6 +1013,7 @@ test("an approval hands the item's merge plan to the profile edit; sending back 
       },
       loader: () => undefined,
       refreshPluginSet: () => Promise.resolve(),
+      pluginDataStore: { clear: () => Promise.resolve(ok(undefined)) },
       facts: () => [],
       pluginDataStore: { clear: () => Promise.resolve(ok(undefined)) },
       log: SILENT,

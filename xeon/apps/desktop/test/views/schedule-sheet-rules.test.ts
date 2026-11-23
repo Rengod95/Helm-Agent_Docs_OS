@@ -1,18 +1,32 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { activeLocale, setActiveLocale, t, type Locale } from "@fresnel/client/i18n";
-import { SCHEDULE_BOUNDS, scheduleRowOf, type ScheduleRow } from "@fresnel/client";
+import {
+  SCHEDULE_BOUNDS,
+  scheduleRowOf,
+  type ScheduleRow,
+  type TriggerDraft,
+} from "@fresnel/client";
 import {
   WATCH_PATH_OUTSIDE_ROOTS_REASON,
+  type ScheduleEntryView,
   type ScheduleListItem,
   type ScheduleTrigger,
 } from "@fresnel/contracts/capabilities";
 import {
+  checkDraft,
   clampNoticeOf,
+  draftOfEntry,
+  emptyDraft,
   sheetErrorsOf,
   typedOverLimitOf,
+  type ScheduleDraft,
 } from "../../src/views/pages/schedules/schedule-draft.ts";
 import { canReenableRow } from "../../src/views/pages/schedules/schedule-table.tsx";
-import { message } from "../../src/views/pages/schedules/schedule-text.ts";
+import {
+  message,
+  TRIGGER_KINDS,
+  triggerKindId,
+} from "../../src/views/pages/schedules/schedule-text.ts";
 
 // 예약 시트와 표의 순수 규칙: 간격 상한을 넘게 친 값의 안내, 감시 경로 저장 거절의 칸 배정, 다시 켜기 단추의 조건.
 
@@ -128,5 +142,112 @@ describe("reenable button rule", () => {
   test("other turned-off triggers keep the button", () => {
     expect(canReenableRow(rowOf({ kind: "interval", everySeconds: 300 }, false), NOW)).toBe(true);
     expect(canReenableRow(rowOf({ kind: "remote" }, false), NOW)).toBe(true);
+  });
+});
+
+/** 시트가 여는 항목 한 건. 트리거만 시험이 정한다 */
+function entryOf(trigger: ScheduleTrigger): ScheduleEntryView {
+  return {
+    id: "sch_sheet",
+    trigger,
+    prompt: "정리한다",
+    workspace: null,
+    title: "정리",
+    sessionKind: "cron",
+    enabled: true,
+    createdAt: NOW - 86_400_000,
+    nextDueAt: NOW + 60_000,
+    lastStartedAt: null,
+    iterations: 1,
+    stoppedReason: null,
+  };
+}
+
+/** 새 예약 시트 입력에서 트리거 칸만 바꾼다 */
+function draftWith(patch: Partial<TriggerDraft>): ScheduleDraft {
+  const base = emptyDraft(NOW);
+  return { ...base, prompt: "정리한다", trigger: { ...base.trigger, ...patch } };
+}
+
+describe("trigger choices in the sheet", () => {
+  let previous: Locale = "ko";
+  beforeEach(() => {
+    previous = activeLocale();
+    setActiveLocale("ko");
+  });
+  afterEach(() => {
+    setActiveLocale(previous);
+  });
+
+  test("매일 sits right after 간격, and 반복 stays last", () => {
+    expect(TRIGGER_KINDS).toEqual(["interval", "daily", "at", "file_watch", "remote", "repeat"]);
+    expect(t(triggerKindId("daily"))).toBe("매일");
+  });
+
+  test("매일 saves as the contract's 86400 second interval whose first run is the chosen time", () => {
+    expect(checkDraft(draftWith({ kind: "daily", dailyTime: "09:00" }), NOW)).toEqual({
+      ok: true,
+      params: {
+        trigger: {
+          kind: "interval",
+          everySeconds: 86_400,
+          firstAtMs: new Date(2026, 10, 4, 9, 0, 0).getTime(),
+        },
+        prompt: "정리한다",
+        enabled: true,
+      },
+    });
+  });
+
+  test("간격 ignores a daily time typed earlier and saves the plain interval", () => {
+    expect(
+      checkDraft(draftWith({ kind: "interval", intervalSeconds: "600", dailyTime: "09:00" }), NOW),
+    ).toEqual({
+      ok: true,
+      params: {
+        trigger: { kind: "interval", everySeconds: 600 },
+        prompt: "정리한다",
+        enabled: true,
+      },
+    });
+  });
+
+  test("매일 with no time is refused on the time field", () => {
+    expect(checkDraft(draftWith({ kind: "daily", dailyTime: "" }), NOW)).toEqual({
+      ok: false,
+      errors: {
+        fields: { dailyTime: message("desktop.schedules.error.invalidTrigger") },
+        form: null,
+      },
+    });
+  });
+
+  test("an entry that runs every day reopens on 매일 with its time", () => {
+    const daily = entryOf({
+      kind: "interval",
+      everySeconds: 86_400,
+      firstAtMs: new Date(2026, 10, 4, 9, 0, 0).getTime(),
+    });
+    const opened = draftOfEntry(daily, NOW).trigger;
+    expect(opened.kind).toBe("daily");
+    expect(opened.dailyTime).toBe("09:00");
+  });
+
+  test("an 86400 second interval without a first run reopens on 간격", () => {
+    const plain = draftOfEntry(entryOf({ kind: "interval", everySeconds: 86_400 }), NOW).trigger;
+    expect(plain.kind).toBe("interval");
+    expect(plain.intervalSeconds).toBe("86400");
+  });
+
+  test("a daily entry copied and saved gives back the same trigger", () => {
+    const trigger: ScheduleTrigger = {
+      kind: "interval",
+      everySeconds: 86_400,
+      firstAtMs: new Date(2026, 10, 4, 9, 0, 0).getTime(),
+    };
+    expect(checkDraft(draftOfEntry(entryOf(trigger), NOW), NOW)).toEqual({
+      ok: true,
+      params: { trigger, prompt: "정리한다", title: "정리", enabled: true },
+    });
   });
 });

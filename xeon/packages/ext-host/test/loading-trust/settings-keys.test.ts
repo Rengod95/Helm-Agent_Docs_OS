@@ -159,6 +159,7 @@ test("settings: reserved defs shape", () => {
   });
   expect(isolation?.ui).toMatchObject({
     help: "none = allow running inside the engine. process = run in its own plugin process (default).",
+    helpKey: "settings.ext.isolation.help",
   });
   // 매니페스트가 none을 정하면 설정 기본도 none이다
   const pinned = reservedExtensionSettings({ ...manifest, isolation: "none" }, "user").defs.find(

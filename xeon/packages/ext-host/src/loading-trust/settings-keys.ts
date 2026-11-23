@@ -55,6 +55,7 @@ export function reservedExtensionSettings(
       order: 20,
       label: `${shownName} isolation`,
       help: "none = allow running inside the engine. process = run in its own plugin process (default).",
+      helpKey: "settings.ext.isolation.help",
       labelKey: "settings.ext.isolation.label",
       labelArgs: { name: shownName },
     },

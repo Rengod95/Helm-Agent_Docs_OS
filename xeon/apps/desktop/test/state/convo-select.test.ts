@@ -205,6 +205,21 @@ function busyMirror(): EngineMirror {
   );
 }
 
+/** 임대 하나와 할 일 셋(반납 전에 정한 것 t1·t3, 반납 뒤에 바뀐 것 t2)이 든 거울 */
+function endedDriveMirror(lease: LeaseRecord): EngineMirror {
+  return mirrorOf({
+    [T]: convoOf({
+      leases: [lease],
+      tasks: {
+        t1: { ...taskOf("t1", "pending"), seq: 3 },
+        t2: { ...taskOf("t2", "in_progress", [], "t2 하는 중"), seq: 12 },
+        t3: { ...taskOf("t3", "completed"), seq: 4 },
+      },
+      taskOrder: ["t1", "t2", "t3"],
+    }),
+  });
+}
+
 describe("selectTurnSummary", () => {
   test("끝난 턴은 단계 수, 시간, 사용량 합, 비용, 끝, 모델, 출처, 주도 scope를 요약한다", () => {
     const usage = usageOf(18, 0.25);
@@ -513,6 +528,22 @@ describe("selectNow", () => {
       turnRunning: true,
       aborting: false,
     });
+  });
+
+  test("스스로 끝난(done) Drive가 남긴 할 일은 그 뒤에 안 바뀌었으면 지금에서 뺀다. 반납 뒤에 바뀐 할 일만 남는다", () => {
+    const now = selectNow(endedDriveMirror({ ...LEASE, releaseReason: "done", releasedSeq: 9 }), T);
+    expect(now.tasks.map((task) => task.id)).toEqual(["t2"]);
+    expect(now.progress).toEqual({ done: 0, total: 1 });
+  });
+
+  test("한도로 끝난 Drive, 아직 쥔 Drive의 할 일은 그대로 지금에 남는다", () => {
+    const budget = selectNow(endedDriveMirror({ ...LEASE, releaseReason: "budget" }), T);
+    expect(budget.tasks.map((task) => task.id)).toEqual(["t1", "t2", "t3"]);
+    const held = selectNow(
+      endedDriveMirror({ ...LEASE, releaseReason: null, releasedSeq: null }),
+      T,
+    );
+    expect(held.tasks.map((task) => task.id)).toEqual(["t1", "t2", "t3"]);
   });
 
   test("빈 thread의 지금은 목표와 할 일이 없고 모두 0이다", () => {

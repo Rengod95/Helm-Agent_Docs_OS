@@ -6,7 +6,7 @@ import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import { useWorkbenchActions } from "../../state/workbench/index.ts";
 import { KindGlyph } from "../craft/canvas/cv6/glyphs.tsx";
-import { cardTextIn } from "./overview-model.ts";
+import { doesLeadOfCard } from "./overview-model.ts";
 import { HealthCell, RowName, UseText } from "./plugin-cells.tsx";
 import { kindFaceStyle, kindWord, pluginKindOf } from "./plugin-kind.tsx";
 import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
@@ -23,7 +23,8 @@ function PluginCardItem(props: {
   const actions = useWorkbenchActions();
   const { row, card } = props;
   const kind = pluginKindOf(card);
-  const purpose = (card === null ? null : cardTextIn(card, "purpose")) ?? "";
+  // 하는 일의 첫 줄: 목적(도구 이름이 든 기본 문장이면 설명이나 도구 수 글)
+  const lead = card === null ? null : doesLeadOfCard(card);
   return (
     <li className="relative h-full min-w-0">
       {kind !== null && (
@@ -58,12 +59,12 @@ function PluginCardItem(props: {
             </span>
           )}
         </div>
-        {purpose === "" ? (
+        {lead === null ? (
           <p className="m-0 min-w-0 truncate text-ui-sm text-text-tertiary">
             {t("desktop.workbench.card.noPurpose")}
           </p>
         ) : (
-          <p className="m-0 min-w-0 truncate text-ui-sm text-text-secondary">{purpose}</p>
+          <p className="m-0 min-w-0 truncate text-ui-sm text-text-secondary">{lead.text}</p>
         )}
         <div className="mt-auto flex min-w-0 items-center justify-between gap-2">
           <UseText row={row} profiles={props.profiles.set} />
