@@ -289,6 +289,7 @@ describe("plugin", () => {
       "write",
       "edit",
       "grep",
+      "ls",
     ]);
     expect(files?.kind === "capability" ? files.key : undefined).toEqual(WorkspaceFilesKey);
     expect(files?.kind === "capability" ? files.policy : undefined).toEqual({
@@ -296,6 +297,7 @@ describe("plugin", () => {
       write: { risk: "write" },
       edit: { risk: "write" },
       grep: { risk: "read" },
+      ls: { risk: "read" },
     });
     // 지연 광고 항목이 없으므로 exposure는 싣지 않는다
     expect(files?.kind === "capability" ? files.exposure : undefined).toBeUndefined();

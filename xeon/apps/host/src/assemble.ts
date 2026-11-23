@@ -429,6 +429,13 @@ function causeKind(caught: unknown): string | undefined {
   return undefined;
 }
 
+/** 플랫폼이 시작을 거절하며 실은 오류(`cause`)의 폴더 경로. 없으면 undefined */
+function causePath(cause: unknown): string | undefined {
+  if (typeof cause !== "object" || cause === null || !("path" in cause)) return undefined;
+  const path: unknown = cause.path;
+  return typeof path === "string" && path.length > 0 ? path : undefined;
+}
+
 function pluginIssue(plugin: string, caught: unknown): AssembleIssue {
   const kind = causeKind(caught);
   return {
@@ -873,6 +880,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     if (!registered.ok) {
       const { reason, cause } = registered.error;
       const failure = PLATFORM_STARTUP_FAILURE.get(reason);
+      const blockedPath = causePath(cause);
       throw new AssembleError(
         [
           {
@@ -880,6 +888,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
             plugin: name,
             message: `${name} failed to start (${reason})`,
             ...(failure === undefined ? {} : { failure }),
+            ...(blockedPath === undefined ? {} : { path: blockedPath }),
           },
         ],
         { cause },

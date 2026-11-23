@@ -182,6 +182,25 @@ test("catalog, missing service and plugin issues map to their own kinds", () => 
   expect(
     startErrorOf(new AssembleError([{ code: "plugin", plugin: "platform-exec", message: "boom" }])),
   ).toMatchObject({ kind: "pluginFailed" });
+  // F-01: 폴더 권한이 넓어 막히면 막힌 폴더 경로와 고치는 명령을 알린다
+  expect(
+    startErrorOf(
+      new AssembleError([
+        {
+          code: "plugin",
+          plugin: "platform-os",
+          message: "platform-os failed to start (permission_too_open)",
+          failure: "data_dir_permission",
+          path: "/tmp/home/.local/state/fresnel",
+        },
+      ]),
+    ),
+  ).toEqual({
+    kind: "dataDirPermission",
+    message:
+      "폴더 /tmp/home/.local/state/fresnel의 권한이 다른 사용자에게도 열려 있어 엔진을 시작하지 않는다",
+    fix: "다음을 실행한다: chmod 700 /tmp/home/.local/state/fresnel",
+  });
   expect(
     startErrorOf(
       new AssembleError([{ code: "plugin", plugin: "platform-secrets", message: "no binary" }]),

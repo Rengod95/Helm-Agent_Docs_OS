@@ -3,6 +3,7 @@ import { scopeDeps, type WorkspaceDeps } from "./deps.ts";
 import type { FilesApi } from "./files/api.ts";
 import { createEdit } from "./files/edit.ts";
 import { createGrep } from "./files/grep.ts";
+import { createList } from "./files/list.ts";
 import { createRead } from "./files/read.ts";
 import { createWrite } from "./files/write.ts";
 import { createImagesApi } from "./images/service.ts";
@@ -29,6 +30,10 @@ export function createFilesApi(deps: WorkspaceDeps): FilesApi {
     grep: (input, options) =>
       deps.core.guarded(WorkspaceFiles.id, "grep", () =>
         createGrep(scopeDeps(deps, options?.context?.threadId))(input, options),
+      ),
+    ls: (input, options) =>
+      deps.core.guarded(WorkspaceFiles.id, "ls", () =>
+        createList(scopeDeps(deps, options?.context?.threadId))(input, options),
       ),
   };
 }

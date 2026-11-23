@@ -317,6 +317,67 @@ export const GrepOutput: TObject<{
   { additionalProperties: false },
 );
 
+/** `ls`가 한 번에 돌려주는 항목 수의 기본값과 상한, 내려가는 깊이의 기본값과 상한 */
+export const LIST_DEFAULT_LIMIT = 200;
+export const LIST_MAX_LIMIT = 1000;
+export const LIST_DEFAULT_DEPTH = 1;
+export const LIST_MAX_DEPTH = 3;
+
+export const ListInput: TObject<{
+  path: TOptional<TString>;
+  depth: TOptional<TInteger>;
+  limit: TOptional<TInteger>;
+}> = Type.Object(
+  {
+    path: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 4096,
+        description: "Directory path (relative or absolute). Defaults to the working directory",
+      }),
+    ),
+    depth: Type.Optional(
+      Type.Integer({
+        minimum: 1,
+        maximum: LIST_MAX_DEPTH,
+        description: `How many directory levels to list (default ${LIST_DEFAULT_DEPTH}, max ${LIST_MAX_DEPTH})`,
+      }),
+    ),
+    limit: Type.Optional(
+      Type.Integer({
+        minimum: 1,
+        maximum: LIST_MAX_LIMIT,
+        description: `Maximum number of entries (default ${LIST_DEFAULT_LIMIT}, max ${LIST_MAX_LIMIT})`,
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);
+const ListEntry: TObject<{
+  path: TString;
+  kind: TUnion<[TLiteral<"file">, TLiteral<"directory">, TLiteral<"symlink">]>;
+}> = Type.Object(
+  {
+    /** 기준 디렉터리 상대 경로 */
+    path: Type.String({ maxLength: 4096 }),
+    kind: Type.Union([Type.Literal("file"), Type.Literal("directory"), Type.Literal("symlink")]),
+  },
+  { additionalProperties: false },
+);
+export const ListOutput: TObject<{
+  root: TString;
+  entries: TArray<typeof ListEntry>;
+  truncated: TOptional<typeof TruncationInfoSchema>;
+}> = Type.Object(
+  {
+    /** 목록 기준 디렉터리(정규 경로). entries의 path는 이 기준 상대 경로 */
+    root: Type.String({ maxLength: 4096 }),
+    entries: Type.Array(ListEntry, { maxItems: LIST_MAX_LIMIT }),
+    truncated: Type.Optional(TruncationInfoSchema),
+  },
+  { additionalProperties: false },
+);
+
 // ── 렌더링과 입력 변환(순수 함수) ───────────────────────────────────────
 
 function truncNote(t: TruncationInfo | undefined): string {
@@ -377,6 +438,15 @@ function renderGrep(out: Static<typeof GrepOutput>): ToolContent {
   };
 }
 
+function renderList(out: Static<typeof ListOutput>): ToolContent {
+  const lines = out.entries.map((e) => (e.kind === "directory" ? `${e.path}/` : e.path));
+  const body = lines.length === 0 ? "(empty directory)" : lines.join("\n");
+  return {
+    content: [{ type: "text", text: body + truncNote(out.truncated) }],
+    structuredContent: out,
+  };
+}
+
 function isReplacement(value: unknown): value is Static<typeof Replacement> {
   return (
     typeof value === "object" &&
@@ -413,6 +483,7 @@ type FilesMethods = {
   readonly write: MethodDef<typeof WriteInput, typeof WriteOutput>;
   readonly edit: MethodDef<typeof EditInput, typeof EditOutput>;
   readonly grep: MethodDef<typeof GrepInput, typeof GrepOutput>;
+  readonly ls: MethodDef<typeof ListInput, typeof ListOutput>;
 };
 
 export const WorkspaceFiles: CapabilityDef<
@@ -422,11 +493,13 @@ export const WorkspaceFiles: CapabilityDef<
     ToolSpec<"write", typeof WriteInput, FilesMethods["write"]>,
     ToolSpec<"edit", typeof EditToolParams, FilesMethods["edit"]>,
     ToolSpec<"grep", typeof GrepInput, FilesMethods["grep"]>,
+    ToolSpec<"ls", typeof ListInput, FilesMethods["ls"]>,
   ]
 > = defineCapability({
   id: "workspace.files",
   version: "1.0.0",
-  description: "Read, write, edit, and search the contents of files in the working directory.",
+  description:
+    "Read, write, edit, search, and list the contents of files in the working directory.",
   service: {
     methods: {
       read: {
@@ -486,6 +559,14 @@ export const WorkspaceFiles: CapabilityDef<
           pattern_invalid: { description: "Invalid regular expression syntax", retryable: false },
         },
       },
+      ls: {
+        description:
+          "Lists the entries of a directory, optionally a few levels deep. Read-only, capped in depth and entry count.",
+        input: ListInput,
+        output: ListOutput,
+        replay: "safe",
+        readOnly: true,
+      },
     },
   },
   tools: [
@@ -534,6 +615,18 @@ export const WorkspaceFiles: CapabilityDef<
       description:
         "Searches file contents and returns paths and line numbers. Respects .gitignore. Result count and line length are limited.",
       toContent: renderGrep,
+      replay: "safe",
+      executionMode: "parallel",
+      hints: READ_ONLY,
+    },
+    {
+      name: "ls",
+      label: "List Directory",
+      method: "ls",
+      parameters: ListInput,
+      description:
+        "Lists the files and folders in a directory (up to a few levels deep, entry count limited). To look around the project, use this instead of running a shell command. It never asks for approval.",
+      toContent: renderList,
       replay: "safe",
       executionMode: "parallel",
       hints: READ_ONLY,

@@ -337,6 +337,13 @@ export function startErrorOf(error: AssembleError): EngineStartError {
         fix: t("cli.errors.engineStart.missingService.fix"),
       };
     case "plugin": {
+      if (issue.failure === "data_dir_permission" && issue.path !== undefined) {
+        return {
+          kind: "dataDirPermission",
+          message: t("cli.errors.engineStart.dataDirTooOpen.message", { path: issue.path }),
+          fix: t("cli.errors.engineStart.dataDirTooOpen.fix", { path: issue.path }),
+        };
+      }
       const sops = issue.plugin === "platform-secrets" || /sops|age/i.test(issue.message);
       if (sops) {
         return {

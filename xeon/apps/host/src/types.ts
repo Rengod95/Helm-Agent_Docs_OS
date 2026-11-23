@@ -232,6 +232,8 @@ export type AssembleIssue =
       readonly message: string;
       /** 사용자가 직접 고칠 수 있는 시작 실패의 분류. 종료 코드로 앱 셸에 전해진다(`STARTUP_FAILURE_EXIT_CODES`) */
       readonly failure?: "data_dir_permission" | "data_dir_unwritable";
+      /** 막힌 폴더의 경로(플랫폼이 알려 줄 때만). 사용자가 어느 폴더를 고쳐야 하는지 알리는 데 쓴다 */
+      readonly path?: string;
     };
 
 /**

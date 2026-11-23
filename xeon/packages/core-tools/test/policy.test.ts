@@ -461,3 +461,39 @@ test("default read allow rule needs the workspace source and read risk, not just
     effect: "allow",
   });
 });
+
+// AGE-77 질문 3 [결정: 2026-11-23 사용자]: "실행마다 묻기"(default 모드)에서 읽기 전용 도구는 묻지 않고, bash는 명령 글과 상관없이 모두 묻는다.
+test("ask mode: read, grep and ls run without approval whatever the path", () => {
+  const rules = defaultRules();
+  for (const tool of ["read", "grep", "ls"]) {
+    for (const path of ["src", "/etc/hosts", "../outside"]) {
+      const decision = evaluatePolicy(
+        input({
+          tool,
+          risk: "read",
+          capability: "workspace.files",
+          mode: "default",
+          args: { path },
+        }),
+        rules,
+      );
+      expect(decision.effect).toBe("allow");
+    }
+  }
+});
+
+test("ask mode: bash asks for every command, even ones that look read-only", () => {
+  const rules = defaultRules();
+  for (const command of ["ls", "ls -la src", "cat package.json", "pwd && git status", "rm -rf x"]) {
+    expect(
+      evaluatePolicy(input({ tool: "bash", mode: "default", args: { command } }), rules),
+    ).toMatchObject({ effect: "ask", ruleId: "default.bash-ask" });
+  }
+});
+
+test("ask mode: a lookalike ls tool from another source is not allowed by name", () => {
+  const rules = defaultRules();
+  expect(
+    evaluatePolicy(input({ tool: "ls", risk: "exec", mode: "default", args: {} }), rules).effect,
+  ).toBe("ask");
+});
