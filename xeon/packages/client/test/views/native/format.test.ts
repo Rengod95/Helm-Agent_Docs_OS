@@ -132,25 +132,47 @@ describe("percent", () => {
 });
 
 describe("dateTime", () => {
-  test("epoch milliseconds in UTC, medium date and short time", () => {
-    expect(formatValue("dateTime", 0, "en-US", NOW)).toEqual("Jan 1, 1970 at 12:00 AM");
-    expect(formatValue("dateTime", 0, "ko-KR", NOW)).toEqual("1970. 1. 1. 오전 12:00");
+  test("epoch milliseconds in the given time zone, medium date and short time", () => {
+    expect(formatValue("dateTime", 0, "en-US", NOW, "UTC")).toEqual("Jan 1, 1970 at 12:00 AM");
+    expect(formatValue("dateTime", 0, "ko-KR", NOW, "UTC")).toEqual("1970. 1. 1. 오전 12:00");
+    expect(formatValue("dateTime", 0, "ko-KR", NOW, "Asia/Seoul")).toEqual("1970. 1. 1. 오전 9:00");
+    expect(formatValue("dateTime", 0, "en-US", NOW, "America/Los_Angeles")).toEqual(
+      "Dec 31, 1969 at 4:00 PM",
+    );
   });
 
-  test("an ISO string is converted to UTC before formatting", () => {
-    expect(formatValue("dateTime", "2026-11-03T12:30:00Z", "en-US", NOW)).toEqual(
+  test("an ISO string is the same instant in every time zone", () => {
+    expect(formatValue("dateTime", "2026-11-03T12:30:00Z", "en-US", NOW, "UTC")).toEqual(
       "Nov 3, 2026 at 12:30 PM",
     );
-    expect(formatValue("dateTime", "2026-11-03T21:30:00+09:00", "en-US", NOW)).toEqual(
+    expect(formatValue("dateTime", "2026-11-03T21:30:00+09:00", "en-US", NOW, "UTC")).toEqual(
       "Nov 3, 2026 at 12:30 PM",
     );
-    expect(formatValue("dateTime", "2026-11-03", "en-US", NOW)).toEqual("Nov 3, 2026 at 12:00 AM");
+    expect(formatValue("dateTime", "2026-11-03T12:30:00Z", "en-US", NOW, "Asia/Seoul")).toEqual(
+      "Nov 3, 2026 at 9:30 PM",
+    );
+    expect(formatValue("dateTime", "2026-11-03", "en-US", NOW, "UTC")).toEqual(
+      "Nov 3, 2026 at 12:00 AM",
+    );
+  });
+
+  test("without a time zone it uses the local zone, the same as Intl with no zone", () => {
+    const instant = Date.UTC(2026, 10, 3, 12, 30);
+    const local = new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(instant));
+    expect(formatValue("dateTime", instant, "en-US", NOW)).toEqual(local);
   });
 
   test("rejects a non-date string and a non-finite number", () => {
-    expect(formatValue("dateTime", "soon", "en-US", NOW)).toBeUndefined();
-    expect(formatValue("dateTime", Number.NaN, "en-US", NOW)).toBeUndefined();
-    expect(formatValue("dateTime", 8.64e15 + 1, "en-US", NOW)).toBeUndefined();
+    expect(formatValue("dateTime", "soon", "en-US", NOW, "UTC")).toBeUndefined();
+    expect(formatValue("dateTime", Number.NaN, "en-US", NOW, "UTC")).toBeUndefined();
+    expect(formatValue("dateTime", 8.64e15 + 1, "en-US", NOW, "UTC")).toBeUndefined();
+  });
+
+  test("an unknown time zone yields undefined instead of throwing", () => {
+    expect(formatValue("dateTime", 0, "en-US", NOW, "Not/AZone")).toBeUndefined();
   });
 });
 
