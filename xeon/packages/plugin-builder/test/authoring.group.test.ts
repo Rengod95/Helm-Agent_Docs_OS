@@ -532,3 +532,22 @@ test("authoring.trial: the tool takes only the session; prompt and profile are n
   const refused = await rig.call("authoring_trial", { sessionId: "auth-demo", prompt: "hi" });
   expect(refused).toMatchObject({ ok: false });
 });
+
+test("authoring.card-hint: the start result and a pending confirmation tell the model to wait for the card and not to ask the same thing (F-08)", async () => {
+  const rig = await createOrchestrationRig();
+  const started = await rig.call("authoring_start", {
+    kind: "single-plugin",
+    name: "demo",
+    dir: DIR,
+  });
+  expect(started).toMatchObject({ ok: true, awaiting: "user confirmation of kind and name" });
+  expect(JSON.stringify(started)).toContain("Do not ask the same thing with ask_user");
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.answer("yes");
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo", description: "Demo plugin" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  const asked = await rig.call("authoring_package", { sessionId: "auth-demo" });
+  expect(asked).toMatchObject({ status: "awaiting_confirmation", action: "package" });
+  expect(JSON.stringify(asked)).toContain("Do not ask the same thing with ask_user");
+});

@@ -109,6 +109,44 @@ Register with `g.registerTool(def)` in a plugin group's `setup`.
 
 The model sees the short name when it is unique and not reserved. On a collision it sees `<extension>__<name>` (`docs/xeon/X/operations/spec.md`, a proposal).
 
+### Minimal tool and method (copy this shape)
+
+A plugin that gives the model a tool, or a screen a method to call, is a plugin group. The manifest (`.fresnel-plugin/plugin.json`) has `orchestration: {}` and one plugin with `layer: "L3"`; a method verb must also be listed in `methods`. Use the scaffold (`authoring_scaffold`, mode `app`) when the plugin needs its own screen; it writes this shape for you. Do not search the disk for examples.
+
+```ts
+import { parse } from "@fresnel/contracts";
+import { defineOrchestration, orchestrationManifest } from "@fresnel/orchestration-sdk";
+import { Type } from "typebox";
+import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
+
+const helloParams = Type.Object({ name: Type.String() }, { additionalProperties: false });
+
+const group = defineOrchestration({
+  manifest: orchestrationManifest(manifestJson),
+  setup(g) {
+    g.registerTool({
+      name: "greeter_hello", // letters, digits, _ and - only
+      description: "Say hello to a name",
+      parameters: helloParams,
+      replay: "safe", // risk is left out: external plugins cannot declare read or write
+      execute: (args) => {
+        const checked = parse(helloParams, args);
+        if (!checked.ok) return Promise.resolve({ ok: false, reason: "invalid_input" });
+        return Promise.resolve({ ok: true, text: `hello ${checked.value.name}` });
+      },
+    });
+    g.registerMethod("hello", {
+      // the verb "hello" must be listed in the manifest `methods`
+      handler: (params) => Promise.resolve({ ok: true, echoed: params }),
+    });
+  },
+});
+
+export default group;
+```
+
+During a Test run the plugin loads under an internal name. `defineOrchestration` registers under the name the host gives, so keep the shape above. State (`state: { schema, initial, version }`, `g.state()`, `g.commit()`) is optional; the scaffold in mode `app` shows it.
+
 ## Layers
 
 Repo layers (`xeon/AGENTS.md`), in import order: F (0) `packages/contracts`; X (1) `packages/ext-host`; L0 (2) `packages/platform-*`; L1 (3) `packages/core-*`; L2 (4) `packages/cap-*`; L3 (5) `packages/plugin-*`; L4 (6) `apps/*`. A package imports only lower layers.
