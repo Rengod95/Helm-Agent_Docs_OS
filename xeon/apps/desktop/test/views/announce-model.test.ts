@@ -91,4 +91,21 @@ describe("approval announcement", () => {
       params: { what: "Something else" },
     });
   });
+
+  test("a question approval is announced with its request title as is", () => {
+    const request = toolRequest("Answer the questions");
+    expect(
+      approvalAnnouncement({
+        ...request,
+        body: {
+          kind: "question",
+          question: {
+            questions: [
+              { id: "q", text: "ok?", options: [], multiSelect: false, allowFreeText: true },
+            ],
+          },
+        },
+      }),
+    ).toEqual({ id: "desktop.announce.approval", params: { what: "Answer the questions" } });
+  });
 });

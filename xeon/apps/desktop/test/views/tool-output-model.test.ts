@@ -13,6 +13,8 @@ describe("toolOutputOf", () => {
       text: "1\n2\n3",
       shownLines: 3,
       totalLines: null,
+      leadingOmitted: false,
+      fullOutputPath: null,
     });
   });
 
@@ -32,7 +34,13 @@ describe("toolOutputOf", () => {
       { truncation: { totalLines: 9000, outputLines: 50 } },
       "[img]",
     );
-    expect(view).toEqual({ text: seq(50), shownLines: 50, totalLines: 9000 });
+    expect(view).toEqual({
+      text: seq(50),
+      shownLines: 50,
+      totalLines: 9000,
+      leadingOmitted: false,
+      fullOutputPath: null,
+    });
   });
 
   test("the new one-line notice is dropped the same way", () => {
@@ -47,7 +55,53 @@ describe("toolOutputOf", () => {
       { truncation: { totalLines: 9000, outputLines: 50 } },
       "[img]",
     );
-    expect(view).toEqual({ text: seq(50), shownLines: 50, totalLines: 9000 });
+    expect(view).toEqual({
+      text: seq(50),
+      shownLines: 50,
+      totalLines: 9000,
+      leadingOmitted: false,
+      fullOutputPath: null,
+    });
+  });
+
+  test("the leading-omitted line is taken off a block and its full output path is kept", () => {
+    const view = toolOutputOf(
+      [
+        {
+          type: "text",
+          text: `[Leading output omitted, full output: /state/spill/tool-output/t/h.txt]\n${seq(3)}`,
+        },
+      ],
+      undefined,
+      "[img]",
+    );
+    expect(view).toEqual({
+      text: "1\n2\n3",
+      shownLines: 3,
+      totalLines: null,
+      leadingOmitted: true,
+      fullOutputPath: "/state/spill/tool-output/t/h.txt",
+    });
+  });
+
+  test("the leading-omitted line without a path is taken off string content", () => {
+    expect(toolOutputOf(`[Leading output omitted]\n${seq(2)}`, undefined, "[img]")).toEqual({
+      text: "1\n2",
+      shownLines: 2,
+      totalLines: null,
+      leadingOmitted: true,
+      fullOutputPath: null,
+    });
+  });
+
+  test("the same words in the middle of the output are output, not the notice", () => {
+    expect(toolOutputOf("a\n[Leading output omitted]\nb", undefined, "[img]")).toEqual({
+      text: "a\n[Leading output omitted]\nb",
+      shownLines: 3,
+      totalLines: null,
+      leadingOmitted: false,
+      fullOutputPath: null,
+    });
   });
 });
 

@@ -226,3 +226,20 @@ export function checkProjectName(text: string): string | null {
   const name = text.trim();
   return name.length === 0 || name.length > 128 ? null : name;
 }
+
+/** 같은 폴더 알림이 한 번에 보이는 대화 단추 수. 넘으면 이만큼만 보이고 "N개 더 보기"로 접는다 */
+const NOTICE_ACTIONS_SHOWN = 3;
+
+/** 대화 단추 목록 가운데 보일 것과 접힌 수. 넷 이상이면 셋까지만 보이고, 펼치면 모두 보인다 */
+export function noticeActionsOf<T>(
+  items: readonly T[],
+  expanded: boolean,
+): { readonly shown: readonly T[]; readonly hidden: number; readonly canFold: boolean } {
+  if (items.length <= NOTICE_ACTIONS_SHOWN) return { shown: items, hidden: 0, canFold: false };
+  if (expanded) return { shown: items, hidden: 0, canFold: true };
+  return {
+    shown: items.slice(0, NOTICE_ACTIONS_SHOWN),
+    hidden: items.length - NOTICE_ACTIONS_SHOWN,
+    canFold: false,
+  };
+}

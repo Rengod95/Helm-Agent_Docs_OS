@@ -570,13 +570,13 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       t("desktop.drive.aria", { path: `${t("desktop.drive.core")} › helm › verifier` }),
     );
     expect(band?.getAttribute("data-drive-top")).toBe("driving");
-    // "verifier 플러그인이 주도하는 중" 한 구절이다(lcM6g, 말은 m6Mb): 이름은 따로 또렷한 글이고 뒤 글이 상태 글이다
+    // "verifier 플러그인이 Drive 중" 한 구절이다(lcM6g, 말은 m6Mb): 이름은 따로 또렷한 글이고 뒤 글이 상태 글이다
     expect([
       band?.querySelector('[data-slot^="drive-band-state"]')?.textContent,
       band?.querySelector('[data-slot="drive-driving-by"]')?.textContent,
       band?.querySelector('[data-slot="drive-driving-by"]')?.getAttribute("title"),
     ]).toEqual([
-      "플러그인이 주도하는 중",
+      "플러그인이 Drive 중",
       t("desktop.drive.drivingBy", { name: "verifier" }),
       t("desktop.drive.drivingBy", { name: "verifier" }),
     ]);
@@ -657,7 +657,7 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
     });
     await settle();
     expect(container.querySelector('[data-slot^="drive-band-state"]')?.textContent).toBe(
-      "플러그인이 주도하는 중",
+      "플러그인이 Drive 중",
     );
     expect(container.querySelector('[data-slot="drive-stack"]')?.getAttribute("data-depth")).toBe(
       "2",
@@ -752,7 +752,7 @@ describe("Drive 스택: drive.frames · drive.framesChanged", () => {
       live?.textContent,
       live?.hasAttribute("data-wave"),
       live?.classList.contains("drive-word"),
-    ]).toEqual(["플러그인이 주도하는 중", true, true]);
+    ]).toEqual(["플러그인이 Drive 중", true, true]);
     const asking = await mount(
       <DriveProbe beam="run" />,
       withWorkbench({
@@ -984,8 +984,8 @@ describe("Drive 띠의 빛과 맨 위 판 카드(lcM6c)", () => {
     ]).toEqual([
       "turn",
       "ab12cd3",
-      "플러그인이 주도하는 중",
-      // 카드의 상태 글("플러그인이 주도하는 중")은 멈춘 무채색 글이다: 흐르는 것은 한 화면에 입력창 위 띠 하나뿐(lcM6g)
+      "플러그인이 Drive 중",
+      // 카드의 상태 글("플러그인이 Drive 중")은 멈춘 무채색 글이다: 흐르는 것은 한 화면에 입력창 위 띠 하나뿐(lcM6g)
       false,
       true,
       "결과를 검증해 줘",

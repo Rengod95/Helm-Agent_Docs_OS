@@ -392,6 +392,7 @@ export function createDesktopRegistry(): ShellRegistry {
   const workbench = createWorkbenchStore();
   registry.registerScreen({
     ...CHAT_SCREEN,
+    wellBeside: true,
     render: () => (
       <ChatWithRecords store={workbench}>
         <ChatScreen />

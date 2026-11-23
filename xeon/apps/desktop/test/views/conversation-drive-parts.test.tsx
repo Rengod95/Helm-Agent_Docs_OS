@@ -737,10 +737,10 @@ describe("Driving by 구절(lcM6g)", () => {
       drivingByPartsOf("플러그인 만들기"),
       drivingByPartsOf("a very long plugin name"),
     ]).toEqual([
-      { before: "", name: "플러그인 만들기", after: "플러그인이 주도하는 중" },
-      { before: "", name: "a very long plugin name", after: "플러그인이 주도하는 중" },
+      { before: "", name: "플러그인 만들기", after: "플러그인이 Drive 중" },
+      { before: "", name: "a very long plugin name", after: "플러그인이 Drive 중" },
     ]);
-    expect(t("desktop.drive.drivingBy", { name: "Helm" })).toBe("Helm 플러그인이 주도하는 중");
+    expect(t("desktop.drive.drivingBy", { name: "Helm" })).toBe("Helm 플러그인이 Drive 중");
   });
 
   test("칸의 이름은 카탈로그 이름, 없으면 설치 목록의 보이는 이름이고, 멤버면 플러그인의 멤버, 목록에 없으면 그대로다(m6Mb)", () => {

@@ -37,6 +37,11 @@ export interface ScreenDef {
    * 실제로 겹치는 칸은 화면이 스스로 비킨다(`rail-avoid.ts`의 `useRailAvoid`). 설정 화면이 열려 있으면 셸은 이 값을 보지 않는다
    */
   readonly bleed?: boolean;
+  /**
+   * 참이면 오른쪽 well이 열릴 때 화면이 well 자리만큼 비킨다(대화 화면, AGE-75). 무대가 좁아 비키면 대화 열이 최소 폭(480)보다 좁아질 때만
+   * well이 무대 위에 뜬다(`well-beside.ts`). 비킨 동안 well은 바깥을 눌러도 닫히지 않는다(덮지 않으므로 대화를 누르며 함께 본다)
+   */
+  readonly wellBeside?: boolean;
 }
 
 /**

@@ -20,7 +20,8 @@ export function approvalAnnouncement(request: LiveApprovalRequest): Announcement
     return { id: "desktop.announce.approval", params: { what: view.params.host } };
   if (view !== null && view.id === "desktop.approvals.title.mcpStart")
     return { id: "desktop.announce.approval.mcpStart", params: { name: view.params.server } };
-  if (view !== null) {
+  // 질문 제목은 안내에서도 요청 제목 원문을 그대로 쓴다(아래 기본 줄)
+  if (view !== null && view.id !== "desktop.approvals.title.question") {
     return {
       id:
         view.id === "desktop.approvals.title.write.skill"

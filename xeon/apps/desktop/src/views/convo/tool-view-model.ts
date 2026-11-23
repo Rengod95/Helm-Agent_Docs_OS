@@ -364,6 +364,8 @@ export type ToolResultView = {
   /** 상세에 보일 글(엔진의 영어 안내는 화면 문구로 바꿨다). 빈 글이면 상세 글이 없다 */
   readonly output: string;
   readonly cut: { readonly shown: number; readonly total: number } | null;
+  /** 엔진이 앞부분을 뺀 출력이면 전체 출력 파일 경로(없으면 null). 글이 다른 안내로 바뀌었으면 null이다 */
+  readonly leading: { readonly fullOutputPath: string | null } | null;
   readonly hook: HookDenialView | null;
   readonly blocks: readonly SandboxBlockView[];
   /** bash: 종료 코드와 걸린 시간(details에 있을 때만) */
@@ -414,6 +416,7 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
   const shown = toolOutputOf(item.message.content, details, t("desktop.item.imagePlaceholder"));
   const base = {
     cut: shown.totalLines === null ? null : { shown: shown.shownLines, total: shown.totalLines },
+    leading: shown.leadingOmitted ? { fullOutputPath: shown.fullOutputPath } : null,
     hook: null,
     blocks: sandboxBlocksOf(details),
     exitCode: numberAt(details, "exitCode"),
@@ -428,6 +431,7 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
     return {
       ...base,
       cut: null,
+      leading: null,
       outcome: { kind: "failed", failure: "denied" },
       output: t("desktop.convo.denied.body"),
     };
@@ -437,6 +441,7 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
     return {
       ...base,
       hook,
+      leading: null,
       outcome: {
         kind: "failed",
         failure: hook.outcome === "blocked" ? "hookBlocked" : "hookThrew",
@@ -448,6 +453,7 @@ export function toolResultOf(item: ItemRecord): ToolResultView | null {
     const reason = stringAt(details, "reason");
     return {
       ...base,
+      leading: null,
       outcome: { kind: "failed", failure: "guard" },
       output:
         reason === null

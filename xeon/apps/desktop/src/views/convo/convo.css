@@ -179,7 +179,11 @@
   white-space: pre;
   tab-size: 2;
 }
+/* 초점 고리는 가장자리 흐림에 잘리지 않게 상자(.convo-code)가 그린다. 본문 칸은 제 고리를 그리지 않는다 */
 .convo-code-body:focus-visible {
+  outline: none;
+}
+.convo-code:has(> .convo-code-body:focus-visible) {
   outline: 2px solid var(--cs-color-accent-border);
   outline-offset: -2px;
 }
@@ -228,12 +232,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 표 */
+/* 표: 테두리와 둥근 모서리는 바깥 상자가 그리고 자른다. 가로 스크롤은 안쪽 칸(.convo-table-scroll)이 맡는다 */
 .convo-table {
   max-width: 100%;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid var(--convo-edge);
   border-radius: var(--cs-radius-lg);
+}
+.convo-table-scroll {
+  overflow-x: auto;
+}
+/* 초점 고리는 흐림에 잘리지 않게 바깥 상자가 그린다. 스크롤 칸은 제 고리를 끈다 */
+.convo-table-scroll:focus-visible {
+  outline: none;
+}
+.convo-table:has(> .convo-table-scroll:focus-visible) {
+  outline: 2px solid var(--cs-color-accent-border);
+  outline-offset: -2px;
 }
 .convo-table table {
   width: 100%;
@@ -786,6 +801,51 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+}
+/* 가로 스크롤 칸의 가장자리 흐림: 넘친 쪽 끝을 바탕으로 흐려 "더 있다"는 표지를 준다. mask는 스크롤 칸에만 걸어 상자 테두리와 둥근 모서리는 흐려지지 않는다.
+   오른쪽에 더 있으면 오른쪽 끝이 흐리고, 스크롤이 시작되면(scrollLeft > 0) 왼쪽 끝도 흐리며, 끝에 닿으면 그 쪽 흐림이 사라진다.
+   넘침이 없으면 스크롤 시간선이 멈춰 두 길이가 0px로 남아 흐림이 없다. 흐림 길이는 간격 토큰 --cs-space-6(24px)이다.
+   mask는 알파만 읽으므로 색은 라이트·다크 모두 불투명인 바탕 토큰을 쓴다. 스크롤 시간선을 지원하지 않는 곳에서는 흐림이 없다(@supports). */
+@property --convo-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --convo-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes convo-scroll-fade {
+  0% {
+    --convo-fade-start: 0px;
+    --convo-fade-end: var(--cs-space-6);
+  }
+  1% {
+    --convo-fade-start: var(--cs-space-6);
+  }
+  99% {
+    --convo-fade-end: var(--cs-space-6);
+  }
+  100% {
+    --convo-fade-start: var(--cs-space-6);
+    --convo-fade-end: 0px;
+  }
+}
+@supports (animation-timeline: scroll()) {
+  .convo-code-body,
+  .convo-table-scroll,
+  .convo-diff-rows {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      var(--cs-color-bg-app) var(--convo-fade-start),
+      var(--cs-color-bg-app) calc(100% - var(--convo-fade-end)),
+      transparent
+    );
+    animation: convo-scroll-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
 }
 /* 첨부 칩: 이름이 길면 칩 안에서 말줄임 */
 .convo-attachments [data-slot="chip"] {

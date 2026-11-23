@@ -19,12 +19,19 @@ function isTruncatedNotice(text: string): boolean {
   return text.startsWith("[fresnel:output_truncated]") || text.startsWith("[Showing lines ");
 }
 
+/** 엔진이 앞부분을 뺄 때 글 머리에 붙이는 줄(`workspace.ts` `renderRun`). 경로가 있으면 전체 출력 파일이다 */
+const LEADING_OMITTED = /^\[Leading output omitted(?:, full output: ([^\]\n]+))?\]\n?/;
+
 export interface ToolOutputView {
   readonly text: string;
   /** 보인 줄 수 */
   readonly shownLines: number;
   /** 전체 줄 수. 잘리지 않았으면 null */
   readonly totalLines: number | null;
+  /** 엔진이 앞부분을 뺐는가(앞부분 생략 줄이 있었다). 그 줄은 글에서 뺐다 */
+  readonly leadingOmitted: boolean;
+  /** 앞부분 전체 출력의 파일 경로. 경로가 없거나 앞부분을 빼지 않았으면 null */
+  readonly fullOutputPath: string | null;
 }
 
 function isObject(value: JsonValue | undefined): value is { readonly [key: string]: JsonValue } {
@@ -109,16 +116,29 @@ export function toolOutputOf(
   details: JsonValue | undefined,
   placeholder: string,
 ): ToolOutputView {
-  const parts: string[] = [];
-  if (typeof content === "string") parts.push(content);
+  const pieces: string[] = [];
+  if (typeof content === "string") pieces.push(content);
   else {
     for (const block of content) {
       if (typeof block.text === "string") {
         // 엔진의 영어 안내 줄은 화면 문구("N줄 중 M줄만 보여요")로 대신한다
         if (isTruncatedNotice(block.text)) continue;
-        parts.push(block.text);
-      } else if (block.type === "image") parts.push(placeholder);
+        pieces.push(block.text);
+      } else if (block.type === "image") pieces.push(placeholder);
     }
+  }
+  // 앞부분 생략 줄은 글에서 떼고, 떼었다는 사실과 전체 출력 경로만 남긴다
+  const parts: string[] = [];
+  let leading: { readonly path: string | null } | null = null;
+  for (const piece of pieces) {
+    const found = LEADING_OMITTED.exec(piece);
+    if (found === null) {
+      parts.push(piece);
+      continue;
+    }
+    if (leading === null) leading = { path: found[1] ?? null };
+    const rest = piece.slice(found[0].length);
+    if (rest !== "") parts.push(rest);
   }
   const full = stripAnsi(parts.join("\n"));
   const engineTotal = engineTotalLines(details);
@@ -135,7 +155,13 @@ export function toolOutputOf(
     cut = true;
   }
   const shownLines = lineCount(text);
-  if (!cut && engineTotal === null) return { text, shownLines, totalLines: null };
+  const omission = { leadingOmitted: leading !== null, fullOutputPath: leading?.path ?? null };
+  if (!cut && engineTotal === null) return { text, shownLines, totalLines: null, ...omission };
   const total = Math.max(engineTotal ?? fullLines, fullLines);
-  return { text, shownLines, totalLines: total > shownLines ? total : null };
+  return {
+    text,
+    shownLines,
+    totalLines: total > shownLines ? total : null,
+    ...omission,
+  };
 }

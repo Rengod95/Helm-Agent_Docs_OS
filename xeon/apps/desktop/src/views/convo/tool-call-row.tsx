@@ -147,9 +147,23 @@ export function OutputBox(props: {
   readonly text: string;
   readonly tone?: "danger" | undefined;
   readonly cut?: ToolResultView["cut"] | undefined;
+  readonly leading?: ToolResultView["leading"] | undefined;
 }): ReactNode {
   return (
     <>
+      {props.leading === undefined || props.leading === null ? null : (
+        <div className="grid gap-0.5 text-footnote text-text-tertiary">
+          <p className="m-0">{t("desktop.item.output.leadingOmitted")}</p>
+          {props.leading.fullOutputPath === null ? null : (
+            <p className="m-0 flex min-w-0 items-baseline gap-2">
+              <span className="flex-none">{t("desktop.item.output.fullPath")}</span>
+              <span className="min-w-0 break-all font-mono select-text">
+                {props.leading.fullOutputPath}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
       {props.text === "" ? null : (
         <pre className="convo-output" data-tone={props.tone} tabIndex={0}>
           {props.text}
@@ -303,6 +317,7 @@ export function CallRow(props: {
                 : undefined
             }
             cut={view.cut}
+            leading={view.leading}
           />
         )}
         {view.hook === null ? null : <HookRecordsLink hook={view.hook} />}
@@ -369,7 +384,7 @@ export function OrphanResultRow(props: { readonly id: ItemId }): ReactNode {
       target={{ kind: "none" }}
       server={view.server}
       status={status}
-      detail={<OutputBox text={view.output} cut={view.cut} />}
+      detail={<OutputBox text={view.output} cut={view.cut} leading={view.leading} />}
       open={open}
       onToggle={toggle}
       below={<SandboxNotes blocks={view.blocks} />}

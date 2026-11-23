@@ -91,13 +91,17 @@ export function threadLinkVisibleOf(input: {
   return input.openable && input.within !== input.threadId;
 }
 
-/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 기동 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
+/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 기동 승인, 질문)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용)은 원문이다 */
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
   | { readonly id: "desktop.approvals.title.web"; readonly params: { readonly host: string } }
   | {
       readonly id: "desktop.approvals.title.mcpStart";
       readonly params: { readonly server: string };
+    }
+  | {
+      readonly id: "desktop.approvals.title.question";
+      readonly params: Readonly<Record<string, never>>;
     }
   | {
       readonly id: "desktop.approvals.title.write.memory" | "desktop.approvals.title.write.skill";
@@ -131,6 +135,10 @@ export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | n
     return { id: "desktop.approvals.title.mcpStart", params: { server: mcp.server } };
   if (body.kind === "tool" && request.title === `Allow tool "${body.tool.toolName}"?`) {
     return { id: "desktop.approvals.title.tool", params: { tool: body.tool.toolName } };
+  }
+  // 질문 승인의 제목은 엔진이 영어로 고정한 글이다(core-tools `ask/approvals` QUESTION_TITLE)
+  if (body.kind === "question" && request.title === "Answer the questions") {
+    return { id: "desktop.approvals.title.question", params: {} };
   }
   const web = body.kind === "tool" ? WEB_TITLE.exec(request.title) : null;
   if (web !== null) return { id: "desktop.approvals.title.web", params: { host: web[1] ?? "" } };
