@@ -644,9 +644,10 @@ describe("filter, list time and the row menu", () => {
     ]);
   });
 
-  test("an interval row with no run has only cancel and duplicate, and a thread no longer on the list is locked", () => {
+  test("an interval row with no run has run once now, cancel and duplicate, and a thread no longer on the list is locked", () => {
     const plain = scheduleRowOf(itemOf({ id: "sch_pp1" }));
     expect(rowMenuOf(plain, true, false)).toEqual([
+      { action: "fire", disabled: false },
       { action: "runs", disabled: false },
       { action: "edit", disabled: false },
       { action: "cancel", disabled: false },
@@ -655,11 +656,21 @@ describe("filter, list time and the row menu", () => {
     const gone = scheduleRowOf(itemOf({ id: "sch_gg1" }, finishedRunOf({})));
     expect(rowMenuOf(gone, true, false)).toEqual([
       { action: "openThread", disabled: true },
+      { action: "fire", disabled: false },
       { action: "runs", disabled: false },
       { action: "edit", disabled: false },
       { action: "cancel", disabled: false },
       { action: "copy", disabled: false },
     ]);
+  });
+
+  test("a file-watch row and a switched-off interval row have no run once now item", () => {
+    const watch = scheduleRowOf(
+      itemOf({ id: "sch_fw1", trigger: { kind: "file_watch", paths: ["/a"], debounceMs: 2000 } }),
+    );
+    expect(rowMenuOf(watch, true, false).map((item) => item.action)).not.toContain("fire");
+    const off = scheduleRowOf(itemOf({ id: "sch_fw2", enabled: false, nextDueAt: null }));
+    expect(rowMenuOf(off, true, false).map((item) => item.action)).not.toContain("fire");
   });
 
   test("a switched-off row has no cancel, and offline or busy locks every item", () => {
