@@ -846,6 +846,12 @@ export function DailySection(props: {
 // 기간에 턴이 가장 많은 대화의 최근 턴을 시작 순서로 잇는다(번호는 읽은 턴 안의 차례). 위는 턴의 토큰, 아래는 턴의 호출 시간이다.
 // 점(기둥)을 누르면 그 턴의 트레이스가 열린다. 표로 바꾸면 같은 값을 표로 본다.
 
+/** 두 곡선 차트의 눈금 칸 너비. "1.5만", "5,000", "20초"가 잘리지 않고, 위아래 기둥 줄이 맞는다 */
+const CURVE_AXIS_WIDTH = 44;
+
+/** 시간 축 눈금: 바닥은 단위 없이 0, 그 위는 초 표기와 같다 */
+const curveTimeTick = (ms: number): string => (ms === 0 ? "0" : msText(ms));
+
 export function TurnCurveSection(props: { readonly data: MetricsData }): ReactNode {
   const [table, setTable] = useState(false);
   const d = props.data;
@@ -935,6 +941,7 @@ export function TurnCurveSection(props: { readonly data: MetricsData }): ReactNo
                   height={120}
                   label={tokensLabel}
                   format={tokensText}
+                  axisWidth={CURVE_AXIS_WIDTH}
                   onPick={onPick}
                   pickLabel={t("desktop.craft.metrics.curve.pick")}
                 />
@@ -947,6 +954,8 @@ export function TurnCurveSection(props: { readonly data: MetricsData }): ReactNo
                   height={120}
                   label={timeLabel}
                   format={msText}
+                  tickFormat={curveTimeTick}
+                  axisWidth={CURVE_AXIS_WIDTH}
                   onPick={onPick}
                   pickLabel={t("desktop.craft.metrics.curve.pick")}
                 />

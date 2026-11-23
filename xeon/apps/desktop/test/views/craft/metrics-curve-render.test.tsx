@@ -69,3 +69,38 @@ describe("turn curve section", () => {
     expect([html.includes("기록이 꺼져 있어"), html.includes("턴별 토큰")]).toEqual([true, false]);
   });
 });
+
+/** 눈금 글(`viz-axis`)의 x와 글, 그린 순서대로 */
+const ticksOf = (html: string): { x: string; text: string }[] =>
+  [...html.matchAll(/<text class="viz-axis viz-figure" x="([^"]*)"[^>]*>([^<]*)<\/text>/g)].map(
+    (m) => ({ x: m[1] ?? "", text: m[2] ?? "" }),
+  );
+
+describe("turn curve axis", () => {
+  test("both charts share the wider tick column, and the time axis floor reads 0 without a unit", () => {
+    const html = render(
+      <TurnCurveSection
+        data={dataWith({
+          kind: "ready",
+          threadId: "thr_sample_0",
+          title: null,
+          capped: false,
+          points: POINTS,
+        })}
+      />,
+    );
+    const ticks = ticksOf(html);
+    expect([...new Set(ticks.map((tick) => tick.x))]).toEqual(["38"]);
+    // 위는 토큰, 아래는 시간. 시간 축의 바닥은 "0ms"가 아니라 "0"이다
+    expect(ticks.map((tick) => tick.text)).toEqual([
+      "0",
+      "2,000",
+      "4,000",
+      "6,000",
+      "0",
+      "1초",
+      "2초",
+      "3초",
+    ]);
+  });
+});

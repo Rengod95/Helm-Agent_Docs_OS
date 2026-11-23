@@ -514,12 +514,17 @@ export function Columns(props: {
   readonly onPick?: (id: string) => void;
   /** 기둥 단추의 이름(화면 읽기). 날짜 뒤에 붙는다 */
   readonly pickLabel?: string;
+  /** 왼쪽 눈금 글 칸의 너비(px). 눈금 글이 길면 넓히고, 위아래로 놓인 차트끼리 같은 값을 주어 기둥 줄을 맞춘다 */
+  readonly axisWidth?: number;
+  /** 눈금 글. 없으면 `format`이다 */
+  readonly tickFormat?: (value: number) => string;
 }): ReactNode {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
   const prefix = `viz${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [hot, setHot] = useState<string | null>(null);
-  const axisW = 28;
+  const axisW = props.axisWidth ?? 28;
+  const tickText = props.tickFormat ?? props.format;
   const plotW = Math.max(40, width - axisW);
   // 맨 위 눈금 글자가 잘리지 않게 위에 8px를 둔다
   const plotH = props.height - 26;
@@ -583,7 +588,7 @@ export function Columns(props: {
               <g key={v}>
                 <line className="viz-gridline" x1={axisW} x2={width} y1={y} y2={y} />
                 <text className="viz-axis viz-figure" x={axisW - 6} y={y + 3.5} textAnchor="end">
-                  {props.format(v)}
+                  {tickText(v)}
                 </text>
               </g>
             );
