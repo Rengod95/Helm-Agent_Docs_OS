@@ -12,7 +12,7 @@ export const helmManifest: OrchestrationManifest = defineManifest({
   name: "helm",
   version: "0.1.1",
   displayName: "Helm",
-  description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 플러그인 그룹",
+  description: "막힌 문제를 새 관점으로 탐구하고, 모르는 분야의 지식을 지금 작업에 적용해요.",
   entry: "./dist/index.js",
   defaultEnabled: true,
   components: { agents: ["./agents/explorer.md"] },
