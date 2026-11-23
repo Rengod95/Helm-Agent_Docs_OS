@@ -11,6 +11,7 @@ import { useViewportStore, type Node, type NodeProps, type NodeTypes } from "@xy
 import { GLOW_REACH } from "./floor.ts";
 import {
   createContext,
+  memo,
   use,
   type Context,
   type KeyboardEvent,
@@ -33,6 +34,7 @@ import {
   pluginOf,
   type Anchor,
   type Kind,
+  type Placed,
   type Plugin,
   type RelationKind,
 } from "./model.ts";
@@ -54,9 +56,16 @@ const ARROW_DEPTH = 6;
 
 // ── 확대 단계 ─────────────────────────────────────────────────────
 
-/** 확대 값이 단계 경계를 넘을 때만 다시 그린다 */
+/**
+ * 판이 보이는 단계. 캔버스가 배치 눈금 칸(`lod.ts`의 stepOf)에서 정해 준다: 배치(판 높이)와 내용이 같은 칸을 보고,
+ * 경계에서 내려갈 때만 늦게 바뀌어 떨리지 않는다. 캔버스 밖(시험, 단독 그리기)에서는 확대 값의 단계다
+ */
+export const LodContext: Context<Lod | null> = createContext<Lod | null>(null);
+
 function useLod(): Lod {
-  return useViewportStore((s) => lodOf(s.transform[2]));
+  const given = use(LodContext);
+  const own = useViewportStore((s) => lodOf(s.transform[2]));
+  return given ?? own;
 }
 
 // ── 캔버스가 노드에 주는 일 ───────────────────────────────────────
@@ -468,8 +477,8 @@ const MARK_CLASS: Readonly<Record<PlateMark, string>> = {
 };
 
 /** 상태 표시. 크기는 CSS가 확대의 역수로 정한다(낮은 배율에서도 화면에서 같은 크기). 베이스는 자물쇠 그림만(이름은 툴팁) */
-function Marks(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactNode {
-  const marks = plateMarks(props.geo.placed);
+function Marks(props: { readonly placed: Placed; readonly lod: Lod }): ReactNode {
+  const marks = plateMarks(props.placed);
   if (marks.length === 0) return null;
   // 멀리서는 가장 앞선 하나만(경고가 먼저 선다)
   const shown = props.lod === "far" ? marks.slice(0, 1) : marks;
@@ -617,9 +626,28 @@ function NoDescription(props: { readonly withText: boolean }): ReactElement {
  * 글: 설명) → 알약 → 사실 줄. 중간은 머리 → 목적 한 줄 → 안쪽 면(설명 세 줄까지)으로 판을 채우고, 멀리는 머리 한 줄만 카드 가운데에.
  * 설명이 없으면 가까이와 중간은 안쪽 면에 "설명이 없어요"를, 멀리는 머리 끝에 경고 구슬을 둔다
  */
-function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactNode {
+/** 머리 줄 끝의 세로 점 셋(판 메뉴). 캔버스의 일을 여기서만 읽어 카드 몸은 다시 그리지 않아도 된다 */
+function PlateMenuButton(props: { readonly name: string }): ReactElement {
   const actions = use(CanvasActionsContext);
-  const p = props.geo.placed.plugin;
+  return (
+    <button
+      type="button"
+      data-slot="cv6-button"
+      className="cv6-menu"
+      tabIndex={-1}
+      aria-label={t("desktop.craft.canvas.cvMerge.menu.label", { name: props.name })}
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        actions.menu(props.name, { x: r.right, y: r.bottom });
+      }}
+    >
+      <Icon name="more" size={18} />
+    </button>
+  );
+}
+
+function PlateBodyView(props: { readonly placed: Placed; readonly lod: Lod }): ReactNode {
+  const p = props.placed.plugin;
   const near = props.lod === "near";
   const purpose = purposeTextOf(p.meta);
   const description = cardDescription(p);
@@ -628,22 +656,8 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
       <PartGlyph name={headIcon(p)} size={16} />
       <span className="cv6-name">{p.name}</span>
       {description === null && props.lod === "far" ? <NoDescription withText={false} /> : null}
-      {near ? <Marks geo={props.geo} lod={props.lod} /> : null}
-      {near ? (
-        <button
-          type="button"
-          data-slot="cv6-button"
-          className="cv6-menu"
-          tabIndex={-1}
-          aria-label={t("desktop.craft.canvas.cvMerge.menu.label", { name: p.name })}
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            actions.menu(p.name, { x: r.right, y: r.bottom });
-          }}
-        >
-          <Icon name="more" size={18} />
-        </button>
-      ) : null}
+      {near ? <Marks placed={props.placed} lod={props.lod} /> : null}
+      {near ? <PlateMenuButton name={p.name} /> : null}
     </div>
   );
   if (props.lod === "far")
@@ -680,6 +694,19 @@ function PlateBody(props: { readonly geo: PlateGeo; readonly lod: Lod }): ReactN
   );
 }
 
+/**
+ * 카드 몸은 플러그인과 단계가 같으면 다시 그리지 않는다. 배율 칸이 바뀌는 동안 배치는 프레임마다 새로 잡히지만(`step-view.ts`)
+ * 바뀌는 것은 판의 크기와 자리뿐이다(cvZoom). 배치마다 `Placed`는 새 값이라 안의 값으로 견준다
+ */
+const PlateBody = memo(
+  PlateBodyView,
+  (a, b) =>
+    a.lod === b.lod &&
+    a.placed.plugin === b.placed.plugin &&
+    a.placed.start === b.placed.start &&
+    a.placed.source.type === b.placed.source.type,
+);
+
 function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
   const { geo, mark, arrive, dim, drop, pending } = props.data;
   const actions = use(CanvasActionsContext);
@@ -714,7 +741,7 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
       <KindTab kind={p.kind} lod={lod} />
       <div className="cv6-card">
         {arrive > 0 ? <span key={arrive} className="cv6-arrive" aria-hidden="true" /> : null}
-        <PlateBody geo={geo} lod={lod} />
+        <PlateBody placed={geo.placed} lod={lod} />
       </div>
       {/* 중간·멀리: 상태는 카드 위 변 오른쪽에 걸친 표(이름 자리를 줄이지 않는다). 가까이는 이름 줄 끝에 */}
       {pending ? (
@@ -726,7 +753,7 @@ function PlateNode(props: NodeProps<Node<PlateData, "plate">>): ReactNode {
         </span>
       ) : lod === "near" ? null : (
         <span className="cv6-edge-marks">
-          <Marks geo={geo} lod={lod} />
+          <Marks placed={geo.placed} lod={lod} />
         </span>
       )}
       {/* 리뷰 대기 판은 아직 프로필 순서에 들지 않아 레일 받침과 번호를 달지 않는다(번호 자리에 대기 표가 겹치지도 않는다) */}
