@@ -319,7 +319,8 @@ export const ArtifactsRegistry = defineCapability({
       name: "artifact_create",
       label: "산출물 만들기",
       description:
-        "작업 결과(문서, 표, 계획, 로그 등)를 세션 산출물로 등록한다. 사용자가 나중에 목록에서 찾아 열 수 있다. " +
+        "작업 결과(문서, 표, 계획, 로그 등)를 대화 산출물로 등록한다. 사용자는 대화 옆 아티팩트 판에서 연다. 판은 HTML(text/html), SVG(image/svg+xml), 마크다운을 그려 보인다. " +
+        "write 도구로 쓴 파일(HTML, SVG, 그림, 마크다운)은 이미 그 판에 보이므로 다시 등록하지 않는다. " +
         "대화에 이미 쓴 짧은 답은 등록하지 않는다.",
       method: "register",
       parameters: Type.Object({
@@ -378,6 +379,7 @@ export const ArtifactsRegistryKey = serviceKey(ArtifactsRegistry);
 - `replay: "safe"`의 근거: `register`·`update`·`archive`는 커밋할 때 `CallOptions.requestId`를 대화 커밋의 멱등 키로 쓴다(§4.1.3). 같은 키로 다시 부르면 저장된 결과가 돌아오고 이벤트가 늘지 않는다(`eng.transactions.design` §4.7 결과 저장 규칙). 도구 경로의 `requestId`는 `toolCallId`에서 결정적으로 만들어지므로(`F.capabilities.spec` §4.2 규칙 3) 재실행이 효과를 두 번 내지 않는다. 플러그인 코드가 `requestId` 없이 부르면 멱등이 보장되지 않는다. 그 경우 provider는 `requestId`를 `art:<새 ULID>`로 만들고 경고 로그를 남긴다 [제안].
 - `artifact_update` 도구의 `meta`는 `summary`만 바꾼다. 도구 경로에서 `toInput`은 `meta`를 `{ summary }`로 통째로 바꾸므로 기존 `tags`·`sources`가 사라진다. [제안] provider는 도구 경로(`producer: "model"` 또는 `CallContext.toolCallId`가 있는 호출)의 `meta`를 기존 메타와 `summary` 필드만 병합한다. 서비스 경로는 §3.2 주석대로 전체 교체다.
 - `artifact_create`의 `kind`는 텍스트로 만들 수 있는 4종으로 줄였다. `changeset`은 리뷰가, `file`·`image`는 서비스 경로가 등록한다.
+- 도구 설명의 "목록에서 찾아 열 수 있다"는 앱에 그 목록이 없어 모델이 없는 길을 안내했다(시나리오 F-21). 데스크톱 아티팩트 판(`L4.desktop-ux.spec` §6.6.2)이 생긴 뒤 설명은 그 판을 가리키고, 판이 그리는 형식(HTML, SVG, 마크다운)과 write로 쓴 파일은 다시 등록하지 않는다는 것을 말한다. 모델이 이미 쓴 HTML을 통째로 다시 등록하던 낭비(F-21, 약 7,700 토큰)를 줄이려는 것이다. 화면 이름은 "아티팩트"다(`terms.json` artifact, 옛 화면 말 "산출물"은 화면에서 쓰지 않는다) [결정: 2026-11-23 사용자 AGE-77 "claude code artifact, codex artifact 같은 느낌"].
 
 - [결정: M3b B2-ART] `register`·`update`·`archive`는 `idempotent: true`, `list`·`get`은 `readOnly: true`로 선언한다. 위 코드 블록에는 두 플래그가 없다. `validateCapability`는 플래그 없이 `replay: "safe"`인 메서드에 `effect_class_missing` 경고를 내므로 이 플래그를 더한다.
 
