@@ -14,6 +14,7 @@ import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useScreen } from "../../state/ui/index.ts";
 import { WorkbenchStoreContext } from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
+import { tabRowsShownOf, useSuggestState } from "../proposal-suggest.ts";
 import { useAddonData } from "./addon-data.ts";
 import { addonMovesOf } from "./app-moves.ts";
 import { tabbableRowsOf, type AddonRow } from "./addon-model.ts";
@@ -297,9 +298,11 @@ export function usePlaygroundTabs(): {
   const workbench = useContext(WorkbenchStoreContext)?.actions;
   const data = useAddonData(false);
   const run = useTabRunState();
+  // 제안 플러그인은 내비와 같은 판정(`useSuggestState`)으로 켜져 있을 때만 탭이 된다(AGE-77: 프로필에서 빼도 탭이 남던 것)
+  const suggest = useSuggestState();
   const rows = useMemo(
-    () => tabbableRowsOf(data.source, data.meta, data.locale),
-    [data.source, data.meta, data.locale],
+    () => tabRowsShownOf(tabbableRowsOf(data.source, data.meta, data.locale), suggest),
+    [data.source, data.meta, data.locale, suggest],
   );
   const names = useMemo(() => rows.map((row) => row.name), [rows]);
   useEffect(() => {

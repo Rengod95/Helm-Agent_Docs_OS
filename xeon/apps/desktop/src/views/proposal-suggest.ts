@@ -60,3 +60,11 @@ export function useSuggestState(): SuggestState {
 export function screenShownOf(screen: string, suggest: SuggestState): boolean {
   return screen !== PROPOSALS_SCREEN_ID || suggest === "on";
 }
+
+/** 머리 줄 고정 탭 후보에서 꺼진 제안 플러그인을 뺀다(내비와 같은 판정) */
+export function tabRowsShownOf<T extends { readonly name: string }>(
+  rows: readonly T[],
+  suggest: SuggestState,
+): readonly T[] {
+  return suggest === "on" ? rows : rows.filter((row) => row.name !== SUGGEST_PLUGIN_NAME);
+}
