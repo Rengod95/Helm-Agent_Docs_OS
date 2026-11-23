@@ -15,6 +15,7 @@ import {
   type BridgeBackend,
   type ConfirmAnswer,
 } from "../../../src/views/app/index.ts";
+import { postModeOf } from "../../../src/views/app/policy.ts";
 import {
   confirmer,
   fakeBackend,
@@ -120,10 +121,16 @@ describe("post and requestApproval text", () => {
     ).toBe(false);
   });
 
-  test("post defaults to builtin extensions only", () => {
-    expect(defaultAllowPost("builtin")).toBe(true);
-    expect(defaultAllowPost("user")).toBe(false);
-    expect(defaultAllowPost("project")).toBe(false);
+  test("post mode: builtin records to the chat, user drafts into the composer, project is closed", () => {
+    expect(postModeOf("builtin")).toEqual("record");
+    expect(postModeOf("user")).toEqual("draft");
+    expect(postModeOf("project")).toEqual("none");
+  });
+
+  test("post is allowed for builtin and user extensions, never for project folder extensions", () => {
+    expect(defaultAllowPost("builtin")).toEqual(true);
+    expect(defaultAllowPost("user")).toEqual(true);
+    expect(defaultAllowPost("project")).toEqual(false);
   });
 });
 

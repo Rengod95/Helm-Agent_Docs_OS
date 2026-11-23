@@ -739,7 +739,7 @@ export function createCommands(
     dismissLocked: () => ui.actions.dismissLocked(),
     retryWrite: (threadId) => ui.actions.setObserving(threadId, false),
     showScreen: (screen) => ui.actions.showScreen(screen),
-    requestComposer: (insert) => ui.actions.requestComposer(insert),
+    requestComposer: (insert, mode) => ui.actions.requestComposer(insert, mode),
     settleComposerRequest: () => ui.actions.settleComposerRequest(),
     requestSettingsJump: (jump) => ui.actions.requestSettingsJump(jump),
     settleSettingsJump: () => ui.actions.settleSettingsJump(),

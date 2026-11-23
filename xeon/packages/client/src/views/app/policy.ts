@@ -51,9 +51,19 @@ export interface BridgePolicyContext {
   readonly openThreadId: string | undefined;
 }
 
-/** 신뢰 등급별 `post` 기본값. 내장 확장만 대화에 글을 올린다. 사용자·프로젝트 확장은 승인 카드(`requestApproval`)로만 사용자에게 묻는다 */
+/** `post`가 글을 어디로 보내는가. `record`는 대화 기록에 올린다, `draft`는 입력창에 넣기까지만 하고 보내기는 사람이 한다, `none`은 막는다 */
+export type PostMode = "record" | "draft" | "none";
+
+/** 신뢰 등급별 `post` 방식. 내장은 기록에 올리고, 사용자 확장은 입력창에 넣기까지만 하며, 작업 폴더 확장은 막는다 */
+export function postModeOf(trust: "builtin" | "user" | "project"): PostMode {
+  if (trust === "builtin") return "record";
+  if (trust === "user") return "draft";
+  return "none";
+}
+
+/** 신뢰 등급이 `post`를 허용하는가. 내장은 대화 기록에 올리고, 사용자 확장은 입력창에 넣기까지만 한다(사람이 보낸다). 작업 폴더 확장은 막힌다 */
 export function defaultAllowPost(trust: "builtin" | "user" | "project"): boolean {
-  return trust === "builtin";
+  return postModeOf(trust) !== "none";
 }
 
 /** 확장의 비밀 키 전체 이름. `--`는 확장 이름과 꼬리 사이에만 있어서 다른 확장의 이름과 겹치지 않는다 */

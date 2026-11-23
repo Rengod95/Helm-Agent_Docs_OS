@@ -39,6 +39,7 @@ import {
   type ToolResultView,
 } from "./tool-view-model.ts";
 import { MetaParts } from "../meta-parts.tsx";
+import { FixPluginLink } from "../plugin/fix-plugin-link.tsx";
 
 // 도구 호출 하나의 줄(dzT2a 시안 3.3). 결과·진행 출력·개입·승인 기록을 구독해 `ToolLine`에 넘긴다. 결과가 오면 같은 줄이 결과를 따른다.
 
@@ -361,6 +362,7 @@ export function CallRow(props: {
           />
         )}
         {view.hook === null ? null : <HookRecordsLink hook={view.hook} />}
+        {open ? <FixPluginLink tool={name} /> : null}
       </>
     );
   const hasDetail = detail !== null;

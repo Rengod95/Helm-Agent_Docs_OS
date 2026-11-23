@@ -10,6 +10,7 @@ import {
   Link,
   ListChecks,
   MessageSquare,
+  PanelRight,
   Play,
   SquarePen,
   WandSparkles,
@@ -22,21 +23,14 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@caustic/react";
-import { ApprovalQueue, InboxApprovals, useInboxThreads, type InboxFilter } from "./approvals.tsx";
+import { InboxApprovals, useInboxThreads, type InboxFilter } from "./approvals.tsx";
 import { INBOX_SORTS, inboxThreadOf, type InboxSort, type InboxThread } from "./inbox-model.ts";
 import { useNoticeFeed } from "./notices.tsx";
 import { useProposalPending } from "./proposal-pending-context.tsx";
+import { ChatBody } from "./chat-body.tsx";
 import { ChatHeader } from "./chat-header.tsx";
-import { ChatLoadError } from "./chat-load-error.tsx";
-import { ProjectNotices } from "./project/project-notices.tsx";
-import { NowStrip } from "./now/now-strip.tsx";
-import { Composer } from "./composer.tsx";
-import { ComposerBeam, ThreadLoadBeam } from "./effects/convo-beam.tsx";
+import { ThreadLoadBeam } from "./effects/convo-beam.tsx";
 import { CrystalMark } from "./effects/crystal-mark.tsx";
-import { SafeModeCard } from "./safe-mode-card.tsx";
-import { SetupBanner } from "./setup-banner.tsx";
-import { SpawnedNotice } from "./spawned-notice.tsx";
-import { StoreReplacedBanner } from "./store-replaced-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { useFailedScheduleCount } from "./pages/schedules/schedule-badge.ts";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
@@ -46,9 +40,6 @@ import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { TasksSummary, TasksTab } from "./panels/tasks/tasks-tab.tsx";
 import { RunningSummary, RunningTab } from "./panels/running/running-tab.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
-import { TrustCard } from "./trust.tsx";
-import { ThreadContextBar } from "./thread-context-bar.tsx";
-import { Transcript } from "./transcript.tsx";
 import {
   createShellRegistry,
   type EndTabDef,
@@ -65,6 +56,8 @@ import {
 } from "./workbench/index.tsx";
 import { ChatWithRecords } from "./workbench/records-jump.tsx";
 import { HelmPanelTab } from "./plugin/plugin-tabs.tsx";
+import { AppBesideTab } from "./plugin/app-beside-tab.tsx";
+import { APP_BESIDE_TAB } from "./plugin/app-beside.ts";
 import { AddonsScreen } from "./plugin/addons-screen.tsx";
 import { PLAYGROUND_TAB_SCREEN } from "./plugin/playground-tab-store.ts";
 import { PlaygroundTabScreen } from "./plugin/playground-tab-screen.tsx";
@@ -72,64 +65,23 @@ import { ChangesTab } from "./panels/changes/changes-tab.tsx";
 import { ArtifactTab } from "./artifact/artifact-tab.tsx";
 import { ContextTab } from "./panels/context/context-tab.tsx";
 import { ARTIFACT_TAB_ID, CHANGES_TAB_ID, CONTEXT_TAB_ID } from "./panels/tab-ids.ts";
-import {
-  useApprovalCount,
-  useOpenThread,
-  useRunningThreadCount,
-  useThreadIds,
-  useTranscriptStatus,
-} from "../state/engine/index.ts";
+import { useApprovalCount, useRunningThreadCount, useThreadIds } from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
 // 화면 트랙은 여기에 `registerScreen`·`registerEndTab`을 더한다(shell/README.md).
 
 /**
- * 대화 화면. 입력창 위 쌓임(DP-100 [결정: 2026-11-11 사용자]), 위에서 아래로:
- * 1. 행동 카드(신뢰 확인, 승인 대기열, 안전 모드): 사용자가 답해야 하는 것. 승인 대기열은 화면 높이의 50%까지, 넘치면 안쪽 스크롤(approvals.tsx).
- * 2. 지금 띠: 목표·할 일·하위 에이전트·주도의 한 줄. 펼치면 본문 240px까지.
- * 3. 대화 맥락 줄(DP-71): 입력창 바로 위에 붙는다.
- * 4. 입력창(그 안의 대기 입력·재시도·오류 줄은 입력창에 붙는다).
- * 1·2는 한 그릇(`data-chat-stack`)에 쌓이고 사이 간격은 그릇의 gap 하나(8px)다(DP-225 [결정: 2026-11-20 사용자, AGE-65]): 부품은 바깥 여백을
- * 갖지 않아 몇 개가 어떤 조합으로 와도 간격이 같고 서로 겹치지 않는다. 높이가 모자라면 승인 대기열만 줄고(카드 안쪽이 스크롤),
- * 대화 기록은 128px 아래로 밀리지 않는다.
- * 대화를 읽지 못했으면 대화 기록 자리에 오류 상태(`ChatLoadError`)를 그린다(DP-102)
+ * 대화 화면: 머리 줄(제목과 도구)과 그 아래 본문(`ChatBody`, chat-body.tsx)을 잇는다. 본문의 쌓임·입력창 설명은 `ChatBody`에 있다.
  */
 function ChatScreen(): ReactNode {
-  const spawned = useOpenThread()?.spawnedBy !== undefined;
-  const transcript = useTranscriptStatus();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 대화를 불러오는 동안 머리 줄 아래를 빛이 흐르고, 턴이 도는 동안 입력창 테두리를 빛이 돈다(DP-107) */}
+      {/* 대화를 불러오는 동안 머리 줄 아래를 빛이 흐른다(DP-107) */}
       <ThreadLoadBeam>
         <ChatHeader />
       </ThreadLoadBeam>
-      <SetupBanner />
-      <StoreReplacedBanner />
-      {/* 대화 기록의 바닥 높이(128px): 입력창 위 쌓임이 커져도 대화 내용이 0이 되도록 밀리지 않는다(DP-225) */}
-      <div data-chat-rail-gap="" className="flex min-h-32 flex-1 flex-col">
-        {transcript === "error" ? <ChatLoadError /> : <Transcript />}
-      </div>
-      {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다. 무대가 좁으면 대화 기록처럼 오른쪽 막대 자리를 비운다(`data-chat-rail-gap`, DP-135) */}
-      {/* 토스트는 이 묶음(카드와 입력창) 위에 선다. 묶음의 위쪽 끝을 알려 입력창 모델 고르기 단추를 가리지 않게 한다(shell.tsx useToastBottom) */}
-      <div data-toast-avoid data-chat-rail-gap="" className="flex min-h-0 flex-col">
-        <div className="mx-auto flex min-h-0 w-full max-w-184 flex-col">
-          {/* 쌓임 그릇(DP-225): 부품 사이와 맥락 줄 위가 모두 8px다. 줄어드는 것은 승인 대기열 하나이고 나머지는 제 높이를 지킨다 */}
-          <div
-            data-chat-stack=""
-            className="flex min-h-0 flex-col gap-2 px-3 pb-2 empty:hidden [&>*]:shrink-0 [&>:has(>[data-approval-band])]:shrink"
-          >
-            <TrustCard />
-            <ApprovalQueue />
-            <SafeModeCard />
-            {spawned ? null : <ProjectNotices />}
-            {spawned ? null : <NowStrip />}
-          </div>
-          {/* 대화 맥락 줄(DP-71)은 입력창 바로 위에 붙는다. 폴더가 없어졌다는 경고도 이 줄의 폴더 칸이 보인다 */}
-          <ThreadContextBar />
-        </div>
-        <ComposerBeam>{spawned ? <SpawnedNotice /> : <Composer />}</ComposerBeam>
-      </div>
+      <ChatBody />
     </div>
   );
 }
@@ -458,6 +410,17 @@ export function createDesktopRegistry(): ShellRegistry {
     icon: <Compass />,
     shortcut: "panel.helm",
     render: () => <HelmPanelTab />,
+  });
+  // 대화 옆에 둔 앱(AGE-78). 앱 작업 공간의 "대화 옆에"가 화면 키를 두고 이 탭을 연다
+  registry.registerPluginEndTab({
+    id: APP_BESIDE_TAB,
+    area: "chat",
+    source: "plugin",
+    label: "desktop.apps.beside.tabName",
+    description: "desktop.apps.beside.tabDescription",
+    icon: <PanelRight />,
+    width: 480,
+    render: () => <AppBesideTab />,
   });
   // 둘째 묶음은 호스트가 그리는 이 대화의 플러그인 상태다: 옛 "런타임"(§4.9.8: 주도 락, 켜진 그룹과 확장, 실패)과 옛 "플러그인"(알림, 프로필, 화면 목록).
   // 탭 id(`runtime`, `plugin-pages`)는 그대로라 상태 줄·대화 머리의 링크가 계속 연다

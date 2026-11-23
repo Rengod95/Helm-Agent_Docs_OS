@@ -15,7 +15,7 @@ import {
 // 입력은 `ext.get`(매니페스트, 상태), `ext.ui.list` 항목(설치 등급), 열린 대화, `command.list`의 등록 주체다.
 // 설정 값은 여기서 읽지 않는다. 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`)은 `appsAllowed`가 따로 본다.
 
-/** 다리 판정의 등급. 엔진의 `managed`는 다리 등급에 없어 `user`로 본다(post 기본 거부) [미결] */
+/** 다리 판정의 등급. 엔진의 `managed`는 다리 등급에 없어 `user`로 본다(post는 입력창에 넣기까지만, AGE-78) [미결] */
 export type BridgeTrust = BridgePolicyContext["trust"];
 
 interface CommandOwnership {

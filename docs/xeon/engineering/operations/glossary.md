@@ -108,6 +108,7 @@ binds: []
 | 문서 용어 | 화면 라벨 ko | 화면 라벨 en | 기계 id | 상태 |
 |---|---|---|---|---|
 | Add-on | 플레이그라운드 | Playground | `addons`, `plugins` | proposed |
+| App | 앱 | App | `page`, `panel`, `apps` | proposed |
 | Artifact | 아티팩트 | Artifact | `artifact`, `ArtifactId`, `artifact_create`, `artifact_update` | proposed |
 | Background service | 이 컴퓨터(백그라운드) | This computer (background) | — | proposed |
 | Benchmark | 성능 측정 | Benchmark | `benchmark` | proposed |

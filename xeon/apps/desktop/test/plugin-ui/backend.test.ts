@@ -31,6 +31,11 @@ function policyOf(): BridgePolicyContext {
   return built.value;
 }
 
+/** 같은 판정 맥락에서 신뢰 등급만 바꾼 것 */
+function policyAs(trust: BridgePolicyContext["trust"]): BridgePolicyContext {
+  return { ...policyOf(), trust };
+}
+
 function harness(
   table: Table,
   overrides: Partial<BridgeBackendDeps> = {},
@@ -256,10 +261,12 @@ describe("command", () => {
 });
 
 describe("post", () => {
-  test("sends ext.ui.post with this screen, the open thread and the text", async () => {
-    const h = harness({
-      "ext.ui.post": () => Promise.resolve({ accepted: true }),
-    });
+  test("a builtin extension sends ext.ui.post with this screen, the open thread and the text", async () => {
+    const drafted: string[] = [];
+    const h = harness(
+      { "ext.ui.post": () => Promise.resolve({ accepted: true }) },
+      { policy: () => policyAs("builtin"), draft: (text) => drafted.push(text) },
+    );
     expect(await h.backend.post(OPEN, "안녕")).toEqual({ ok: true, value: { accepted: true } });
     expect(h.calls).toEqual([
       {
@@ -273,6 +280,41 @@ describe("post", () => {
         },
       },
     ]);
+    expect(drafted).toEqual([]);
+  });
+
+  test("a user extension sends nothing to the wire and its text goes into the composer once", async () => {
+    const drafted: string[] = [];
+    const h = harness(
+      { "ext.ui.post": () => Promise.resolve({ accepted: true }) },
+      { draft: (text) => drafted.push(text) },
+    );
+    expect(await h.backend.post(OPEN, "안녕")).toEqual({ ok: true, value: { accepted: true } });
+    expect(h.calls).toEqual([]);
+    expect(drafted).toEqual(["안녕"]);
+  });
+
+  test("a user extension without a draft function is refused before any wire call", async () => {
+    const h = harness({ "ext.ui.post": () => Promise.resolve({ accepted: true }) });
+    expect(await h.backend.post(OPEN, "안녕")).toEqual({
+      ok: false,
+      error: { kind: "denied", detail: "post_not_allowed" },
+    });
+    expect(h.calls).toEqual([]);
+  });
+
+  test("a project folder extension is refused even when a draft function is given", async () => {
+    const drafted: string[] = [];
+    const h = harness(
+      { "ext.ui.post": () => Promise.resolve({ accepted: true }) },
+      { policy: () => policyAs("project"), draft: (text) => drafted.push(text) },
+    );
+    expect(await h.backend.post(OPEN, "안녕")).toEqual({
+      ok: false,
+      error: { kind: "denied", detail: "post_not_allowed" },
+    });
+    expect(h.calls).toEqual([]);
+    expect(drafted).toEqual([]);
   });
 });
 

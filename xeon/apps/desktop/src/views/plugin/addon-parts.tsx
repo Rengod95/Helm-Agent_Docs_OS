@@ -42,12 +42,12 @@ export interface SurfaceOps {
   readonly onAllowApps: () => void;
 }
 
-export const ICON = "size-4 flex-none text-text-tertiary";
+const ICON = "size-4 flex-none text-text-tertiary";
 /** 줄 목록 카드(설정 카드와 같은 면·선·반경) */
 export const CARD =
   "m-0 grid list-none overflow-hidden rounded-xl bg-surface-base p-0 py-1 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>*+*]:border-t [&>*+*]:border-border-subtle";
 /** 카드 안 줄: 좌우 16, 최소 48 */
-export const ROW = "flex min-h-12 min-w-0 items-center gap-3 px-4 py-2";
+const ROW = "flex min-h-12 min-w-0 items-center gap-3 px-4 py-2";
 
 /** 구역: 16/22 600 제목(+ 연한 개수), 제목과 내용 8 */
 export function Section(props: {

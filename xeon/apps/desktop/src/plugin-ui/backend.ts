@@ -69,6 +69,8 @@ export interface BridgeBackendDeps {
   readonly openThreadId: () => string | undefined;
   /** 판정 맥락. 이벤트 종류 거름과 매니페스트 설정 키 선언을 여기서 읽는다 */
   readonly policy: () => BridgePolicyContext;
+  /** 사용자 확장의 `post`는 이 함수로 입력창에 넣는다(보내기는 사람이 한다). 없으면 사용자 확장의 `post`는 막힌다 */
+  readonly draft?: ((text: string) => void) | undefined;
   /** 고정 맥락 읽기(`host`)의 바탕. `threadId`는 `openThreadId`로 덮는다 */
   readonly snapshot: () => HostSnapshot;
   /** 셸이 열 수 있으면 참. 모르는 대상이면 거짓이고 다리는 `navigate_unsupported`로 답한다 */
@@ -338,15 +340,28 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     },
 
     post(threadId, text) {
-      return onWire((connection) =>
-        connection.request("ext.ui.post", {
-          extension: deps.extension,
-          ui: deps.screen,
-          threadId,
-          name: POST_NAME,
-          payload: text,
-        }),
-      );
+      const trust = deps.policy().trust;
+      // 내장 확장은 대화 기록에 올린다(`ext.ui.post`)
+      if (trust === "builtin") {
+        return onWire((connection) =>
+          connection.request("ext.ui.post", {
+            extension: deps.extension,
+            ui: deps.screen,
+            threadId,
+            name: POST_NAME,
+            payload: text,
+          }),
+        );
+      }
+      // 사용자 확장은 입력창에 넣기까지만 한다. 보내기는 사람이 누른다. 작업 폴더 확장은 판정이 이미 막지만 여기서도 막는다
+      const draft = deps.draft;
+      if (trust === "project" || draft === undefined) {
+        return Promise.resolve(fail("denied", "post_not_allowed"));
+      }
+      const drafted = attempt(() => draft(text));
+      if (!drafted.ok) return Promise.resolve(fail("failed", "draft"));
+      // 성공 모양은 `ext.ui.post`의 결과(`{ accepted }`)와 같다. 글은 입력창에 들어갔고 대화 기록에는 오르지 않았다
+      return Promise.resolve(ok({ accepted: true }));
     },
 
     async navigate(target, shellConfirmed) {

@@ -1,13 +1,22 @@
 import { t } from "@fresnel/client/i18n";
 import { IconButton, Menu, MenuItem, MenuSeparator, Tooltip } from "@caustic/react";
 import { ChevronDown, ChevronLeft, ChevronRight, Info, LayoutGrid } from "@caustic/react/icons";
-import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useScreen } from "../../state/ui/index.ts";
+import { WorkbenchStoreContext } from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
 import { useAddonData } from "./addon-data.ts";
+import { addonMovesOf } from "./app-moves.ts";
 import { tabbableRowsOf, type AddonRow } from "./addon-model.ts";
-import { requestAddon } from "./plugin-pick.ts";
 import { PluginGlyph } from "./plugin-glyph.tsx";
 import { useOptionalPluginUi } from "./plugin-context.tsx";
 import {
@@ -289,6 +298,7 @@ export function usePlaygroundTabs(): {
 } {
   const commands = useCommands();
   const shell = useShellActions();
+  const workbench = useContext(WorkbenchStoreContext)?.actions;
   const data = useAddonData(false);
   const run = useTabRunState();
   const rows = useMemo(
@@ -325,10 +335,7 @@ export function usePlaygroundTabs(): {
       shell.updatePlace({ screen: "plugins", scroll: 0 });
     },
     details: (name: string) => {
-      requestAddon(name);
-      shell.switchArea("chat");
-      commands.showScreen("chat");
-      shell.updatePlace({ screen: "plugins", scroll: 0 });
+      addonMovesOf(shell, workbench).manage(name);
     },
     move: (name: string, delta: -1 | 1) => {
       update((current) => withMoved(current, names, name, delta));

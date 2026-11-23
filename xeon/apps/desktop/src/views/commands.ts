@@ -1469,9 +1469,9 @@ export interface Commands {
   showScreen(screen: Screen): void;
   /**
    * 입력창에 초점을 준다(⌘L). `insert`가 글이면 입력창이 비어 있을 때 그 글을 채운다(슬래시 명령 고르기). 입력창이 없으면 입력창이
-   * 생길 때 받는다. 입력창은 받으면 `settleComposerRequest`를 부른다.
+   * 생길 때 받는다. 입력창은 받으면 `settleComposerRequest`를 부른다. `mode`가 `append`면 입력창 끝에 덧붙인다(기본 `fill`).
    */
-  requestComposer(insert: string | null): void;
+  requestComposer(insert: string | null, mode?: "fill" | "append"): void;
   settleComposerRequest(): void;
   /** 설정 화면을 열고 그 탭과 항목으로 옮긴다(명령 팔레트). 화면이 받으면 `settleSettingsJump`를 부른다 */
   requestSettingsJump(jump: SettingsJump): void;

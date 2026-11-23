@@ -687,12 +687,18 @@ function ComposerFor(props: {
     return withdrawn;
   };
 
-  // 요청은 입력창이 받는 순간 지운다. 입력 중인 글이 있으면 채우지 않고 초점만 준다(글을 지우지 않는다)
+  // 요청은 입력창이 받는 순간 지운다. `fill`은 입력 중인 글이 있으면 채우지 않고 초점만 준다(글을 지우지 않는다). `append`는 글 뒤에 덧붙인다
   useEffect(() => {
     if (request === null) return;
     // 대화를 바꾸는 중에는 옛 대화의 입력창이 아직 떠 있다. 선택된 대화의 입력창이 마운트될 때까지 요청을 남겨 둔다
     if (!ownsComposerRequest(selectedThread, props.threadId)) return;
-    if (request.insert !== null && draftRef.current === "") {
+    if (request.insert !== null && request.mode === "append") {
+      // 덧붙이기: 입력 중인 글 뒤에 빈 줄을 두고 잇는다. 빈 입력창이면 그 글만 채운다
+      const next =
+        draftRef.current === "" ? request.insert : `${draftRef.current}\n\n${request.insert}`;
+      draftRef.current = next;
+      setDraft(next);
+    } else if (request.insert !== null && draftRef.current === "") {
       draftRef.current = request.insert;
       setDraft(request.insert);
     }

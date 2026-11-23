@@ -121,7 +121,7 @@ test("in a narrow stage both the transcript and the composer stack keep clear of
     body: "padding-inline-end: calc(var(--stage-rail, 0px) + var(--cs-space-3));",
   });
   const registry = readFileSync(
-    join(import.meta.dir, "..", "..", "src", "views", "desktop-registry.tsx"),
+    join(import.meta.dir, "..", "..", "src", "views", "chat-body.tsx"),
     "utf8",
   );
   expect(registry.match(/<div[^>]*data-chat-rail-gap=""[^>]*>/g)).toEqual([
