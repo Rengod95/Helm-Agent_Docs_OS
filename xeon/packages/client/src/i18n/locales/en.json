@@ -2732,7 +2732,7 @@
   "desktop.composer.slash.compact.hint": "[instructions]",
   "desktop.composer.slash.goal.description": "Set a completion condition that is judged every turn. Use status to check and clear to remove it",
   "desktop.composer.slash.goal.hint": "<condition> | status | clear",
-  "desktop.composer.slash.helm.description": "Start, stop or check an inquiry: /helm start [topic] | stop | status",
+  "desktop.composer.slash.helm.description": "Start, stop or check an inquiry, or hand over a plugin to build: /helm start [topic] | stop | status | plugin <description>",
   "desktop.composer.slash.skills.group": "Skills",
   "desktop.composer.slash.skills.untrusted": "This folder is not trusted, so its project skills were not loaded",
   "desktop.composer.slash.skills.issue": "Skill not loaded ({message})",

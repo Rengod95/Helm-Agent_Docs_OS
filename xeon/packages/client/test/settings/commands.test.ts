@@ -81,7 +81,8 @@ describe("commandListView and completeSlash", () => {
     expect(rows[0]).toEqual({
       name: "helm",
       label: "/helm",
-      description: "탐구를 시작하거나 멈추고 상태를 봐요: /helm start [주제] | stop | status",
+      description:
+        "탐구를 시작하거나 멈추고 상태를 보고, 플러그인 만들기를 맡겨요: /helm start [주제] | stop | status | plugin <설명>",
       hint: "<start|stop>",
       kind: "action",
       origin: "plugin-helm",

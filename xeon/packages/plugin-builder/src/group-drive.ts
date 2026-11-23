@@ -277,7 +277,8 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
         content: `[authoring] ${calledBy}가 플러그인 제작을 맡겼다: ${purpose}`,
         display: true,
       },
-      { when: "next", requestId: `authoring:handoff:${id ?? purpose}`.slice(0, 64) },
+      // followUp이라 대화가 한가하면 바로 모델 턴이 열린다. next로 두면 다음 사용자 말까지 대기 메시지로 쌓인다(F-11)
+      { when: "followUp", requestId: `authoring:handoff:${id ?? purpose}`.slice(0, 64) },
     );
     // 이름과 폴더는 아직 없다. 목적만 든 세션이고, 사용자에게 이름과 폴더를 정한 뒤 `authoring_start`로 시작한다
     const opened: AuthoringState = {
