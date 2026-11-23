@@ -234,7 +234,7 @@ export const DialogAskKey = serviceKey(DialogAsk);
 - `executionMode: "sequential"`: 같은 단계에서 질문 도구가 둘 나오면 순서대로 묻는다. Hermes는 질문 도구를 병렬 실행에서 뺀다(`_research/refs/hermes.md` L1d-7).
 - `hints.readOnly: true`: 질문은 환경을 바꾸지 않는다. L1.tools가 이 힌트로 질문을 허용한다 [가정]. 계획 모드는 없다 [결정: 2026-11-13 사용자] [근거: 2026-11-13 사용자 결정].
 - `ask_unavailable_headless`: `fresnel -p` 같은 비대화형 실행에서는 답할 클라이언트가 없다. 이때 L1.tools가 승인 요청을 받지 않는다고 알려 주면(포트의 `interactive: false`) 즉시 이 오류를 낸다 [가정].
-  - [잠정: review.m2-plan DG.1] 호출 문맥(`CallContext`)에 대화형 여부가 없다. cap-dialog는 조립 루트가 넘기는 판정 함수 `interactive(context)`로 이 오류를 낸다(기본은 항상 대화형). 판정 함수가 없고 L1.tools가 비대화형 요청을 `approval.resolved{ deny, noninteractive }`로 끝내면 `ask`는 이를 `cancelled(dismissed)`로 읽는다. F `CallContext.interactive`가 들어갔으므로(m2 F.8) 조립 루트가 판정 함수를 넘기지 않아도 `ask`는 `options.context.interactive === false`이면 `ask_unavailable_headless`를 낼 수 있다. 판정 함수가 있으면 그것이 이긴다.
+  - [잠정: review.m2-plan DG.1] 호출 문맥(`CallContext`)에 대화형 여부가 없다. cap-dialog는 조립 루트가 넘기는 판정 함수 `interactive(context)`로 이 오류를 낸다(기본은 항상 대화형). 판정 함수가 없고 L1.tools가 비대화형 요청을 `approval.resolved{ deny, noninteractive }`로 끝내면 `ask`는 이를 `cancelled(dismissed)`로 읽는다. F `CallContext.interactive`가 들어갔으므로(m2 F.8) 조립 루트가 판정 함수를 넘기지 않아도 `ask`는 `options.context.interactive === false`이면 `ask_unavailable_headless`를 낼 수 있다. 판정 함수가 있으면 그것이 이긴다. [결정: 2026-11-23 bldFix, F-07] 호스트의 판정 함수는 Drive turn을 대화형으로 본다: 문맥이 비대화형이어도 주 대화(`caller.agent: main`)의 호출이 예약이 만든 무인 대화가 아닌 대화에서 났으면 질문 카드를 올린다(Drive turn의 `interactive`는 도구 승인 정책 때문에 거짓이다). 예약이 만든 대화, 서브에이전트, 백그라운드 호출은 이 오류를 그대로 낸다.
 
 ### 3.2 `dialog.commands`
 
