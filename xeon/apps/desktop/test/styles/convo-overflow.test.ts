@@ -49,7 +49,7 @@ test("prose breaks long unspaced runs anywhere, while code blocks keep one line 
     overflow: "auto",
     "overflow-wrap": "normal",
   });
-  expect(declarationsOf(".convo-table")["overflow-x"]).toBe("auto");
+  expect(declarationsOf(".convo-table-scroll")["overflow-x"]).toBe("auto");
   expect(declarationsOf(".convo-output")).toMatchObject({
     overflow: "auto",
     "overflow-wrap": "anywhere",
@@ -88,21 +88,18 @@ function classesOfSlot(source: string, slot: string): readonly string[] {
 }
 
 test("notice cards above the composer wrap their actions instead of pushing the column wide", () => {
+  // AGE-75: 설명과 동작이 한 칸에서 줄을 바꾸고, 동작은 왼쪽 정렬로 흐른다(오른쪽 몰림 없음). 닫기는 제목 줄에 있다
   expect(classesOfSlot(NOTICES, "notice-main")).toEqual(
-    ["flex", "flex-1", "flex-wrap", "gap-3", "items-center", "min-w-0"].toSorted(),
+    ["flex", "flex-wrap", "gap-x-3", "gap-y-2", "items-center", "min-w-0"].toSorted(),
   );
   expect(classesOfSlot(NOTICES, "notice-actions")).toEqual(
-    [
-      "flex",
-      "flex-wrap",
-      "gap-2",
-      "items-center",
-      "justify-end",
-      "max-w-full",
-      "min-w-0",
-    ].toSorted(),
+    ["flex", "flex-wrap", "gap-2", "items-center", "max-w-full", "min-w-0"].toSorted(),
   );
-  expect(NOTICES.includes("grid min-w-0 flex-1 basis-60 gap-1")).toBe(true);
+  expect(classesOfSlot(NOTICES, "notice-head")).toEqual(
+    ["flex", "gap-2", "items-start", "min-w-0", "text-ui-strong"].toSorted(),
+  );
+  expect(NOTICES.includes("flex min-w-0 flex-auto items-center gap-1")).toBe(true);
+  expect(NOTICES.includes('<span className="flex h-lh flex-none items-center">')).toBe(true);
 });
 
 // chatQa(2026-11-23): 무대가 840px보다 좁으면(DP-135) 대화 기록만 오른쪽 막대 자리를 비우고 입력창 묶음(승인 카드, 알림, 입력창)은
@@ -131,4 +128,85 @@ test("in a narrow stage both the transcript and the composer stack keep clear of
     '<div data-chat-rail-gap="" className="flex min-h-32 flex-1 flex-col">',
     '<div data-toast-avoid data-chat-rail-gap="" className="flex min-h-0 flex-col">',
   ]);
+});
+
+// AGE-75 질문 1 가: 작업 패널(well)이 열리면 대화 기록과 입력창 묶음이 셸이 정한 만큼(`--well-beside`) 오른쪽을 비운다
+test("an open well beside the chat moves the transcript and the composer stack, not over them", () => {
+  const styles = readFileSync(
+    join(import.meta.dir, "..", "..", "src", "styles.css"),
+    "utf8",
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = /#stage\[data-well-beside\] \[data-chat-rail-gap\] \{([^{}]*)\}/.exec(styles);
+  expect((rule?.[1] ?? "").trim()).toBe("padding-inline-end: var(--well-beside, 0px);");
+});
+
+// 가로 스크롤 칸의 가장자리 흐림: 흐림은 스크롤 칸에만 걸고 상자(테두리, 둥근 모서리, 잘림)는 그대로 둔다.
+const FADE_SCROLLERS = [".convo-code-body", ".convo-table-scroll", ".convo-diff-rows"];
+
+test("horizontal scrollers fade the overflowing edges from their own scroll position", () => {
+  for (const selector of FADE_SCROLLERS) {
+    const d = declarationsOf(selector);
+    expect({ selector, animation: d["animation"], timeline: d["animation-timeline"] }).toEqual({
+      selector,
+      animation: "convo-scroll-fade linear both",
+      timeline: "scroll(self inline)",
+    });
+    expect(d["mask-image"]).toContain("var(--convo-fade-start)");
+    expect(d["mask-image"]).toContain("calc(100% - var(--convo-fade-end))");
+  }
+});
+
+test("the frames keep their border and clip, and only the scroller carries the mask", () => {
+  for (const selector of [".convo-code", ".convo-table", ".convo-diff"]) {
+    const d = declarationsOf(selector);
+    expect({ selector, overflow: d["overflow"], mask: d["mask-image"] }).toEqual({
+      selector,
+      overflow: "hidden",
+      mask: undefined,
+    });
+  }
+  expect(declarationsOf(".convo-table")).toMatchObject({
+    border: "1px solid var(--convo-edge)",
+    "border-radius": "var(--cs-radius-lg)",
+  });
+});
+
+test("with no overflow the fade stays off: both lengths rest at 0px and the keyframes come back to 0px", () => {
+  for (const name of ["--convo-fade-start", "--convo-fade-end"]) {
+    expect(CSS).toMatch(new RegExp(`@property ${name} \\{[^}]*initial-value: 0px;`));
+  }
+  expect(CSS).toMatch(
+    /(?<!\d)0% \{\s*--convo-fade-start: 0px;\s*--convo-fade-end: var\(--cs-space-6\);/,
+  );
+  expect(CSS).toMatch(
+    /100% \{\s*--convo-fade-start: var\(--cs-space-6\);\s*--convo-fade-end: 0px;/,
+  );
+  expect(CSS).toMatch(/@supports \(animation-timeline: scroll\(\)\) \{/);
+});
+
+test("the keyboard focus ring sits on the frame, since a mask would cut an outline drawn on the scroller", () => {
+  expect(declarationsOf(".convo-table-scroll:focus-visible")["outline"]).toBe("none");
+  expect(declarationsOf(".convo-table:has(> .convo-table-scroll:focus-visible)")).toMatchObject({
+    outline: "2px solid var(--cs-color-accent-border)",
+    "outline-offset": "-2px",
+  });
+  expect(declarationsOf(".convo-code-body:focus-visible")["outline"]).toBe("none");
+  expect(declarationsOf(".convo-code:has(> .convo-code-body:focus-visible)")).toMatchObject({
+    outline: "2px solid var(--cs-color-accent-border)",
+    "outline-offset": "-2px",
+  });
+});
+
+/** 화면 소스(src/views 기준 경로)의 글 */
+function viewSource(...parts: string[]): string {
+  return readFileSync(join(import.meta.dir, "..", "..", "src", "views", ...parts), "utf8");
+}
+
+test("the markup puts the table scroll and its focus stop inside the bordered frame, and marks the diff rows", () => {
+  expect(viewSource("convo", "markdown-body.tsx")).toMatch(
+    /<div className="convo-table">\s*<div className="convo-table-scroll" tabIndex=\{0\}>\s*<table>/,
+  );
+  expect(viewSource("file-change-view.tsx")).toContain(
+    '<pre className="convo-diff-rows m-0 overflow-x-auto py-1">',
+  );
 });

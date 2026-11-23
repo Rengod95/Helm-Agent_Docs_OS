@@ -1,6 +1,6 @@
 // S-04 토스트 자리(U-14, §6.4, DP-152, DP-157, DP-170). 창 전체 기준 오른쪽 아래, 상태 표시줄 위. 오른쪽 well이 열려 있으면 well 왼쪽 끝으로 옮겨
 // well 내용을 가리지 않는다. 입력창 묶음 같은 피할 곳(`data-toast-avoid`)의 조작부와 겹치면 폭을 줄여 그 오른쪽 틈에 넣고,
-// 틈이 최소 폭보다 좁으면 최소 폭으로 같은 자리에 둔다. 토스트는 어느 창 폭에서도 위로 올라가지 않는다(`toastWidth`).
+// 틈이 최소 폭보다 좁으면 입력창 묶음 위쪽 끝 위로 올린다(AGE-75 질문 2 가, `toastFit`). 넓은 창(틈이 넉넉한 1440·1920)은 아래 자리 그대로다.
 import { cssPxOf } from "../../lib/zoom.ts";
 import type { Layout } from "../../state/shell/index.ts";
 
@@ -94,4 +94,65 @@ export function toastWidth(
   const edge = Math.max(...blocking.map((c) => c.right));
   const room = Math.floor(right - edge - TOAST_SIDE_GAP_PX);
   return Math.min(TOAST_DEFAULT_WIDTH_PX, Math.max(minWidth, room));
+}
+
+/** 올린 토스트의 아래 끝과 입력창 묶음 위쪽 끝 사이(묶음 안 카드 사이와 같은 8) */
+export const TOAST_LIFT_GAP_PX = 8;
+
+/** 토스트 영역의 폭과 아래 간격 */
+export interface ToastFit {
+  /** 오른쪽 자리의 폭. 가운데 아래 자리(`shrink` 거짓)는 쓰지 않는다 */
+  readonly width: number;
+  /** 창 아래에서 잰 아래 간격 */
+  readonly bottom: number;
+  /** 기본 자리의 오른쪽 끝에서 더 안쪽으로 옮긴 양. 올린 토스트가 오른쪽 떠 있는 막대와 겹치면 막대 왼쪽 12px 앞으로 옮긴다 */
+  readonly shift: number;
+}
+
+/**
+ * 토스트의 폭과 자리(DP-157, DP-170, AGE-75). 기본은 오른쪽 아래(아래 40, 폭 360)다. 그 자리가 피할 곳의 조작부(`controls`)와 겹치면
+ * 오른쪽 자리(`shrink`)는 먼저 폭을 오른쪽 틈까지 줄인다(`toastWidth`). 틈이 `minWidth`보다 좁거나 가운데 아래 자리(compact)면 줄이지 않고
+ * 겹치는 피할 곳(`regions`: 입력창 묶음, 재시작 막대) 가운데 가장 높은 것의 위쪽 끝 위 8px로 올린다. 그래서 입력창, 칩, 승인 카드를 덮지 않는다.
+ * 올린 자리가 창 위로 넘치면 창 안에 들게 낮춘다. 올린 토스트가 오른쪽 떠 있는 막대(`rails`, 본문 세로 가운데)와 겹치면 막대 왼쪽 12px 앞에서 끝나게
+ * 옮긴다(`shift`). `left`·`right`는 옮기기 전 기본 자리의 좌우(오른쪽 자리는 `right`만 쓴다), `height`는 쌓인 토스트의 높이다
+ */
+export function toastFit(input: {
+  readonly controls: readonly Box[];
+  readonly regions: readonly Box[];
+  readonly rails: readonly Box[];
+  readonly left: number;
+  readonly right: number;
+  readonly height: number;
+  readonly viewportHeight: number;
+  readonly minWidth: number;
+  readonly shrink: boolean;
+}): ToastFit {
+  const { controls, regions, right, height, viewportHeight, minWidth, shrink } = input;
+  const left = shrink ? right - TOAST_DEFAULT_WIDTH_PX : input.left;
+  const full = defaultToastBox(left, right, height, viewportHeight);
+  const blocking = controls.filter((c) => boxesOverlap(c, full));
+  const stay = { width: TOAST_DEFAULT_WIDTH_PX, bottom: TOAST_BOTTOM_DEFAULT_PX, shift: 0 };
+  if (blocking.length === 0) return stay;
+  if (shrink) {
+    const edge = Math.max(...blocking.map((c) => c.right));
+    if (Math.floor(right - edge - TOAST_SIDE_GAP_PX) >= minWidth) {
+      return { ...stay, width: toastWidth(controls, right, height, viewportHeight, minWidth) };
+    }
+  }
+  // 토스트 세로줄과 가로로 겹치고 기본 자리까지 내려오는 피할 곳의 위쪽 끝
+  const tops = regions
+    .filter((r) => r.left < full.right && full.left < r.right && r.bottom > full.top)
+    .map((r) => r.top);
+  if (tops.length === 0) return stay;
+  const lifted = viewportHeight - Math.min(...tops) + TOAST_LIFT_GAP_PX;
+  const ceiling = viewportHeight - Math.max(height, TOAST_PROBE_HEIGHT_PX) - TOAST_LIFT_GAP_PX;
+  const bottom = Math.max(TOAST_BOTTOM_DEFAULT_PX, Math.min(lifted, ceiling));
+  const drop = bottom - TOAST_BOTTOM_DEFAULT_PX;
+  const raised = { ...full, top: full.top - drop, bottom: full.bottom - drop };
+  const rails = input.rails.filter((r) => boxesOverlap(r, raised));
+  const shift =
+    rails.length === 0
+      ? 0
+      : Math.max(0, Math.ceil(right - Math.min(...rails.map((r) => r.left)) + TOAST_SIDE_GAP_PX));
+  return { width: TOAST_DEFAULT_WIDTH_PX, bottom, shift };
 }

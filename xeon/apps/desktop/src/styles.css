@@ -499,6 +499,12 @@
       padding-inline-end: calc(var(--stage-rail, 0px) + var(--cs-space-3));
     }
   }
+  /* AGE-75 [결정: 2026-11-23 사용자, 질문 1 가] 오른쪽 well이 열리면 대화 기록과 입력창 묶음은 well을 피해 비킨다(덮지 않는다).
+     비킬 양(`--well-beside`)은 셸이 무대 폭과 well 폭으로 정한다(`views/shell/well-beside.ts`): 가운데 열이 well에 닿는 만큼만이라
+     1920은 0, 1440은 일부다. 남는 열이 480px보다 좁으면 셸이 표지를 달지 않고 well은 예전처럼 무대 위에 뜬다 */
+  #stage[data-well-beside] [data-chat-rail-gap] {
+    padding-inline-end: var(--well-beside, 0px);
+  }
 }
 
 /* DP-173 앱 확대 단계(`<html data-zoom>`, views/appearance-prefs.ts)와 확대를 되돌린 창 크기.

@@ -145,6 +145,18 @@ describe("card title", () => {
     ).toEqual({ id: "desktop.approvals.title.tool", params: { tool: "edit" } });
   });
 
+  test("the engine's English question title becomes the question title, and another question title stays as written", () => {
+    // 기본 요청 본문은 질문이다
+    expect(cardTitleViewOf(requestWith({ title: "Answer the questions" }))).toEqual({
+      id: "desktop.approvals.title.question",
+      params: {},
+    });
+    expect(cardTitleViewOf(requestWith({ title: "Answer the question" }))).toBeNull();
+    expect(
+      cardTitleViewOf(requestWith({ title: "Answer the questions", body: toolBody("edit") })),
+    ).toBeNull();
+  });
+
   test("any other title stays as written", () => {
     expect(
       cardTitleViewOf(requestWith({ title: "edit 쓰기 허용", body: toolBody("edit") })),

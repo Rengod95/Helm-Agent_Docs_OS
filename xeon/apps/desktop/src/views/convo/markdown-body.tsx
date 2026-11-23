@@ -257,8 +257,10 @@ const COMPONENTS: Components = {
   ),
   a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
   table: ({ children }) => (
-    <div className="convo-table" tabIndex={0}>
-      <table>{children}</table>
+    <div className="convo-table">
+      <div className="convo-table-scroll" tabIndex={0}>
+        <table>{children}</table>
+      </div>
     </div>
   ),
 };

@@ -313,9 +313,12 @@ export function EndPanel(props: {
   readonly registry: ShellRegistry;
   /** 바로 가기 키 글자(사용자가 바꾼 키 포함). 없으면 툴팁과 메뉴에 키를 보이지 않는다 */
   readonly keyLabel?: KeyLabel;
+  /** 참이면 화면이 well 자리를 비켜 well이 무대를 덮지 않는다(AGE-75, `well-beside.ts`). 그동안 바깥을 눌러도 닫지 않는다 */
+  readonly beside?: boolean;
 }): ReactNode {
   const area = useShell((s) => s.area);
   const open = useShell((s) => s.endOpen);
+  const beside = props.beside === true;
   const tabId = useShell((s) => s.places[s.area].endTab);
   const screen = useShell((s) => s.places[s.area].screen);
   const actions = useShellActions();
@@ -327,11 +330,12 @@ export function EndPanel(props: {
   const currentStored = useBadge(current?.badge);
   const asideRef = useRef<HTMLElement>(null);
   const wellRef = useRef<HTMLDivElement>(null);
-  // 바깥을 누르면 닫는다. 2차 메뉴(포털)는 바깥이 아니다
+  // 무대 위에 뜬 well은 바깥을 누르면 닫는다. 2차 메뉴(포털)는 바깥이 아니다.
+  // 화면이 비켜 well이 옆에 선 동안(`beside`)은 대화를 누르고 쓰며 함께 보므로 닫지 않는다(접기 단추와 막대 칸으로 닫는다)
   useEffect(() => {
     const onDown = (e: PointerEvent): void => {
       const target = e.target;
-      if (!open || !(target instanceof Element)) return;
+      if (!open || beside || !(target instanceof Element)) return;
       if (asideRef.current?.contains(target) === true) return;
       if (target.closest(`[${PLUGIN_MENU_ATTR}]`) !== null) return;
       actions.setEndOpen(false);
@@ -340,7 +344,7 @@ export function EndPanel(props: {
     return () => {
       document.removeEventListener("pointerdown", onDown);
     };
-  }, [open, actions]);
+  }, [open, beside, actions]);
   useEffect(() => {
     if (open) wellRef.current?.focus({ preventScroll: true });
   }, [open]);

@@ -263,7 +263,7 @@ const NAME_MARK = "\u0001";
 
 /**
  * "Driving by {name}"(lcM6g, 사용자 2026-11-21 "Driving by <plugin name>으로 고치면 두 개를 분리 안 해도 된다")을 나눈다.
- * 화면 글은 m6Mb(AGE-33)부터 사람 말이다: ko "{name} 플러그인이 주도하는 중", en "{name} is leading"(용어 driver의 ui 말 "주도", "Lead").
+ * 화면 글은 m6Mb(AGE-33)부터 사람 말이다: ko "{name} 플러그인이 Drive 중", en "{name} is driving".
  * 한 구절이지만 그릴 때 무게가 둘이라(앞 글은 무채색 물결, 이름은 또렷하게) 번역 글을 이름 자리에서 자른다. 이름이 앞에 오는 언어도 된다.
  * 번역 글에 이름 자리가 없으면 다 앞 글이다
  */

@@ -6,7 +6,9 @@ import {
   TOAST_MIN_WIDTH_PX,
   boxesOverlap,
   cssBoxOf,
+  TOAST_LIFT_GAP_PX,
   defaultToastBox,
+  toastFit,
   toastWidth,
 } from "../../src/views/shell/toaster-slot.ts";
 
@@ -31,7 +33,7 @@ test("boxes that only touch do not overlap", () => {
   expect(boxesOverlap(a, { left: 9, top: 9, right: 20, bottom: 20 })).toBe(true);
 });
 
-describe("toastWidth narrows the toast into the gap right of the composer and never lifts it (DP-157, DP-170)", () => {
+describe("toastWidth narrows the toast into the gap right of the composer (DP-157, DP-170)", () => {
   test("nothing under the default box keeps the full width", () => {
     expect(toastWidth([], 1264, 0, VH, 200)).toBe(360);
     expect(TOAST_DEFAULT_WIDTH_PX).toBe(360);
@@ -107,5 +109,121 @@ describe("toastWidth under app zoom measures in CSS px (DP-173)", () => {
     // 고치기 전처럼 화면 px을 그대로 넣으면 312(CSS)라 화면 390px로 입력창을 66px 덮는다
     const naive = toastWidth([field], 1424, 52, 900, 200);
     expect([naive, 1424 - naive * z]).toEqual([312, 1034]);
+  });
+});
+
+// AGE-75 질문 2 가: 좁은 창에서 토스트가 입력창의 모델 이름을 덮었다(chatQa 900폭). 틈이 최소 폭보다 좁으면 입력창 묶음 위로 올린다
+describe("toastFit lifts the toast above the composer stack when the gap is too narrow (AGE-75)", () => {
+  const base = { left: 0, height: 52, minWidth: 200, shrink: true, rails: [] };
+
+  test("1920: the composer column ends before the toast, so it stays at the bottom with full width", () => {
+    const field = { left: 722, top: 990, right: 1458, bottom: 1040 };
+    const stack = { left: 710, top: 900, right: 1470, bottom: 1052 };
+    expect(
+      toastFit({ ...base, controls: [field], regions: [stack], right: 1904, viewportHeight: 1080 }),
+    ).toEqual({ width: 360, bottom: 40, shift: 0 });
+  });
+
+  test("1440: a 200px gap narrows the toast in place", () => {
+    const field = { left: 500, top: 760, right: 1212, bottom: 825 };
+    const stack = { left: 488, top: 700, right: 1224, bottom: 838 };
+    expect(
+      toastFit({ ...base, controls: [field], regions: [stack], right: 1424, viewportHeight: 900 }),
+    ).toEqual({ width: 200, bottom: 40, shift: 0 });
+  });
+
+  test("1440 with an action toast (minimum 280): lifted 8px above the stack's top with full width", () => {
+    const field = { left: 500, top: 760, right: 1212, bottom: 825 };
+    const stack = { left: 488, top: 700, right: 1224, bottom: 838 };
+    expect(TOAST_LIFT_GAP_PX).toBe(8);
+    expect(
+      toastFit({
+        ...base,
+        minWidth: 280,
+        controls: [field],
+        regions: [stack],
+        right: 1424,
+        viewportHeight: 900,
+      }),
+    ).toEqual({ width: 360, bottom: 900 - 700 + 8, shift: 0 });
+  });
+
+  test("900: the toast would cover the model chip, so it goes above the approval card at the stack's top", () => {
+    const model = { left: 640, top: 820, right: 760, bottom: 844 };
+    const card = { left: 300, top: 560, right: 830, bottom: 700 };
+    const stack = { left: 288, top: 548, right: 842, bottom: 860 };
+    const fit = toastFit({
+      ...base,
+      controls: [model, card],
+      regions: [stack],
+      right: 884,
+      viewportHeight: 900,
+    });
+    expect(fit).toEqual({ width: 360, bottom: 360, shift: 0 });
+    // 올린 토스트(아래 끝 900 - 360 = 540)는 묶음 위쪽 끝(548)보다 위다
+    expect(900 - fit.bottom).toBeLessThan(stack.top);
+  });
+
+  test("the centered toast of a compact window does not narrow; it lifts when it meets the composer", () => {
+    const field = { left: 12, top: 600, right: 700, bottom: 660 };
+    const stack = { left: 0, top: 580, right: 712, bottom: 672 };
+    expect(
+      toastFit({
+        ...base,
+        shrink: false,
+        left: 8,
+        controls: [field],
+        regions: [stack],
+        right: 704,
+        viewportHeight: 700,
+      }),
+    ).toEqual({ width: 360, bottom: 700 - 580 + 8, shift: 0 });
+    expect(
+      toastFit({
+        ...base,
+        shrink: false,
+        left: 8,
+        controls: [],
+        regions: [stack],
+        right: 704,
+        viewportHeight: 700,
+      }),
+    ).toEqual({ width: 360, bottom: 40, shift: 0 });
+  });
+
+  test("a stack taller than the window keeps the lifted toast inside the window", () => {
+    const field = { left: 300, top: 760, right: 1300, bottom: 825 };
+    const stack = { left: 288, top: 20, right: 1312, bottom: 838 };
+    expect(
+      toastFit({ ...base, controls: [field], regions: [stack], right: 1424, viewportHeight: 900 }),
+    ).toEqual({ width: 360, bottom: 900 - 52 - 8, shift: 0 });
+  });
+
+  test("a lifted toast that would cover the floating rail steps left of it", () => {
+    const model = { left: 640, top: 820, right: 760, bottom: 844 };
+    const stack = { left: 288, top: 548, right: 842, bottom: 860 };
+    // 막대는 본문 세로 가운데(창 끝에서 12, 폭 34)라 올린 토스트(위 488, 아래 540)와 겹친다
+    const rail = { left: 854, top: 380, right: 888, bottom: 620 };
+    expect(
+      toastFit({
+        ...base,
+        controls: [model],
+        regions: [stack],
+        rails: [rail],
+        right: 884,
+        viewportHeight: 900,
+      }),
+    ).toEqual({ width: 360, bottom: 360, shift: 884 - 854 + 12 });
+    // 아래 자리에 선 토스트는 막대와 만나지 않으므로 옮기지 않는다
+    expect(
+      toastFit({
+        ...base,
+        controls: [],
+        regions: [stack],
+        rails: [rail],
+        right: 884,
+        viewportHeight: 900,
+      }),
+    ).toEqual({ width: 360, bottom: 40, shift: 0 });
   });
 });

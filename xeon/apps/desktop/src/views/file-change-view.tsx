@@ -11,7 +11,7 @@ function DiffRows(props: {
   readonly first: number;
 }): ReactNode {
   return (
-    <pre className="m-0 overflow-x-auto py-1">
+    <pre className="convo-diff-rows m-0 overflow-x-auto py-1">
       {props.rows.map((row, index) => {
         // 줄 번호는 이 묶음 안에서 겹치지 않으므로 키로도 쓴다(목록은 바뀌지 않는다)
         const number = props.first + index + 1;

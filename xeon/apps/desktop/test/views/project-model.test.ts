@@ -6,6 +6,7 @@ import {
   folderBlocksOf,
   isProjectCollapsed,
   isWithinRoot,
+  noticeActionsOf,
   pathSplitOf,
   projectOfThread,
   projectPanelOf,
@@ -203,5 +204,31 @@ describe("same folder and settings helpers", () => {
     expect(
       rootInstructionsOf({ files: [{ path: "api/AGENTS.md", bytes: 1, included: true }] }),
     ).toBeNull();
+  });
+});
+
+// AGE-75: 같은 폴더 알림의 대화 단추는 셋까지 보이고, 넷 이상이면 나머지는 "N개 더 보기"로 접힌다
+describe("noticeActionsOf", () => {
+  test("three or fewer show all with no fold control", () => {
+    expect(noticeActionsOf(["a", "b", "c"], false)).toEqual({
+      shown: ["a", "b", "c"],
+      hidden: 0,
+      canFold: false,
+    });
+    expect(noticeActionsOf(["a"], true)).toEqual({ shown: ["a"], hidden: 0, canFold: false });
+  });
+  test("four or more show three and count the rest", () => {
+    expect(noticeActionsOf(["a", "b", "c", "d", "e", "f"], false)).toEqual({
+      shown: ["a", "b", "c"],
+      hidden: 3,
+      canFold: false,
+    });
+  });
+  test("expanded shows all and offers folding back", () => {
+    expect(noticeActionsOf(["a", "b", "c", "d"], true)).toEqual({
+      shown: ["a", "b", "c", "d"],
+      hidden: 0,
+      canFold: true,
+    });
   });
 });

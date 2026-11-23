@@ -183,6 +183,7 @@ describe("durationText", () => {
       outcome: { kind: "done" },
       output: "",
       cut: null,
+      leading: null,
       hook: null,
       blocks: [],
       exitCode: 2,

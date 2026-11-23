@@ -3,10 +3,19 @@
 import { MissingArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { EmptyState, Toaster } from "@caustic/react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Presence, fadeIn, flipFrom, useScreenEnter } from "../../lib/motion-presets.tsx";
 import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { currentEndTabOf, EndPanel, wellWidthOf } from "./end-panel.tsx";
+import { wellBesideOf } from "./well-beside.ts";
 import type { ContextProfile } from "./context-picker.tsx";
 import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
 import { runShellAction, resolveShortcut } from "./shortcuts.ts";
@@ -19,9 +28,11 @@ import {
   TOAST_MIN_WIDTH_ACTION_PX,
   TOAST_MIN_WIDTH_PX,
   toastPlace,
-  toastWidth,
+  toastFit,
   cssBoxOf,
   type Box,
+  type ToastFit,
+  type ToastPlace,
 } from "./toaster-slot.ts";
 import { GoToThreadContext } from "../thread-link.ts";
 
@@ -166,19 +177,52 @@ function avoidControlsOf(): Box[] {
   return out;
 }
 
-/**
- * 토스트의 폭(DP-157, DP-170). 기본은 360이고, 그 자리의 토스트가 피할 곳의 조작부와 겹치면 폭을 줄여 오른쪽 틈에 두되 최소 폭보다 좁히지 않는다.
- * 아래 간격은 바꾸지 않는다. 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다.
- * `narrow`가 거짓(가운데 아래 자리)이면 재지 않고 기본 폭이다
- */
-function useToastWidth(narrow: boolean): number {
-  const [width, setWidth] = useState(TOAST_DEFAULT_WIDTH_PX);
-  useEffect(() => (narrow ? watchToastWidth(setWidth) : undefined), [narrow]);
-  return narrow ? width : TOAST_DEFAULT_WIDTH_PX;
+/** 화면의 피할 곳 상자(입력창 묶음 전체, 재시작 막대). 토스트를 올릴 때 이 위쪽 끝 위에 둔다(AGE-75) */
+function avoidRegionsOf(): Box[] {
+  const out: Box[] = [];
+  for (const el of document.querySelectorAll("[data-toast-avoid]")) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) out.push(r);
+  }
+  return out;
 }
 
-/** 토스트 폭을 재어 `onWidth`로 알리고, 크기·DOM이 바뀔 때마다 다시 잰다. 돌려준 함수가 지켜보기를 멈춘다 */
-function watchToastWidth(onWidth: (width: number) => void): () => void {
+/** 가운데 아래 자리(compact)의 좌우 여백(0.5rem) */
+const CENTER_INSET_PX = 8;
+
+const DEFAULT_FIT: ToastFit = {
+  width: TOAST_DEFAULT_WIDTH_PX,
+  bottom: TOAST_BOTTOM_DEFAULT_PX,
+  shift: 0,
+};
+
+/**
+ * 토스트의 폭과 아래 간격(DP-157, DP-170, AGE-75, `toastFit`). 기본은 폭 360, 아래 40이다. 그 자리의 토스트가 피할 곳의 조작부와 겹치면
+ * 오른쪽 자리는 폭을 오른쪽 틈까지 줄이고, 틈이 최소 폭(200, 동작 단추가 있으면 280)보다 좁거나 가운데 아래 자리면 입력창 묶음 위로 올린다.
+ * 올린 토스트가 오른쪽 떠 있는 막대와 겹치면 막대 왼쪽으로 옮긴다(`shift`).
+ * 크기, 화면, 토스트 수가 바뀌면 다시 잰다. 대화가 흐르는 동안 DOM이 자주 바뀌므로 한 프레임에 한 번만 잰다
+ */
+function useToastFit(place: ToastPlace): ToastFit {
+  const [fit, setFit] = useState(DEFAULT_FIT);
+  // 기본 자리의 오른쪽 끝(창 끝에서 잰 px). 잰 토스트 상자는 옮긴 뒤의 자리라 쓰지 않는다(옮김이 다음 잼에 되먹지 않게)
+  const endPx = place.kind === "end" ? place.endPx : CENTER_INSET_PX;
+  const shrink = place.kind === "end";
+  useEffect(
+    () =>
+      watchToastFit(shrink, endPx, (next) => {
+        setFit((prev) =>
+          prev.width === next.width && prev.bottom === next.bottom && prev.shift === next.shift
+            ? prev
+            : next,
+        );
+      }),
+    [shrink, endPx],
+  );
+  return fit;
+}
+
+/** 토스트 자리를 재어 `onFit`으로 알리고, 크기·DOM이 바뀔 때마다 다시 잰다. 돌려준 함수가 지켜보기를 멈춘다 */
+function watchToastFit(shrink: boolean, endPx: number, onFit: (fit: ToastFit) => void): () => void {
   let frame = 0;
   const measure = (): void => {
     frame = 0;
@@ -186,17 +230,21 @@ function watchToastWidth(onWidth: (width: number) => void): () => void {
     if (region === null) return;
     const box = region.getBoundingClientRect();
     const action = region.querySelector('[data-slot="toast-action"]') !== null;
-    const min = action ? TOAST_MIN_WIDTH_ACTION_PX : TOAST_MIN_WIDTH_PX;
     // 잰 상자와 창 높이는 화면 px, 토스트 폭·간격은 CSS px라 앱 확대로 나눠 맞춘다(DP-173)
     const zoom = cssZoomOf(region);
-    onWidth(
-      toastWidth(
-        avoidControlsOf().map((c) => cssBoxOf(c, zoom)),
-        cssPxOf(box.right, zoom),
-        cssPxOf(box.height, zoom),
-        cssPxOf(window.innerHeight, zoom),
-        min,
-      ),
+    const rail = document.querySelector("[data-end-bar]")?.getBoundingClientRect();
+    onFit(
+      toastFit({
+        controls: avoidControlsOf().map((c) => cssBoxOf(c, zoom)),
+        regions: avoidRegionsOf().map((c) => cssBoxOf(c, zoom)),
+        rails: rail === undefined || rail.width === 0 ? [] : [cssBoxOf(rail, zoom)],
+        left: CENTER_INSET_PX,
+        right: cssPxOf(window.innerWidth, zoom) - endPx,
+        height: cssPxOf(box.height, zoom),
+        viewportHeight: cssPxOf(window.innerHeight, zoom),
+        minWidth: action ? TOAST_MIN_WIDTH_ACTION_PX : TOAST_MIN_WIDTH_PX,
+        shrink,
+      }),
     );
   };
   const schedule = (): void => {
@@ -236,11 +284,12 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const tabs = props.registry.endTabs(area, screen);
   const pluginTabs = props.registry.pluginEndTabs(area, screen);
   const place = toastPlace(layout, open, wellWidthOf(currentEndTabOf(tabs, pluginTabs, tabId)));
-  const width = useToastWidth(place.kind === "end");
-  const bottom = TOAST_BOTTOM_DEFAULT_PX;
+  const fit = useToastFit(place);
+  const bottom = fit.bottom;
+  const width = fit.width;
   // DP-152 자리는 창 전체 기준 오른쪽 아래(끝에서 16px), 상태 표시줄 위다. 입력창 묶음·재시작 막대(`data-toast-avoid`)의 조작부와 겹치면
-  // 폭을 줄여 그 오른쪽 틈에 두되 200(동작 단추가 있으면 280)보다 좁히지 않는다(DP-157, `toastWidth`). 어느 창 폭에서도 위로 올리지 않는다(DP-170).
-  // 가운데 아래(compact)는 폭을 바꾸지 않는다
+  // 폭을 줄여 그 오른쪽 틈에 둔다(DP-157). 틈이 200(동작 단추가 있으면 280)보다 좁으면 입력창 묶음 위쪽 끝 위 8px로 올린다(AGE-75, `toastFit`).
+  // 가운데 아래(compact)는 폭을 바꾸지 않고, 입력창 묶음과 겹치면 같은 규칙으로 올린다
   // 모양(outline)과 사라짐 시간은 caustic 기본값이다(DP-151, DP-153). 오류 토스트는 닫을 때까지 남는다
   return (
     <Toaster
@@ -248,11 +297,45 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
       className="transition-[inset] duration-quick"
       style={
         place.kind === "center-bottom"
-          ? { insetInline: "0.5rem", bottom }
-          : { insetInlineEnd: `${String(place.endPx)}px`, bottom, width: `${String(width)}px` }
+          ? {
+              insetInlineStart: `${String(CENTER_INSET_PX)}px`,
+              insetInlineEnd: `${String(CENTER_INSET_PX + fit.shift)}px`,
+              bottom,
+            }
+          : {
+              insetInlineEnd: `${String(place.endPx + fit.shift)}px`,
+              bottom,
+              width: `${String(width)}px`,
+            }
       }
     />
   );
+}
+
+/** 대화 화면이 비킬 오른쪽 여백을 담는 CSS 변수(styles.css AGE-75) */
+type WellBesideStyle = CSSProperties & { readonly "--well-beside": string };
+
+function wellBesideStyle(px: number): WellBesideStyle {
+  return { "--well-beside": `${String(px)}px` };
+}
+
+/** 요소의 폭(CSS px, 앱 확대를 되돌린 값). 크기가 바뀌면 다시 잰다. 처음 그리기 전에는 0이다 */
+function useCssWidth(ref: { readonly current: HTMLElement | null }): number {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el === null) return undefined;
+    const measure = (): void => {
+      setWidth(cssPxOf(el.getBoundingClientRect().width, cssZoomOf(el)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+  return width;
 }
 
 /** 셸 전체가 "대화로 가기"를 무대와 끝 영역(받은 요청 등)에 내린다. 셸 본문은 `ShellFrame`이 그린다 */
@@ -285,6 +368,28 @@ function ShellFrame(props: ShellProps): ReactNode {
   const keyLabel = (id: ActionId): string => formatKey(keymap[id], props.mac);
   const compact = layout === "compact";
   const columnRef = useRef<HTMLDivElement | null>(null);
+  // AGE-75: well이 열리면 대화 화면은 well 자리만큼 비킨다(`well-beside.ts`). 무대 폭은 무대 열의 폭이다(well과 막대는 그 위에 떠 있어 폭을 바꾸지 않는다)
+  const stageWidth = useCssWidth(columnRef);
+  const endOpen = useShell((s) => s.endOpen);
+  const endTabId = useShell((s) => s.places[s.area].endTab);
+  const wellBeside =
+    !compact &&
+    endOpen &&
+    hasRail &&
+    !bleed &&
+    !props.settingsOpen &&
+    props.registry.screen(railScreen)?.wellBeside === true
+      ? wellBesideOf(
+          stageWidth,
+          wellWidthOf(
+            currentEndTabOf(
+              props.registry.endTabs(railArea, railScreen),
+              props.registry.pluginEndTabs(railArea, railScreen),
+              endTabId,
+            ),
+          ),
+        )
+      : null;
   const panelRef = useRef<HTMLDivElement | null>(null);
   // 화면 전환(DP-106): 영역·화면·설정을 바꾸면 무대가 투명도 + 8px 오름으로 들어온다(fade-through). 옛 화면은 바로 사라진다
   const screenKey = props.settingsOpen ? "settings" : `${railArea}:${railScreen}`;
@@ -381,6 +486,9 @@ function ShellFrame(props: ShellProps): ReactNode {
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
               data-rail={hasRail && !bleed ? "" : undefined}
+              // 대화 기록과 입력창 묶음(`data-chat-rail-gap`)이 이만큼 오른쪽을 비운다(styles.css AGE-75)
+              data-well-beside={wellBeside === null ? undefined : ""}
+              style={wellBeside === null ? undefined : wellBesideStyle(wellBeside)}
               // `--stage-rail`: 머리 뒤 본문의 오른쪽 여백(막대 34 + 창 끝 12 → 48, styles.css DP-68). `--shell-rail`: 같은 값을 본문 밖에서 읽는 화면용(플레이그라운드)
               className={`flex min-w-0 flex-1 flex-col outline-none ${hasRail && !bleed ? "[--shell-rail:calc(var(--spacing)*12)] [--stage-rail:calc(var(--spacing)*12)]" : ""}`}
             >
@@ -390,7 +498,7 @@ function ShellFrame(props: ShellProps): ReactNode {
                 settingsScreen={props.settingsScreen}
               />
             </main>
-            <EndPanel registry={props.registry} keyLabel={keyLabel} />
+            <EndPanel registry={props.registry} keyLabel={keyLabel} beside={wellBeside !== null} />
           </div>
           {props.statusBar}
         </div>
