@@ -552,7 +552,7 @@ describe("status bar server render", () => {
 });
 
 /** 대화 하나가 돌고 승인 하나가 기다리는 거울. 승인은 `approval.requested` 사실로 넣는다 */
-function mirrorWithApproval(): EngineMirror {
+function mirrorWithApproval(kind: "tool" | "question" = "tool"): EngineMirror {
   const h = harness();
   h.store.ingest({ type: "engine", state: RUNNING });
   h.store.ingest({
@@ -581,7 +581,22 @@ function mirrorWithApproval(): EngineMirror {
         threadId: thr(1),
         turnId: null,
         at: "t",
-        request: approvalRequest(thr(1)),
+        request:
+          kind === "question"
+            ? approvalRequest(thr(1))
+            : {
+                ...approvalRequest(thr(1)),
+                body: {
+                  kind: "tool",
+                  tool: {
+                    toolName: "bash",
+                    risk: "write",
+                    args: { command: "ls" },
+                    argsHash: "h",
+                    ruleId: null,
+                  },
+                },
+              },
       },
     ],
   });
@@ -649,6 +664,12 @@ describe("status bar cell order", () => {
     expect(approvals).toContain("fx-attend-count");
     expect(approvals).not.toContain("data-bar-dot");
     expect(cellIdsOf(barWith(mirrorWithFailure()))).toEqual(["failed"]);
+  });
+
+  test("a waiting question is counted as an answer wait, not as an approval", () => {
+    const html = barWith(mirrorWithApproval("question"));
+    expect(cellIdsOf(html)).toEqual(["live", "questions"]);
+    expect(cellTextOf(html, "questions")).toBe("답변 대기 1");
   });
 
   test("the bar has no settings button, the sidebar footer is the way to settings", () => {

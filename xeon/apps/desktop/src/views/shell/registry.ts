@@ -98,6 +98,8 @@ export interface EndTabDef {
 export interface PluginEndTabDef extends EndTabDef {
   readonly description: MessageId;
   readonly source: "plugin" | "host";
+  /** 사용자가 이 열쇠(`<확장>/<항목 id>`)의 화면을 숨기면(`x.ui.hidden`) 메뉴에서 빠진다. 다 빠지면 단추도 사라진다 */
+  readonly hiddenKey?: string;
 }
 
 export interface ShellRegistry {

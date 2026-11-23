@@ -219,6 +219,23 @@ export function runLinesOf(card: PluginCard): readonly RunLine[] {
 }
 
 /**
+ * 플러그인 자체 코드(격리 프로세스, `runs.code`)가 맡는 일: 훅 수와 도구 수. "승인하면 실행될 것" 칸이 오른쪽 코드 실행 안내와
+ * 같은 사실(`runs.code`)에서 말하게 한다. 코드가 없으면 null이다. 화면의 자체 코드는 카드에 따로 없어 수로 세지 않는다
+ */
+export interface OwnCode {
+  readonly hooks: number;
+  readonly tools: number;
+}
+
+export function ownCodeOf(card: PluginCard): OwnCode | null {
+  if (!card.runs.code) return null;
+  return {
+    hooks: card.does.hook?.hooks.length ?? 0,
+    tools: card.does.inject?.tools.length ?? 0,
+  };
+}
+
+/**
  * 코드 실행 안내(늘 보이는 경고, AGE-14·AC-51). 코드가 도는 플러그인에만 있다. 네 갈래다(엔진 값은 `CardScript.uses`, `env`, `runs`):
  * - `open`: 열린 정책 [결정: 2026-11-21 사용자, AGE-63]. 승인된 플러그인의 스크립트(`sandbox_full_access`), 격리 플러그인 프로세스(`runs.code`),
  *   로컬 MCP 서버가 샌드박스 안에서 셸 도구처럼 읽고 쓰고 시스템 도구와 네트워크를 쓴다. 막는 것은 Fresnel 자신의 비밀, 데이터, 설정과

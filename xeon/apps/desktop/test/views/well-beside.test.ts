@@ -3,6 +3,7 @@ import {
   CHAT_COLUMN_MIN_PX,
   CHAT_COLUMN_PX,
   wellBesideOf,
+  wellCoverWidthOf,
 } from "../../src/views/shell/well-beside.ts";
 
 // AGE-75 질문 1 가: 작업 패널(well)이 대화 열을 덮지 않는다. 무대 폭은 창 폭 − 왼쪽 패널 272다
@@ -33,4 +34,16 @@ test("a stage that would leave less than 480 keeps the well floating over it", (
   expect(wellBesideOf(480 + 418 - 1, 352)).toBeNull();
   // 넓은 well(480)은 같은 무대에서 먼저 뜬다
   expect(wellBesideOf(1008, 480)).toBeNull();
+});
+
+// AGE-77 artView: 넓게 편 well이 비키지 못하면 무대 왼쪽 끝까지 닿아 대화 열의 글이 가장자리 밖으로 삐져 보이지 않는다
+test("a wide well that cannot make the column step aside covers the whole stage up to the rail", () => {
+  // 1440 창(무대 1168): 880 넓은 well은 비킬 수 없다
+  expect(wellBesideOf(1168, 880)).toBeNull();
+  expect(wellCoverWidthOf(1168)).toBe(1168 - 66);
+  // 대화 열(736, 가운데 정렬) 왼쪽 끝이 well 왼쪽 끝보다 오른쪽이다: well 폭 + 막대 자리가 무대를 채운다
+  const leftOfColumn = (1168 - CHAT_COLUMN_PX) / 2;
+  const leftOfWell = 1168 - 66 - wellCoverWidthOf(1168);
+  expect(leftOfWell).toBeLessThanOrEqual(leftOfColumn);
+  expect(wellCoverWidthOf(0)).toBe(0);
 });

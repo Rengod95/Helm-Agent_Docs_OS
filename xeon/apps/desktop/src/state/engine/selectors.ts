@@ -248,6 +248,9 @@ export const selectTurnFailures = (s: EngineMirror): Readonly<Record<string, str
 export const selectLatestTurnId = (s: EngineMirror, id: ThreadId | null): TurnId | null =>
   id === null ? null : (s.latestTurnId[id] ?? null);
 export const selectApprovalCount = (s: EngineMirror): number => s.approvals.ids.length;
+/** 대기 승인 가운데 질문(`question` 본문)의 수. 하단 상태 막대가 "승인 대기"와 "답변 대기"를 따로 센다 */
+export const selectQuestionCount = (s: EngineMirror): number =>
+  s.approvals.ids.filter((id) => s.approvals.byId[id]?.request.body.kind === "question").length;
 /** 이 대화에 시한(`expiresAt`)이 있는 대기 승인이 있는지(크리스탈 표시의 급함, DP-223) */
 export const selectApprovalUrgent = (s: EngineMirror, id: ThreadId): boolean =>
   s.approvals.ids.some((approvalId) => {

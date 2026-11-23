@@ -16,6 +16,8 @@ export function approvalAnnouncement(request: LiveApprovalRequest): Announcement
   const view = cardTitleViewOf(request);
   if (view !== null && view.id === "desktop.approvals.title.tool")
     return { id: "desktop.announce.approval", params: { what: view.params.tool } };
+  if (view !== null && view.id === "desktop.approvals.title.draftTool")
+    return { id: "desktop.announce.approval", params: { what: view.params.tool } };
   if (view !== null && view.id === "desktop.approvals.title.web")
     return { id: "desktop.announce.approval", params: { what: view.params.host } };
   if (view !== null && view.id === "desktop.approvals.title.mcpStart")

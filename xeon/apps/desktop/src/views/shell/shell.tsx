@@ -15,7 +15,7 @@ import {
 import { Presence, fadeIn, flipFrom, useScreenEnter } from "../../lib/motion-presets.tsx";
 import { cssPxOf, cssZoomOf } from "../../lib/zoom.ts";
 import { currentEndTabOf, EndPanel, wellWidthOf } from "./end-panel.tsx";
-import { wellBesideOf } from "./well-beside.ts";
+import { wellBesideOf, wellCoverWidthOf } from "./well-beside.ts";
 import { useWellWide } from "./well-wide.ts";
 import type { ContextProfile } from "./context-picker.tsx";
 import { formatKey, resolveKeymap, type ActionId } from "./keybindings.ts";
@@ -506,7 +506,12 @@ function ShellFrame(props: ShellProps): ReactNode {
                 settingsScreen={props.settingsScreen}
               />
             </main>
-            <EndPanel registry={props.registry} keyLabel={keyLabel} beside={wellBeside !== null} />
+            <EndPanel
+              registry={props.registry}
+              keyLabel={keyLabel}
+              beside={wellBeside !== null}
+              coverWidth={wellCoverWidthOf(stageWidth)}
+            />
           </div>
           {props.statusBar}
         </div>

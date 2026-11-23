@@ -46,6 +46,16 @@ export function emptyThreadViewOf(input: {
   return { kind: "where", recent: input.recent, canPick: input.canPick };
 }
 
+/**
+ * 폴더를 고르는 화면을 그리지 않는 대화: 테스트 챗(Craft 창, `craftChat`)과 시험 대화(테스트 화면의 Test run, `testRun`).
+ * 이 대화들은 폴더를 고르는 대화가 아니라서 곧바로 대화 화면이다(AGE-77 R-08)
+ */
+export function hidesFolderPick(
+  summary: { readonly craftChat?: unknown; readonly testRun?: unknown } | undefined,
+): boolean {
+  return summary?.craftChat !== undefined || summary?.testRun !== undefined;
+}
+
 export function EmptyThread(): ReactNode {
   const threadId = useOpenThreadId();
   if (threadId === null) return null;
@@ -65,7 +75,7 @@ function EmptyThreadFor(props: { readonly threadId: ThreadId }): ReactNode {
     canPick: folderPick !== null,
   });
   // 테스트 챗(Craft 창)에는 폴더 고르기가 맞지 않다. 창이 제 안내 한 줄을 그린다(`craft/test-chat/test-chat-window.tsx`)
-  if (summary?.craftChat !== undefined) return null;
+  if (hidesFolderPick(summary)) return null;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       {/* 위:아래 여백을 2:3쯤으로 두어 무게가 가운데보다 조금 위에 온다 */}

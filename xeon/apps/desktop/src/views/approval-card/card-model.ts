@@ -95,6 +95,10 @@ export function threadLinkVisibleOf(input: {
 /** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 기동 승인, 질문)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용)은 원문이다 */
 export type CardTitleView =
   | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
+  | {
+      readonly id: "desktop.approvals.title.draftTool";
+      readonly params: { readonly plugin: string; readonly tool: string };
+    }
   | { readonly id: "desktop.approvals.title.web"; readonly params: { readonly host: string } }
   | {
       readonly id: "desktop.approvals.title.mcpStart";
@@ -125,6 +129,8 @@ const WRITE_OP_ID: Readonly<Record<string, MessageId>> = {
   rollback: "desktop.approvals.title.write.op.rollback",
 };
 /** 웹 접근 승인의 제목 원문(cap-web `webApprovalTitle`) */
+/** 리뷰 전인 드래프트 플러그인의 도구 승인 제목 원문(core-tools `pipeline` askUser의 표지 문장 + 도구 승인 제목) */
+const DRAFT_TOOL_TITLE = /^Draft plugin "(.+)" asks\. Allow tool "(.+)"\?$/;
 const WEB_TITLE = /^Allow web access to (.+)\?$/;
 const WRITE_TITLE = /^Approve (\S+) on (?:skill (.+)|(.+) memory)\?$/;
 
@@ -137,6 +143,13 @@ export function cardTitleViewOfText(input: {
   const { title, bodyKind, toolName } = input;
   if (bodyKind === "tool" && toolName !== null && title === `Allow tool "${toolName}"?`) {
     return { id: "desktop.approvals.title.tool", params: { tool: toolName } };
+  }
+  const draft = bodyKind === "tool" ? DRAFT_TOOL_TITLE.exec(title) : null;
+  if (draft !== null) {
+    return {
+      id: "desktop.approvals.title.draftTool",
+      params: { plugin: draft[1] ?? "", tool: draft[2] ?? "" },
+    };
   }
   // 질문 승인의 제목은 엔진이 영어로 고정한 글이다(core-tools `ask/approvals` QUESTION_TITLE)
   if (bodyKind === "question" && title === "Answer the questions") {
@@ -176,6 +189,7 @@ export function cardTitleViewOf(request: LiveApprovalRequest): CardTitleView | n
 export function cardTitleTextOf(view: CardTitleView): string {
   switch (view.id) {
     case "desktop.approvals.title.tool":
+    case "desktop.approvals.title.draftTool":
     case "desktop.approvals.title.web":
     case "desktop.approvals.title.mcpStart":
     case "desktop.approvals.title.question":

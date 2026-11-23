@@ -24,3 +24,14 @@ export function wellBesideOf(stageWidth: number, wellWidth: number): number | nu
   // 가운데 정렬된 열의 오른쪽 끝이 well 왼쪽 여유선(무대 끝 − space)에 닿는 최소 여백. 가운데 정렬이라 여백의 절반만큼 왼쪽으로 간다
   return Math.min(space, Math.max(0, 2 * space + CHAT_COLUMN_PX - stageWidth));
 }
+
+/** 막대 자리 오른쪽 여백(`end-3` 12)과 막대(`--stage-rail` 48)와 막대-well 사이(6)를 뺀, well이 무대 왼쪽 끝에 닿는 폭의 덜어낼 값 */
+const COVER_TAKEN_PX = 12 + 48 + WELL_GAP_PX;
+
+/**
+ * 넓게 편 well이 비키지 못하고(`wellBesideOf`가 null) 무대 위에 뜰 때의 폭(AGE-77 artView). 대화 열은 가운데 정렬이라 well이 열보다
+ * 좁으면 열의 왼쪽 글이 well 가장자리 밖으로 삐져 보인다. 그래서 well이 무대 왼쪽 끝까지 닿아 대화 열을 깔끔히 덮는다
+ */
+export function wellCoverWidthOf(stageWidth: number): number {
+  return Math.max(0, stageWidth - COVER_TAKEN_PX);
+}

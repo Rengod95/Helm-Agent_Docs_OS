@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
 import { createShellStore, openEndTab, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import { createShellRegistry, type ShellRegistry } from "../../../src/views/shell/registry.ts";
-import { EndPanel } from "../../../src/views/shell/end-panel.tsx";
+import { EndPanel, shownPluginTabsOf } from "../../../src/views/shell/end-panel.tsx";
 import { harness } from "../../state/helpers.ts";
 
 // 오른쪽 막대(DP-192~194)의 서버 렌더: 고정 칸, 구분선 뒤 "플러그인" 단추, well 머리의 제목·요약.
@@ -32,6 +32,7 @@ function registry(withPlugin: boolean, pluginNotices = 0): ShellRegistry {
       id: "helm",
       area: "chat",
       source: "plugin",
+      hiddenKey: "helm/helm-panel",
       label: "desktop.plugin.tab.helm",
       description: "desktop.plugin.tab.helmDescription",
       icon: <span>h</span>,
@@ -63,6 +64,22 @@ function render(r: ShellRegistry, openTab: string | null): string {
 }
 
 describe("end rail", () => {
+  test("a plugin panel whose screen the user hid (x.ui.hidden) leaves the plugin menu", () => {
+    const tabs = registry(true).pluginEndTabs("chat");
+    const withKey = tabs;
+    expect(shownPluginTabsOf(withKey, new Set()).map((tab) => tab.id)).toEqual([
+      "helm",
+      "plugin-pages",
+    ]);
+    expect(shownPluginTabsOf(withKey, new Set(["helm/helm-panel"])).map((tab) => tab.id)).toEqual([
+      "plugin-pages",
+    ]);
+    expect(shownPluginTabsOf(withKey, new Set(["other/x"])).map((tab) => tab.id)).toEqual([
+      "helm",
+      "plugin-pages",
+    ]);
+  });
+
   test("bar tabs come first; a separator and one plugin button follow when a plugin panel exists", () => {
     const out = render(registry(true), null);
     const tabs = [...out.matchAll(/data-end-tab="([^"]+)"/g)].map((m) => m[1]);

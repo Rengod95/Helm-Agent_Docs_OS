@@ -29,6 +29,7 @@ import {
 import type { EndTabDef, PluginEndTabDef, ShellRegistry, TabBadge } from "./registry.ts";
 import type { ActionId } from "./keybindings.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
+import { useHiddenUiKeys } from "../plugin/plugin-context.tsx";
 import { WELL_DEFAULT_WIDTH } from "./toaster-slot.ts";
 import { useWellWide } from "./well-wide.ts";
 
@@ -79,6 +80,14 @@ export function currentEndTabOf(
   id: string,
 ): EndTabDef | undefined {
   return tabs.find((x) => x.id === id) ?? pluginTabs.find((x) => x.id === id) ?? tabs[0];
+}
+
+/** 사용자가 숨긴 화면(`x.ui.hidden`)의 탭을 뺀 플러그인 패널들. 다 빠지면 빈 목록이라 "플러그인" 단추도 그리지 않는다 */
+export function shownPluginTabsOf(
+  tabs: readonly PluginEndTabDef[],
+  hidden: ReadonlySet<string>,
+): readonly PluginEndTabDef[] {
+  return tabs.filter((tab) => tab.hiddenKey === undefined || !hidden.has(tab.hiddenKey));
 }
 
 type KeyLabel = (id: ActionId) => string;
@@ -331,6 +340,11 @@ export function EndPanel(props: {
   readonly keyLabel?: KeyLabel;
   /** 참이면 화면이 well 자리를 비켜 well이 무대를 덮지 않는다(AGE-75, `well-beside.ts`). 그동안 바깥을 눌러도 닫지 않는다 */
   readonly beside?: boolean;
+  /**
+   * 넓게 편 탭이 비키지 못하고 무대 위에 뜰 때 well이 가져야 할 폭(`wellCoverWidthOf`). 이 폭이 넓은 폭보다 크면 이 폭을 쓴다.
+   * 없으면 탭이 정한 폭이다
+   */
+  readonly coverWidth?: number;
 }): ReactNode {
   const area = useShell((s) => s.area);
   const open = useShell((s) => s.endOpen);
@@ -339,7 +353,8 @@ export function EndPanel(props: {
   const screen = useShell((s) => s.places[s.area].screen);
   const actions = useShellActions();
   const tabs = props.registry.endTabs(area, screen);
-  const pluginTabs = props.registry.pluginEndTabs(area, screen);
+  const hiddenKeys = useHiddenUiKeys();
+  const pluginTabs = shownPluginTabsOf(props.registry.pluginEndTabs(area, screen), hiddenKeys);
   const current = currentEndTabOf(tabs, pluginTabs, tabId);
   const currentIsPlugin = current !== undefined && pluginTabs.some((x) => x.id === current.id);
   // 지금 탭의 스토어 배지는 탭 내용을 그리기 전에 읽는다(내용이 스토어를 다시 읽기 시작해도 머리 수가 흔들리지 않는다)
@@ -398,7 +413,12 @@ export function EndPanel(props: {
           aria-label={label}
           data-end-well={current.id}
           className="flex max-w-[calc(var(--app-vw)-4.5rem)] flex-col shadow-3 outline-none"
-          style={{ width: wellWidthOf(current, wideTab) }}
+          style={{
+            width:
+              !beside && wideTab === current.id && current.wideWidth !== undefined
+                ? Math.max(wellWidthOf(current, wideTab), props.coverWidth ?? 0)
+                : wellWidthOf(current, wideTab),
+          }}
         >
           {/* DP-193 머리 40: 제목 13/600 · 8 · 요약 12 tertiary(말줄임) · 접기 24. 머리 아래에는 선을 긋지 않는다: 바로 밑 본문 판(CardPanel)이
               제 1px 가장자리와 둥근 모서리로 머리와 본문을 가른다. 머리에 border-b를 더하면 판의 둥근 위 모서리 위로 곧은 선이 하나 더 지나간다

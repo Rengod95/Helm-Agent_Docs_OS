@@ -49,15 +49,26 @@ export interface RecentWorkspace {
   readonly count: number;
 }
 
+/** 대화 자신의 기본 폴더인가: 끝 이름이 그 대화의 id다 */
+function isOwnDefaultFolder(path: string, threadId: string): boolean {
+  const name = path
+    .replace(/[\\/]+$/, "")
+    .split(/[\\/]/)
+    .at(-1);
+  return name === threadId;
+}
+
 /**
  * 최근 작업 폴더 후보. 대화 목록은 최근 활동 먼저이므로 폴더가 처음 나온 순서를 그대로 둔다.
- * 빈 글과 폴더 없음은 뺀다. 대화 수는 그 폴더에 든 모든 대화다. 최대 5개다
+ * 빈 글과 폴더 없음은 뺀다. 프로젝트 없는 대화의 기본 폴더(`<기본 폴더>/<대화 id>`, 엔진 `defaultWorkspace`)는 그 대화만의 폴더라 뺀다(AGE-77 R-07).
+ * 대화 수는 그 폴더에 든 모든 대화다. 최대 5개다
  */
 export function recentWorkspacesOf(threads: readonly ThreadSummary[]): readonly RecentWorkspace[] {
   const counts = new Map<string, number>();
   for (const thread of threads) {
     const path = thread.workspace;
     if (path === null || path.trim() === "") continue;
+    if (isOwnDefaultFolder(path, thread.threadId)) continue;
     counts.set(path, (counts.get(path) ?? 0) + 1);
   }
   return [...counts].slice(0, RECENT_WORKSPACE_MAX).map(([path, count]) => ({ path, count }));

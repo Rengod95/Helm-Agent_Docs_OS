@@ -24,6 +24,7 @@ import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import { runReasonTextOf } from "./pages/schedules/schedule-text.ts";
 import {
   useApprovalCount,
+  useQuestionCount,
   useEngineState,
   useLinkBanner,
   useLinkPhase,
@@ -915,12 +916,21 @@ function GoalCell(props: { readonly threadId: ThreadId }): ReactNode {
  * "승인 대기 n" 칸. 답을 기다리는 승인이 있을 때만 그린다. 누르면 받은 요청 탭이 열린다(설명만 있는 팝오버를 거치지 않는다).
  * 점 없이 대화 목록의 확인 수와 같은 따뜻한 글자색·굵기로 구분한다(DP-206)
  */
-function ApprovalsCell(props: { readonly count: number }): ReactNode {
+function ApprovalsCell(props: {
+  readonly count: number;
+  /** 질문 카드면 참: "승인 대기" 대신 "답변 대기"로 센다(질문은 승인이 아니다) */
+  readonly question?: boolean;
+}): ReactNode {
   const shell = useContext(ShellStoreContext);
   return (
     <StatusAction
-      cellId="approvals"
-      text={t("desktop.status.approvalsWaiting", { count: props.count })}
+      cellId={props.question === true ? "questions" : "approvals"}
+      text={t(
+        props.question === true
+          ? "desktop.status.questionsWaiting"
+          : "desktop.status.approvalsWaiting",
+        { count: props.count },
+      )}
       tone="attention"
       collapseIcon={<Inbox className="size-3.5" />}
       hint={t("desktop.status.cell.approvals.open")}
@@ -1049,7 +1059,8 @@ export function StatusBar(): ReactNode {
   const engine = shownEngineOf(engineRaw, linkPhase === "live");
   const engineTarget = useEngineTarget();
   const banner = useLinkBanner();
-  const approvals = useApprovalCount();
+  const questions = useQuestionCount();
+  const approvals = useApprovalCount() - questions;
   const connectError = useConnectError();
   const restartNeeded = useRestartNeeded();
   // 엔진이 없으면 거울의 "진행 중" 수는 오래된 값이라 그 칸을 그리지 않는다(F-9)
@@ -1138,6 +1149,7 @@ export function StatusBar(): ReactNode {
           <FailedCell />
         </>
       )}
+      {questions > 0 ? <ApprovalsCell count={questions} question /> : null}
       {approvals > 0 ? <ApprovalsCell count={approvals} /> : null}
     </footer>
   );
