@@ -1,67 +1,14 @@
-// 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인)와 켜기 요청, 자동 꺼짐 알림(플러그인 카드와 오른쪽 "플러그인" 탭).
-// 찾기 막대는 확장 화면이 쓴다.
+// 개요와 플러그인 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인), 오류로 멈춘 플러그인 알림(플러그인 상세와 오른쪽 "플러그인" 탭).
+// 찾기 막대는 플러그인 목록이 쓴다. 전역 켜기 요청은 없다(켜고 끔은 프로필에서만, AGE-74).
 import { t } from "@fresnel/client/i18n";
-import { extNameOf, keepOffOf, listLayersOf, type HookNotice } from "@fresnel/client/workbench";
-import { Alert, Button, Input, Select, SelectOption, Skeleton } from "@caustic/react";
+import { extNameOf, keepOffOf, type HookNotice } from "@fresnel/client/workbench";
+import { Alert, Button, Input, Skeleton } from "@caustic/react";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
-import { layerNameOf } from "./layer-list.tsx";
-import { OffConfirmDialog, toggleRouteOf, TrustDialog } from "./trust-dialog.tsx";
-
-/**
- * 켜고 끄기 요청. 꺼져 있던 user·project 확장을 켜면 O-10을 먼저 보이고, 그룹을 끄면 "끄기" 확인을 먼저 보인다.
- * 일반 확장을 끄는 것은 바로 끈다. `dialog`를 화면 어딘가에 그려야 한다
- */
-export function useToggleRequest(controller: WorkbenchController): {
-  readonly request: (name: string, target: boolean) => void;
-  readonly dialog: ReactNode;
-} {
-  const entries = useWorkbench((s) => s.entries);
-  const [asking, setAsking] = useState<ExtListEntry | null>(null);
-  const [offAsking, setOffAsking] = useState<ExtListEntry | null>(null);
-  return {
-    request(name, target) {
-      const entry = entries.find((e) => e.name === name);
-      const route = toggleRouteOf(entry, target);
-      if (entry !== undefined && route === "trust") {
-        setAsking(entry);
-        return;
-      }
-      if (entry !== undefined && route === "off-confirm") {
-        setOffAsking(entry);
-        return;
-      }
-      detachVoid(controller.toggle(name, target));
-    },
-    dialog: (
-      <>
-        <TrustDialog
-          entry={asking}
-          onCancel={() => {
-            setAsking(null);
-          }}
-          onConfirm={(name) => {
-            setAsking(null);
-            detachVoid(controller.toggle(name, true));
-          }}
-        />
-        <OffConfirmDialog
-          entry={offAsking}
-          onCancel={() => {
-            setOffAsking(null);
-          }}
-          onConfirm={(name) => {
-            setOffAsking(null);
-            detachVoid(controller.toggle(name, false));
-          }}
-        />
-      </>
-    ),
-  };
-}
+import { ProfilePutMenu, useProfileSet } from "./profile-put-menu.tsx";
 
 export function SearchField(): ReactNode {
   const query = useWorkbench((s) => s.query);
@@ -79,50 +26,6 @@ export function SearchField(): ReactNode {
       }}
       containerClassName="w-60"
     />
-  );
-}
-
-/** 확장 목록의 층·켜짐 거르기(시안 c03: 찾기 옆의 두 Select) */
-export function ListFilters(): ReactNode {
-  const state0 = useWorkbench((s) => s);
-  const layers = listLayersOf(state0);
-  const layer = useWorkbench((s) => s.listLayer);
-  const state = useWorkbench((s) => s.listState);
-  const actions = useWorkbenchActions();
-  return (
-    <>
-      <Select
-        size="xs"
-        variant="ghost"
-        aria-label={t("desktop.workbench.filter.layer")}
-        value={layer}
-        onValueChange={(value) => {
-          actions.setListLayer(value);
-        }}
-        className="w-auto"
-      >
-        <SelectOption value="all">{t("desktop.workbench.filter.layerAll")}</SelectOption>
-        {layers.map((id) => (
-          <SelectOption key={id} value={id}>
-            {layerNameOf(id)}
-          </SelectOption>
-        ))}
-      </Select>
-      <Select
-        size="xs"
-        variant="ghost"
-        aria-label={t("desktop.workbench.filter.state")}
-        value={state}
-        onValueChange={(value) => {
-          if (value === "all" || value === "on" || value === "off") actions.setListState(value);
-        }}
-        className="w-auto"
-      >
-        <SelectOption value="all">{t("desktop.workbench.filter.stateAll")}</SelectOption>
-        <SelectOption value="on">{t("desktop.workbench.state.on")}</SelectOption>
-        <SelectOption value="off">{t("desktop.workbench.state.off")}</SelectOption>
-      </Select>
-    </>
   );
 }
 
@@ -164,15 +67,43 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
 }
 
 /**
- * "끌까요?" 질문과 두 답(끄기, 켜 두기). 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
- * 질문하는 동안 확장은 켜 둔 채다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 그대로 보인다(DP-58).
- * 연결이 끊겼거나 확장이 잠겼으면 두 답을 누를 수 없다(`keepOffOf`). `compact`면 오른쪽 탭처럼 좁은 자리용이다.
+ * 멈춘 플러그인의 두 행동: "다시 시도"(`ext.reenable`, 설정을 쓰지 않는다)와 "프로필에서 빼기"(프로필 체크 메뉴).
+ * 프로필에서 뺀 뒤 엔진이 묻고 있으면 `onStop`(`ext.disableConfirm`, 이번 실행에서 멈춤, 설정을 쓰지 않는다)으로 답한다.
+ * 프로필 목록은 이 부품이 그려질 때만 읽는다(알림이 있는 플러그인에만 그려진다)
+ */
+function StopActions(props: {
+  readonly entry: ExtListEntry;
+  readonly disabled: boolean;
+  readonly onRetry: () => void;
+  readonly onStop: () => void;
+}): ReactNode {
+  const profiles = useProfileSet();
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      <Button size="xs" variant="outline" disabled={props.disabled} onClick={props.onRetry}>
+        {t("desktop.workbench.keepOff.retry")}
+      </Button>
+      <ProfilePutMenu
+        name={props.entry.name}
+        title={extNameOf(props.entry)}
+        load={profiles}
+        label={t("desktop.workbench.keepOff.removeFromProfile")}
+        onRemoved={props.onStop}
+      />
+    </div>
+  );
+}
+
+/**
+ * "계속 실패해요" 알림과 두 행동(다시 시도, 프로필에서 빼기). 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
+ * 묻는 동안 확장은 켜 둔 채다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 그대로 보인다(DP-58).
+ * 연결이 끊겼거나 확장이 잠겼으면 다시 시도를 누를 수 없다(`keepOffOf`). `compact`면 오른쪽 탭처럼 좁은 자리용이다.
  */
 function KeepOffAlert(props: {
   readonly entry: ExtListEntry;
   readonly compact?: boolean | undefined;
-  readonly onKeepOn: () => void;
-  readonly onKeepOff: () => void;
+  readonly onRetry: () => void;
+  readonly onStop: () => void;
 }): ReactNode {
   const online = useLinkPhase() === "live";
   const question = keepOffOf(props.entry, online);
@@ -190,25 +121,12 @@ function KeepOffAlert(props: {
               count: question.windowFailures,
             })}
       </p>
-      <p className="text-ui-strong">{t("desktop.workbench.keepOff.question")}</p>
-      <div className="mt-1 flex flex-wrap gap-1">
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={!question.answerable}
-          onClick={props.onKeepOn}
-        >
-          {t("desktop.workbench.keepOff.keepOn")}
-        </Button>
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={!question.answerable}
-          onClick={props.onKeepOff}
-        >
-          {t("desktop.workbench.keepOff.keepOff")}
-        </Button>
-      </div>
+      <StopActions
+        entry={props.entry}
+        disabled={!question.answerable}
+        onRetry={props.onRetry}
+        onStop={props.onStop}
+      />
     </Alert>
   );
 }
@@ -264,16 +182,16 @@ export function hookNoticeAfter(
 }
 
 /**
- * 자동 꺼진 확장 하나의 알림(플러그인 카드와 오른쪽 "플러그인" 탭). 질문이 있으면 `KeepOffAlert`, 질문 없이 자동으로 꺼졌으면
- * "자동으로 꺼졌어요"와 다시 켜기를 보인다. 답하면 질문은 목록이 다시 읽히며 사라지고, 결과 한 줄이 이 부품에 남는다.
+ * 오류로 멈춘 플러그인 하나의 알림(플러그인 상세와 오른쪽 "플러그인" 탭). 묻는 중이면 `KeepOffAlert`, 묻지 않고 멈췄으면
+ * "오류로 멈췄어요"와 다시 시도, 프로필에서 빼기를 보인다. 답하면 질문은 목록이 다시 읽히며 사라지고, 결과 한 줄이 이 부품에 남는다.
  * 그래서 부모는 항목마다 이 부품을 빼지 말고 두어야 한다(빼면 결과 줄도 사라진다). 알림도 답도 없으면 아무것도 그리지 않는다.
- * `onKeepOn`은 다시 켜기(`reenable`)다. "켜 두기"도 같은 호출이다.
+ * `onRetry`는 `ext.reenable`, `onStop`은 `ext.disableConfirm`이다. 둘 다 전역 설정(`ext.<이름>.enabled`)을 쓰지 않는다.
  */
 export function AutoOffNotice(props: {
   readonly entry: ExtListEntry;
   readonly compact?: boolean | undefined;
-  readonly onKeepOn: () => void;
-  readonly onKeepOff: () => void;
+  readonly onRetry: () => void;
+  readonly onStop: () => void;
 }): ReactNode {
   const { entry } = props;
   const asking = entry.keepOffQuestion !== undefined;
@@ -295,8 +213,8 @@ export function AutoOffNotice(props: {
         <p role="status" className="m-0 text-ui text-text-secondary">
           {t("desktop.workbench.keepOff.answer.off")}
         </p>
-        <Button size="xs" variant="outline" onClick={props.onKeepOn}>
-          {t("desktop.workbench.reenable")}
+        <Button size="xs" variant="outline" onClick={props.onRetry}>
+          {t("desktop.workbench.keepOff.retry")}
         </Button>
       </div>
     );
@@ -306,23 +224,16 @@ export function AutoOffNotice(props: {
       <KeepOffAlert
         entry={entry}
         compact={props.compact}
-        onKeepOn={props.onKeepOn}
-        onKeepOff={props.onKeepOff}
+        onRetry={props.onRetry}
+        onStop={props.onStop}
       />
     );
   }
   if (off) {
     return (
-      <Alert
-        tone="danger"
-        size={props.compact === true ? "sm" : undefined}
-        action={
-          <Button size="xs" variant="outline" onClick={props.onKeepOn}>
-            {t("desktop.workbench.reenable")}
-          </Button>
-        }
-      >
-        {t("desktop.workbench.autoDisabled", { name: extNameOf(entry) })}
+      <Alert tone="danger" size={props.compact === true ? "sm" : undefined}>
+        <p>{t("desktop.workbench.autoDisabled", { name: extNameOf(entry) })}</p>
+        <StopActions entry={entry} disabled={false} onRetry={props.onRetry} onStop={() => {}} />
       </Alert>
     );
   }

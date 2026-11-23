@@ -1,13 +1,13 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ExtTrust } from "@fresnel/contracts/wire";
-import { Switch, Tooltip } from "@caustic/react";
+import { Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
 import type { AddonRow } from "./addon-model.ts";
 import { PinIcon, PluginGlyph } from "./plugin-glyph.tsx";
 
-// 플레이그라운드 목록 카드(DP-91, 시안 dzP-design.md 2절). 아이콘 타일 36 · 이름 14/600 + 버전 · 오른쪽 위 전역 스위치,
-// 한 줄 설명(두 줄까지), 바닥 메타(화면·기능 수 또는 "화면 없음", 출처, 상태 점, 고정 표지). 카드 전체가 상세로 가는 단추이고
-// 스위치는 따로 눌린다(카드 단추 안에 넣지 않고 겹쳐 둔다). hover는 면 색만 바꾼다(떠오름·그림자 없음).
+// 플레이그라운드 목록 카드(DP-91, 시안 dzP-design.md 2절). 아이콘 타일 36, 이름 14/600과 버전,
+// 한 줄 설명(두 줄까지), 바닥 메타(화면, 기능 수 또는 "화면 없음", 출처, 상태 점, 고정 표지). 카드 전체가 상세로 가는 단추다.
+// 켜기 스위치는 없다(켜고 끔은 프로필에서만, AGE-74). hover는 면 색만 바꾼다(떠오름, 그림자 없음).
 
 export const ORIGIN_TEXT: Readonly<Record<ExtTrust, MessageId>> = {
   builtin: "desktop.addons.trust.builtin.title",
@@ -54,14 +54,6 @@ function RowStatus(props: { readonly row: AddonRow }): ReactNode {
 export function PluginCard(props: {
   readonly row: AddonRow;
   readonly pinned: boolean;
-  /** 켜짐 스위치. 그룹 구성원처럼 여기서 바꿀 수 없으면 undefined */
-  readonly toggle?:
-    | {
-        readonly on: boolean;
-        readonly busy: boolean;
-        readonly onChange: (target: boolean) => void;
-      }
-    | undefined;
   readonly onOpen: () => void;
 }): ReactNode {
   const { row } = props;
@@ -74,7 +66,7 @@ export function PluginCard(props: {
         onClick={props.onOpen}
         className="grid h-full min-h-33 w-full grid-rows-[auto_1fr_auto] gap-3 rounded-xl bg-surface-base p-4 text-start shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none transition-colors hover:bg-neutral-hover focus-visible:focus-ring"
       >
-        <span className="flex min-w-0 items-center gap-3 pe-12">
+        <span className="flex min-w-0 items-center gap-3">
           <PluginGlyph icon={row.icon} monogram={row.monogram} size="card" off={row.off} />
           <span className="grid min-w-0">
             <span
@@ -115,17 +107,6 @@ export function PluginCard(props: {
           </span>
         </span>
       </button>
-      {props.toggle === undefined ? null : (
-        <span className="absolute end-4 top-4 inline-flex h-9 items-center">
-          <Switch
-            size="sm"
-            checked={props.toggle.on}
-            disabled={props.toggle.busy}
-            aria-label={t("desktop.addons.toggle", { name: row.title })}
-            onCheckedChange={props.toggle.onChange}
-          />
-        </span>
-      )}
     </li>
   );
 }

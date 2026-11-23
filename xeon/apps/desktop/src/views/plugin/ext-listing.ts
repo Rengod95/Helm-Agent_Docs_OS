@@ -58,11 +58,6 @@ function subscribeListing(commands: Commands, listener: () => void): () => void 
   };
 }
 
-/** 확장 목록을 지금 다시 읽는다(켜기·끄기 뒤) */
-export function reloadExtListing(commands: Commands): void {
-  load(commands, listingOf(commands));
-}
-
 /** `ext.list` 행. 아직 못 읽었거나 연결이 없으면 undefined */
 export function useExtListing(): readonly ExtListEntry[] | undefined {
   const commands = useCommands();

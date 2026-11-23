@@ -161,7 +161,7 @@ export function runtimeEndTab(store: WorkbenchStore): EndTabDef {
 }
 
 /**
- * 오른쪽 "플러그인" 탭 안. 맨 위에 알림이 있는 확장마다 `AutoOffNotice`(질문과 두 답)를 두고, 그 아래에 이 대화의 프로필, 그 아래는 `PluginPagesTab`이다.
+ * 오른쪽 "플러그인" 탭 안. 맨 위에 알림이 있는 확장마다 `AutoOffNotice`(다시 시도와 프로필에서 빼기)를 두고, 그 아래에 이 대화의 프로필, 그 아래는 `PluginPagesTab`이다.
  * 알림은 이 탭만 쓰므로 `PluginPagesTab`(플러그인 화면도 쓴다) 안에 넣지 않는다.
  */
 function PluginPagesEndTab(): ReactNode {
@@ -183,11 +183,11 @@ function PluginPagesEndTab(): ReactNode {
             key={entry.name}
             entry={entry}
             compact
-            onKeepOn={() => {
-              detachVoid(controller.reenable(entry.name));
+            onRetry={() => {
+              detachVoid(controller.retry(entry.name));
             }}
-            onKeepOff={() => {
-              detachVoid(controller.keepOff(entry.name));
+            onStop={() => {
+              detachVoid(controller.stop(entry.name));
             }}
           />
         ))}

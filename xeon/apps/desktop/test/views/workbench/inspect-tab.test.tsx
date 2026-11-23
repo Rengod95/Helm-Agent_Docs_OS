@@ -149,19 +149,16 @@ function body(
     readonly link?: "live" | "offline" | "pending";
     readonly health?: readonly ExtHealthEntry[];
     readonly records?: readonly HandlerFailureEntry[];
-    readonly pending?: Readonly<Record<string, boolean>>;
   } = {},
 ): string {
   return renderToString(
     <InspectBody
       entry={entryValue}
-      pending={over.pending ?? {}}
       link={over.link ?? "live"}
       data={data}
       health={over.health ?? []}
       records={over.records ?? []}
-      onToggle={() => {}}
-      onReenable={() => {}}
+      onRetry={() => {}}
       onDetail={() => {}}
     />,
   );
@@ -346,7 +343,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     expect(failures).not.toContain('data-slot="table"');
   });
 
-  test("자동 꺼진 확장은 다시 켜기 단추를 보이고, 켜기·끄기 단추는 보이지 않는다", () => {
+  test("오류로 멈춘 확장은 다시 시도 단추를 보이고, 켜기·끄기 단추는 없다", () => {
     const off = entry("review", {
       layer: "L3",
       isOrchestration: true,
@@ -367,30 +364,23 @@ describe("검사 탭 구역: 값이 있을 때", () => {
         },
       ],
     });
-    expect(buttonOf(html, t("desktop.workbench.reenable"))).not.toBe("");
-    expect(buttonOf(html, t("desktop.inspect.toggle.on"))).toBe("");
+    expect(buttonOf(html, t("desktop.workbench.keepOff.retry"))).not.toBe("");
     expect(textOf(sectionOf(html, t("desktop.inspect.failures.title")))).toContain(
       t("desktop.inspect.failures.autoOff"),
     );
   });
 
-  test("켜진 확장의 단추는 끄기이고, 꺼진 확장의 단추는 켜기다", () => {
-    expect(buttonOf(body(REVIEW, READY_DATA), t("desktop.inspect.toggle.off"))).not.toBe("");
+  test("켜고 끔은 프로필에서만 한다: 켜진 확장에도 꺼진 확장에도 켜기·끄기 단추가 없다", () => {
     const off = entry("review", { layer: "L3", isOrchestration: true, status: "disabled" });
-    expect(buttonOf(body(off, READY_DATA), t("desktop.inspect.toggle.on"))).not.toBe("");
-  });
-
-  test("잠긴 확장(면제 tier)은 켜기·끄기 단추가 꺼지고 이유는 정보 아이콘 뒤에 있다", () => {
-    const core = entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" });
-    const html = body(core, READY_DATA);
-    expect(buttonOf(html, t("desktop.inspect.toggle.off"))).toContain("disabled");
-    expect(html).toContain(t("desktop.workbench.lock.exempt"));
-    expect(html).toContain(t("desktop.craft.infoTip.label"));
-  });
-
-  test("요청이 기다리는 동안은 켜기·끄기 단추가 꺼진다", () => {
-    const html = body(REVIEW, READY_DATA, { pending: { review: false } });
-    expect(buttonOf(html, t("desktop.inspect.toggle.off"))).toContain("disabled");
+    expect(
+      [body(REVIEW, READY_DATA), body(off, READY_DATA)].map((html) => [
+        buttonOf(html, t("desktop.inspect.toggle.off")),
+        buttonOf(html, t("desktop.inspect.toggle.on")),
+      ]),
+    ).toEqual([
+      ["", ""],
+      ["", ""],
+    ]);
   });
 
   test("머리는 표시 이름 옆에 mono id를 보이고, 확장 메뉴 단추를 둔다", () => {

@@ -366,3 +366,24 @@ describe("addonRouteOf", () => {
     expect(addonRouteOf({ kind: "screen", key: "gone/x" }, VIEWDEMO)).toEqual(ADDON_LIST);
   });
 });
+
+describe("화면과 기능 이름은 플러그인 메시지로 고른다(AGE-76 plugMin: 화면 목록에 번역 키가 새던 곳)", () => {
+  test("카드와 패널의 제목 키는 그 로케일 문장이 되고, 없는 로케일이면 영어 문장이다", () => {
+    const messages = {
+      ko: { "helm.finished.title": "탐구 결과", "helm.inquiry.title": "탐구" },
+      en: { "helm.finished.title": "Inquiry result", "helm.inquiry.title": "Inquiry" },
+    };
+    const entries: readonly ExtUiEntry[] = [
+      uiEntryOf({ id: "helm-panel", placement: "panel", title: "helm.inquiry.title", messages }),
+      uiEntryOf({ id: "helm-finished", placement: "card", title: "helm.finished.title", messages }),
+    ];
+    const source = { entries, inactive: new Set<string>(), settings: {} };
+    const ko = addonDetailOf("helm", source, new Map(), "ko");
+    expect(ko?.features.map((feature) => [feature.kind, feature.title])).toEqual([
+      ["panel", "탐구"],
+      ["card", "탐구 결과"],
+    ]);
+    const fr = addonDetailOf("helm", source, new Map(), "fr");
+    expect(fr?.features.map((feature) => feature.title)).toEqual(["Inquiry", "Inquiry result"]);
+  });
+});

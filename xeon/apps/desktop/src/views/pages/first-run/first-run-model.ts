@@ -23,8 +23,8 @@ export const STEP_ORDER: readonly StepId[] = ["tools", "key", "model", "search",
 const OPTIONAL_STEPS: ReadonlySet<StepId> = new Set<StepId>(["search", "groups"]);
 
 /**
- * 기본 그룹 켜짐의 기본값. Helm 그룹의 매니페스트 `defaultEnabled`가 참이다(L3.helm.spec §3.1).
- * 설정 값을 쓴 적이 없으면 이 값이다.
+ * 기본 그룹 켜짐의 기본값. 켜짐을 알 수 없는 그룹(`null`, 설치되지 않은 그룹)은 이 값으로 그린다.
+ * Helm은 공장 기본 프로필에 든 기본 플러그인이라 기본 프로필을 쓴 적이 없으면 켜져 있다(L3.helm.spec §3.1).
  */
 const GROUP_DEFAULT_ON = true;
 

@@ -4,7 +4,7 @@ import type { WorkbenchState } from "@fresnel/client/workbench";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import type { CraftScope, WorkbenchActions, WorkbenchStore } from "./store.ts";
+import type { WorkbenchActions, WorkbenchStore } from "./store.ts";
 
 export const WorkbenchStoreContext: React.Context<WorkbenchStore | null> =
   createContext<WorkbenchStore | null>(null);
@@ -22,11 +22,6 @@ export function useWorkbench<U>(selector: (state: WorkbenchState) => U): U {
 
 export function useWorkbenchActions(): WorkbenchActions {
   return useWorkbenchStore().actions;
-}
-
-/** 크래프트가 읽는 데이터 범위. 지금은 전역뿐이다 */
-export function useWorkbenchScope(): CraftScope {
-  return useWorkbenchStore().scope;
 }
 
 /** 프로바이더가 없어도 되는 저장소. 없으면 `fallback`이 준 저장소다(이름 보이기만 하는 `views/craft/installed-entries.ts`) */

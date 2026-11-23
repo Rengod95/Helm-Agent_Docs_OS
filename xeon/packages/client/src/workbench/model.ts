@@ -11,8 +11,8 @@ import { clearSel, selectGroup, selectPlugin } from "./canvas/select.ts";
 import type { Contrib, KindFilter, LayerKey, Sel } from "./canvas/types.ts";
 
 // 크래프트(LightCraft, 코드 id `workbench`) 공유 상태의 순수 모델. spec L4.desktop-ux §6.21~§6.24.
-// 크래프트는 전역 상태만 다룬다(2026-11-03 (4)): 범위와 맥락 칸이 없고, 켜기·끄기는 사용자 범위(`user`) 값 하나다.
-// 그룹은 스위치 하나다(15-1). 지도·순서·링크(T-CANVAS)와 선택 패널·층 패널·자세히 보기(T-BENCH)가 같은 값을 읽는다.
+// 크래프트는 전역 상태만 다룬다(2026-11-03 (4)): 범위와 맥락 칸이 없다. 플러그인을 켜고 끄는 것은 프로필에 넣고 빼는 것뿐이다(AGE-74, plugMin):
+// 전역 켜기 스위치는 없다. 지도·순서·링크(T-CANVAS)와 선택 패널·층 패널·자세히 보기(T-BENCH)가 같은 값을 읽는다.
 // 선택(`sel`)과 거르기(`kind`, `contrib`)의 값 종류는 canvas/types.ts가 정한다. 이 파일은 canvas를 import하지 않는다.
 // 스토어(zustand)는 앱의 `state/workbench`가 이 파일의 함수로 감싼다.
 
@@ -29,11 +29,10 @@ export const DETAIL_TABS = [
   "dependencies",
   "composition",
   "hooks",
-  "settings",
+  "surfaces",
   "metrics",
   "record",
   "versions",
-  "screens",
 ] as const;
 export type DetailTab = (typeof DETAIL_TABS)[number];
 
@@ -56,10 +55,8 @@ export interface WorkbenchState {
   /** 자세히 보기의 탭. `openDetail`이 연 때 정하고(기본 개요), 탭을 누르면 `selectDetailTab`이 바꾼다 */
   readonly detailTab: DetailTab;
   readonly query: string;
-  /** 확장 목록 거르기: 층("all"이면 거르지 않는다) */
-  readonly listLayer: string;
-  /** 확장 목록 거르기: 켜짐·꺼짐 */
-  readonly listState: ListStateFilter;
+  /** 플러그인 목록의 "앱 핵심" 묶음이 펼쳐졌나. 접힌 채 시작한다 */
+  readonly coreOpen: boolean;
   /** 지도 거르기: 플러그인 종류 */
   readonly kind: KindFilter;
   /** 지도 거르기: 무엇을 넣어 주나. 고른 것만 담는다 */
@@ -72,8 +69,6 @@ export interface WorkbenchState {
   readonly order: Readonly<Record<string, readonly string[]>>;
   /** 외부 훅의 "끌까요" 질문이나 꺼짐이 있는 훅만(`hooks.list`의 `keepOffQuestion`, `autoDisabled`). 훅 이름 오름차순 */
   readonly hookNotices: readonly HookNotice[];
-  /** 켜기·끄기 요청이 아직 반영되지 않은 확장 이름과 목표 값 */
-  readonly pending: Readonly<Record<string, boolean>>;
   /** 빌더를 열라는 요청(15-3). `hook`은 순서 보기 훅 줄의 `추가`가 고른 훅 이름, 없으면 훅 없이 연다. 빌더 화면(T-AUTH)이 읽고 `closeBuilder`로 비운다 */
   readonly builder: { readonly hook: string | null } | null;
 }
@@ -86,15 +81,13 @@ export const INITIAL_WORKBENCH: WorkbenchState = {
   detail: null,
   detailTab: "overview",
   query: "",
-  listLayer: "all",
-  listState: "all",
+  coreOpen: false,
   kind: "all",
   contrib: [],
   details: {},
   health: {},
   order: {},
   hookNotices: [],
-  pending: {},
   builder: null,
 };
 
@@ -158,15 +151,10 @@ export function listFailed(s: WorkbenchState): WorkbenchState {
   return { ...s, list: "error" };
 }
 
-/** 목록이 들어오면 사라진 확장을 가리키는 선택·자세히 보기·캐시·반영된 대기 표시를 걷어 낸다 */
+/** 목록이 들어오면 사라진 확장을 가리키는 선택·자세히 보기·캐시를 걷어 낸다 */
 export function listLoaded(s: WorkbenchState, entries: readonly ExtListEntry[]): WorkbenchState {
   const names = new Set(entries.map((e) => e.name));
   const gone = (id: string): boolean => !names.has(extOf(id));
-  const pending: Record<string, boolean> = {};
-  for (const [name, target] of Object.entries(s.pending)) {
-    const entry = entries.find((e) => e.name === name);
-    if (entry !== undefined && isOn(entry) !== target) pending[name] = target;
-  }
   const selId = selectedId(s.sel);
   const keep = selId !== null && gone(selId) ? clearSel() : { sel: s.sel, panel: s.panel };
   return {
@@ -176,7 +164,6 @@ export function listLoaded(s: WorkbenchState, entries: readonly ExtListEntry[]):
     ...keep,
     detail: s.detail !== null && !gone(s.detail) ? s.detail : null,
     details: Object.fromEntries(Object.entries(s.details).filter(([name]) => names.has(name))),
-    pending,
   };
 }
 
@@ -235,14 +222,9 @@ export function closeBuilder(s: WorkbenchState): WorkbenchState {
   return { ...s, builder: null };
 }
 
-export type ListStateFilter = "all" | "on" | "off";
-
-export function setListLayer(s: WorkbenchState, listLayer: string): WorkbenchState {
-  return { ...s, listLayer };
-}
-
-export function setListState(s: WorkbenchState, listState: ListStateFilter): WorkbenchState {
-  return { ...s, listState };
+/** "앱 핵심" 묶음을 펴거나 접는다 */
+export function setCoreOpen(s: WorkbenchState, coreOpen: boolean): WorkbenchState {
+  return { ...s, coreOpen };
 }
 
 export function setQuery(s: WorkbenchState, query: string): WorkbenchState {
@@ -287,15 +269,6 @@ export function ordersLoaded(
   return { ...s, order };
 }
 
-export function markPending(s: WorkbenchState, name: string, target: boolean): WorkbenchState {
-  return { ...s, pending: { ...s.pending, [name]: target } };
-}
-
-export function clearPending(s: WorkbenchState, name: string): WorkbenchState {
-  const { [name]: _removed, ...rest } = s.pending;
-  return { ...s, pending: rest };
-}
-
 // ───────── 행 모델(확장 행, V-16) ─────────
 
 /** 확장 행의 종류 열. 핵심(core) 층은 `core`, 그룹 선언이 있으면 `group` */
@@ -318,10 +291,10 @@ export interface ExtRowVM {
   readonly origin: ExtListEntry["origin"];
   readonly hookCount: number;
   readonly failed: boolean;
-  /** 스위치가 잠긴 이유. 잠기지 않으면 null */
+  /** 켜고 끄기(프로필에 넣고 빼기)를 막는 이유. 막지 않으면 null */
   readonly lock: ToggleLock;
-  /** 켜기·끄기 요청이 반영되길 기다리는 목표 값. 없으면 null */
-  readonly pendingTarget: boolean | null;
+  /** 앱 핵심(`isAppCore`): 늘 켜져 있고 끄거나 지울 수 없다 */
+  readonly appCore: boolean;
 }
 
 /** 면제 tier(guard, core)는 끌 수 없다(`AUTO_DISABLE_EXEMPT_TIERS`) */
@@ -330,6 +303,15 @@ const EXEMPT_TIERS: ReadonlySet<string> = new Set(["guard", "core"]);
 /** 면제 tier의 확장인가. 대화 범위 스위치는 이 확장에 아예 없다(`thread.ts`) */
 export function isExemptTier(e: ExtListEntry): boolean {
   return e.tier !== null && EXEMPT_TIERS.has(e.tier);
+}
+
+/**
+ * 앱 핵심(필수) 플러그인인가. 화면이 "필수"를 가르는 술어는 이것 하나다(AGE-74, plugMin).
+ * 엔진이 늘 싣는 단위(켜짐 출처 `core`: L1 코어와 코어가 쓰는 `cap-workspace`, `cap-dialog` 같은 단위), 면제 tier(guard, core), L1 층이 여기 든다.
+ * 엔진은 이 플러그인을 끄는 설정, 프로필에서 빼기, 지우기를 거절한다. 화면은 끄기, 지우기, 프로필에 넣기를 보이지 않는다
+ */
+export function isAppCore(e: ExtListEntry): boolean {
+  return e.enabledSource === "core" || isExemptTier(e) || e.layer === "L1";
 }
 
 export function isOn(e: ExtListEntry): boolean {
@@ -358,7 +340,7 @@ function kindOf(e: ExtListEntry): ExtKind {
   return e.isOrchestration ? "group" : "plugin";
 }
 
-/** 켜기·끄기를 잠그는 이유(전역 스위치와 대화 범위 스위치가 같이 쓴다). 잠기지 않으면 null */
+/** 켜고 끄기(프로필에 넣고 빼기, 다시 시도)를 막는 이유. 막지 않으면 null */
 export function lockOf(e: ExtListEntry): ToggleLock {
   if (e.safeModeExcluded !== null) return "safe_mode";
   if (isExemptTier(e)) return "exempt";
@@ -368,8 +350,7 @@ export function lockOf(e: ExtListEntry): ToggleLock {
   return null;
 }
 
-export function rowOf(e: ExtListEntry, pending: WorkbenchState["pending"]): ExtRowVM {
-  const target = pending[e.name];
+export function rowOf(e: ExtListEntry): ExtRowVM {
   return {
     name: e.name,
     displayName: extNameOf(e) === e.name ? null : extNameOf(e),
@@ -383,7 +364,7 @@ export function rowOf(e: ExtListEntry, pending: WorkbenchState["pending"]): ExtR
     hookCount: e.hookCount,
     failed: e.autoDisabled || e.diagnostics.some((d) => d.severity === "error"),
     lock: lockOf(e),
-    pendingTarget: target === undefined ? null : target,
+    appCore: isAppCore(e),
   };
 }
 
@@ -405,52 +386,35 @@ const matchesQuery = (e: ExtListEntry, query: string): boolean => {
 
 /** 찾기로 거른 확장 행. 구성 요소 필터는 매니페스트 읽기(`ext.get`)가 필요해 지도·순서가 자기 데이터로 건다 */
 export function visibleRows(s: WorkbenchState): readonly ExtRowVM[] {
-  return s.entries.filter((e) => matchesQuery(e, s.query)).map((e) => rowOf(e, s.pending));
+  return s.entries.filter((e) => matchesQuery(e, s.query)).map((e) => rowOf(e));
 }
 
-export interface LayerGroupVM {
-  readonly layer: string;
-  readonly total: number;
-  readonly on: number;
+/** 플러그인 목록의 세 묶음: 내가 넣은 것(사용자, 작업 폴더 출처), 기본 제공(앱과 관리자가 준 것), 앱 핵심(`isAppCore`) */
+export type PluginGroupKey = "mine" | "bundled" | "core";
+
+export interface PluginGroupVM {
+  readonly key: PluginGroupKey;
   readonly rows: readonly ExtRowVM[];
 }
 
-/** 사용자에게 가까운 층이 위다(시안 c03 목록 순서) */
-const LAYER_ORDER: readonly string[] = ["L3", "L2", "external", "plugin", "L1"];
+const PLUGIN_GROUP_ORDER: readonly PluginGroupKey[] = ["mine", "bundled", "core"];
 
-function layerRank(layer: string): number {
-  const i = LAYER_ORDER.indexOf(layer);
-  return i === -1 ? LAYER_ORDER.length : i;
+/** 행이 드는 묶음. 앱 핵심이 먼저다(내장이든 아니든 끌 수 없으면 앱 핵심) */
+export function pluginGroupOf(row: Pick<ExtRowVM, "appCore" | "origin">): PluginGroupKey {
+  if (row.appCore) return "core";
+  return row.origin === "user" || row.origin === "project" ? "mine" : "bundled";
 }
 
-/** 확장 목록에 보이는 층 고르기 값: 지금 목록에 있는 층, 위에서 아래 순서 */
-export function listLayersOf(s: WorkbenchState): readonly string[] {
-  return [...new Set(s.entries.map((e) => e.layer))].toSorted(
-    (a, b) => layerRank(a) - layerRank(b) || a.localeCompare(b),
-  );
-}
+const byShownName = (a: ExtRowVM, b: ExtRowVM): number =>
+  (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || a.name.localeCompare(b.name);
 
-/** 확장 목록의 층별 묶음. 알려진 층은 L3 → L2 → external → L1, 나머지는 이름순. 찾기와 층·켜짐 거르기를 건다 */
-export function layerGroups(s: WorkbenchState): readonly LayerGroupVM[] {
-  const byLayer = new Map<string, ExtRowVM[]>();
-  const shown = visibleRows(s).filter(
-    (row) =>
-      (s.listLayer === "all" || row.layer === s.listLayer) &&
-      (s.listState === "all" || (s.listState === "on") === row.on),
-  );
-  for (const row of shown) {
-    const list = byLayer.get(row.layer);
-    if (list === undefined) byLayer.set(row.layer, [row]);
-    else list.push(row);
-  }
-  return [...byLayer.entries()]
-    .toSorted(([a], [b]) => layerRank(a) - layerRank(b) || a.localeCompare(b))
-    .map(([layer, rows]) => ({
-      layer,
-      total: rows.length,
-      on: rows.filter((r) => r.on).length,
-      rows,
-    }));
+/** 플러그인 목록의 묶음(내가 넣은 것 → 기본 제공 → 앱 핵심). 찾기를 걸고, 빈 묶음은 뺀다. 묶음 안은 보이는 이름순이다 */
+export function pluginGroups(s: WorkbenchState): readonly PluginGroupVM[] {
+  const rows = visibleRows(s);
+  return PLUGIN_GROUP_ORDER.map((key) => ({
+    key,
+    rows: rows.filter((row) => pluginGroupOf(row) === key).toSorted(byShownName),
+  })).filter((group) => group.rows.length > 0);
 }
 
 export interface WorkbenchCounts {
@@ -484,31 +448,6 @@ export function selectedName(s: WorkbenchState): string | null {
 /** 층 선택이면 그 층, 아니면 null. 층 목록이 이 층만 보인다 */
 export function openLayerOf(s: WorkbenchState): LayerKey | null {
   return s.sel.k === "layer" ? s.sel.id : null;
-}
-
-// ───────── 켜기·끄기(전역, 15-1) ─────────
-
-/** 켜기·끄기가 보내는 설정 쓰기. 범위는 항상 `user`다(크래프트에서 범위 고르기를 뺌) */
-export interface ToggleRequest {
-  readonly key: string;
-  readonly value: boolean;
-  readonly scope: "user";
-}
-
-export type ToggleRefusal = "locked" | "unknown";
-
-/** 스위치를 `target`으로 돌리는 요청. 잠긴 행(면제 tier, 안전 모드 제외, managed)은 보내지 않는다 */
-export function toggleRequestOf(
-  s: WorkbenchState,
-  name: string,
-  target: boolean,
-):
-  | { readonly ok: true; readonly request: ToggleRequest }
-  | { readonly ok: false; readonly reason: ToggleRefusal } {
-  const entry = s.entries.find((e) => e.name === name);
-  if (entry === undefined) return { ok: false, reason: "unknown" };
-  if (lockOf(entry) !== null) return { ok: false, reason: "locked" };
-  return { ok: true, request: { key: `ext.${name}.enabled`, value: target, scope: "user" } };
 }
 
 // ───────── 끌까요 질문(결정 2026-11-04 사용자) ─────────

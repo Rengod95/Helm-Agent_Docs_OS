@@ -35,20 +35,66 @@ const SOURCE_TEXT: Readonly<Record<VersionRowVM["source"], MessageId>> = {
 };
 
 /** 되돌린 뒤에는 이력을 다시 읽도록 본체를 새로 세운다 */
+/** 신뢰 수준(설치 등급)의 사람 말. 모르는 값은 그대로 */
+const GRADE_TEXT: Readonly<Record<string, MessageId>> = {
+  builtin: "desktop.workbench.grade.builtin",
+  user: "desktop.workbench.grade.user",
+  project: "desktop.workbench.grade.project",
+  untrusted: "desktop.workbench.grade.untrusted",
+};
+
+function gradeText(grade: string): string {
+  const id = GRADE_TEXT[grade];
+  return id === undefined ? grade : t(id);
+}
+
+/**
+ * 신뢰 수준 한 줄(AGE-76 plugMin: 상세 머리의 "요청 user 유효 user"를 사람 말로 옮겼다).
+ * 요청한 수준보다 낮게 실렸으면 그 사실을 한 줄 더한다
+ */
+function TrustLine(props: {
+  readonly entry: Pick<ExtListEntry, "requestedGrade" | "effectiveGrade">;
+}): ReactNode {
+  const { requestedGrade, effectiveGrade } = props.entry;
+  return (
+    <ListDescription
+      variant="ghost"
+      size="xs"
+      aria-label={t("desktop.workbench.grade.title")}
+      className="rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0"
+    >
+      <ListDescriptionRow term={t("desktop.workbench.grade.title")}>
+        <span className="text-text-primary">{gradeText(effectiveGrade)}</span>
+        {requestedGrade !== effectiveGrade && requestedGrade !== "" ? (
+          <span className="block text-ui-sm text-text-tertiary">
+            {t("desktop.workbench.grade.lowered", { requested: gradeText(requestedGrade) })}
+          </span>
+        ) : null}
+      </ListDescriptionRow>
+    </ListDescription>
+  );
+}
+
 export function VersionsTab(props: {
-  readonly entry: Pick<ExtListEntry, "name" | "version" | "origin">;
+  readonly entry: Pick<
+    ExtListEntry,
+    "name" | "version" | "origin" | "requestedGrade" | "effectiveGrade"
+  >;
   readonly locked: boolean;
 }): ReactNode {
   const [generation, setGeneration] = useState(0);
   return (
-    <VersionsBody
-      key={generation}
-      entry={props.entry}
-      locked={props.locked}
-      onChanged={() => {
-        setGeneration((g) => g + 1);
-      }}
-    />
+    <div className="grid gap-4">
+      <TrustLine entry={props.entry} />
+      <VersionsBody
+        key={generation}
+        entry={props.entry}
+        locked={props.locked}
+        onChanged={() => {
+          setGeneration((g) => g + 1);
+        }}
+      />
+    </div>
   );
 }
 

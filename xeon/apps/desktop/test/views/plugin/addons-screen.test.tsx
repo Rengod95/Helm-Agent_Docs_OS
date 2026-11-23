@@ -5,11 +5,7 @@ import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore } from "../../../src/state/shell/index.ts";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
-import {
-  addonDetailOf,
-  addonMetaOf,
-  type AddonMetaMap,
-} from "../../../src/views/plugin/addon-model.ts";
+import { addonDetailOf, type AddonMetaMap } from "../../../src/views/plugin/addon-model.ts";
 import {
   AddonDetailView,
   AddonsScreen,
@@ -22,7 +18,7 @@ import {
   requestAddon,
 } from "../../../src/views/plugin/plugin-pick.ts";
 import { APP_DECL, uiEntryOf } from "../../plugin-ui/support.ts";
-import { entry, inContexts } from "../workbench/support.tsx";
+import { inContexts } from "../workbench/support.tsx";
 import { loadedPluginUi } from "./support.tsx";
 
 // 플레이그라운드 화면(addons-screen.tsx)의 첫 장면(서버 렌더)과 크래프트로 가는 동작.
@@ -96,14 +92,9 @@ describe("플레이그라운드 목록", () => {
 
 const NOOP = (): void => undefined;
 const OPS: DetailOps = {
-  toggle: { on: true, locked: false, busy: false, onChange: NOOP },
   pin: { pinned: true, onChange: NOOP },
-  onKeepOff: NOOP,
-  onKeepOn: NOOP,
   onOpenScreen: NOOP,
-  onRunCommand: NOOP,
   onAllowApps: NOOP,
-  onCopy: NOOP,
 };
 
 function detailHtml(
@@ -123,8 +114,9 @@ function detailHtml(
     ),
   );
 }
+
 describe("플레이그라운드 상세", () => {
-  test("orders the page: head with switch and open, screens, conversation, access, about", () => {
+  test("shows only the head (pin, open) and the screens; management lives in craft", () => {
     const html = detailHtml(
       VIEWDEMO,
       "viewdemo",
@@ -133,34 +125,20 @@ describe("플레이그라운드 상세", () => {
     const order = [
       "View demo",
       "예제 플러그인이에요.",
-      'role="switch"',
+      t("desktop.addons.detail.pinned"),
       t("desktop.addons.detail.open"),
       t("desktop.addons.section.screens"),
       "Native demo",
       "Frame demo",
-      t("desktop.addons.section.conversation"),
-      t("desktop.addons.thread.title"),
-      t("desktop.addons.section.access"),
-      t("desktop.addons.cap.files.title"),
-      t("desktop.addons.trust.user.body"),
-      t("desktop.addons.access.confirm"),
-      t("desktop.addons.section.about"),
     ];
     const positions = order.map((text) => html.indexOf(text));
     expect(positions.every((at) => at >= 0)).toBe(true);
     expect(positions).toEqual(positions.toSorted((left, right) => left - right));
     expect(html).toContain(t("desktop.workbench.uiMode.app"));
-  });
-
-  test("a core-required plugin shows the lock and its reason where the switch would be", () => {
-    const html = detailHtml(VIEWDEMO, "viewdemo", new Map(), {
-      ...OPS,
-      toggle: undefined,
-      requiredLock: t("desktop.workbench.lock.required"),
-    });
-    expect(html).toContain("data-required-lock");
-    expect(html).toContain(t("desktop.workbench.lock.required"));
-    expect(html).not.toContain(t("desktop.addons.toggle", { name: "viewdemo" }));
+    // 스위치, 대화 기능, 권한, 정보 열은 크래프트 상세 "화면과 설정"으로 옮겼다
+    expect(html).not.toContain('role="switch"');
+    expect(html).not.toContain(t("desktop.addons.section.conversation"));
+    expect(html).not.toContain(t("desktop.addons.section.access"));
   });
 
   test("an off plugin shows the warning, no head open button, and the screen's open is disabled", () => {
@@ -173,38 +151,11 @@ describe("플레이그라운드 상세", () => {
     const buttons = html.match(new RegExp(`<button[^>]*>${open}</button>`, "g")) ?? [];
     expect(buttons.map((button) => button.includes('disabled=""'))).toEqual([true]);
   });
-});
 
-describe("플레이그라운드 상세의 실제 위험과 진단", () => {
-  test("names tool hooks and write methods, lists every diagnostic with file:line, and asks keep-off with both answers", () => {
-    const meta = addonMetaOf(
-      entry("viewdemo", {
-        diagnostics: [
-          {
-            severity: "error",
-            code: "hook_failed",
-            message: "훅이 실패했어요",
-            file: "src/index.ts",
-            line: 12,
-          },
-          { severity: "warning", code: "slow", message: "느려요" },
-        ],
-        keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
-      }),
-      { methods: [{ verb: "save", readOnly: false }] },
-      [{ registrationId: "viewdemo", hook: "tool.call.before", budgetClass: "fast", budgetMs: 50 }],
-    );
-    const html = detailHtml(VIEWDEMO, "viewdemo", new Map([["viewdemo", meta]]));
-    expect(html).toContain(t("desktop.addons.keepOff.consecutive", { count: 5 }));
-    expect(html).toContain(t("desktop.addons.keepOff.off"));
-    expect(html).toContain(t("desktop.addons.keepOff.on"));
-    expect(html).toContain(t("desktop.addons.risk.toolHooks.title"));
-    expect(html).toContain(t("desktop.addons.risk.methods.write", { count: 1 }));
-    expect(html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "")).toContain(
-      "src/index.ts:12 hook_failed",
-    );
-    expect(html).toContain(">느려요<");
-    expect(html).toContain(t("desktop.addons.section.diagnostics"));
+  test("the screen header offers one Manage link instead of the menu", async () => {
+    requestAddon("viewdemo");
+    const html = await screenHtml(VIEWDEMO);
+    expect(html).toContain(t("desktop.addons.manage"));
   });
 });
 

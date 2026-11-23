@@ -1,9 +1,9 @@
-// P-17 확장 상세("자세히 보기"). 탭: 개요(위치·등급·기능 연결·진단), 구성원(구성원이 있을 때), 의존, 구성(Drive 플러그인만, 설치본 구성을 읽기 전용으로), 훅(`ext.get`·`ext.timings`, wb-opus 훅 표), 설정(`settings.list`·`settings.get`, 읽기 전용, 확장이 그린 부분은 설정 탭 안),
-// 측정(`group.metrics`, 그룹만), 기록(`scope.handler_failed`), 버전(§6.24.1), 화면(`ext.ui.list`).
-// 머리 줄: 이름(표시 이름 + 회색 mono id), 층 mono · 종류 · 설치 위치 · 버전, 상태 점과 범위 글(ADR-0022 §3.3, 배지는 두지 않는다).
+// P-17 플러그인 상세("자세히 보기"). 탭: 개요(위치, 기능 연결, 진단), 구성원(구성원이 있을 때), 의존(기능 연결 표 포함), 구성(Drive 플러그인만, 설치본 구성을 읽기 전용으로), 훅(`ext.get`·`ext.timings`, wb-opus 훅 표),
+// 화면과 설정(앱에 더한 화면, 패널, 카드, 명령과 설정 편집, 권한. 플레이그라운드에서 옮겼다, AGE-76 plugMin), 측정, 기록(`scope.handler_failed`), 버전(§6.24.1, 신뢰 수준 포함).
+// 머리 줄: 이름(표시 이름 + 회색 mono id), 종류, 출처, 버전, 쓰는 곳, 문제가 있으면 상태. 층 id와 등급 같은 내부 말은 머리에 두지 않는다.
+// 머리 행동: 프로필에 넣기(체크 메뉴), 테스트 챗, 내보내기, "…" 메뉴의 지우기. 앱 핵심 플러그인은 행동 대신 자물쇠 문장을 늘 보인다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
-  enabledScopeOf,
   failureRowsOf,
   inspectHookRowsOf,
   isDetailTab,
@@ -12,7 +12,6 @@ import {
   type ExtRowVM,
   type FailureRowVM,
   type InspectHookVM,
-  type WorkbenchState,
 } from "@fresnel/client/workbench";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ExtTimingsResult } from "@fresnel/contracts/extensions";
@@ -28,7 +27,6 @@ import {
   MenuItem,
   Progress,
   Skeleton,
-  StatusDot,
   Table,
   Tabs,
   TabsContent,
@@ -36,30 +34,28 @@ import {
   TabsTrigger,
   type TableColumn,
 } from "@caustic/react";
-import { Ellipsis } from "@caustic/react/icons";
+import { Ellipsis, Lock } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
-import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
-import { usePluginUiState } from "../plugin/plugin-context.tsx";
-import { requestAddon } from "../plugin/plugin-pick.ts";
-import { InfoTip } from "../craft/info-tip.tsx";
 import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
 import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
 import { hasMembers } from "../craft/members/members-model.ts";
 import { MembersTab } from "../craft/members/members-tab.tsx";
 import { DepsTab } from "../craft/deps/deps-tab.tsx";
 import { CompositionTab } from "../craft/composition/composition-tab.tsx";
+import { BindingsPanel } from "./bindings-panel.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
-import { kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
+import { kindText } from "./ext-row.tsx";
 import { ExportExtension } from "./export-extension.tsx";
+import { HealthCell, rowHealthOf } from "./plugin-list.tsx";
+import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
+import { profileUseOf, profileUseText } from "./profile-use.ts";
 import { removableOf } from "./remove-model.ts";
 import { MetricsTab } from "./metrics-tab.tsx";
-import { scopeText } from "./source-badge.tsx";
-import { ScreensTab } from "./screens-tab.tsx";
-import { SettingsTab } from "./settings-tab.tsx";
+import { SurfacesTab } from "./surfaces-tab.tsx";
 import { MUTED, PLAIN_TABLE } from "./tab-body.tsx";
-import { originText } from "./trust-dialog.tsx";
+import { originText } from "./origin-text.ts";
 import { VersionsTab } from "./versions-tab.tsx";
 
 /** 확장 상세의 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이 */
@@ -91,6 +87,18 @@ function DetailName(props: { readonly row: ExtRowVM }): ReactNode {
   );
 }
 
+/** 기능 연결의 관계를 사람 말로: 꼭 필요(requires), 있으면 씀(optional), 줌(provides). 모르는 값은 그대로 */
+const RELATION_TEXT: Readonly<Record<string, MessageId>> = {
+  requires: "desktop.workbench.detail.relation.requires",
+  optional: "desktop.workbench.detail.relation.optional",
+  provides: "desktop.workbench.detail.relation.provides",
+};
+
+function relationText(relation: string): string {
+  const id = Object.hasOwn(RELATION_TEXT, relation) ? RELATION_TEXT[relation] : undefined;
+  return id === undefined ? relation : t(id);
+}
+
 function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): ReactNode {
   const { entry } = props;
   const bindings = props.get.kind === "ready" ? props.get.result.bindings : [];
@@ -106,20 +114,6 @@ function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): 
           {originText(entry.origin)}{" "}
           <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
         </ListDescriptionRow>
-        <ListDescriptionRow term={t("desktop.workbench.detail.grade")}>
-          <span className="flex min-w-0 flex-wrap items-baseline gap-2">
-            <span>
-              {t("desktop.workbench.detail.grade.requested", {
-                requested: entry.requestedGrade,
-              })}
-            </span>{" "}
-            <span className="text-text-tertiary">
-              {t("desktop.workbench.detail.grade.effective", {
-                effective: entry.effectiveGrade,
-              })}
-            </span>
-          </span>
-        </ListDescriptionRow>
         {/* 기능 줄은 첫 줄에만 "Capabilities" 글을 단다. 나머지 줄은 글 없이 이어진다 */}
         {bindings.map((b, index) => (
           <ListDescriptionRow
@@ -127,7 +121,7 @@ function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): 
             term={index === 0 ? t("desktop.workbench.detail.bindings") : ""}
           >
             <span className="inline-flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-mono-sm text-text-tertiary">{b.relation}</span>
+              <span className="text-text-tertiary">{relationText(b.relation)}</span>
               <span className="font-mono text-mono-sm text-text-primary">{b.capability}</span>
               <span className="text-text-tertiary">
                 {b.satisfied
@@ -372,38 +366,6 @@ export function FailureRecords(props: {
   );
 }
 
-/**
- * 플레이그라운드 화면의 그 플러그인 상세로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 상세를 먼저 요청하고 영역과 그 자리를 셸 행동으로 바꾼다
- */
-export function openPluginScreens(shell: ShellActions, name: string): void {
-  requestAddon(name);
-  shell.switchArea("chat");
-  shell.updatePlace({ screen: "plugins", scroll: 0 });
-}
-
-/**
- * "플레이그라운드에서 보기" 단추. 이 확장이 앱에 더한 것(`ext.ui.list` 항목, 자리 무관)이 있을 때만 그린다.
- * 플레이그라운드 목록에 드는 기준(`addonRowsOf`)과 같다
- */
-function PluginScreensLink(props: { readonly name: string }): ReactNode {
-  const plugin = usePluginUiState();
-  const shell = useShellActions();
-  if (!plugin.entries.some((entry) => entry.extension === props.name)) return null;
-  return (
-    <div className="flex">
-      <Button
-        size="xs"
-        variant="ghost"
-        onClick={() => {
-          openPluginScreens(shell, props.name);
-        }}
-      >
-        {t("desktop.workbench.detail.openPluginScreens")}
-      </Button>
-    </div>
-  );
-}
-
 /** 기록 탭: 이 확장의 `scope.handler_failed`를 엔진 거울에서 읽어 묶는다. 안전 모드·자동 꺼짐 띠는 건드리지 않는다 */
 function RecordTab(props: { readonly name: string }): ReactNode {
   const records = useHandlerFailures();
@@ -419,24 +381,34 @@ export function visibleTabOf(tab: DetailTab, entry: ExtListEntry): DetailTab {
   return tab === "composition" && !entry.isOrchestration ? "overview" : tab;
 }
 
+/** 앱 핵심 플러그인의 자물쇠 문장. 끄기, 지우기, 프로필에 넣기 대신 늘 보인다(정보 아이콘 뒤에 숨기지 않는다) */
+function CoreLockLine(): ReactNode {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-ui-sm text-text-secondary">
+      <Lock aria-hidden className="size-icon-sm" />
+      <span>{t("desktop.workbench.core.locked")}</span>
+    </span>
+  );
+}
+
 export function ExtDetail(props: {
-  readonly state: WorkbenchState;
   readonly entry: ExtListEntry;
   /** 지금 고른 탭(스토어 값). 기록 보기처럼 밖에서 연 때 그 탭이다 */
   readonly tab: DetailTab;
+  readonly profiles: ProfileSetLoad;
   readonly onTab: (tab: DetailTab) => void;
   readonly onBack: () => void;
-  readonly onToggle: (target: boolean) => void;
-  readonly onKeepOn: () => void;
-  readonly onKeepOff: () => void;
+  readonly onRetry: () => void;
+  readonly onStop: () => void;
   readonly onRemove: () => void;
 }): ReactNode {
   const commands = useCommands();
   // 훅 시간은 테스트 챗 창이 빌린 대화가 아니라 빌리기 전의 대화로 읽는다(C7)
   const threadId = useWorkThreadId();
   const { entry } = props;
-  const row = rowOf(entry, props.state.pending);
-  const scope = enabledScopeOf(entry.enabledSource);
+  const row = rowOf(entry);
+  const title = row.displayName ?? row.name;
+  const profileSet = props.profiles.set;
   const withMembers = hasMembers(entry);
   // 구성 탭은 Drive 플러그인에만 있다(`isOrchestration`). 읽기 전용이라 편집 단추는 없다
   const withComposition = entry.isOrchestration;
@@ -470,59 +442,50 @@ export function ExtDetail(props: {
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
           <DetailName row={row} />
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
-            <span>{row.layer}</span>
-            <span>{kindText(row.kind)}</span>{" "}
-            {entry.origin === undefined ? null : (
-              <>
-                <span>{originText(entry.origin)}</span>{" "}
-              </>
-            )}
+            <span>{kindText(row.kind)}</span>
+            {entry.origin === undefined ? null : <span>{originText(entry.origin)}</span>}
             <span>{row.version}</span>
-            <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
-            {scope === null ? null : (
-              <>
-                {" "}
-                <span>{scopeText(scope)}</span>
-              </>
+            {profileSet === null ? null : (
+              <span className="text-text-secondary">
+                {profileUseText(profileUseOf(entry.name, row.appCore, profileSet))}
+              </span>
             )}
+            {rowHealthOf(row) === "ready" ? null : <HealthCell row={row} />}
           </div>
         </div>
         <div className="flex flex-none items-center gap-2">
-          <TestChatButton plugin={entry.name} />
-          {/* 시안 c02 머리: "끄기" 단추 하나와 "…" 메뉴. 켜기·끄기 요청은 스위치와 같은 `onToggle`이다 */}
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={row.lock !== null || row.pendingTarget !== null}
-            onClick={() => {
-              props.onToggle(!row.on);
-            }}
-          >
-            {t(row.on ? "desktop.workbench.detail.turnOff" : "desktop.workbench.detail.turnOn")}
-          </Button>
-          {/* 잠긴 이유는 설명 한 줄이라 정보 아이콘 뒤에 둔다(DP-58) */}
-          {row.lock === null ? null : <InfoTip text={lockText(row.lock)} />}
-          {removableOf(entry) && <ExportExtension entry={entry} />}
-          {removableOf(entry) ? (
-            <Menu
-              size="sm"
-              align="end"
-              aria-label={t("desktop.workbench.detail.menu")}
-              trigger={
-                <IconButton size="sm" variant="ghost" label={t("desktop.workbench.detail.menu")}>
-                  <Ellipsis aria-hidden />
-                </IconButton>
-              }
-            >
-              <MenuItem onSelect={props.onRemove}>{t("desktop.workbench.remove.open")}</MenuItem>
-            </Menu>
+          {row.appCore ? (
+            <CoreLockLine />
           ) : (
-            <InfoTip text={t("desktop.workbench.remove.locked")} />
+            <>
+              <ProfilePutMenu name={entry.name} title={title} load={props.profiles} />
+              <TestChatButton plugin={entry.name} />
+              {removableOf(entry) && <ExportExtension entry={entry} />}
+              {removableOf(entry) && (
+                <Menu
+                  size="sm"
+                  align="end"
+                  aria-label={t("desktop.workbench.detail.menu")}
+                  trigger={
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      label={t("desktop.workbench.detail.menu")}
+                    >
+                      <Ellipsis aria-hidden />
+                    </IconButton>
+                  }
+                >
+                  <MenuItem onSelect={props.onRemove}>
+                    {t("desktop.workbench.remove.open")}
+                  </MenuItem>
+                </Menu>
+              )}
+            </>
           )}
         </div>
       </header>
-      <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
-      <PluginScreensLink name={entry.name} />
+      <AutoOffNotice entry={entry} onRetry={props.onRetry} onStop={props.onStop} />
       <Tabs
         value={visibleTabOf(props.tab, entry)}
         onValueChange={(value) => {
@@ -544,11 +507,10 @@ export function ExtDetail(props: {
           <TabsTrigger value="hooks" count={entry.hookCount}>
             {t("desktop.workbench.detail.tab.hooks")}
           </TabsTrigger>
-          <TabsTrigger value="settings">{t("desktop.workbench.detail.tab.settings")}</TabsTrigger>
+          <TabsTrigger value="surfaces">{t("desktop.workbench.detail.tab.surfaces")}</TabsTrigger>
           <TabsTrigger value="metrics">{t("desktop.workbench.detail.tab.metrics")}</TabsTrigger>
           <TabsTrigger value="record">{t("desktop.workbench.detail.tab.record")}</TabsTrigger>
           <TabsTrigger value="versions">{t("desktop.workbench.detail.tab.versions")}</TabsTrigger>
-          <TabsTrigger value="screens">{t("desktop.workbench.detail.tab.screens")}</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
           <Overview entry={entry} get={get} />
@@ -562,7 +524,11 @@ export function ExtDetail(props: {
           </TabsContent>
         )}
         <TabsContent value="dependencies">
-          <DepsTab entry={entry} />
+          <div className="grid gap-6">
+            <DepsTab entry={entry} />
+            {/* 목록 맨 위에 있던 기능 연결 표(B-05)는 여기로 옮겼다(AGE-76 plugMin) */}
+            <BindingsPanel />
+          </div>
         </TabsContent>
         {withComposition && (
           <TabsContent value="composition">
@@ -576,8 +542,8 @@ export function ExtDetail(props: {
         <TabsContent value="hooks">
           <HooksTab get={get} timings={timings} />
         </TabsContent>
-        <TabsContent value="settings">
-          <SettingsTab name={entry.name} />
+        <TabsContent value="surfaces">
+          <SurfacesTab entry={entry} />
         </TabsContent>
         <TabsContent value="metrics">
           <MetricsTab entry={entry} />
@@ -587,9 +553,6 @@ export function ExtDetail(props: {
         </TabsContent>
         <TabsContent value="versions">
           <VersionsTab key={entry.name} entry={entry} locked={row.lock !== null} />
-        </TabsContent>
-        <TabsContent value="screens">
-          <ScreensTab name={entry.name} />
         </TabsContent>
       </Tabs>
     </article>

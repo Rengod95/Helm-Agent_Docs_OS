@@ -13,9 +13,8 @@ import { asked, entry, inContexts } from "./support.tsx";
 
 // 오른쪽 "플러그인" 탭(`plugin-pages`): 칸의 숫자는 알림 수, 탭 안 맨 위는 알림(질문과 두 답)이다.
 
-const QUESTION = t("desktop.workbench.keepOff.question");
-const KEEP_ON = t("desktop.workbench.keepOff.keepOn");
-const KEEP_OFF = t("desktop.workbench.keepOff.keepOff");
+const RETRY = t("desktop.workbench.keepOff.retry");
+const REMOVE = t("desktop.workbench.keepOff.removeFromProfile");
 const COUNT = t("desktop.workbench.keepOff.consecutive", { name: "review", count: 5 });
 const EMPTY = t("desktop.plugin.state.empty");
 const LABEL = t("desktop.plugin.tab.pages");
@@ -95,28 +94,26 @@ describe("플러그인 탭의 칸 숫자와 이름표", () => {
 });
 
 describe("플러그인 탭 맨 위의 알림", () => {
-  test("질문이 있는 확장은 알림 줄, 질문, 두 답을 탭 맨 위에 보인다", () => {
+  test("계속 실패하는 확장은 알림 줄과 두 행동(다시 시도, 이 프로필에서 빼기)을 탭 맨 위에 보인다", () => {
     const html = tabHtml(storeOf([entry("web"), asked()]));
     expect(html).toContain(COUNT);
-    expect(html).toContain(QUESTION);
-    expect(html).toContain(KEEP_ON);
-    expect(html).toContain(KEEP_OFF);
+    expect(html).toContain(RETRY);
+    expect(html).toContain(REMOVE);
     // 알림이 목록(플러그인 화면 목록)보다 앞에 온다
-    expect(html.indexOf(QUESTION)).toBeLessThan(html.indexOf(EMPTY));
+    expect(html.indexOf(COUNT)).toBeLessThan(html.indexOf(EMPTY));
   });
 
-  test("질문이 없고 알림도 없으면 질문 글을 보이지 않는다", () => {
+  test("알림이 없으면 두 행동을 보이지 않는다", () => {
     const html = tabHtml(storeOf([entry("web")]));
-    expect(html).not.toContain(QUESTION);
-    // "끄기"는 탭의 "이 대화에서 끄기" 글에도 든다. 답 단추는 "켜 두기"와 함께 없어야 한다
-    expect(html).not.toContain(KEEP_ON);
+    expect(html).not.toContain(RETRY);
+    expect(html).not.toContain(REMOVE);
     expect(html).toContain(EMPTY);
   });
 
-  test("질문 없이 자동으로 꺼진 확장은 다시 켜기만 보인다", () => {
+  test("질문 없이 자동으로 멈춘 확장은 멈췄다는 글과 같은 두 행동을 보인다", () => {
     const html = tabHtml(storeOf([entry("lint", { displayName: "린트", autoDisabled: true })]));
     expect(html).toContain(t("desktop.workbench.autoDisabled", { name: "린트" }));
-    expect(html).toContain(t("desktop.workbench.reenable"));
-    expect(html).not.toContain(QUESTION);
+    expect(html).toContain(RETRY);
+    expect(html).toContain(REMOVE);
   });
 });

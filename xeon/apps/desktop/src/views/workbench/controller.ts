@@ -1,17 +1,15 @@
-// 크래프트 컨트롤러: 목록 읽기와 켜기·끄기. 상태는 스토어에, 요청은 `commands.workbench`에 있고 여기서 둘을 잇는다.
+// 크래프트 컨트롤러: 목록 읽기와 멈춘 플러그인의 다시 시도·멈춤(전역 켜기 설정은 쓰지 않는다, AGE-74). 상태는 스토어에, 요청은 `commands.workbench`에 있고 여기서 둘을 잇는다.
 // 목록 뒤의 자세히(`ext.get`), 실패 장부(`ext.health`), 훅 순서는 보조 읽기다. 실패해도 목록 상태는 그대로이고 이전 값을 둔다(알림 없음).
-import { profileFailureOf, toggleRequestOf } from "@fresnel/client/workbench";
+import { profileFailureOf } from "@fresnel/client/workbench";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { toast } from "@caustic/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
-import { useWorkbenchActions, useWorkbenchScope } from "../../state/workbench/index.ts";
+import { useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
-import { scopeArg } from "../craft/craft-scope.ts";
 import { showFailureToast } from "./failure-toast.ts";
-import { toggleReasonOf, unmetToggleOf } from "./toggle-outcome.ts";
 import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
@@ -47,19 +45,19 @@ export interface WorkbenchController {
   installSubmitted(itemId: string): Promise<void>;
   /** `reviewSent`를 비운다 */
   dismissReviewSent(): void;
-  /** `settled`는 확장 설정 적용이 끝난 뒤의 다시 읽기다. 대기 중인 켜기·끄기가 목표에 못 닿았으면 그 사유를 알린다 */
-  reload(settled?: boolean): Promise<void>;
+  /** 목록과 보조 읽기(자세히, 실패 장부, 훅 순서)를 다시 읽는다 */
+  reload(): Promise<void>;
   /** 훅 순서만 다시 읽는다(`hooks.list`와 `hooks.order.get`). 저장·되돌리기 뒤에 쓴다 */
   reloadOrders(): Promise<void>;
-  toggle(name: string, target: boolean): Promise<void>;
-  reenable(name: string): Promise<void>;
-  /** "끄기" 답(설정에 끄고 `ext.disableConfirm`). 실패하면 토스트를 띄우고, 성공하면 목록을 다시 읽는다. "켜 두기"는 `reenable`이다 */
-  keepOff(name: string): Promise<void>;
+  /** 오류로 멈춘 플러그인의 "다시 시도"(`ext.reenable`, 설정을 쓰지 않는다). 실패하면 토스트, 성공하면 알리고 목록을 다시 읽는다 */
+  retry(name: string): Promise<void>;
+  /** 프로필에서 뺀 뒤 엔진의 질문에 "멈춤"으로 답한다(`ext.disableConfirm`, 이번 실행에서 멈춤, 설정을 쓰지 않는다) */
+  stop(name: string): Promise<void>;
   /**
-   * 지우기를 요청한다(`plugin.requestRemove`, 검토 항목을 만든다). `dropData`는 대체가 없어 `not_available`이다. 요청이 되면 토스트를 띄우고 목록을 다시 읽는다.
-   * 지웠으면 true. 실패하면 토스트를 띄우고 false이며, 저장 데이터를 지우다 실패했을 때도 목록을 다시 읽는다(호스트가 확장을 먼저 내린다)
+   * 지우기를 요청한다(`plugin.requestRemove`, 검토 항목을 만든다). 요청이 되면 토스트를 띄우고 목록을 다시 읽는다.
+   * 실패하면 토스트를 띄우고, 이미 없는 이름(3401)일 때만 목록을 다시 읽는다. 의존 때문에 거절되면 토스트 대신 `refusal`로 목록을 돌려준다
    */
-  remove(name: string, options?: { readonly dropData?: boolean }): Promise<RemoveResult>;
+  remove(name: string): Promise<RemoveResult>;
   /** 외부 훅 "끄기" 답(`hooks.disableConfirm`). 성공하면 목록을 다시 읽고 true, 실패하면 false(알림이 한 줄 오류와 "다시 시도"를 보인다) */
   hookKeepOff(hook: string): Promise<boolean>;
   /** 외부 훅 "켜 두기"와 "다시 켜기" 답(`hooks.reenable`). 결과는 `hookKeepOff`와 같다 */
@@ -71,7 +69,6 @@ export interface WorkbenchController {
 export function useWorkbenchController(): WorkbenchController {
   const commands = useCommands();
   const actions = useWorkbenchActions();
-  const scope = useWorkbenchScope();
   const phase = useLinkPhase();
   // 안전 모드면 훅 질문과 꺼짐을 스토어에 담지 않는다(탭 칸과 개수도 0이 된다). 값이 바뀌면 목록을 다시 읽는다
   const safe = useSafeMode()?.active === true;
@@ -105,76 +102,39 @@ export function useWorkbenchController(): WorkbenchController {
     if (got.ok) actions.healthLoaded(got.value);
   }, [actions, commands]);
 
-  // `settled`이면 적용이 끝난 목록이다: 목표 값에 닿지 못한 대기 켜기·끄기를 걷고 사유를 알린다(F9). 아니면 대기 표시를 그대로 둔다
-  const reload = useCallback(
-    async (settled = false): Promise<void> => {
-      if (actions.snapshot().list !== "ready") actions.listLoading();
-      const listed = await commands.workbench.list();
-      if (!listed.ok) {
-        actions.listFailed();
-        return;
-      }
-      const waiting = actions.snapshot().pending;
-      actions.listLoaded(listed.value);
-      if (settled) {
-        for (const unmet of unmetToggleOf(listed.value, waiting)) {
-          actions.clearPending(unmet.name);
-          showFailureToast({
-            title: t(
-              unmet.target
-                ? "desktop.workbench.toggle.enableFailed"
-                : "desktop.workbench.toggle.disableFailed",
-            ),
-            description: toggleReasonOf(unmet.code),
-          });
-        }
-      }
-      await Promise.all([
-        reloadDetails(listed.value.map((entry) => entry.name)),
-        reloadHealth(),
-        reloadOrders(),
-      ]);
-    },
-    [actions, commands, reloadDetails, reloadHealth, reloadOrders],
-  );
+  const reload = useCallback(async (): Promise<void> => {
+    if (actions.snapshot().list !== "ready") actions.listLoading();
+    const listed = await commands.workbench.list();
+    if (!listed.ok) {
+      actions.listFailed();
+      return;
+    }
+    actions.listLoaded(listed.value);
+    await Promise.all([
+      reloadDetails(listed.value.map((entry) => entry.name)),
+      reloadHealth(),
+      reloadOrders(),
+    ]);
+  }, [actions, commands, reloadDetails, reloadHealth, reloadOrders]);
 
-  const toggle = useCallback(
-    async (name: string, target: boolean): Promise<void> => {
-      const plan = toggleRequestOf(actions.snapshot(), name, target);
-      if (!plan.ok) return;
-      actions.markPending(name, target);
-      const done = await commands.workbench.toggle({
-        ...plan.request,
-        scope: scopeArg(scope).settingsScope,
-      });
-      if (!done.ok) {
-        actions.clearPending(name);
-        showFailureToast({ title: t("desktop.workbench.toggle.failed") });
-        return;
-      }
-      await reload();
-    },
-    [actions, commands, scope, reload],
-  );
-
-  const reenable = useCallback(
+  const retry = useCallback(
     async (name: string): Promise<void> => {
-      const done = await commands.workbench.reenable(name);
+      const done = await commands.workbench.retry(name);
       if (!done.ok) {
-        showFailureToast({ title: t("desktop.workbench.toggle.failed") });
+        showFailureToast({ title: t("desktop.workbench.retry.failed") });
         return;
       }
-      toast({ tone: "success", title: t("desktop.workbench.reenable.done") });
+      toast({ tone: "success", title: t("desktop.workbench.retry.done") });
       await reload();
     },
     [commands, reload],
   );
 
-  const keepOff = useCallback(
+  const stop = useCallback(
     async (name: string): Promise<void> => {
-      const done = await commands.workbench.keepOff(name);
+      const done = await commands.workbench.stop(name);
       if (!done.ok) {
-        showFailureToast({ title: t("desktop.workbench.toggle.failed") });
+        showFailureToast({ title: t("desktop.workbench.retry.failed") });
         return;
       }
       await reload();
@@ -197,8 +157,8 @@ export function useWorkbenchController(): WorkbenchController {
   );
 
   const remove = useCallback(
-    async (name: string, options?: { readonly dropData?: boolean }): Promise<RemoveResult> => {
-      const done = await commands.workbench.remove(name, options);
+    async (name: string): Promise<RemoveResult> => {
+      const done = await commands.workbench.remove(name);
       if (!done.ok) {
         const outcome = removeOutcomeOfError(done.error);
         // 의존 때문에 거절된 것은 토스트 대신 상자 안에 목록으로 보인다(AGE-33)
@@ -215,8 +175,8 @@ export function useWorkbenchController(): WorkbenchController {
           title: t("desktop.workbench.remove.failed"),
           ...(notFound ? { description: t("desktop.workbench.remove.failed.notFound") } : {}),
         });
-        // 이미 없는 이름이면 목록이 낡은 것이다. 저장 데이터를 지우다 실패했으면 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다
-        if (notFound || options?.dropData === true) await reload();
+        // 이미 없는 이름이면 목록이 낡은 것이니 다시 읽는다
+        if (notFound) await reload();
         return { outcome, refusal: null };
       }
       // 지우기는 검토 항목으로 올라간다. 지워지는 시점은 검토가 정한다
@@ -281,9 +241,8 @@ export function useWorkbenchController(): WorkbenchController {
       dismissReviewSent,
       reload,
       reloadOrders,
-      toggle,
-      reenable,
-      keepOff,
+      retry,
+      stop,
       hookKeepOff,
       hookKeepOn,
       remove,
@@ -295,9 +254,8 @@ export function useWorkbenchController(): WorkbenchController {
       dismissReviewSent,
       reload,
       reloadOrders,
-      toggle,
-      reenable,
-      keepOff,
+      retry,
+      stop,
       hookKeepOff,
       hookKeepOn,
       remove,

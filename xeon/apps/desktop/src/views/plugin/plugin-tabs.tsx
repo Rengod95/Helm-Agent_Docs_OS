@@ -42,7 +42,11 @@ function Pick(props: {
   );
 }
 
-function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode {
+function EntryList(props: {
+  readonly items: readonly PlacedEntry[];
+  /** 좁은 옆 패널에서 그린다(화면 머리를 줄인다) */
+  readonly compact?: boolean | undefined;
+}): ReactNode {
   // 사이드바 "플러그인 UI"에서 고른 화면이 오면 그것을 고른다(번호가 바뀔 때마다. 화면이 열릴 때 이미 있던 요청도 따른다)
   const request = usePluginPickRequest();
   const [picked, setPicked] = useState<string | undefined>(request?.key);
@@ -59,7 +63,11 @@ function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Pick items={props.items} selected={screenKeyOf(current)} onSelect={setPicked} />
-      <PluginView key={`${screenKeyOf(current)}@${current.version}`} entry={current} />
+      <PluginView
+        key={`${screenKeyOf(current)}@${current.version}`}
+        entry={current}
+        compact={props.compact}
+      />
     </div>
   );
 }
@@ -75,7 +83,7 @@ export function HelmPanelTab(): ReactNode {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* 화면 높이가 내용보다 작아도 두 구역이 겹치지 않게, 둘 다 자기 키로 두고 바깥이 같이 스크롤한다 */}
       <div className="flex-none">
-        <EntryList items={items} />
+        <EntryList items={items} compact />
       </div>
       <div className="flex-none">
         <HelmResults />

@@ -1123,7 +1123,7 @@ sequenceDiagram
 #### 4.12.6 플러그인 구역 [결정: 2026-11-11 사용자]
 
 1. 설정은 플러그인 정책만 둔다. 플러그인 목록과 켜기·끄기는 플레이그라운드(쓰는 곳, `L4.desktop-ux.spec` DP-91·DP-92)와 크래프트(만들고 고치는 곳)가 맡는다.
-2. 구역 맨 위는 안내 카드 하나다: "플러그인은 플레이그라운드에서 관리해요" 뜻의 한 줄과 "플레이그라운드 열기" 단추(대화 영역 플레이그라운드 화면으로 간다) [근거: apps/desktop/src/views/pages/settings/settings-plugins-view.tsx `PluginsPanelView`].
+2. 구역 맨 위는 안내 카드 하나다: "플러그인을 프로필에 넣고 빼고 설정하는 일은 크래프트의 플러그인 목록에서 해요" 뜻의 한 줄과 "플러그인 목록 열기" 단추(크래프트 플러그인 목록으로 가고 열려 있던 상세는 닫는다) [바뀜: 2026-11-23 사용자, AGE-76 plugMin. 전에는 "플레이그라운드 열기"로 대화 영역 플레이그라운드에 갔다] [근거: apps/desktop/src/views/pages/settings/settings-plugins-view.tsx `PluginsPanelView`].
 3. 플러그인 안전 묶음은 그대로 펼쳐 둔다. 훅 표와 개발자 묶음은 접힌 머리(이름, 항목 수, 펼침 표시)로 시작하고 누르면 펼친다. 접힌 묶음의 키도 찾기와 설정 점프로 찾으면 펼쳐 보인다 [근거: apps/desktop/src/views/pages/settings/settings-sections.ts `folded`, settings-view.tsx `FoldedPart`].
 4. 전에 이 구역에 있던 확장 목록 스위치는 신뢰 확인을 거치지 않고 켰다. 목록을 빼면서 그 길도 없앴다.
 
