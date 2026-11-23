@@ -39,27 +39,27 @@ export function failureOf(error: CommandError, knownLimit: number | null): Attac
   return { kind: "other", error };
 }
 
-/** 사람이 읽는 크기. 1024 단위이고 숫자와 단위 이름은 현재 로케일의 `Intl`이 적는다 */
+/** 크기 단위 이름의 문구. 한국어는 "194바이트", "149KB"처럼 단위마다 표기가 갈리지 않게 한 가지로 적는다(AGE-77 F-26) */
+const SIZE_UNIT_ID = [
+  "desktop.composer.attach.size.byte",
+  "desktop.composer.attach.size.kilobyte",
+  "desktop.composer.attach.size.megabyte",
+  "desktop.composer.attach.size.gigabyte",
+] as const;
+
+/** 사람이 읽는 크기. 1024 단위이고 숫자는 현재 로케일의 `Intl`이, 단위 이름은 문구 카탈로그가 적는다 */
 export function formatBytes(bytes: number): string {
-  const units = ["byte", "kilobyte", "megabyte", "gigabyte"] as const;
   let value = bytes;
   let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
+  while (value >= 1024 && unit < SIZE_UNIT_ID.length - 1) {
     value /= 1024;
     unit += 1;
   }
   const digits = unit === 0 || value >= 10 ? 0 : 1;
-  // 한국어는 단위마다 표기가 갈리지 않게 "194바이트", "149KB"처럼 한 가지로 적는다(AGE-77 F-26)
-  if (activeLocale() === "ko") {
-    const suffix = ["바이트", "KB", "MB", "GB"][unit] ?? "바이트";
-    return `${new Intl.NumberFormat("ko", { maximumFractionDigits: digits }).format(value)}${suffix}`;
-  }
-  return new Intl.NumberFormat(activeLocale(), {
-    style: "unit",
-    unit: units[unit],
-    unitDisplay: "short",
-    maximumFractionDigits: digits,
-  }).format(value);
+  const shown = new Intl.NumberFormat(activeLocale(), { maximumFractionDigits: digits }).format(
+    value,
+  );
+  return t(SIZE_UNIT_ID[unit] ?? SIZE_UNIT_ID[0], { value: shown });
 }
 
 /** 칩에 한 줄로 보이는 실패 이유 */

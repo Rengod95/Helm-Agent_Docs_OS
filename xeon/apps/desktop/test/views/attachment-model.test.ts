@@ -65,8 +65,8 @@ describe("failureOf", () => {
 describe("sizes", () => {
   test("formatBytes uses 1024 steps and the locale's number and unit names", () => {
     setActiveLocale("en");
-    expect(formatBytes(512)).toBe("512 byte");
-    expect(formatBytes(1536)).toBe("1.5 kB");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1536)).toBe("1.5 KB");
     expect(formatBytes(20971520)).toBe("20 MB");
     expect(formatBytes(1_300_000_000)).toBe("1.2 GB");
     setActiveLocale("ko");
@@ -162,7 +162,7 @@ describe("sendBlockedText", () => {
     });
     expect(sendBlockedText([chip({}), failed])).toContain("big.bin");
     setActiveLocale("en");
-    expect(sendBlockedText([failed])).toContain("1 kB");
+    expect(sendBlockedText([failed])).toContain("1 KB");
     setActiveLocale("ko");
   });
   test("an upload in flight blocks with its own sentence, ready chips do not block", () => {
