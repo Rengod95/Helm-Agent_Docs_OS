@@ -105,12 +105,12 @@ function ChatScreen(): ReactNode {
       <SetupBanner />
       <StoreReplacedBanner />
       {/* 대화 기록의 바닥 높이(128px): 입력창 위 쌓임이 커져도 대화 내용이 0이 되도록 밀리지 않는다(DP-225) */}
-      <div className="flex min-h-32 flex-1 flex-col">
+      <div data-chat-rail-gap="" className="flex min-h-32 flex-1 flex-col">
         {transcript === "error" ? <ChatLoadError /> : <Transcript />}
       </div>
-      {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다 */}
+      {/* 대화 열 폭(시안 46rem)에 맞춰 입력창 위 카드들을 같은 가운데 열에 둔다. 무대가 좁으면 대화 기록처럼 오른쪽 막대 자리를 비운다(`data-chat-rail-gap`, DP-135) */}
       {/* 토스트는 이 묶음(카드와 입력창) 위에 선다. 묶음의 위쪽 끝을 알려 입력창 모델 고르기 단추를 가리지 않게 한다(shell.tsx useToastBottom) */}
-      <div data-toast-avoid className="flex min-h-0 flex-col">
+      <div data-toast-avoid data-chat-rail-gap="" className="flex min-h-0 flex-col">
         <div className="mx-auto flex min-h-0 w-full max-w-184 flex-col">
           {/* 쌓임 그릇(DP-225): 부품 사이와 맥락 줄 위가 모두 8px다. 줄어드는 것은 승인 대기열 하나이고 나머지는 제 높이를 지킨다 */}
           <div

@@ -488,13 +488,16 @@
     --shell-rail: 0px;
   }
   /* 대화 열(가운데 정렬, 내용 712px)은 무대가 넓으면 막대에 닿지 않는다. 무대가 열 + 양쪽 막대 자리(712 + 2 × 58 ≈ 840px)보다 좁으면
-     (좁은 창, 패널을 편 1024 안팎) 열이 막대 밑으로 들어가므로 대화 본문도 막대 자리를 비운다(DP-135) */
+     (좁은 창, 패널을 편 1024 안팎) 열이 막대 밑으로 들어가므로 대화 본문도 막대 자리를 비운다(DP-135).
+     머리 바로 뒤 본문만 비우면 입력창 위 쌓임(승인 카드, 알림)과 입력창이 막대 밑으로 들어가 단추가 가려졌다(chatQa, 900폭).
+     그래서 대화 기록 칸과 입력창 묶음은 `data-chat-rail-gap`으로 같은 여백을 받는다(줄 단위로 재는 `rail-avoid.ts`의 `data-rail-avoid`와 다르다) */
   #stage[data-rail] {
     container: stage / inline-size;
   }
   @container stage (max-width: 840px) {
     /* 대화 머리는 위 빛 줄(fx-line)과 한 상자에 싸여 있어 본문은 그 상자의 다음 형제다 */
-    :is(.shell-header[data-flush], :has(> .shell-header[data-flush])) + * {
+    :is(.shell-header[data-flush], :has(> .shell-header[data-flush])) + *,
+    [data-chat-rail-gap] {
       padding-inline-end: calc(var(--stage-rail, 0px) + var(--cs-space-3));
     }
   }

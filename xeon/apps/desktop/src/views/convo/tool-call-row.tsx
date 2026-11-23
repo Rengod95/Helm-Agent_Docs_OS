@@ -20,6 +20,7 @@ import { useOpenExtensionRecords } from "../extension-records-link.ts";
 import { FileChangeDiff } from "../file-change-view.tsx";
 import type { HookDenialView } from "../hook-denial-model.ts";
 import { toolRowModeOf } from "../item-detail-model.ts";
+import { stripAnsi } from "../tool-output-model.ts";
 import type { SandboxBlockView } from "../sandbox-block-model.ts";
 import { WEB_TOOLS, webSourcesOf } from "../tool-extras-model.ts";
 import { useTranscriptDetail } from "../transcript-detail.ts";
@@ -264,7 +265,10 @@ export function CallRow(props: {
   const isCommand = head.icon === "command";
   const sources =
     WEB_TOOLS.includes(name) && view?.outcome.kind === "done" ? webSourcesOf(view.output) : [];
-  const tail = pending && isCommand && progress !== null ? progress.lines.slice(-TAIL_LINES) : [];
+  const tail =
+    pending && isCommand && progress !== null
+      ? progress.lines.slice(-TAIL_LINES).map(stripAnsi)
+      : [];
   const commandParts = isCommand && view !== null ? commandMetaOf(view) : [];
   const meta =
     change !== null ? (
