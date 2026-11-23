@@ -32,6 +32,8 @@ interface ExecReply {
     readonly skipped?: { bytes: number; newlines: number; endsWithNewline: boolean };
   }[];
   readonly exitCode?: number;
+  /** 실행 중에 쓰는 파일(스크립트가 만든 산출물). 실행 시작 때 쓴다 */
+  readonly writes?: readonly { readonly path: string; readonly content: string }[];
   readonly spillPath?: string;
   readonly sandbox?: ShellExecResult["sandbox"];
   /** 있으면 ExecutionError로 끝난다 */
@@ -320,6 +322,7 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
       exec: (command, execOptions, context: CancelScope) => {
         calls.push({ command, options: execOptions });
         const next = replies.shift() ?? { exitCode: 0 };
+        for (const write of next.writes ?? []) put(write.path, write.content);
         for (const chunk of next.chunks ?? []) {
           execOptions?.onOutput?.(chunk.text, context, {
             stream: chunk.stream ?? "stdout",
