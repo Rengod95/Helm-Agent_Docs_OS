@@ -8,6 +8,7 @@ import {
   inboxRowsOf,
   inboxThreadIdsOf,
   inboxThreadOf,
+  queueCountsOf,
   type InboxRow,
 } from "../../src/views/inbox-model.ts";
 import type { NoticeEntry } from "../../src/views/notices-model.ts";
@@ -43,9 +44,20 @@ describe("inbox rows", () => {
       [evt(3)]: { threadId: ONE, request: { requestedAt: 200 } },
     };
     expect(inboxRowsOf([evt(1), evt(2), evt(3)], byId)).toEqual([
-      { id: evt(1), threadId: ONE, requestedAt: 300 },
-      { id: evt(3), threadId: ONE, requestedAt: 200 },
+      { id: evt(1), threadId: ONE, requestedAt: 300, question: false },
+      { id: evt(3), threadId: ONE, requestedAt: 200, question: false },
     ]);
+  });
+
+  test("counts questions apart from approvals for the queue title", () => {
+    const byId = {
+      [evt(1)]: { threadId: ONE, request: { requestedAt: 1, body: { kind: "question" } } },
+      [evt(2)]: { threadId: ONE, request: { requestedAt: 2, body: { kind: "tool" } } },
+      [evt(3)]: { threadId: ONE, request: { requestedAt: 3, body: { kind: "question" } } },
+    };
+    const built = inboxRowsOf([evt(1), evt(2), evt(3)], byId);
+    expect(queueCountsOf(built)).toEqual({ approvals: 1, questions: 2 });
+    expect(queueCountsOf(built.slice(0, 1))).toEqual({ approvals: 0, questions: 1 });
   });
 
   test("the thread choices are the threads with waiting approvals, in the order they first appear", () => {

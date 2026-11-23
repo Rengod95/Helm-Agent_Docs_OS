@@ -2660,6 +2660,8 @@
   "desktop.approvals.option.recommended": "(recommended)",
   "desktop.approvals.queue.label": "Approval queue",
   "desktop.approvals.queue.title": "Pending approvals: {count}",
+  "desktop.approvals.queue.titleQuestions": "Pending answers: {count}",
+  "desktop.approvals.queue.titleMixed": "Pending approvals: {approvals}, pending answers: {questions}",
   "desktop.approvals.secret.invalidHandle": "(invalid reference format)",
   "desktop.approvals.secret.term": "Secret",
   "desktop.approvals.sendingStatus": "Sending…",

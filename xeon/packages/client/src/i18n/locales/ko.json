@@ -2660,6 +2660,8 @@
   "desktop.approvals.option.recommended": "(추천)",
   "desktop.approvals.queue.label": "승인 대기열",
   "desktop.approvals.queue.title": "승인 대기 {count}",
+  "desktop.approvals.queue.titleQuestions": "답변 대기 {count}",
+  "desktop.approvals.queue.titleMixed": "승인 대기 {approvals}, 답변 대기 {questions}",
   "desktop.approvals.secret.invalidHandle": "(참조 형식이 올바르지 않음)",
   "desktop.approvals.secret.term": "시크릿",
   "desktop.approvals.sendingStatus": "보내는 중…",
