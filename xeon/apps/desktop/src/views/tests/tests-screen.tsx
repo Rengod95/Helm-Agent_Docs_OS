@@ -197,6 +197,13 @@ export function TestsScreen(): ReactNode {
     control: (threadId, action) => {
       detach(control(threadId, action), rethrow);
     },
+    open: (threadId) => {
+      // 시험 대화를 고르고 화면 자리를 대화로 돌린다(시험을 시작할 때와 같은 길)
+      const id = parse(ThreadIdSchema, threadId);
+      if (!id.ok) return;
+      commands.selectThread(id.value);
+      showChat();
+    },
     copy: (report) => {
       detach(copy(report), rethrow);
     },

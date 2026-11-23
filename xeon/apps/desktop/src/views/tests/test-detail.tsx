@@ -51,6 +51,8 @@ function Tag(props: { readonly tone: TagTone; readonly children: ReactNode }): R
 
 export interface TestDetailHandlers {
   readonly control: (threadId: string, action: RunControl) => void;
+  /** 시험 대화를 연다(써 보고 멈추고 이어서, 스펙 Y9) */
+  readonly open: (threadId: string) => void;
   readonly copy: (report: ReplayReport) => void;
 }
 
@@ -237,6 +239,17 @@ function TestRunState(props: {
       text={paused ? t("desktop.tests.detail.paused") : t(STATE_TEXT[row.state])}
       meta={phaseText}
     >
+      {threadId === null ? null : (
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            handlers.open(threadId);
+          }}
+        >
+          {t("desktop.tests.detail.openChat")}
+        </Button>
+      )}
       {controls.length === 0 || threadId === null
         ? null
         : controls.map((action) => (

@@ -30,6 +30,7 @@ const handlers: TestsViewHandlers = {
   confirmRun: NOOP,
   cancelRun: NOOP,
   control: NOOP,
+  open: NOOP,
   copy: NOOP,
 };
 

@@ -521,7 +521,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const trial = tool(
     "authoring_trial",
-    "Open a Test run thread that carries this folder as a draft (nothing is installed). The user confirms before it starts (cost). The user then talks to the plugin in that thread; authoring_submit needs the turnId of one of its turns.",
+    "Open a Test run thread that carries this folder as a draft (nothing is installed). The user confirms before it starts (cost). The user then talks to the plugin in that thread (they can open it from the Test screen). authoring_submit picks the latest turn of that thread as evidence by itself, so do not ask the user for a turn id.",
     Type.Object({ ...sessionShape }, { additionalProperties: false }),
     "write",
     async (input) => {
@@ -596,7 +596,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
   // 확인을 묻지 않는 까닭은 위 파일 머리 주석에 있다. 증거는 시험 대화의 턴 하나다(M5c §4.7.1: 담당 AI의 제출은 증거 한 개 이상).
   const submit = tool(
     "authoring_submit",
-    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial), and the turnId of a turn in that Test run as evidence.",
+    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial) in which the user has tried the plugin at least once. The evidence is the latest turn of the Test run thread; pass turnId only to choose another turn.",
     Type.Object(
       {
         ...sessionShape,
@@ -617,13 +617,19 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       if (state.trial === null)
         return refusal(
           "no_evidence",
-          "the review needs evidence from a Test run: call authoring_trial first, then submit with the turnId of that Test run",
+          "the review needs evidence from a Test run: call authoring_trial first, then ask the user to try the plugin in that Test run, then submit",
         );
-      const turnId = optStr(input, "turnId");
+      // 증거 turn은 모델이 넘긴 값이 우선이고, 없으면 시험 대화의 마지막 turn이다(사람이 turn id를 알려 줄 수 없다, F-46)
+      let turnId = optStr(input, "turnId");
+      if (turnId === undefined && devkit.latestTurn !== undefined) {
+        const latest = await devkit.latestTurn(state.trial.threadId);
+        if (!latest.ok) return failure(latest.error);
+        turnId = latest.value ?? undefined;
+      }
       if (turnId === undefined)
         return refusal(
           "no_evidence",
-          `the review needs evidence: pass turnId, a turn of the Test run thread ${state.trial.threadId}`,
+          "the Test run has no turn yet: ask the user to try the plugin in the Test run thread (the Test screen opens it), then call authoring_submit again. Do not ask the user for a turn id",
         );
       // 목적은 도구 입력이 우선이고, 없으면 맡기기나 시작에서 받은 목적을 쓴다(M5c §4.9.6)
       const purpose = optStr(input, "purpose") ?? state.purpose ?? undefined;

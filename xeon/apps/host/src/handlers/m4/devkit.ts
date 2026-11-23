@@ -101,6 +101,8 @@ export interface DevkitPort {
   craftContext(threadId: string): Promise<Result<CraftContextView, DevkitError>>;
   /** 테스트 대화인가(M5c §4.8.6). 빌더 서비스의 `isCraftChat`이 부른다. wire 메서드가 아니다 */
   isCraftChat(threadId: string): Promise<Result<boolean, DevkitError>>;
+  /** 대화의 마지막 turn id(없으면 null). 빌더의 제출이 Test run의 증거 turn을 스스로 고른다(F-46). wire 메서드가 아니다 */
+  latestTurn(threadId: string): Promise<Result<string | null, DevkitError>>;
 }
 
 export type DevkitMethods =

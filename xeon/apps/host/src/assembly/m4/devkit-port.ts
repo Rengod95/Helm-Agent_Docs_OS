@@ -781,6 +781,26 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
             }),
       );
     },
+    latestTurn: (threadId): Promise<Result<string | null, DevkitError>> => {
+      if (!isId("thr", threadId)) {
+        return Promise.resolve(
+          err({ kind: "not_found", message: `${threadId} is not a conversation` }),
+        );
+      }
+      const found = deps.threads.lastTurnIdOf?.(threadId);
+      if (found === undefined)
+        return Promise.resolve(
+          err({ kind: "io", message: "the conversation turns cannot be read" }),
+        );
+      return Promise.resolve(
+        found.ok
+          ? ok(found.value)
+          : err({
+              kind: "io",
+              message: `the conversation could not be read (${found.error.kind})`,
+            }),
+      );
+    },
     craftContext: async (threadId) => {
       const port = options.craftContext?.();
       if (port === undefined) return err(CRAFT_CONTEXT_MISSING);

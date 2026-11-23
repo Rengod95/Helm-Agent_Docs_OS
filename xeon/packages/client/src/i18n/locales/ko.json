@@ -4686,6 +4686,7 @@
   "desktop.tests.verdict.digestDiffers": "digest 다름",
   "desktop.tests.verdict.failure": "실패",
   "desktop.tests.detail.copyJson": "JSON 복사",
+  "desktop.tests.detail.openChat": "대화 열기",
   "desktop.tests.detail.paused": "멈춘 채 있어요",
   "desktop.tests.detail.phase": "단계 {phase}",
   "desktop.tests.detail.phaseNone": "단계 정보 없음",

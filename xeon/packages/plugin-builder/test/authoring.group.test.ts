@@ -428,11 +428,12 @@ test("authoring.submit: after a Test run, the turn of that run is the evidence a
   await rig.t.settled();
   await rig.answer("yes");
   expect(rig.state().trial).toEqual({ threadId: "thr_trial" });
-  // 턴 id 없이 보내면 거절하고 어느 대화의 턴이 필요한지 알린다
+  // 시험 대화에 턴이 아직 없으면 거절하고 사람에게 써 보라고 하게 한다(턴 id는 사람에게 묻지 않는다)
+  rig.probe.latestTurn = null;
   const needsTurn = await rig.call("authoring_submit", { sessionId: "auth-demo" });
   expect(needsTurn).toMatchObject({
     ok: false,
-    error: { kind: "no_evidence", message: expect.stringContaining("thr_trial") },
+    error: { kind: "no_evidence", message: expect.stringContaining("try the plugin") },
   });
   const sent = await rig.call("authoring_submit", {
     sessionId: "auth-demo",
@@ -550,4 +551,26 @@ test("authoring.card-hint: the start result and a pending confirmation tell the 
   const asked = await rig.call("authoring_package", { sessionId: "auth-demo" });
   expect(asked).toMatchObject({ status: "awaiting_confirmation", action: "package" });
   expect(JSON.stringify(asked)).toContain("Do not ask the same thing with ask_user");
+});
+
+test("authoring.submit-evidence: without a turnId the latest turn of the Test run is the evidence, and without any turn the model is told to ask the user to try it (F-46)", async () => {
+  const rig = await createOrchestrationRig();
+  await confirmedSession(rig);
+  await rig.call("authoring_scaffold", { sessionId: "auth-demo" });
+  await rig.call("authoring_validate", { sessionId: "auth-demo" });
+  await rig.call("authoring_trial", { sessionId: "auth-demo" });
+  await rig.t.boundary(rig.thread).turnSettled();
+  await rig.t.settled();
+  await rig.answer("yes");
+  rig.probe.latestTurn = null;
+  const early = await rig.call("authoring_submit", { sessionId: "auth-demo" });
+  expect(early).toMatchObject({ ok: false, error: { kind: "no_evidence" } });
+  expect(JSON.stringify(early)).toContain("Do not ask the user for a turn id");
+  expect(rig.probe.submits).toEqual([]);
+  rig.probe.latestTurn = "turn_latest";
+  const sent = await rig.call("authoring_submit", { sessionId: "auth-demo" });
+  expect(sent).toMatchObject({ ok: true, draftId: "draft_demo" });
+  expect(rig.probe.submits[0]?.evidence).toEqual([
+    { kind: "turn", threadId: "thr_trial", turnId: "turn_latest" },
+  ]);
 });

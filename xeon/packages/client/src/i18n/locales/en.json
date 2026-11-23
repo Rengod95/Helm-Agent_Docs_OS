@@ -4686,6 +4686,7 @@
   "desktop.tests.verdict.digestDiffers": "Digest differs",
   "desktop.tests.verdict.failure": "Failed",
   "desktop.tests.detail.copyJson": "Copy JSON",
+  "desktop.tests.detail.openChat": "Open chat",
   "desktop.tests.detail.paused": "Paused at a step boundary",
   "desktop.tests.detail.phase": "Step {phase}",
   "desktop.tests.detail.phaseNone": "No step information",

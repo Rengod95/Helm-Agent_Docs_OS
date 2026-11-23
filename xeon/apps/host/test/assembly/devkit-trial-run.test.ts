@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { err, ok, parse } from "@fresnel/contracts";
-import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import {
+  ThreadIdSchema,
+  TurnIdSchema,
+  type ThreadId,
+  type TurnId,
+} from "@fresnel/contracts/conversation";
 import type { PluginCard } from "@fresnel/contracts/extensions";
 import type { DraftInfo, Profile } from "@fresnel/contracts/wire";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
@@ -31,6 +36,9 @@ afterAll(async () => {
 const parsedThread = parse(ThreadIdSchema, "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 if (!parsedThread.ok) throw new Error("the fixture thread id is not a thread id");
 const THREAD: ThreadId = parsedThread.value;
+const parsedTurn = parse(TurnIdSchema, "trn_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+if (!parsedTurn.ok) throw new Error("the fixture turn id is not a turn id");
+const parseTurn: TurnId = parsedTurn.value;
 const CLOCK_MS = Date.parse("2026-11-23T09:00:00.000Z");
 const HASH = `sha256:${"a".repeat(64)}`;
 
@@ -69,6 +77,7 @@ async function rig(options: RigOptions = {}) {
     extUi: partial<ExtUiVersionSource>({ extensionsDir }),
     threads: {
       isCraftChat: () => ok(false),
+      lastTurnIdOf: () => ok(parseTurn),
       exists: () => ok(true),
       create: (input) => {
         created.push(input);
@@ -281,4 +290,13 @@ test("validate skips the load check when isolation is not available", async () =
   expect(checked.ok ? checked.value.issues.map((issue) => issue.code) : null).not.toContain(
     "AU-014",
   );
+});
+
+test("latestTurn reads the last turn id of the Test run thread and refuses an id that is not a conversation (F-46)", async () => {
+  const session = await rig();
+  expect(await session.port.latestTurn("not-a-thread")).toMatchObject({
+    ok: false,
+    error: { kind: "not_found" },
+  });
+  expect(await session.port.latestTurn(THREAD)).toEqual(ok(parseTurn));
 });

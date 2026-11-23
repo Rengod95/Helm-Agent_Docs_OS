@@ -97,6 +97,7 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
     draftList: async (name) => (await port()?.draftList(name)) ?? err(NOT_READY),
     craftContext: async (threadId) => (await port()?.craftContext(threadId)) ?? err(NOT_READY),
     isCraftChat: async (threadId) => (await port()?.isCraftChat(threadId)) ?? err(NOT_READY),
+    latestTurn: async (threadId) => (await port()?.latestTurn(threadId)) ?? err(NOT_READY),
   };
 }
 

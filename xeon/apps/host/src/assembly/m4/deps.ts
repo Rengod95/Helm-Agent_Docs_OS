@@ -1,6 +1,6 @@
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import type { Clock, Result } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { CachePolicy } from "@fresnel/contracts/services";
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { ReadFailure } from "@fresnel/contracts/records";
@@ -33,6 +33,8 @@ export interface M4EngineDeps {
     exists(threadId: ThreadId): Result<boolean, ReadFailure>;
     /** 테스트 대화(`craftChat` 표지)인가. 빌더의 상주 판정이 쓴다(M5c §4.8.6) */
     isCraftChat(threadId: ThreadId): Result<boolean, ReadFailure>;
+    /** 대화의 마지막 turn id. 빌더의 제출이 Test run의 증거 turn을 고르는 데 쓴다. 없으면 `latestTurn`이 `io`다 */
+    lastTurnIdOf?(threadId: ThreadId): Result<TurnId | null, ReadFailure>;
     create(input: {
       readonly workspace?: string;
       readonly title?: string;
