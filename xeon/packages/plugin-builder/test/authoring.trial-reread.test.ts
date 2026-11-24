@@ -65,6 +65,9 @@ test("trial-reread: after the fix passes, the review refuses the old Test run's 
   await openTestRun(rig);
   await rig.call("authoring_validate", { sessionId: "auth-demo" });
   const refused = await rig.call("authoring_submit", { sessionId: "auth-demo" });
-  expect(refused).toMatchObject({ ok: false, error: { kind: "no_evidence" } });
+  expect(refused).toMatchObject({
+    ok: false,
+    error: { kind: "no_evidence", message: expect.stringContaining("no usage record yet") },
+  });
   expect(rig.probe.submits).toEqual([]);
 });
