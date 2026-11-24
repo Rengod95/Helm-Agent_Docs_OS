@@ -182,7 +182,13 @@ async function reflectOf(deps: ApprovalHookDeps, context: ApprovalContext): Prom
           (cause) => deps.log.error("plugin.review.reflect_failed", { name, cause: String(cause) }),
         );
       }
-    } else if (record === undefined) {
+    } else if (record !== undefined) {
+      // 미뤄 둔 기록은 코드를 싣지 않되 기록(목록과 상세의 버전, 위치)은 새 검토본으로 다시 만든다. 안 하면 앱을 다시 켤 때까지 옛 버전이 보인다
+      const refreshed = await attemptAsync(() =>
+        loader.refreshDeferred(name, new AbortController().signal),
+      );
+      if (!refreshed.ok) deps.log.warn("plugin.review.refresh_deferred_failed", { name });
+    } else {
       // 기록이 없는 새 이름은 코드를 싣지 않는다. 승인은 적재가 아니다(§4.1.11): 검토본을 검증해 꺼진 기록만 남기고(`deferStart`),
       // 처음 어느 대화의 프로필이나 덧씌우기에 들 때 `ensureLoaded`가 싣는다. 기록이 있어야 목록과 프로필 검사가 이 이름을 안다
       const recorded = await loader.loadInstalled(name, new AbortController().signal, {

@@ -30,6 +30,29 @@ test("the package folder lies under the config folder, never inside the installe
   ).toBe("C:\\fresnel\\config\\exports\\lens-1.2.0-20261107-080910");
 });
 
+test("an installed copy in the reviewed store exports next to the store, never inside it", () => {
+  expect(
+    exportOutOf(
+      {
+        name: "kit",
+        version: "0.2.0",
+        location: "/Users/a/Library/fresnel/data/plugin-store/reviewed/kit/c8b04a14/tree",
+      },
+      AT,
+    ),
+  ).toBe("/Users/a/Library/fresnel/data/exports/kit-0.2.0-20261107-080910");
+  expect(
+    exportOutOf(
+      {
+        name: "kit",
+        version: "0.2.0",
+        location: "C:\\fresnel\\data\\plugin-store\\reviewed\\proj\\kit\\c8b04a14\\tree",
+      },
+      AT,
+    ),
+  ).toBe("C:\\fresnel\\data\\exports\\kit-0.2.0-20261107-080910");
+});
+
 test("a location without two parent folders cannot be exported", () => {
   expect(exportOutOf({ name: "lens", version: "1.0.0", location: "builtin" }, AT)).toBeNull();
   expect(

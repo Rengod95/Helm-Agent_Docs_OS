@@ -1,5 +1,15 @@
 import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
@@ -53,6 +63,9 @@ async function copyTree(
     const done = await io(rel, async () => {
       await mkdir(dirname(join(to, rel)), { recursive: true });
       await cp(join(from, rel), join(to, rel));
+      // 검토본 저장소의 파일은 읽기 전용(0444, 0555)이다. 복사본은 사용자의 것이라 쓸 수 있게 한다(매니페스트와 번들을 덮어쓴다)
+      const mode = (await stat(join(to, rel))).mode;
+      await chmod(join(to, rel), (mode & 0o777) | 0o600);
     });
     return done.ok ? ok([rel]) : done;
   });

@@ -363,6 +363,46 @@ test("reloadFromReviewed reads the copy the list names now, and the loaded recor
   expect([loaded?.version, loaded?.contentHash, loaded?.root]).toEqual(["1.1.0", HASH_B, newRoot]);
 });
 
+test("refreshDeferred remakes a deferred record from the current reviewed copy without loading its code, and leaves a current or active one alone", async () => {
+  const oldRoot = await reviewedTree("kit", HASH_A);
+  const state: { entries: ReviewedSourceEntry[] } = {
+    entries: [{ name: "kit", source: "user", root: oldRoot, contentHash: HASH_A }],
+  };
+  const harness = await harnessOf(portOf(state));
+  await harness.loader.loadAll(harness.options([], { cwd: project }));
+  const signal = new AbortController().signal;
+  // 실행 중인 기록은 건드리지 않는다
+  expect(await harness.loader.refreshDeferred("kit", signal)).toBe(false);
+  expect(await harness.loader.unload("kit")).toBe(true);
+  const unloaded = harness.loader.list().find((info) => info.name === "kit");
+  expect([unloaded?.state, unloaded?.version]).toEqual(["disabled", "1.0.0"]);
+
+  const other = await reviewedTree("deferred", HASH_A);
+  state.entries = [
+    { name: "kit", source: "user", root: oldRoot, contentHash: HASH_A },
+    { name: "deferred", source: "user", root: other, contentHash: HASH_A },
+  ];
+  const recorded = await harness.loader.loadInstalled("deferred", signal, { deferStart: true });
+  expect(recorded.ok).toBe(false);
+  expect(await harness.loader.refreshDeferred("deferred", signal)).toBe(false);
+  // 승인으로 현재 검토본이 새 판이 되었다
+  const newRoot = join(reviewedRoot, "deferred", HASH_B.slice("sha256:".length), "tree");
+  await putFile(
+    join(newRoot, ".fresnel-plugin", "plugin.json"),
+    JSON.stringify({ schemaVersion: 2, name: "deferred", version: "1.1.0" }),
+  );
+  state.entries = [{ name: "deferred", source: "user", root: newRoot, contentHash: HASH_B }];
+  expect(await harness.loader.refreshDeferred("deferred", signal)).toBe(true);
+  const refreshed = harness.loader.list().find((info) => info.name === "deferred");
+  expect([refreshed?.state, refreshed?.version, refreshed?.contentHash]).toEqual([
+    "disabled",
+    "1.1.0",
+    HASH_B,
+  ]);
+  expect(harness.t.host.registration("deferred")).toBeUndefined();
+  expect(await harness.loader.refreshDeferred("deferred", signal)).toBe(false);
+});
+
 test("reloadFromReviewed of a name the reviewed list no longer names is rejected and the running copy keeps running", async () => {
   const oldRoot = await reviewedTree("kit", HASH_A);
   const state: { entries: ReviewedSourceEntry[] } = {

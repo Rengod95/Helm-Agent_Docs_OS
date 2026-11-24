@@ -266,6 +266,32 @@ test("approving a rollback makes the old version current, logs a rollback line, 
   );
 });
 
+// 지난 판의 매니페스트에 목적이 없어도(승인 때 결정이 채운 것) 그 판으로 되돌리는 승인은 목적 필수 검사에 걸리지 않는다
+test("approving a rollback to a version whose manifest has no purpose is not refused as purpose_required", async () => {
+  const rig = rigOf();
+  const dir = join(rig.pluginsDir, "kit");
+  writeFiles(dir, {
+    ".fresnel-plugin/plugin.json": JSON.stringify({
+      schemaVersion: 2,
+      name: "kit",
+      version: "1.0.0",
+      description: FIRST.description,
+    }),
+    "instructions.md": FIRST.instructions,
+  });
+  rig.appEdits.markDir(dir);
+  const queued = valueOf(await rig.review.scan()).queued;
+  // 새 제출은 목적이 필요하다: 결정이 목적을 채워 승인한다
+  const created = valueOf(
+    await rig.review.decide(firstOf(queued), { ...APPROVE, purpose: "Keeps kit working" }),
+  ).item;
+  await publish(rig, SECOND);
+  const { itemId } = valueOf(await rig.review.requestRollback("kit", hashOf(created)));
+  const outcome = valueOf(await rig.review.decide(itemId, APPROVE));
+  expect(outcome.item.state).toBe("approved");
+  expect(valueOf(await rig.store.current("kit"))?.contentHash).toBe(hashOf(created));
+});
+
 // 승인이 원본 맞추기보다 먼저 끝난다: 원본 폴더가 없어도 되돌리기 승인은 되돌리지 않는다(로그에만 남는다)
 test("approving a rollback still lands when the source folder is gone", async () => {
   const rig = rigOf();

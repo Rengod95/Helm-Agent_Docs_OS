@@ -636,6 +636,12 @@ export interface ExtensionLoader {
     options?: ReloadOptions,
   ): Promise<Result<ReloadStarted, ReloadFailure>>;
   /**
+   * 시작 때 싣기를 미룬 기록(`lazy_deferred`로 꺼진 것)이 가리키는 검토본이 현재 검토본과 다르면 기록을 현재 검토본으로 다시 만든다.
+   * 코드는 싣지 않고 여전히 미룬 채다(승인이나 되돌리기 뒤 목록과 상세가 새 버전을 보게 한다). 바꾼 때만 true다.
+   * 미루지 않은 기록(켜진 것, 설정이나 오류로 꺼진 것)과 모르는 이름은 건드리지 않아 false다
+   */
+  refreshDeferred(name: ExtensionName, signal: AbortSignal): Promise<boolean>;
+  /**
    * 설치 뒤에 시작 때와 같은 파이프라인(검증, 집합 검사, 신뢰 상한, 켜짐 확인, `assignTier`, 엔트리 import, `ExtHost.install`)으로
    * 사용자 위치(`<userDir>/extensions/<name>`)의 새 이름 하나를 싣는다(§4.4.4). 우회하는 길은 없다. 실행 중인 turn이 있으면 켜기는
    * `ExtHost`의 시작 적용 규칙대로 다음 단계 경계에서 일어난다(`nextStepBoundary`). 실패하면 기록을 남기지 않아 같은 이름을 다시 설치해 싣을 수 있다
@@ -2232,6 +2238,20 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return pick.candidate;
   }
 
+  async function refreshDeferred(name: ExtensionName, signal: AbortSignal): Promise<boolean> {
+    const record = records.get(name);
+    if (record === undefined || record.state !== "disabled") return false;
+    if (!record.diagnostics.some((item) => item.code === "lazy_deferred")) return false;
+    const current = await currentReviewedCopyOf(record);
+    if (current === undefined) return false;
+    throwIfCancelled(signal, `refreshing ${name}`);
+    records.delete(name);
+    order = order.filter((item) => item !== record);
+    nextGeneration.set(name, record.generation + 1);
+    await processBatch([current], signal, undefined, true);
+    return true;
+  }
+
   async function ensureLoaded(
     name: ExtensionName,
     signal: AbortSignal,
@@ -2834,6 +2854,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     ensureLoaded,
     reload,
     reloadFromReviewed,
+    refreshDeferred,
     loadInstalled,
     loadDraft,
     unloadDraft,

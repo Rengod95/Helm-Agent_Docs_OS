@@ -1191,12 +1191,7 @@ export interface WorkbenchCommands {
   /** `ext.package { dir, out? }`: 설치 묶음을 만든다. `out`이 있으면 그 폴더(없거나 비어 있어야 한다)에 만든다(확장 상세의 "내보내기") */
   packDir(dir: string, out?: string): Promise<Result<PackResult, CommandError>>;
   versions(name: string): Promise<Result<ExtVersionsResult, CommandError>>;
-  /** 되돌리기. `restart`면 다음 시작에 적용된다(HS-108) */
-  rollback(
-    name: string,
-    version: string,
-    clearState: boolean,
-  ): Promise<Result<"nextStepBoundary" | "restart", CommandError>>;
+  // 되돌리기는 화면에서 리뷰를 거친다(`pluginReview.requestRollback`). 리뷰 없이 바꾸는 `ext.rollback`은 화면에 없다 [결정: 2026-11-24 AGE-76]
   /** `ext.health`(모든 확장). 실패 장부 배열 */
   health(): Promise<Result<readonly ExtHealthEntry[], CommandError>>;
   /**

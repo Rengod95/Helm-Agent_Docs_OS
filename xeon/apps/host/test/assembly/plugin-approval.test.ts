@@ -229,6 +229,20 @@ test("reflect reloads an updated plugin from its reviewed copy and refreshes the
   expect(refreshes.count).toBeGreaterThan(0);
 });
 
+test("reflect remakes a deferred record from the new reviewed copy so the list and detail show the new version", async () => {
+  const refreshed: string[] = [];
+  const loader = partial<ExtensionLoader>({
+    list: () => [partial<LoadedExtensionInfo>({ name: "kit", state: "disabled" })],
+    refreshDeferred: (name) => {
+      refreshed.push(name);
+      return Promise.resolve(true);
+    },
+  });
+  const hooks = approvalHooksOf(depsOf({ loader }));
+  await hooks.reflect?.(contextOf({ kind: "update" }, FACT));
+  expect(refreshed).toEqual(["kit"]);
+});
+
 test("reflect records an approved new plugin as deferred without starting its code", async () => {
   const installs: { readonly name: string; readonly deferStart: boolean | undefined }[] = [];
   const warnings: string[] = [];

@@ -374,9 +374,12 @@ export function warningsOf(item: ReviewItem, managedOff: boolean): readonly Warn
   const out: Warning[] = [];
   if (isHandEdit(item)) out.push("handEdit");
   if (managedOff) out.push("managedOff");
-  if (item.kind !== "remove" && (item.card.purpose ?? "").trim() === "") out.push("purposeMissing");
+  // 되돌리기는 이미 승인된 판으로 돌아가므로 목적과 설명을 다시 요구하지 않는다(엔진도 검사하지 않는다)
+  const reverting = item.rollback !== undefined;
+  if (item.kind !== "remove" && !reverting && (item.card.purpose ?? "").trim() === "")
+    out.push("purposeMissing");
   // 설명이 없으면 엔진이 승인하지 않는다(`pluginReview.descriptionRequired`) [결정: 2026-11-23 사용자, AGE-31]
-  if (item.kind !== "remove" && (item.card.description ?? "").trim() === "")
+  if (item.kind !== "remove" && !reverting && (item.card.description ?? "").trim() === "")
     out.push("descriptionMissing");
   const change = item.diff.enforcementChange;
   if (change !== null && change.from === "advisory" && change.to === "enforced") {

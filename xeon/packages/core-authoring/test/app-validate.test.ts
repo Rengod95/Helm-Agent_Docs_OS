@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseJson } from "@fresnel/contracts";
@@ -118,6 +118,32 @@ test("a declared method the entry does not register, and a registration the mani
   await writeFile(entry, text.replace('g.registerMethod("add", {', 'g.registerMethod("save", {'));
   const found = await codesOf(dir);
   expect([...found.errors].toSorted()).toEqual(["method_undeclared", "method_unregistered"]);
+});
+
+test("an installed plugin whose entry is a built .js file registers its methods (no method_unregistered)", async () => {
+  const dir = await scaffoldApp("built");
+  const source = await readFile(join(dir, "src", "index.ts"), "utf8");
+  await rm(join(dir, "src"), { recursive: true });
+  await mkdir(join(dir, "dist"));
+  await writeFile(
+    join(dir, "dist", "index.js"),
+    source.replaceAll(/: [A-Za-z<>[\]]+(?=[,)=])/g, ""),
+  );
+  const path = join(dir, ".fresnel-plugin", "plugin.json");
+  const parsed = parseJson(await readFile(path, "utf8"));
+  if (!parsed.ok || !isRecord(parsed.value)) throw new Error("the manifest is not an object");
+  await writeFile(path, JSON.stringify({ ...parsed.value, entry: "./dist/index.js" }));
+  expect((await codesOf(dir)).errors).toEqual([]);
+  // 등록이 빠지면 빌드한 엔트리에서도 잡는다
+  const built = await readFile(join(dir, "dist", "index.js"), "utf8");
+  await writeFile(
+    join(dir, "dist", "index.js"),
+    built.replace('registerMethod("add"', 'registerMethod("save"'),
+  );
+  expect([...(await codesOf(dir)).errors].toSorted()).toEqual([
+    "method_undeclared",
+    "method_unregistered",
+  ]);
 });
 
 test("the default reason is a warning until the author writes the real one", async () => {
