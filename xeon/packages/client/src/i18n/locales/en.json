@@ -2835,6 +2835,7 @@
   "desktop.plugin.frame.reason.confirmTimeout": "A confirmation request went unanswered, so the view was closed",
   "desktop.plugin.frame.reason.confirmTimeoutInfo": "A confirmation request from the view was not answered in time.",
   "desktop.plugin.state.disabled": "This plugin is turned off",
+  "desktop.plugin.state.trial": "Testing",
   "desktop.plugin.state.empty": "This plugin does not provide an app",
   "desktop.plugin.state.frameBlocked": "This app needs its own code. Allow it in settings to show it",
   "desktop.plugin.state.invalid": "This app cannot be opened: {reason}",

@@ -2835,6 +2835,7 @@
   "desktop.plugin.frame.reason.confirmTimeout": "확인 요청에 답하지 않아 닫혔어요",
   "desktop.plugin.frame.reason.confirmTimeoutInfo": "화면이 보낸 확인 요청에 시간 안에 답하지 않았어요.",
   "desktop.plugin.state.disabled": "이 플러그인은 꺼져 있어요",
+  "desktop.plugin.state.trial": "시험 중",
   "desktop.plugin.state.empty": "이 플러그인은 앱을 내지 않아요",
   "desktop.plugin.state.frameBlocked": "이 앱은 자체 코드가 필요해요. 설정에서 허용하면 보여요",
   "desktop.plugin.state.invalid": "이 앱을 열 수 없어요: {reason}",
