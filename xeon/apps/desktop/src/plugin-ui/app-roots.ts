@@ -13,7 +13,7 @@ export interface AppRootEntry {
   /** root 안 HTML의 상대 경로 */
   readonly entry: string;
   /** 설치 등급. builtin은 설치 폴더가 없어 목록에 넣지 않는다 */
-  readonly trust: "user" | "project" | "managed";
+  readonly trust: "draft" | "user" | "project" | "managed";
 }
 
 /** Rust `app_roots_set`이 `Err(String)`으로 돌려주는 거부 이유(`view_scheme.rs`의 `RootsError`) */
@@ -50,6 +50,8 @@ function appRootOf(item: ExtUiEntry): AppRootEntry | undefined {
     root: item.appRoot,
     entry: item.app.entry,
   };
+  // 승인 전 드래프트는 등급과 상관없이 드래프트 등급으로 보낸다. 셸이 드래프트 트리 모양만 받는다(AGE-77 Y-04)
+  if (item.draft === true) return { ...base, trust: "draft" };
   switch (item.trust) {
     case "builtin":
       return undefined;

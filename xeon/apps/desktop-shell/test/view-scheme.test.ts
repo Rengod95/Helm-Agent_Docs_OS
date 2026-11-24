@@ -491,6 +491,69 @@ describe("symlinks and roots", () => {
     });
   });
 
+  test("a draft tree is accepted only in the draft tier, for its own internal name", async () => {
+    const sandbox = makeSandbox();
+    const roots = createAppRoots();
+    const store = path.join(sandbox.dir, "data/plugin-store");
+    const draftId = "drf_01HZ00000000000000ABCDEF";
+    const name = "dabcdef-kanban";
+    const tree = path.join(store, "drafts", draftId, "tree");
+    mkdirSync(path.join(tree, "dist"), { recursive: true });
+    writeFileSync(path.join(tree, "index.html"), "<html>draft</html>");
+    const draftEntry = (root: string, overrides: Partial<AppRootInput> = {}): AppRootInput =>
+      entryFor(root, { extension: name, trust: "draft", ...overrides });
+    const outside: SkippedRoot[] = [{ index: 0, kind: "outside_install" }];
+    // 드래프트 등급이 자기 트리를 가리키면 열린다
+    expect(roots.replace([draftEntry(tree)], undefined)).toEqual({ ok: true, value: [] });
+    const opened = await respond(roots, "GET", `fresnel-view://${name}/1.0.0/index.html`);
+    expect(await opened.text()).toBe("<html>draft</html>");
+    // 트리 안의 하위 폴더도 된다
+    expect(roots.replace([draftEntry(path.join(tree, "dist"))], undefined)).toEqual({
+      ok: true,
+      value: [],
+    });
+    // 다른 등급은 드래프트 트리를 받지 않는다
+    for (const trust of ["user", "project", "managed"] as const) {
+      expect(roots.replace([draftEntry(tree, { trust })], undefined)).toEqual({
+        ok: true,
+        value: outside,
+      });
+    }
+    // 다른 드래프트나 다른 확장의 이름으로는 이 트리를 등록하지 못한다
+    expect(roots.replace([draftEntry(tree, { extension: "dzzzzzz-kanban" })], undefined)).toEqual({
+      ok: true,
+      value: outside,
+    });
+    expect(roots.replace([draftEntry(tree, { extension: "kanban" })], undefined)).toEqual({
+      ok: true,
+      value: outside,
+    });
+    // 드래프트 등급이라도 설치 폴더와 리뷰본, 드래프트 폴더의 윗자리, 폴더 밖은 거절된다
+    expect(roots.replace([draftEntry(sandbox.ui)], undefined)).toEqual({
+      ok: true,
+      value: outside,
+    });
+    expect(roots.replace([draftEntry(path.dirname(tree))], undefined)).toEqual({
+      ok: true,
+      value: outside,
+    });
+    const link = path.join(tree, "link");
+    symlinkSync(sandbox.dir, link);
+    expect(roots.replace([draftEntry(link)], undefined)).toEqual({ ok: true, value: outside });
+    expect(roots.replace([draftEntry(path.join(tree, "..", ".."))], undefined)).toEqual({
+      ok: true,
+      value: outside,
+    });
+    // 폴더 밖으로 나가는 파일 경로는 지금 검사 그대로 막힌다
+    expect(roots.replace([draftEntry(tree)], undefined)).toEqual({ ok: true, value: [] });
+    const escaped = await resolve(roots, `fresnel-view://${name}/1.0.0/link/secret.txt`);
+    expect(escaped.ok).toBe(false);
+    // 목록을 비우면(테스트가 끝나면) 같은 주소가 거절된다
+    expect(roots.replace([], undefined)).toEqual({ ok: true, value: [] });
+    const closed = await respond(roots, "GET", `fresnel-view://${name}/1.0.0/index.html`);
+    expect(closed.status).toBe(404);
+  });
+
   test("a bad entry is skipped and the rest of the list is registered", async () => {
     const sandbox = makeSandbox();
     const roots = createAppRoots();

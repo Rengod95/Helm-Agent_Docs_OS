@@ -208,10 +208,13 @@ function isDirectory(dir: string): boolean {
   return info.ok && info.value.isDirectory();
 }
 
-/** 설치 등급. 값이 클수록 믿는다. `builtin`은 번들 자원이라 이 명령으로 등록하지 않는다 */
-export type Tier = "project" | "user" | "managed";
+/**
+ * 설치 등급. 값이 클수록 믿는다. `builtin`은 번들 자원이라 이 명령으로 등록하지 않는다.
+ * `draft`는 승인 전 드래프트를 테스트하는 대화가 열려 있는 동안만 오는 등급이고, 설치 폴더가 아니라 드래프트 트리 모양만 받는다(AGE-77 Y-04)
+ */
+export type Tier = "draft" | "project" | "user" | "managed";
 
-const TIER_RANK: Readonly<Record<Tier, number>> = { project: 0, user: 1, managed: 2 };
+const TIER_RANK: Readonly<Record<Tier, number>> = { draft: -1, project: 0, user: 1, managed: 2 };
 
 /** `app_roots_set`의 항목 하나. 필드 이름과 값은 renderer의 `AppRootEntry`(app-roots.ts)와 같다 */
 export interface AppRootInput {
@@ -290,6 +293,8 @@ function isInstallDirOf(dir: string, extension: string, tier: Tier): boolean {
   const parent = path.dirname(dir);
   if (path.basename(dir) !== extension || path.basename(parent) !== "extensions") return false;
   switch (tier) {
+    case "draft":
+      return false;
     case "project":
       return path.basename(path.dirname(parent)) === ".fresnel";
     case "user":
@@ -319,8 +324,34 @@ function isReviewedTreeOf(dir: string, extension: string): boolean {
   return current.ok && current.value.trim() === path.basename(hashDir);
 }
 
+/** 드래프트 식별자 모양. `drf_` 접두 뒤 영숫자다(`internalDraftName`이 같은 접두를 뗀다) */
+const DRAFT_ID = /^drf_[0-9A-Za-z]+$/;
+/** 내부 이름 `d<태그>-<플러그인>`의 태그 글자 수. ext-host `internalDraftName`과 같다 */
+const DRAFT_TAG_LENGTH = 6;
+
+/**
+ * `dir`가 그 드래프트 내부 이름의 트리 폴더 `…/plugin-store/drafts/<draftId>/tree`인가.
+ * 내부 이름의 태그가 폴더의 식별자 끝 여섯 글자와 같아야 해서, 다른 드래프트나 다른 확장의 이름으로는 이 폴더를 등록하지 못한다
+ */
+function isDraftTreeOf(dir: string, extension: string): boolean {
+  if (path.basename(dir) !== "tree") return false;
+  const idDir = path.dirname(dir);
+  const draftId = path.basename(idDir);
+  const draftsDir = path.dirname(idDir);
+  if (!DRAFT_ID.test(draftId) || path.basename(draftsDir) !== "drafts") return false;
+  if (path.basename(path.dirname(draftsDir)) !== "plugin-store") return false;
+  const tag = draftId
+    .toLowerCase()
+    .replace(/^[a-z]{3}_/, "")
+    .replace(/[^a-z0-9]/g, "")
+    .slice(-DRAFT_TAG_LENGTH);
+  return extension.startsWith(`d${tag}-`);
+}
+
 /** root가 확장의 설치 폴더 안인가. 설치 폴더(또는 현재 리뷰본 폴더)가 root의 조상이거나 root 자신이어야 한다 */
 function insideInstallDir(real: string, extension: string, tier: Tier): boolean {
+  // 드래프트 등급은 드래프트 트리 모양만 받고, 다른 등급은 드래프트 트리를 받지 않는다(모양이 달라서 거절된다)
+  if (tier === "draft") return ancestorsOf(real).some((dir) => isDraftTreeOf(dir, extension));
   return ancestorsOf(real).some(
     (dir) => isInstallDirOf(dir, extension, tier) || isReviewedTreeOf(dir, extension),
   );
@@ -493,7 +524,9 @@ function ownOf(record: object, key: string): unknown {
 
 /** 등급 글이면 그 등급을, 아니면 undefined다. 입력이 `unknown`이라 비교로 좁힌다 */
 function tierOf(text: unknown): Tier | undefined {
-  return text === "project" || text === "user" || text === "managed" ? text : undefined;
+  return text === "draft" || text === "project" || text === "user" || text === "managed"
+    ? text
+    : undefined;
 }
 
 /**
