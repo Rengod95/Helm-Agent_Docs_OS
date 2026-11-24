@@ -415,7 +415,7 @@ export function ExtDetail(props: {
   const kindLine = cardKind === null ? kindText(row.kind) : kindWord(cardKind);
   const blocked = readinessBlocked(props.readiness);
   return (
-    <article className="@container/detail grid min-h-0 content-start gap-3 p-4">
+    <article className="@container/detail grid min-h-0 content-start gap-3 py-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <PanelExpandButton />
         <Button size="xs" variant="ghost" onClick={props.onBack}>

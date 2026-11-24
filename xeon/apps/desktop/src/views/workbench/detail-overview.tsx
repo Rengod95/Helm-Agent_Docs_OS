@@ -39,6 +39,9 @@ import {
 import { needsAttentionOf, type ToolNeedVM, type ToolReadinessVM } from "./tool-ready.ts";
 
 /** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이(`ext-detail.tsx`의 옛 자리와 같다) */
+/** 긴 문단의 줄 길이(plugSize): 내용 칸은 넓게 쓰고, 문단만 720px(`max-w-180`, 설정 표 구역과 같은 눈금)에서 줄을 바꾼다 */
+const PROSE = "max-w-180";
+
 const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 export function DetailOverview(props: {
@@ -114,12 +117,12 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
       {lead === null ? (
         <p className={MUTED}>{t("desktop.workbench.detail.overview.noPurpose")}</p>
       ) : (
-        <p className="m-0 text-ui-strong text-text-primary">{lead.text}</p>
+        <p className={`m-0 text-ui-strong text-text-primary ${PROSE}`}>{lead.text}</p>
       )}
       {description === null ||
       lead?.fromDescription === true ||
       description === lead?.text ? null : (
-        <p className="m-0 text-ui text-text-secondary">{description}</p>
+        <p className={`m-0 text-ui text-text-secondary ${PROSE}`}>{description}</p>
       )}
       <ListDescription
         variant="ghost"
