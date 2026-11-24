@@ -1,9 +1,17 @@
 import { join } from "node:path";
-import * as contracts from "@fresnel/contracts";
+import type * as RealContractsModule from "@fresnel/contracts";
 import { CapabilityError } from "@fresnel/contracts/capabilities";
 import type { SdkModules } from "../../../src/loading-trust/index.ts";
-import * as typebox from "typebox";
+import type * as RealTypeboxModule from "typebox";
 import { putFile } from "./real-fs.ts";
+
+// 지정자가 아니라 파일 경로로 불러온다. 같은 프로세스에서 다른 시험 파일(격리 시험의 호스트)이 먼저 SDK를 등록했으면
+// (파일 순서는 기기마다 다르다. macOS는 이름순, Linux는 디렉터리 순) 지정자 `@fresnel/contracts`와 `typebox`는 가상 모듈 껍데기를
+// 돌려주고, 그 껍데기는 X가 등록한 실제 모듈 객체와 달라 등록이 `conflict`가 된다
+const contracts: typeof RealContractsModule = await import(
+  Bun.resolveSync("@fresnel/contracts", import.meta.dir)
+);
+const typebox: typeof RealTypeboxModule = await import(Bun.resolveSync("typebox", import.meta.dir));
 
 /** 호스트 쪽 `@fresnel/orchestration-sdk` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
 export const fakeOrchestrationSdk: {
