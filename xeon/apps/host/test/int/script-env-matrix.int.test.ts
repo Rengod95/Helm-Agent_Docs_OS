@@ -45,9 +45,13 @@ const DISK_TMP = "/tmp";
 const gate = await sandboxGateOf();
 const runnable = process.platform === "darwin" && gate.runnable;
 if (!runnable) {
-  const reason = process.platform === "darwin" ? gate.reason : `not darwin (${process.platform})`;
-  if (Bun.env["FRESNEL_REQUIRE_SANDBOX"] === "1" || Bun.env["CI"] === "true") {
-    process.stderr.write(`ENV script-env-matrix.int: ${reason}\n`);
+  // 이 시험은 macOS 전용이다(위 머리말). 다른 OS에서는 환경 문제가 아니라 해당 없음이므로 종료 코드 2로 묶음 전체를 끊지 않는다.
+  // macOS에서 샌드박스를 쓸 수 없는 경우만 환경 문제다
+  if (
+    process.platform === "darwin" &&
+    (Bun.env["FRESNEL_REQUIRE_SANDBOX"] === "1" || Bun.env["CI"] === "true")
+  ) {
+    process.stderr.write(`ENV script-env-matrix.int: ${gate.reason}\n`);
     process.exit(ENVIRONMENT_EXIT_CODE);
   }
   process.stderr.write("SKIPPED script-env-matrix.int: sandbox not runnable here\n");
