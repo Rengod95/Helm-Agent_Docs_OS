@@ -165,7 +165,10 @@ async function readBoard(g: BoardApi): Promise<Result<BoardState, string>> {
 let storeLine: Promise<unknown> = Promise.resolve();
 function inStoreLine<T>(work: () => Promise<T>): Promise<T> {
   const run = storeLine.then(work);
-  storeLine = run.then(() => undefined);
+  storeLine = run.then(
+    () => undefined,
+    () => undefined,
+  );
   return run;
 }
 
