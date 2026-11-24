@@ -143,6 +143,13 @@ async function refusal(roots: AppRoots, tail: string): Promise<string> {
   return result.ok ? "served" : result.error.kind;
 }
 
+function draftTreeIn(base: string): string {
+  const tree = path.join(base, "drafts", "drf_01HZ00000000000000ABCDEF", "tree");
+  mkdirSync(tree, { recursive: true });
+  writeFileSync(path.join(tree, "index.html"), "<html>draft</html>");
+  return tree;
+}
+
 describe("frame CSP and name rules", () => {
   test("frameCsp matches the TS appFrameCsp output", () => {
     expect(frameCsp("fresnel-view://helm/1.0.0/")).toBe(FRAME_CSP_HELM);
@@ -493,8 +500,8 @@ describe("symlinks and roots", () => {
 
   test("a draft tree is accepted only in the draft tier, for its own internal name", async () => {
     const sandbox = makeSandbox();
-    const roots = createAppRoots();
     const store = path.join(sandbox.dir, "data/plugin-store");
+    const roots = createAppRoots(() => store);
     const draftId = "drf_01HZ00000000000000ABCDEF";
     const name = "dabcdef-kanban";
     const tree = path.join(store, "drafts", draftId, "tree");
@@ -552,6 +559,34 @@ describe("symlinks and roots", () => {
     expect(roots.replace([], undefined)).toEqual({ ok: true, value: [] });
     const closed = await respond(roots, "GET", `fresnel-view://${name}/1.0.0/index.html`);
     expect(closed.status).toBe(404);
+  });
+
+  test("a draft tree of the right shape is refused outside the app's own plugin store, or when the store is unknown", async () => {
+    const sandbox = makeSandbox();
+    const store = path.join(sandbox.dir, "data/plugin-store");
+    const elsewhere = path.join(sandbox.dir, "other-home/data/plugin-store");
+    const name = "dabcdef-kanban";
+    const own = draftTreeIn(store);
+    const foreign = draftTreeIn(elsewhere);
+    const entry = (root: string): AppRootInput =>
+      entryFor(root, { extension: name, trust: "draft" });
+    const outside: SkippedRoot[] = [{ index: 0, kind: "outside_install" }];
+    const roots = createAppRoots(() => store);
+    expect(roots.replace([entry(own)], undefined)).toEqual({ ok: true, value: [] });
+    expect(roots.replace([entry(foreign)], undefined)).toEqual({ ok: true, value: outside });
+    // 링크로 데이터 폴더 안에서 밖의 같은 모양을 가리켜도 실제 경로가 밖이라 거절된다
+    const link = path.join(store, "drafts", "drf_01HZ00000000000000ABCDEF", "tree", "via");
+    symlinkSync(foreign, link);
+    expect(roots.replace([entry(link)], undefined)).toEqual({ ok: true, value: outside });
+    // 데이터 폴더를 모르거나 아직 없으면 드래프트 항목은 모두 거절된다
+    expect(createAppRoots().replace([entry(own)], undefined)).toEqual({ ok: true, value: outside });
+    expect(createAppRoots(() => undefined).replace([entry(own)], undefined)).toEqual({
+      ok: true,
+      value: outside,
+    });
+    expect(
+      createAppRoots(() => path.join(sandbox.dir, "missing")).replace([entry(own)], undefined),
+    ).toEqual({ ok: true, value: outside });
   });
 
   test("a bad entry is skipped and the rest of the list is registered", async () => {
