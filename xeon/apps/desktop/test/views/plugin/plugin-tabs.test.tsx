@@ -89,6 +89,35 @@ describe("plugin tabs", () => {
     expect(appText).not.toContain(t("client.view.confirm.trust.user"));
   });
 
+  test("with several screens the panel head is one row of screen tabs, without the window's pinned-tab strip", async () => {
+    const html = await render(
+      [
+        uiEntryOf({ extension: "kanban", id: "board", placement: "page", title: "칸반" }),
+        uiEntryOf({ extension: "kanban-native", id: "board", placement: "page", title: "칸반" }),
+        uiEntryOf({ extension: "suggest", id: "page", placement: "page", title: "제안" }),
+      ],
+      "pages",
+    );
+    // 창 머리의 고정 탭 줄(DP-90)은 이 좁은 패널에 다시 서지 않는다(AGE-73 railFix: "Helm"이 "H ⊢"로 잘리던 것)
+    expect(html).not.toContain('data-slot="playground-tabs"');
+    expect(html).toContain(`aria-label="${t("desktop.plugin.panel.screens")}"`);
+    const pressed = [...html.matchAll(/aria-pressed="(true|false)"[^>]*title="([^"]*)"/g)].map(
+      (match) => [match[2], match[1]],
+    );
+    // 이름이 같은 화면의 툴팁에는 플러그인 이름까지 든다(탭 안 보조 글은 좁으면 말줄임이다)
+    expect(pressed).toEqual([
+      ["칸반 kanban", "true"],
+      ["칸반 kanban-native", "false"],
+      ["제안", "false"],
+    ]);
+    // 이름이 같은 두 화면에는 플러그인 이름이 붙는다
+    const text = html.replaceAll("<!-- -->", "").replace(/<[^>]*>/g, "|");
+    expect(text).toContain("칸반||kanban|");
+    expect(text).toContain("칸반||kanban-native|");
+    // 좁으면 아이콘 단추가 되는 "대화로"도 접근 이름은 같다
+    expect(html).toContain(`aria-label="${t("desktop.plugin.header.backToChat")}"`);
+  });
+
   test("the Helm tab says the extension has no views when nothing is placed", async () => {
     const html = await render([], "helm");
     expect(html).toContain("이 플러그인은 앱을 내지 않아요");

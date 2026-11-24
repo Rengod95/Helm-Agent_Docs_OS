@@ -1,8 +1,7 @@
-import { activeLocale, t } from "@fresnel/client/i18n";
-import { extMessageOf } from "@fresnel/client/views/native";
+import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
-import { Badge, Button, EmptyState } from "@caustic/react";
+import { EmptyState } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { PlacedEntry } from "../../plugin-ui/placements.ts";
 import { watchExtensionChanges } from "../../plugin-ui/watch.ts";
@@ -13,41 +12,15 @@ import { HelmResults } from "./helm-results.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { HELM_EXTENSION, pluginScreenItemsOf, usePluginPickRequest } from "./plugin-pick.ts";
 import { isDraftTrial } from "./plugin-trial.ts";
-import { PluginView, screenKeyOf } from "./plugin-view.tsx";
+import { PanelScreenHead } from "./panel-screen-head.tsx";
+import { PluginView, screenKeyOf, useShowChat } from "./plugin-view.tsx";
 import { ThreadSwitches } from "./thread-switches.tsx";
 
 // Placement `panel`과 `page`를 오른쪽 탭에 잇는 부품과, 엔진이 붙을 때 화면 목록을 읽는 부품.
 
-function Pick(props: {
-  readonly items: readonly PlacedEntry[];
-  readonly selected: string | undefined;
-  readonly onSelect: (key: string) => void;
-}): ReactNode {
-  if (props.items.length < 2) return null;
-  return (
-    <div className="flex flex-wrap gap-1 px-3 pt-3">
-      {props.items.map(({ entry }) => (
-        <Button
-          key={screenKeyOf(entry)}
-          variant="ghost"
-          size="xs"
-          aria-pressed={screenKeyOf(entry) === props.selected}
-          onClick={() => {
-            props.onSelect(screenKeyOf(entry));
-          }}
-        >
-          {extMessageOf(entry.messages, activeLocale(), entry.title)}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
-function EntryList(props: {
-  readonly items: readonly PlacedEntry[];
-  /** 좁은 옆 패널에서 그린다(화면 머리를 줄인다) */
-  readonly compact?: boolean | undefined;
-}): ReactNode {
+/** 좁은 옆 패널의 화면 목록: 머리 한 줄(화면 탭, 대화로)과 고른 화면 하나(`PanelScreenHead`, AGE-73 railFix) */
+function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode {
+  const showChat = useShowChat();
   // 사이드바 "플러그인 UI"에서 고른 화면이 오면 그것을 고른다(번호가 바뀔 때마다. 화면이 열릴 때 이미 있던 요청도 따른다)
   const request = usePluginPickRequest();
   const [picked, setPicked] = useState<string | undefined>(request?.key);
@@ -63,17 +36,16 @@ function EntryList(props: {
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Pick items={props.items} selected={screenKeyOf(current)} onSelect={setPicked} />
-      {current.draft === true ? (
-        <div className="flex px-3 pt-3">
-          <Badge size="sm">{t("desktop.plugin.state.trial")}</Badge>
-        </div>
-      ) : null}
-      <PluginView
-        key={`${screenKeyOf(current)}@${current.version}`}
-        entry={current}
-        compact={props.compact}
+      <PanelScreenHead
+        entries={props.items.map(({ entry }) => entry)}
+        current={current}
+        onSelect={setPicked}
+        onBackToChat={showChat}
       />
+      {/* 머리 아래 공용 위 간격(화면 머리 `ScreenHeader`가 주던 것). 본문 스크롤은 그 아래에서 돈다 */}
+      <div className="flex min-h-0 flex-1 flex-col pt-3">
+        <PluginView key={`${screenKeyOf(current)}@${current.version}`} entry={current} bare />
+      </div>
     </div>
   );
 }
@@ -89,7 +61,7 @@ export function HelmPanelTab(): ReactNode {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* 화면 높이가 내용보다 작아도 두 구역이 겹치지 않게, 둘 다 자기 키로 두고 바깥이 같이 스크롤한다 */}
       <div className="flex-none">
-        <EntryList items={items} compact />
+        <EntryList items={items} />
       </div>
       <div className="flex-none">
         <HelmResults />
@@ -110,8 +82,7 @@ export function PluginPagesTab(): ReactNode {
       <div className="max-h-[calc(var(--app-vh)*0.4)] flex-none overflow-y-auto">
         <ThreadSwitches />
       </div>
-      {/* 좁은 옆 패널이다. 화면 머리의 메타를 줄이지 않으면 등급 글이 한 글자씩 꺾여 버전과 "대화로" 단추 위에 겹친다 */}
-      <EntryList items={items} compact />
+      <EntryList items={items} />
     </div>
   );
 }

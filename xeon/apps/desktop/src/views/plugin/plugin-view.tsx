@@ -187,14 +187,13 @@ function StateNote(props: {
  * 머리: 제목(strong) 옆에 연한 메타 한 줄, 앱 화면이면 "플러그인 앱" 표지(툴팁은 앱 선언의 이유), 끝에 "대화로".
  * 플레이그라운드 화면에서 열었으면(`back`) 앞에 뒤로 가기, 메타는 플러그인 이름 하나다(버전·등급은 상세에 있다).
  * 선 없이 간격으로만 나눈다(DP-03). 폭은 시안 b01 `FRAME_WIDTH`(가운데 68rem, 좌우 여백 한 번)다.
- * `compact`(좁은 옆 패널)면 메타는 버전 하나만 둔다. 등급 글이 두 줄로 접히거나 제목이 몇 글자만 남지 않게 한다
+ * 좁은 옆 패널은 이 머리를 쓰지 않고 `bare`로 그린 뒤 자기 머리(`PanelScreenHead`)를 둔다(AGE-73 railFix)
  */
 function Header(props: {
   readonly entry: ExtUiEntry;
   readonly onBackToChat: () => void;
   readonly back?: PluginViewBack | undefined;
   readonly tab?: PluginViewTab | undefined;
-  readonly compact?: boolean | undefined;
 }): ReactNode {
   const { entry, back, tab } = props;
   const trust = entry.trust === "managed" ? "user" : entry.trust;
@@ -237,9 +236,7 @@ function Header(props: {
         )
       }
       meta={
-        back === undefined && props.compact === true ? (
-          <span className="flex-none text-ui text-text-tertiary">{`v${entry.version}`}</span>
-        ) : back === undefined ? (
+        back === undefined ? (
           <>
             <span className="flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
               <span className="min-w-0 truncate">{entry.extension}</span>{" "}
@@ -797,8 +794,6 @@ export function PluginView(props: {
   readonly back?: PluginViewBack | undefined;
   /** 머리 줄 탭 화면에서 열었다(DP-90). 본문은 `back`과 같은 페이지 배치다 */
   readonly tab?: PluginViewTab | undefined;
-  /** 좁은 옆 패널에 그린다. 머리 메타를 버전 하나로 줄인다(`Header`) */
-  readonly compact?: boolean | undefined;
   /** 머리를 그리지 않는다. 머리를 따로 가진 자리(대화 옆 "앱" 탭, AGE-78)가 쓴다 */
   readonly bare?: boolean | undefined;
   /** 확장이 꺼졌거나 이 대화의 프로필에 없을 때 경고 아래에 둘 관리 단추(`bare` 자리용. 탭 머리는 `tab.onManage`) */
@@ -864,7 +859,6 @@ export function PluginView(props: {
           entry={entry}
           back={back}
           tab={tab}
-          compact={props.compact}
           onBackToChat={() => {
             showChat();
           }}

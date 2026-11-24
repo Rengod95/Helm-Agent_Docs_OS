@@ -81,7 +81,7 @@ function Section(props: {
   return (
     <section
       aria-label={props.title}
-      className="grid content-start gap-2 border-b border-border-subtle p-3 pe-12"
+      className="grid content-start gap-2 border-b border-border-subtle p-3"
     >
       {/* 구역 머리는 시안의 SectionTitle 역할(본문 크기, 굵은 글, 선 없음) */}
       {props.heading && (

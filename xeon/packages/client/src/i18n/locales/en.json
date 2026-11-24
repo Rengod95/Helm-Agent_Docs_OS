@@ -2819,6 +2819,8 @@
   "desktop.plugin.frame.disabled": "This app has been turned off. Turn it back on to load it again from the start.",
   "desktop.plugin.frame.loading": "Loading…",
   "desktop.plugin.header.backToChat": "Back to chat",
+  "desktop.plugin.panel.screens": "Screens",
+  "desktop.plugin.panel.more": "{count} more screens",
   "desktop.plugin.frame.reenable": "Turn back on",
   "desktop.plugin.frame.reason.queryFailed": "The view's queries kept failing, so it was closed",
   "desktop.plugin.frame.reason.queryFailedInfo": "Its query requests failed several times in a row. Check the query name and arguments the plugin sends.",
