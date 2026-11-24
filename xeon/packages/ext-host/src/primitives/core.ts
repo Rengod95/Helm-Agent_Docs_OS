@@ -380,6 +380,11 @@ export interface ThreadRuntime {
   want: Map<RegistrationId, ThreadWant>;
   /** 상태 문서가 맞지 않아 이 thread에서 켜지 못한 scope. 이 thread가 다시 토글하기 전까지 다시 시도하지 않는다 */
   refused: Set<RegistrationId>;
+  /**
+   * 이 thread에서 단계 함수가 던져 임대가 오류로 끝난 scope. 고장 표시는 그 thread의 그 실행에만 걸린다: 같은 thread의 자동(프로필) 시작은 막고,
+   * 사용자의 새 시작 명령이 풀며, 다른 thread의 시작에는 영향이 없다(scnEng8 W-09)
+   */
+  driveFailed: Set<RegistrationId>;
   /** scope별 활성 가지 위 scope.changed 수(열 때 스냅샷에서 시작해 커밋마다 오른다). 커밋 키를 전이마다 구분한다 */
   flips: Map<RegistrationId, number>;
   /** 켜진 scope의 마지막 scope.changed{enabled} seq */

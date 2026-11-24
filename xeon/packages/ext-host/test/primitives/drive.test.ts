@@ -177,8 +177,9 @@ test("throw releases and keeps handlers", async () => {
   expect(driveCalls).toBe(1);
   const released = t.records.events(thread).find((event) => event.kind === "lease.released");
   expect(released?.payload).toMatchObject({ reason: "error" });
-  expect(t.host.registrations()[0]?.drive).toBe("error");
-  // on 핸들러는 계속 실행되고, 토글 전에는 다시 부여·호출하지 않는다
+  // 고장 표시는 그 대화의 그 실행에만 걸린다: 등록은 고장이 아니다
+  expect(t.host.registrations()[0]?.drive).toBe("registered");
+  // on 핸들러는 계속 실행되고, 같은 대화에서는 자동으로 다시 부여·호출하지 않는다
   await t.host.dispatch(
     "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
@@ -188,6 +189,12 @@ test("throw releases and keeps handlers", async () => {
   await t.boundary(thread).turnSettled();
   await t.settled();
   expect(driveCalls).toBe(1);
+  // 다른 새 대화의 새 시작은 깨끗하게 시작한다
+  const other = t.newThread();
+  await t.host.openThread(other);
+  expect(t.host.startDrive(other, "drv-throw")).toEqual({ ok: true, value: undefined });
+  await t.settled();
+  expect(driveCalls).toBe(2);
 });
 
 test("a storage failure in a step releases the lease but does not mark the registration broken (W-09)", async () => {

@@ -67,11 +67,11 @@ test("service.drive-roles-come-from-the-frame-stack", async () => {
     driver("review"),
     quiet("learning"),
   ]);
-  // 시작 요청을 받은 crashy는 첫 단계에서 던져 오류 상태가 된다
+  // 시작 요청을 받은 crashy는 첫 단계에서 던진다. 그 대화의 그 실행만 멈추고 그룹은 고장으로 표시되지 않는다(scnEng8 W-09)
   await startDriveOf(t, thread, "crashy");
   expect(service.list().find((group) => group.id === "crashy")).toMatchObject({
-    drive: "error",
-    lastError: { kind: "orchestration.driveThrew", message: "crashy drive failed" },
+    drive: "none",
+    lastError: null,
   });
   // helm은 review에게 맡기므로 helm은 스택 아래 프레임(waiting), review가 맨 위(holder)다
   await startDriveOf(t, thread, "helm");

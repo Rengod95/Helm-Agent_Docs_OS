@@ -1470,11 +1470,8 @@ export function createLeaseBroker(
           cause: error,
         });
       } else {
-        record.driveError = true;
-        record.lastError = {
-          code: error instanceof PrimitiveError ? error.code : "registration_setup_failed",
-          message: error instanceof Error ? error.message : "drive step threw",
-        };
+        // 단계 함수가 던진 일은 이 thread의 이 실행만 멈춘다. 등록을 고장으로 표시하면 다른 대화의 새 시작까지 막힌다(scnEng8 W-09)
+        thread.driveFailed.add(lease.scopeId);
         core.deps.report({
           level: "error",
           code: error instanceof PrimitiveError ? error.code : "handler_failed",
@@ -1585,7 +1582,7 @@ export function createLeaseBroker(
     readonly drive: NonNullable<Generation["drive"]>;
   } | null {
     const record = core.scopes.get(scopeId);
-    if (record === undefined || record.driveError) return null;
+    if (record === undefined || record.driveError || thread.driveFailed.has(scopeId)) return null;
     const generation = record.generation;
     if (generation === null || generation.stale) return null;
     if (!generation.open && txn?.opening.includes(record) !== true) return null;
@@ -2167,7 +2164,8 @@ export function createLeaseBroker(
       const record = core.scopes.get(scopeId);
       if (record === undefined) return err({ kind: "unknown_scope" });
       if (thread.child) return err({ kind: "child_thread" });
-      if (record.driveError) return err({ kind: "drive_error" });
+      if (trigger === "user") thread.driveFailed.delete(scopeId);
+      if (record.driveError || thread.driveFailed.has(scopeId)) return err({ kind: "drive_error" });
       // 세대가 열려 있으면 drive 등록을 확인한다. 꺼진 scope는 세대가 없어 확인하지 못하고, 부여 경계가 버린다
       if (record.generation !== null && record.generation.drive === null) {
         return err({ kind: "not_drive" });
