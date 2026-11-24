@@ -28,8 +28,16 @@ const runnable = environment.supported && environment.missing.length === 0;
 const suite = runnable ? describe : describe.skip;
 // 읽기 예외와 시스템 도구 막기는 Seatbelt(macOS)에서만 있다. bwrap에서는 예외를 값으로 거부한다(wrap-argv.ts)
 const seatbelt = selectSandboxProvider(detectPlatformInput()).kind === "seatbelt";
-const seatbeltTest = seatbelt ? test : test.skip;
-const bwrapTest = seatbelt ? test.skip : test;
+// 다른 플랫폼의 시험은 등록하지 않는다. 건너뜀으로 등록하면 어느 플랫폼에서도 건너뜀이 0이 될 수 없어
+// 종료 조건 시험(just exit-tests)이 이 파일을 늘 건너뜀으로 센다. 각 플랫폼에서 도는 시험은 그대로다(AGE-39, 2026-11-24 사용자 결정)
+type PlatformTest = (name: string, body: () => Promise<void>, timeout?: number) => void;
+const onlyWhen =
+  (applies: boolean): PlatformTest =>
+  (name, body, timeout) => {
+    if (applies) test(name, body, timeout);
+  };
+const seatbeltTest = onlyWhen(seatbelt);
+const bwrapTest = onlyWhen(!seatbelt);
 
 interface Fixture {
   readonly box: RealSandbox;
