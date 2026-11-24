@@ -44,6 +44,11 @@ describe("policyContextOf", () => {
     expect(enabledOf(uiEntryOf({ mode: "app" }), closed)).toBe(true);
     expect(enabledOf(uiEntryOf({ mode: "app", state: "disabled" }), closed)).toBe(false);
     expect(enabledOf(uiEntryOf({ mode: "native" }), closed)).toBe(false);
+    // 시험 중인 드래프트의 화면은 전역으로 꺼져 있어도 열린다(AGE-77 Y-04)
+    expect(enabledOf(uiEntryOf({ mode: "native", draft: true }), closed)).toBe(true);
+    expect(enabledOf(uiEntryOf({ mode: "native", draft: true, state: "disabled" }), closed)).toBe(
+      false,
+    );
     expect(enabledOf(uiEntryOf({ mode: "native" }), extGetOf())).toBe(true);
     // 시작 때 미뤄 둔 확장은 꺼진 것이 아니다(X-01). 사용자가 끈 확장은 그대로 꺼짐이다
     const deferred = extGetOf(HELM_MANIFEST, { status: "disabled", deferred: true });

@@ -78,9 +78,10 @@ export function policyContextOf(
     trust === "builtin" ? [`ext.${extension}.`, `l3.${extension}.`] : [`ext.${extension}.`];
   return ok({
     extension,
-    // 앱 화면은 어느 프로필에도 없어 닫혀 있어도 열린다(AGE-78 질문 3). 꺼짐은 엔진이 화면 항목 상태(`disabled`)로 알려 준다
+    // 앱 화면은 어느 프로필에도 없어 닫혀 있어도 열린다(AGE-78 질문 3). 꺼짐은 엔진이 화면 항목 상태(`disabled`)로 알려 준다.
+    // 승인 전 드래프트의 화면(`draft`)도 같다: 전역으로는 꺼져 있고 시험 중인 대화에서만 켜져 목록에 들어온다(AGE-77 Y-04)
     enabled:
-      entry.mode === "app"
+      entry.mode === "app" || entry.draft === true
         ? entry.state !== "disabled"
         : get.entry.status === "enabled" || get.entry.deferred === true,
     safeMode: get.entry.safeModeExcluded !== null,

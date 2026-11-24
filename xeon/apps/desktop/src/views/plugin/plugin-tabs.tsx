@@ -12,7 +12,7 @@ import { ConfirmHost } from "./confirm-host.tsx";
 import { HelmResults } from "./helm-results.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { HELM_EXTENSION, pluginScreenItemsOf, usePluginPickRequest } from "./plugin-pick.ts";
-import { trialDraftOf } from "./plugin-trial.ts";
+import { isDraftTrial } from "./plugin-trial.ts";
 import { PluginView, screenKeyOf } from "./plugin-view.tsx";
 import { ThreadSwitches } from "./thread-switches.tsx";
 
@@ -47,8 +47,6 @@ function EntryList(props: {
   readonly items: readonly PlacedEntry[];
   /** 좁은 옆 패널에서 그린다(화면 머리를 줄인다) */
   readonly compact?: boolean | undefined;
-  /** 이 대화가 시험 중인 드래프트의 확장 이름. 그 화면에는 "시험 중" 표시를 단다 */
-  readonly trialExtension?: string | undefined;
 }): ReactNode {
   // 사이드바 "플러그인 UI"에서 고른 화면이 오면 그것을 고른다(번호가 바뀔 때마다. 화면이 열릴 때 이미 있던 요청도 따른다)
   const request = usePluginPickRequest();
@@ -66,7 +64,7 @@ function EntryList(props: {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Pick items={props.items} selected={screenKeyOf(current)} onSelect={setPicked} />
-      {props.trialExtension !== undefined && current.extension === props.trialExtension ? (
+      {current.draft === true ? (
         <div className="flex px-3 pt-3">
           <Badge size="sm">{t("desktop.plugin.state.trial")}</Badge>
         </div>
@@ -107,13 +105,12 @@ export function HelmPanelTab(): ReactNode {
 export function PluginPagesTab(): ReactNode {
   const state = usePluginUiState();
   const items = pluginScreenItemsOf(state);
-  const trial = trialDraftOf(useOpenThread());
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="max-h-[calc(var(--app-vh)*0.4)] flex-none overflow-y-auto">
         <ThreadSwitches />
       </div>
-      <EntryList items={items} trialExtension={trial} />
+      <EntryList items={items} />
     </div>
   );
 }
@@ -129,8 +126,7 @@ export function PluginUiHost(): ReactNode {
   const openThread = useOpenThread();
   // 드래프트를 시험하는 대화를 보고 있으면 그 대화로 읽어, 그 드래프트의 화면이 목록에 든다(AGE-77 Y-04)
   const openThreadId = useOpenThreadId();
-  const trialThreadId =
-    trialDraftOf(openThread) === undefined ? undefined : (openThreadId ?? undefined);
+  const trialThreadId = isDraftTrial(openThread) ? (openThreadId ?? undefined) : undefined;
   useEffect(() => {
     if (phase !== "live") return undefined;
     detach(runtime.refresh(trialThreadId), rethrow);

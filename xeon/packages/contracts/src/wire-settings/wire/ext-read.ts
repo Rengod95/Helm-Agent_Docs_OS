@@ -686,6 +686,8 @@ export interface ExtUiEntry {
   readonly appRoot?: string;
   /** card 항목이 맞는 레코드 kind(매니페스트 `forKind`). card가 아니면 없다 */
   readonly forKind?: string;
+  /** 승인 전 드래프트의 화면이면 true. 그 드래프트를 테스트 중인 대화(`threadId`)가 읽을 때만 목록에 든다. 아니면 없다 */
+  readonly draft?: boolean;
   /** 엔진이 검사한 화면 트리. `app` 모드면 없다 */
   readonly tree?: UiNode;
   readonly app?: AppDecl;
@@ -715,6 +717,7 @@ const UiEntryShape = closed({
   trust: ExtTrustShape,
   appRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
   forKind: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
+  draft: Type.Optional(Type.Boolean()),
   tree: Type.Optional(UiNodeSchema),
   app: Type.Optional(AppDeclSchema),
   messages: Type.Optional(
