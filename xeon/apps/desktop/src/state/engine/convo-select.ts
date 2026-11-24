@@ -451,6 +451,15 @@ export function selectAppliedProfile(s: EngineMirror, threadId: ThreadId): Appli
   return convoOf(s, threadId).profile;
 }
 
+/**
+ * 이 대화의 마지막 턴이 중단으로 끝났는가. 엔진은 사용자가 멈춘 대화의 큐만 자동으로 시작하지 않는다.
+ * 첫 메시지(`input.queued`가 `turn.started`보다 먼저 커밋된다)와 정상으로 끝난 턴 뒤의 이어 보내기는 쉬는 대화에 입력이 잠깐 남아도 곧 시작하므로 멈춘 것이 아니다
+ */
+export function selectLastTurnInterrupted(s: EngineMirror, threadId: ThreadId): boolean {
+  const last = convoOf(s, threadId).turns.at(-1);
+  return last?.completion?.status === "interrupted";
+}
+
 const NO_DRIVE_INPUTS: readonly DriveInputRecord[] = Object.freeze([]);
 
 /**

@@ -8,7 +8,7 @@ import type { Commands } from "../../src/views/commands.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { QueuedInputs } from "../../src/views/queued-inputs.tsx";
 import { fakeCommands } from "./fake-commands.ts";
-import { SUB, evt, openedHarness, summary, thr } from "../state/helpers.ts";
+import { SUB, evt, openedHarness, summary, thr, trn } from "../state/helpers.ts";
 
 // 입력창 위 대기 입력 칩의 서버 렌더. 칩의 글, 모드 말, 철회 단추, 정보 아이콘을 본다.
 // 누르기와 철회 상태 전이는 DOM이 없어 시험하지 못한다. 그 전이는 composer-model.test.ts가 본다.
@@ -42,6 +42,19 @@ function queuedFact(
       sourceType: over.sourceType ?? "user",
       preview: { kind: "text", text: preview },
     },
+  };
+}
+
+/** 중단으로 끝난 턴. 큐에 남은 입력은 이 턴이 끝난 뒤 멈춘 채로 기다린다 */
+function interruptedFact(seq: number): DurableFact {
+  return {
+    type: "turn.completed",
+    seq,
+    eventId: evt(seq),
+    threadId: T,
+    turnId: trn(1),
+    at: AT,
+    payload: { status: "interrupted", stepCount: 0, usage: null, error: "owner_cancelled" },
   };
 }
 
@@ -147,6 +160,7 @@ describe("queued input chips above the composer", () => {
     const facts = [
       queuedFact(6, "끝나면 해 줘", { mode: "followUp" }),
       queuedFact(7, "다음 턴에", { mode: "next" }),
+      interruptedFact(8),
     ];
     const held = html(facts, { status: "idle", steerable: () => true });
     expect(held).toContain('data-queue-head="held"');
@@ -156,7 +170,7 @@ describe("queued input chips above the composer", () => {
     expect(tags).toEqual(["held", "next"]);
     // 멈춘 뒤에는 도는 턴이 없어 지금 반영이 없다
     expect(held).not.toContain("data-queued-steer-now");
-    const running = html(facts, { status: "running" });
+    const running = html(facts.slice(0, 2), { status: "running" });
     expect(running).toContain('data-queue-head="queued"');
     expect(running).not.toContain("멈춘 뒤라 보내지 않았어요");
   });
@@ -165,5 +179,62 @@ describe("queued input chips above the composer", () => {
     const only = html([queuedFact(6, "다음 턴에", { mode: "next" })], { status: "idle" });
     expect(only).toContain('data-queue-head="queued"');
     expect(only).not.toContain("개 보내기");
+  });
+  test("the first message of a conversation is not held while the turn is about to start (AGE-77)", () => {
+    // 첫 메시지는 input.queued가 먼저 커밋되고 turn.started가 나중에 커밋된다. 그 사이 대화는 쉬고 있지만 멈춘 것이 아니다
+    for (const mode of ["steer", "followUp"] as const) {
+      const markup = html([queuedFact(6, "첫 메시지", { mode })], { status: "idle" });
+      expect(markup).toContain('data-queue-head="queued"');
+      expect(markup).not.toContain("멈춘 뒤라 보내지 않았어요");
+      expect(markup).not.toContain("개 보내기");
+      expect(markup).not.toContain('data-queued-mode="held"');
+    }
+  });
+
+  test("the first message of a test chat is not held either (AGE-77)", () => {
+    const h = openedHarness(5);
+    h.store.ingest({
+      type: "threads",
+      threads: [summary(T, { status: "idle", craftChat: { plugin: "demo" } })],
+    });
+    h.store.ingest({
+      type: "batch",
+      sub: SUB,
+      from: 5,
+      to: 6,
+      caughtUp: true,
+      facts: [queuedFact(6, "테스트 첫 메시지", { mode: "followUp" })],
+    });
+    h.store.flush();
+    const engine = frozen(h.store.read.getState());
+    const ui = frozen<UiState>(createUiStore().read.getState());
+    const markup = renderToString(
+      <Providers engine={engine} ui={ui} commands={fakeCommands()}>
+        <QueuedInputs
+          threadId={T}
+          disabledReason={null}
+          steerable={() => false}
+          onSteerNow={() => Promise.resolve({ status: "idle" })}
+        />
+      </Providers>,
+    );
+    expect(markup).toContain("테스트 첫 메시지");
+    expect(markup).not.toContain("멈춘 뒤라 보내지 않았어요");
+    expect(markup).toContain('data-queue-head="queued"');
+  });
+
+  test("a followUp queued after a normally finished turn is not held while the next turn starts (AGE-77)", () => {
+    const done: DurableFact = {
+      type: "turn.completed",
+      seq: 7,
+      eventId: evt(7),
+      threadId: T,
+      turnId: trn(1),
+      at: AT,
+      payload: { status: "completed", stepCount: 1, usage: null, error: null },
+    };
+    const markup = html([queuedFact(6, "이어서", { mode: "followUp" }), done], { status: "idle" });
+    expect(markup).toContain('data-queue-head="queued"');
+    expect(markup).not.toContain("멈춘 뒤라 보내지 않았어요");
   });
 });

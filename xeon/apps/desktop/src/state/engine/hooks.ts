@@ -202,6 +202,9 @@ export const useNow = (threadId: ThreadId): csel.NowState =>
   useEngine((s) => csel.selectNow(s, threadId));
 export const useConvoMarkers = (threadId: ThreadId): readonly ConvoMarker[] =>
   useEngine((s) => csel.selectMarkers(s, threadId));
+/** 이 대화의 마지막 턴이 중단으로 끝났다(멈춘 뒤 보내기를 기다리는 입력이 있을 수 있는 대화) */
+export const useLastTurnInterrupted = (threadId: ThreadId): boolean =>
+  useEngine((s) => csel.selectLastTurnInterrupted(s, threadId));
 /** 대화에 마지막으로 적용된 프로필(`profile.applied`). 못 봤으면 null */
 export const useAppliedProfile = (threadId: ThreadId): AppliedProfile | null =>
   useEngine((s) => csel.selectAppliedProfile(s, threadId));
