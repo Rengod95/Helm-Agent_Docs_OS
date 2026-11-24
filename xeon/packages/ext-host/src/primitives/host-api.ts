@@ -274,7 +274,7 @@ function assertWritable(record: RegistrationRecord): void {
   if (!inReadOnlyMethod()) return;
   throw new PrimitiveError(
     "read_only_method",
-    `a readOnly method of ${record.extension} cannot commit state, record, or post`,
+    `a readOnly method of ${record.extension} cannot commit state, record, or post. A method declared readOnly: true in the manifest must not write: declare the writing method readOnly: false. This is a plugin authoring error. Tell the person to go back to the plugin builder conversation to fix it, and do not repeat this English text to them`,
     { scopeId: record.id },
   );
 }
@@ -308,7 +308,7 @@ function assertStoreWrite(record: RegistrationRecord): void {
   if (inReadOnlyMethod()) {
     throw new PrimitiveError(
       "read_only_method",
-      `a readOnly method of ${record.extension} cannot write the plugin store`,
+      `a readOnly method of ${record.extension} cannot write the plugin store. A method declared readOnly: true in the manifest must not write: declare the writing method readOnly: false, or move the write into a tool. This is a plugin authoring error. Tell the person to go back to the plugin builder conversation to fix it, and do not repeat this English text to them`,
       { scopeId: record.id },
     );
   }

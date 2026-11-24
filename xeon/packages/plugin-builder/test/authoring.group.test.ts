@@ -453,7 +453,7 @@ test("authoring.submit: after a Test run, the turn of that run is the evidence a
   });
   expect(sent).toEqual({
     ok: true,
-    notice: "검토함에서 승인해야 쓸 수 있다",
+    notice: "리뷰 화면에서 승인해야 쓸 수 있다",
   });
   expect(rig.probe.submits).toEqual([
     {
@@ -531,7 +531,7 @@ test("authoring.flow: start, scaffold, validate, bash, trial on the folder, subm
   expect(rig.probe.calls).toEqual([`scaffold:${DIR}`, `validate:${DIR}`, `testRun:${DIR}`]);
   expect(rig.state().trial).toEqual({ threadId: "thr_trial" });
   const sent = await rig.call("authoring_submit", { sessionId: "auth-demo", turnId: "turn_1" });
-  expect(sent).toEqual({ ok: true, notice: "검토함에서 승인해야 쓸 수 있다" });
+  expect(sent).toEqual({ ok: true, notice: "리뷰 화면에서 승인해야 쓸 수 있다" });
   expect(rig.state().submitted).toEqual({ draftId: "draft_demo", itemId: "rvw_demo" });
 });
 
@@ -604,7 +604,7 @@ test("authoring.submit-evidence: without a turnId the latest turn of the Test ru
   expect(rig.probe.submits).toEqual([]);
   rig.probe.latestTurn = "turn_latest";
   const sent = await rig.call("authoring_submit", { sessionId: "auth-demo" });
-  expect(sent).toEqual({ ok: true, notice: "검토함에서 승인해야 쓸 수 있다" });
+  expect(sent).toEqual({ ok: true, notice: "리뷰 화면에서 승인해야 쓸 수 있다" });
   expect(rig.probe.submits[0]?.evidence).toEqual([
     { kind: "turn", threadId: "thr_trial", turnId: "turn_latest" },
   ]);

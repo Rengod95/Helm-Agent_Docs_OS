@@ -274,7 +274,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const guide = tool(
     "authoring_guide",
-    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, review inbox, build flow, short code examples of a tool and a method: topic fresnel-plugin-authoring, file hooks-and-tools). Read it instead of searching the disk. Without a topic it lists the topics.",
+    "Plugin authoring: read the Fresnel guide for building a plugin or extension (manifest format, hooks, tools, 리뷰 screen, build flow, short code examples of a tool and a method: topic fresnel-plugin-authoring, file hooks-and-tools). Read it instead of searching the disk. Without a topic it lists the topics.",
     Type.Object(
       {
         topic: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
@@ -502,7 +502,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const validate = tool(
     "authoring_validate",
-    "Check the extension (manifest, composition, drive replay rules, authoring rules, and the screens: an app's app.root folder and entry HTML must exist, and the declared methods must match the entry's registrations).",
+    "Check the extension (manifest, composition, drive replay rules, authoring rules, and the screens: an app's app.root folder and entry HTML must exist, and the declared methods must match the entry's registrations). Issue codes such as AU-007 and tool names are for you only: fix them yourself and tell the user the problem in plain words without codes or tool names.",
     Type.Object(sessionShape, { additionalProperties: false }),
     "read",
     async (input) => {
@@ -618,7 +618,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const pack = tool(
     "authoring_package",
-    "Pack the extension into one bundle file the user can keep. The user confirms before anything is written. Sending to the review inbox does not need it.",
+    "Pack the extension into one bundle file the user can keep. The user confirms before anything is written. Sending to the 리뷰 screen does not need it.",
     Type.Object(
       { ...sessionShape, out: Type.Optional(Type.String({ maxLength: 1024 })) },
       { additionalProperties: false },
@@ -641,7 +641,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
   // 확인을 묻지 않는 까닭은 위 파일 머리 주석에 있다. 증거는 시험 대화의 턴 하나다(M5c §4.7.1: 담당 AI의 제출은 증거 한 개 이상).
   const submit = tool(
     "authoring_submit",
-    "Send the plugin folder to the review inbox as a draft. Nothing is installed here: the plugin can be used only after the user approves it in the review inbox. Needs a Test run first (authoring_trial) in which the user has tried the plugin at least once. The evidence is the latest turn of the Test run thread; pass turnId only to choose another turn. Tell the user only that the plugin waits in the review inbox: never say draft or review numbers, session names or tool names.",
+    'Send the plugin folder to the "리뷰" screen as a draft. Nothing is installed here: the plugin can be used only after the user approves it on the "리뷰" screen. Needs a Test run first (authoring_trial) in which the user has tried the plugin at least once. The evidence is the latest turn of the Test run thread; pass turnId only to choose another turn. Tell the user only that the plugin waits on the "리뷰" screen (quote that name exactly, never "review inbox"): never say draft or review numbers, session names or tool names.',
     Type.Object(
       {
         ...sessionShape,
@@ -690,7 +690,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       });
       // 도구가 돌려준 값은 통째로 모델이 읽는다(`details`도 글에 들어간다). 그래서 내부 번호(초안, 검토 항목)는 상태 문서에만 두고 돌려주지 않는다(U-04).
       // 모델은 다음 호출에 그 번호를 인자로 쓰지 않는다
-      return { ok: true, notice: "검토함에서 승인해야 쓸 수 있다" };
+      return { ok: true, notice: "리뷰 화면에서 승인해야 쓸 수 있다" };
     },
   );
 

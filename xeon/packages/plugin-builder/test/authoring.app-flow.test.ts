@@ -116,7 +116,7 @@ test("app flow: scaffold(app) writes the app files, validate passes the app chec
   expect(await rig.call("authoring_submit", { sessionId: SESSION, turnId: EVIDENCE_TURN })).toEqual(
     {
       ok: true,
-      notice: "검토함에서 승인해야 쓸 수 있다",
+      notice: "리뷰 화면에서 승인해야 쓸 수 있다",
     },
   );
   expect(base.submits).toEqual([

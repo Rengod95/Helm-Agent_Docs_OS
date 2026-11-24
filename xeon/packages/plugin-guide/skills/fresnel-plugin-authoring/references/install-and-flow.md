@@ -59,7 +59,7 @@ The `authoring` plugin group provides eleven tools (`authoring_guide` reads this
 | `authoring_trial` | `sessionId` | opens a Test run thread that carries the folder as a draft (nothing is installed). Tell the user to try the plugin in that thread; `authoring_submit` needs a `turnId` from it | validation has not passed; the folder is still the skeleton (`skeleton_only`: build the requested feature first) | a card appears when you call it (it uses model calls); do not ask in text first. Denied runs ask again on the next call |
 | `authoring_replay` | `sessionId`, `maxCommits?` | replays the drive | not in development mode (`l3.authoring.devMode`, default off): `dev_mode_required` | no |
 | `authoring_package` | `sessionId`, `out?` | builds the bundle | validation has not passed | yes, before anything is written |
-| `authoring_submit` | `sessionId`, `purpose?`, `turnId?` | sends the folder to the review inbox as a draft (nothing is installed; the user approves it there) | validation has not passed; no Test run yet (`no_evidence`: start `authoring_trial` first); no `turnId` (`no_evidence`: pass a turn of that Test run) | no. The review inbox is the approval step |
+| `authoring_submit` | `sessionId`, `purpose?`, `turnId?` | sends the folder to the "리뷰" screen as a draft (nothing is installed; the user approves it there) | validation has not passed; no Test run yet (`no_evidence`: start `authoring_trial` first); no `turnId` (`no_evidence`: pass a turn of that Test run) | no. The "리뷰" screen is the approval step |
 | `authoring_stop` | `sessionId?` | closes the session. Files stay. The write guard is lifted | never | no |
 
 Notes:
