@@ -3034,7 +3034,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 읽기 전용입니다. 원천은 상세가 이미 읽은 `ext.get`의 매니페스트(`orchestration.composition`, `compositionOf`)와 `ext.validateComposition`입니다. 고치기, 복제, 흐름 보기, 코드 보기, 새 플러그인 만들기는 없습니다. 캔버스의 배율 단추만 있습니다.
 - 본문: 검사 띠(막힌 곳이 있으면 위험, 경고만 있으면 경고, 검사를 못 하면 경고 한 줄, 문제가 없으면 띠 없음) 아래 블록 캔버스(왼쪽 열 블록: 이름, 멤버 블록이면 멤버 이름, 입력과 출력 포트, 그 블록의 검사 문장. 오른쪽 열: 블록이 내는 기록, 입력 큐, 상태 문서. 선은 고른 블록의 것만). §6.28.1의 블록 쌓기 그림과 같은 부품입니다.
 - 상태: 매니페스트를 읽는 중이면 뼈대 한 줄, 읽기 실패면 다른 상세 탭과 같은 실패 한 줄, 구성을 선언하지 않았으면 빈 상태("구성 정보 없음"). 엔진이 연결되지 않았으면 검사 띠 없이 그림만 보입니다.
-- 구현: `apps/desktop/src/views/craft/composition/`(`composition-tab.tsx`, `composition-canvas.tsx`, `composition-check.tsx`, `canvas-host.tsx`, `composition-text.ts`), `views/workbench/ext-detail.tsx`.
+- 구현: `apps/desktop/src/views/craft/composition/`(`composition-check.tsx`, `composition-text.ts`), `views/craft/loop/`, `views/workbench/ext-detail.tsx`. [바뀜: 2026-11-24 사용자 "ㅇㅇ 일단정리해"] 옛 블록 캔버스 파일 셋(`composition-tab.tsx`, `composition-canvas.tsx`, `canvas-host.tsx`)은 구성 탭이 루프 캔버스(plugHead)로 바뀌면서 쓰이지 않게 되어 지웠습니다.
 
 ### 6.25 P-18 플레이그라운드(플러그인 화면 호스트)
 
