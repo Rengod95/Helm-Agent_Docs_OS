@@ -7,6 +7,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 /** 맞춤 배율의 아래 한계(글자가 읽히게). 이보다 줄여야 하면 스크롤한다 */
 const MIN_SCALE = 0.6;
 const CANVAS_PAD = 32;
+/** 아래 여백은 두 배다. 캔버스가 넘쳐 스크롤할 때 끝까지 내리면 마지막 블록이 줌 캡슐(아래 16 + 높이 약 36) 위로 올라온다 */
+const CANVAS_PAD_BOTTOM = CANVAS_PAD * 2;
 
 export function CanvasHost(props: {
   readonly width: number;
@@ -22,7 +24,7 @@ export function CanvasHost(props: {
     if (el === null) return undefined;
     const update = (): void => {
       const w = el.clientWidth - CANVAS_PAD * 2;
-      const h = el.clientHeight - CANVAS_PAD * 2;
+      const h = el.clientHeight - CANVAS_PAD - CANVAS_PAD_BOTTOM;
       setFit(Math.max(MIN_SCALE, Math.min(1, w / width, Math.max(h / height, 0.88))));
     };
     update();
@@ -47,8 +49,9 @@ export function CanvasHost(props: {
           className="mx-auto"
           style={{
             width: width * scale + CANVAS_PAD * 2,
-            height: height * scale + CANVAS_PAD * 2,
+            height: height * scale + CANVAS_PAD + CANVAS_PAD_BOTTOM,
             padding: CANVAS_PAD,
+            paddingBottom: CANVAS_PAD_BOTTOM,
           }}
         >
           <div style={{ width, height, transform: `scale(${scale})`, transformOrigin: "0 0" }}>

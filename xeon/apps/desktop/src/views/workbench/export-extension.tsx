@@ -6,6 +6,7 @@ import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Alert, Button, Dialog } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
+import { HEADER_CONTROL_SIZE } from "../shell/screen-header.tsx";
 import { exportFailureDetail, exportOutOf } from "./export-model.ts";
 
 type Phase =
@@ -57,7 +58,7 @@ export function ExportExtension(props: { readonly entry: ExtListEntry }): ReactN
   return (
     <>
       <Button
-        size="xs"
+        size={HEADER_CONTROL_SIZE}
         variant="outline"
         onClick={() => {
           setOpen(true);

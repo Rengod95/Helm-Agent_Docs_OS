@@ -32,15 +32,15 @@ export function HealthCell(props: {
 }): ReactNode {
   const health = rowHealthOf(props.row, props.blocked);
   if (health === "ready") {
-    return <span className="text-ui-sm text-text-tertiary">{t(HEALTH_TEXT.ready)}</span>;
+    return <span className="text-ui text-text-tertiary">{t(HEALTH_TEXT.ready)}</span>;
   }
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-ui-sm text-text-primary">
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-ui text-text-primary">
       <span
         aria-hidden="true"
-        className="inline-flex size-icon-sm shrink-0 items-center justify-center"
+        className="inline-flex size-icon-md shrink-0 items-center justify-center"
       >
-        <DotOrb state="listening" tone="warm" size={12} kind="mark" live={false} />
+        <DotOrb state="listening" tone="warm" size={14} kind="mark" live={false} />
       </span>
       <span className="min-w-0 truncate">{t(HEALTH_TEXT[health])}</span>
     </span>
@@ -59,9 +59,7 @@ export function RowName(props: { readonly row: ExtRowVM }): ReactNode {
         {row.displayName ?? row.name}
       </span>
       {row.displayName !== null && (
-        <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-          {row.name}
-        </span>
+        <span className="min-w-0 truncate font-mono text-mono text-text-tertiary">{row.name}</span>
       )}
     </span>
   );
@@ -74,7 +72,7 @@ export function UseText(props: {
 }): ReactNode {
   const { row, profiles } = props;
   return (
-    <span className="block min-w-0 truncate text-ui-sm text-text-secondary">
+    <span className="block min-w-0 truncate text-ui text-text-secondary">
       {profiles === null ? "" : profileUseText(profileUseOf(row.name, row.appCore, profiles))}
     </span>
   );

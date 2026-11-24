@@ -69,6 +69,8 @@ export function ProfilePutMenu(props: {
   readonly load: ProfileSetLoad;
   readonly label?: string | undefined;
   readonly onRemoved?: (() => void) | undefined;
+  /** 단추 크기(plugSize): 상세 머리는 화면 머리 단추와 같은 md, 목록 줄과 카드는 sm, 알림 띠 안은 xs(기본) */
+  readonly size?: "xs" | "sm" | "md" | undefined;
 }): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
@@ -121,7 +123,7 @@ export function ProfilePutMenu(props: {
       aria-label={t("desktop.workbench.use.menu", { name: props.title })}
       trigger={
         <Button
-          size="xs"
+          size={props.size ?? "xs"}
           variant="outline"
           disabled={!live || set === null}
           iconEnd={<ChevronDown aria-hidden />}

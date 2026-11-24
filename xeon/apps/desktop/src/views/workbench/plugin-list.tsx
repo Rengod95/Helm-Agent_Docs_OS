@@ -40,21 +40,23 @@ function GroupTable(props: {
   const set = props.profiles.set;
   // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다. 열 폭은 세 묶음이 같다(이름 열만 남은 폭을 쓴다).
   // 다른 열은 가장 긴 값(종류 꼬리표, "어느 프로필에도 없음", "직접 설치", "준비 안 됨"과 구슬, "프로필에 넣기" 단추)이 들어가는 폭까지만 잡아
-  // 한국어 이름이 다 보일 자리를 이름 열에 준다(plugWire)
+  // 한국어 이름이 다 보일 자리를 이름 열에 준다(plugWire). 폭은 칸 글 13, 꼬리표 24, 단추 sm(28)에 맞춘 값이다(plugSize)
+  // 목록 폭이 58rem(다른 열 합 736 + 이름 열 192) 아래면 출처(4번째)와 버전(5번째) 열을 숨겨 이름 열이 192 아래로 줄지 않게 한다.
+  // 두 값은 상세 머리에도 있다. 열 순서를 바꾸면 아래 nth-child도 같이 바꾼다
   const columns: TableColumn[] = [
     { key: "name", header: t("desktop.workbench.col.name"), sortable: true },
-    { key: "kind", header: t("desktop.workbench.col.kind"), width: 96, sortable: true },
-    { key: "use", header: t("desktop.workbench.col.use"), width: 152 },
-    { key: "origin", header: t("desktop.workbench.versions.col.source"), width: 96 },
-    { key: "version", header: t("desktop.workbench.versions.col.version"), width: 72 },
-    { key: "health", header: t("desktop.workbench.col.state"), width: 112 },
-    { key: "put", header: "", align: "end", width: 128 },
+    { key: "kind", header: t("desktop.workbench.col.kind"), width: 104, sortable: true },
+    { key: "use", header: t("desktop.workbench.col.use"), width: 168 },
+    { key: "origin", header: t("desktop.workbench.versions.col.source"), width: 104 },
+    { key: "version", header: t("desktop.workbench.versions.col.version"), width: 80 },
+    { key: "health", header: t("desktop.workbench.col.state"), width: 128 },
+    { key: "put", header: "", align: "end", width: 152 },
   ];
   return (
     <Table
       variant="ghost"
-      size="xs"
-      className="[&_table]:table-fixed [&_thead_th]:bg-transparent"
+      size="sm"
+      className="[&_table]:table-fixed [&_thead_th]:bg-transparent [&_[data-slot=table-cell]]:text-ui @max-[58rem]/plugin-list:[&_tr>:nth-child(4)]:hidden @max-[58rem]/plugin-list:[&_tr>:nth-child(5)]:hidden"
       dividers={false}
       aria-label={props.label}
       columns={columns}
@@ -82,14 +84,14 @@ function GroupTable(props: {
         if (column.key === "origin") {
           if (row.origin === undefined) return null;
           return (
-            <span className="block min-w-0 truncate text-ui-sm text-text-secondary">
+            <span className="block min-w-0 truncate text-ui text-text-secondary">
               {originText(row.origin)}
             </span>
           );
         }
         if (column.key === "version") {
           return (
-            <span className="block min-w-0 truncate font-mono text-mono-sm text-text-tertiary tabular-nums">
+            <span className="block min-w-0 truncate font-mono text-mono text-text-tertiary tabular-nums">
               {row.version}
             </span>
           );
@@ -115,6 +117,7 @@ function GroupTable(props: {
               name={row.name}
               title={row.displayName ?? row.name}
               load={props.profiles}
+              size="sm"
             />
           </span>
         );
@@ -125,7 +128,7 @@ function GroupTable(props: {
 
 function GroupHead(props: { readonly title: string; readonly count: number }): ReactNode {
   return (
-    <h3 className="m-0 flex items-baseline gap-2 px-2 text-ui-sm font-medium text-text-secondary">
+    <h3 className="m-0 flex items-baseline gap-2 px-2.5 text-ui-strong text-text-secondary">
       <span>{props.title}</span>
       <span className="tabular-nums text-text-tertiary">{props.count}</span>
     </h3>
@@ -139,23 +142,23 @@ function CoreHead(props: {
   readonly onToggle: () => void;
 }): ReactNode {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5">
       <button
         type="button"
         aria-expanded={props.open}
-        className="m-0 inline-flex items-center gap-2 rounded-sm border-0 bg-transparent p-0 text-ui-sm font-medium text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
+        className="m-0 inline-flex items-center gap-2 rounded-sm border-0 bg-transparent p-0 text-ui-strong text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
         onClick={props.onToggle}
       >
         <span>{t(GROUP_TITLE.core)}</span>
         <span className="tabular-nums text-text-tertiary">{props.count}</span>
         {props.open ? (
-          <ChevronDown aria-hidden className="size-icon-sm text-text-tertiary" />
+          <ChevronDown aria-hidden className="size-icon-md text-text-tertiary" />
         ) : (
-          <ChevronRight aria-hidden className="size-icon-sm text-text-tertiary" />
+          <ChevronRight aria-hidden className="size-icon-md text-text-tertiary" />
         )}
       </button>
-      <span className="inline-flex items-center gap-1.5 text-ui-sm text-text-tertiary">
-        <Lock aria-hidden className="size-icon-sm" />
+      <span className="inline-flex items-center gap-1.5 text-ui text-text-tertiary">
+        <Lock aria-hidden className="size-icon-md" />
         <span>{t("desktop.workbench.core.locked")}</span>
       </span>
     </div>
@@ -194,7 +197,7 @@ export function PluginList(props: {
     );
   };
   return (
-    <div className="grid content-start gap-6">
+    <div className="@container/plugin-list grid content-start gap-6">
       {pluginGroups(state).map((group) => {
         const label = t(GROUP_TITLE[group.key]);
         if (group.key !== "core") {

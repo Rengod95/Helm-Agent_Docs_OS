@@ -87,11 +87,11 @@ export function BindingsPanel(): ReactNode {
         </Alert>
       )}
       <div className="flex items-center gap-2">
-        <h2 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
+        <h2 className="m-0 min-w-0 truncate text-title-2 text-text-primary">
           {t("desktop.workbench.bindings.title")}
         </h2>
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           aria-expanded={open}
           onClick={() => {

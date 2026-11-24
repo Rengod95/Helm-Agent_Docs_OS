@@ -5,13 +5,14 @@ import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { Button } from "@caustic/react";
 import { MessageSquare } from "@caustic/react/icons";
+import { HEADER_CONTROL_SIZE } from "../../shell/screen-header.tsx";
 import { useOpenTestChat } from "./use-test-chat.ts";
 
 export function TestChatButton(props: { readonly plugin: string }): ReactNode {
   const open = useOpenTestChat();
   return (
     <Button
-      size="xs"
+      size={HEADER_CONTROL_SIZE}
       variant="outline"
       data-test-chat-open=""
       iconStart={<MessageSquare aria-hidden />}

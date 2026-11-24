@@ -29,10 +29,10 @@ function PluginCardItem(props: {
     <li className="relative h-full min-w-0">
       {kind !== null && (
         <span
-          className="absolute start-3 bottom-full inline-flex h-5 items-center gap-1 rounded-t-md px-2 text-ui-xs font-medium"
+          className="absolute start-3 bottom-full inline-flex h-6 items-center gap-1 rounded-t-md px-2 text-ui-sm font-medium"
           style={kindFaceStyle(kind)}
         >
-          <KindGlyph kind={kind} size={12} />
+          <KindGlyph kind={kind} size={14} />
           <span>{kindWord(kind)}</span>
         </span>
       )}
@@ -55,16 +55,17 @@ function PluginCardItem(props: {
                 name={row.name}
                 title={row.displayName ?? row.name}
                 load={props.profiles}
+                size="sm"
               />
             </span>
           )}
         </div>
         {lead === null ? (
-          <p className="m-0 min-w-0 truncate text-ui-sm text-text-tertiary">
+          <p className="m-0 min-w-0 truncate text-ui text-text-tertiary">
             {t("desktop.workbench.card.noPurpose")}
           </p>
         ) : (
-          <p className="m-0 min-w-0 truncate text-ui-sm text-text-secondary">{lead.text}</p>
+          <p className="m-0 min-w-0 truncate text-ui text-text-secondary">{lead.text}</p>
         )}
         <div className="mt-auto flex min-w-0 items-center justify-between gap-2">
           <UseText row={row} profiles={props.profiles.set} />
@@ -75,7 +76,7 @@ function PluginCardItem(props: {
   );
 }
 
-/** 묶음 하나의 카드 격자. 위 간격(`pt-5`)이 종류 책갈피의 자리라 카드가 없어도 줄이 맞는다 */
+/** 묶음 하나의 카드 격자. 위 간격(`pt-6`, 책갈피 높이 24와 같다)이 종류 책갈피의 자리라 카드가 없어도 줄이 맞는다 */
 export function PluginCardGrid(props: {
   readonly label: string;
   readonly rows: readonly ExtRowVM[];
@@ -85,7 +86,7 @@ export function PluginCardGrid(props: {
   return (
     <ul
       aria-label={props.label}
-      className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(--spacing(64),1fr))] gap-x-3 gap-y-8 p-0 pt-5"
+      className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(--spacing(80),1fr))] gap-x-3 gap-y-8 p-0 pt-6"
     >
       {props.rows.map((row) => (
         <PluginCardItem
