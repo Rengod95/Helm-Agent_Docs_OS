@@ -18,9 +18,6 @@ import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
 import { sortKeyOf, sortRows, type ListView, type TableSort } from "./list-view.ts";
 import type { PluginCards } from "./use-plugin-cards.ts";
 
-// 상태 칸의 규칙(`rowHealthOf`)은 상세 머리가 같이 쓴다. 두 보기가 쓰는 칸은 `plugin-cells.tsx`에 있다
-export { HealthCell, rowHealthOf } from "./plugin-cells.tsx";
-
 const GROUP_TITLE: Readonly<Record<PluginGroupKey, MessageId>> = {
   mine: "desktop.workbench.group.mine",
   bundled: "desktop.workbench.group.bundled",

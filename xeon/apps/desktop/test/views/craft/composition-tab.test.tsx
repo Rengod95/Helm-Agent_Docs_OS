@@ -24,7 +24,7 @@ import { ExtDetail } from "../../../src/views/workbench/ext-detail.tsx";
 import { entry, inContexts } from "../workbench/support.tsx";
 
 // 구성 탭의 정적 마크업과 상세 탭 입구. 블록 이름, 캔버스, 빈 상태, 검사 띠 글, 블록 이슈 줄,
-// 구성 탭(plugTab)은 모든 플러그인에 있고, Drive 플러그인이 아니면 "멤버도 Drive 단계도 없어요" 한 줄을 보인다. 효과는 돌지 않는다.
+// 구성 탭(plugTab)은 모든 플러그인에 있고, 그 내용은 루프 캔버스와 떠 있는 설명 판이다(plugHead). 효과는 돌지 않는다.
 
 /** 구성을 선언한 설치본(Drive 플러그인 하나와 구성원 하나) */
 const COMPOSITION: CompositionDecl = {
@@ -268,17 +268,29 @@ describe("상세의 구성 탭(plugTab)", () => {
     }
   });
 
-  test("Drive 플러그인의 구성 탭은 Drive 단계를 읽는 중 글로 보인다", () => {
+  test("구성 탭(plugHead)은 루프 캔버스다: Drive 플러그인이면 매니페스트를 읽는 중에도 Drive 카드와 설명 판의 요약이 보이고 훅 표는 없다", () => {
     const html = detailOf(DRIVE, "build");
     const selected = triggersOf(html).filter((tab) => tab.selected);
     expect(selected.map((tab) => tab.text)).toEqual([BUILD_LABEL]);
-    expect(html).toContain(t("desktop.craft.composition.loading"));
+    expect(html).toContain(`aria-label="${t("desktop.craft.loop.label")}"`);
+    expect(html).toContain(`aria-label="${t("desktop.craft.loop.panel.title")}"`);
+    const text = textOf(html);
+    expect(text).toContain(t("desktop.craft.canvas.cv3.fact.changes.holdsTurn"));
+    expect(text).toContain(t("desktop.craft.loop.panel.attaches"));
+    expect(text).toContain(t("desktop.craft.loop.steps", { count: 0 }));
+    // 좁은 칸(DP-49)의 개요도 같이 그려지고 CSS 컨테이너 질의로 하나만 보인다
+    expect(text).toContain(t("desktop.craft.loop.panel.hintList"));
+    expect(html).not.toContain(`aria-label="${t("desktop.workbench.detail.tab.hooks")}"`);
   });
 
-  test("Drive 플러그인이 아니고 멤버도 없으면 구성 탭은 한 줄만 보이고 Drive 단계 칸이 없다", () => {
+  test("Drive 플러그인이 아니고 카드도 매니페스트도 아직 없으면 캔버스에는 루프 뼈대만 있고 설명 판은 붙는 곳이 없다고 말한다", () => {
     const html = detailOf(PLAIN, "build");
-    expect(textOf(html)).toContain(t("desktop.workbench.detail.build.none"));
-    expect(html).not.toContain(t("desktop.craft.composition.loading"));
+    expect(html).toContain(`aria-label="${t("desktop.craft.loop.label")}"`);
+    const text = textOf(html);
+    expect(text).toContain(t("desktop.craft.loop.panel.empty"));
+    expect(text).toContain(t("desktop.craft.canvas.cv3.block.context"));
+    expect(text).toContain(t("desktop.craft.canvas.cv3.boundary.end"));
+    expect(text).not.toContain(t("desktop.craft.canvas.cv3.fact.changes.holdsTurn"));
   });
 
   test("구성 탭은 DETAIL_TABS의 탭 이름이고, 옛 구성 탭 이름은 구성 탭으로 옮겨진다", () => {
