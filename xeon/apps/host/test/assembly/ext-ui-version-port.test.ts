@@ -15,7 +15,10 @@ import {
   type VersionHistoryFs,
 } from "@fresnel/ext-host";
 import type { BundledPluginVersion } from "../../src/assembly/default-plugins.ts";
-import { createExtUiVersionPort } from "../../src/assembly/m4/ext-ui-version-port.ts";
+import {
+  createExtMethodPort,
+  createExtUiVersionPort,
+} from "../../src/assembly/m4/ext-ui-version-port.ts";
 import type {
   ExtUiVersionSource,
   ReviewedVersions,
@@ -843,4 +846,62 @@ describe("ext-ui-version port: reviewed copies", () => {
     expect(rig.reloads).toEqual([]);
     expect(rig.state.logs.map((entry) => entry.decision)).toEqual(["rollback"]);
   });
+});
+
+// X-01: 재시작 직후 앱 화면의 첫 메서드 호출은 미뤄 둔 확장을 올린 뒤에 처리된다
+test("a method call on a deferred plugin loads it first, then calls", async () => {
+  const order: string[] = [];
+  const source = partial<ExtUiVersionSource>({
+    loader: () =>
+      partial<ReturnType<ExtUiVersionSource["loader"]>>({
+        list: () => [DEFERRED],
+        ensureLoaded: (name: string) => {
+          order.push(`load ${name}`);
+          return Promise.resolve(loaded(name, "active", "user", "0.2.0"));
+        },
+      }),
+  });
+  const port = createExtMethodPort((request) => {
+    order.push(`call ${request.extension}.${request.verb}`);
+    return Promise.resolve({ kind: "ok", value: { items: [] } });
+  }, source);
+  const outcome = await port.call({
+    extension: "helm",
+    verb: "list",
+    params: {},
+    threadId: null,
+    signal: new AbortController().signal,
+  });
+  expect(outcome).toEqual({ kind: "ok", value: { items: [] } });
+  expect(order).toEqual(["load helm", "call helm.list"]);
+});
+
+// X-04: 승인 전 드래프트의 화면은 목록에 올리지 않고, 그 드래프트를 시험 중인 대화에서만 보인다
+test("a draft screen is listed only for the thread that is testing that draft", () => {
+  const DRAFT_NAME = "dabc123-todo";
+  const draftInfo: LoadedExtensionInfo = {
+    ...loaded(DRAFT_NAME, "active", "user", "0.1.0"),
+    draft: { plugin: "todo", draftId: "drf_01HZZZZZZZZZZZZZZZZZZZZZZZ" },
+  };
+  const entries = [
+    entryOfUi(DRAFT_NAME, "tab", "ok", [], "Todo", "page"),
+    entryOfUi("helm", "tab", "ok", [], "Helm", "page"),
+  ];
+  const source = partial<ExtUiVersionSource>({
+    host: partial<ExtUiVersionSource["host"]>({ registrations: () => [] }),
+    loader: () =>
+      partial<ReturnType<ExtUiVersionSource["loader"]>>({
+        list: () => [draftInfo, loaded("helm", "active", "user", "0.2.0")],
+        uiEntries: () => entries,
+      }),
+  });
+  const testing = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
+  const port = createExtUiVersionPort({ extUi: source }, (threadId) =>
+    threadId === testing ? [DRAFT_NAME] : [],
+  );
+  const names = (params: { readonly threadId?: string }): string[] =>
+    port.uiList(params).items.map((item) => item.extension);
+  expect(names({})).toEqual(["helm"]);
+  expect(names({ threadId: "thr_01HYYYYYYYYYYYYYYYYYYYYYYY" })).toEqual(["helm"]);
+  expect(names({ threadId: testing })).toEqual([DRAFT_NAME, "helm"]);
 });

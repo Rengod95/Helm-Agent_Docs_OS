@@ -165,6 +165,11 @@ export interface ExtListEntry {
    * 호스트가 값을 읽지 못했거나 옛 호스트면 없다(거짓이 아니라 모른다)
    */
   readonly hasData?: boolean;
+  /**
+   * 시작 때 싣지 않고 미뤄 둔 확장이면 참(AGE-77 X-01). 꺼진 것이 아니라 대화가 쓸 때 싣는다는 뜻이라 화면은 "꺼짐"으로 보이지 않는다.
+   * 미뤄 둔 것이 아니면 필드가 없다
+   */
+  readonly deferred?: true;
   /** 모든 플러그인의 Hook 수 */
   readonly hookCount: number;
 }
@@ -195,6 +200,7 @@ const ExtListEntryShape = closed({
   safeModeExcluded: Type.Union([Line, Type.Null()]),
   forcedOn: Type.Optional(Type.Literal("devMode")),
   hasData: Type.Optional(Type.Boolean()),
+  deferred: Type.Optional(Type.Literal(true)),
   hookCount: Count,
 });
 const ExtListEntryShape2 = ExtListEntryShape;

@@ -16,6 +16,8 @@ export const MAX_LAG_S = 0.35;
 const DRAIN_S = 0.25;
 /** 그림 갱신 간격(ms). 약 30Hz */
 const RENDER_MS = 32;
+/** 끝난 뒤 프레임이 이만큼(ms) 돌지 않으면 남은 글을 한 번에 드러낸다 */
+const STALL_MS = 800;
 /** 흐르는 중에 처음 그려질 때 이보다 긴 글은 다시 흘리지 않고 바로 보인다(첫 조각만 흘린다) */
 const REPLAY_LIMIT = 160;
 
@@ -133,13 +135,26 @@ export function useSmoothText(text: string, streaming: boolean): string {
         rendered = now;
         setEnd(revealEndOf(target, shown.current));
       }
-      if (!caught) frame = requestAnimationFrame(tick);
+      // 흐르는 동안은 따라잡아도 프레임을 이어 둔다. 끝낼 때 다음 조각이 이미 와 있으면(다시 그리기 전) 돌 프레임이 없어 글이 중간에서 멈춘다(X-03)
+      if (!caught || latest.current.streaming) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
     };
   }, [behind]);
+  // 끝났는데 프레임이 돌지 않아(가려진 창은 프레임을 멈춘다) 글이 중간에 멈춰 있으면 제한 시간 뒤 마저 드러낸다.
+  // 프레임이 돌면 `end`가 바뀌어 이 시간이 다시 시작하므로 정상으로 흐르는 동안에는 일어나지 않는다
+  useEffect(() => {
+    if (!smooth || streaming || end >= text.length) return undefined;
+    const id = setTimeout(() => {
+      shown.current = latest.current.text.length;
+      setEnd(latest.current.text.length);
+    }, STALL_MS);
+    return () => {
+      clearTimeout(id);
+    };
+  }, [smooth, streaming, end, text.length]);
   if (!smooth) return text;
   return text.slice(0, Math.min(end, text.length));
 }

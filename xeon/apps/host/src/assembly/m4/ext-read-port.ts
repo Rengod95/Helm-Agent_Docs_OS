@@ -87,6 +87,8 @@ export interface ExtensionRecord {
   readonly effectiveGrade: string;
   readonly tier: string | null;
   readonly loaded: boolean;
+  /** 시작 때 싣지 않고 미뤄 둔 외부 확장(`lazy_deferred`). 꺼진 것이 아니다 */
+  readonly deferred?: boolean;
   readonly diagnostics: readonly ExtDiagnostic[];
 }
 
@@ -677,6 +679,7 @@ export function createExtReadPort(
       ...keepOffOf(manifest.name),
       safeModeExcluded: !record.loaded && safe.active ? (safe.cause ?? "flag") : null,
       ...forcedOnOf(manifest.name),
+      ...(record.deferred === true ? { deferred: true as const } : {}),
       hookCount: entries.reduce((sum, entry) => sum + entry.decl.hooks.length, 0),
     };
   }

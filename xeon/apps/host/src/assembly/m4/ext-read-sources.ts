@@ -161,6 +161,10 @@ export function createExtensionRecords(
           effectiveGrade: info.trust,
           tier: deps.tierOf(name) ?? null,
           loaded: info.state === "active",
+          ...(info.state === "disabled" &&
+          info.diagnostics.some((item) => item.code === "lazy_deferred")
+            ? { deferred: true }
+            : {}),
           diagnostics,
         },
       ];

@@ -351,6 +351,13 @@ describe("M4 ext read methods", () => {
     ).toBe(false);
   });
 
+  test("ext.list carries deferred only as true", () => {
+    roundTrip(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, deferred: true }] });
+    expect(
+      parse(WIRE_METHODS["ext.list"].result, { extensions: [{ ...entry, deferred: false }] }).ok,
+    ).toBe(false);
+  });
+
   test("ext.ui.changed carries only the extension name", () => {
     roundTrip(ExtUiChangedParamsSchema, { extension: "helm" });
     expect(parse(ExtUiChangedParamsSchema, { extension: "helm", value: 1 }).ok).toBe(false);

@@ -120,6 +120,21 @@ describe("plugin ui runtime", () => {
     expect(h.roots.at(-1)).toEqual({ entries: [expect.objectContaining({ extension: "helm" })] });
   });
 
+  test("a plugin deferred at startup is not inactive, a plugin turned off is", async () => {
+    const h = harness({
+      ...table([setting("x.ui.apps", true)]),
+      "ext.list": () =>
+        Promise.resolve({
+          extensions: [
+            extListEntryOf("helm", { status: "disabled", deferred: true }),
+            extListEntryOf("kanban", { status: "disabled" }),
+          ],
+        }),
+    });
+    await h.runtime.refresh();
+    expect([...h.runtime.getState().inactive]).toEqual(["kanban"]);
+  });
+
   test("refreshes that overlap are merged: one more read runs after the first, not one per request", async () => {
     const h = harness(table([setting("x.ui.apps", true)]));
     await Promise.all([h.runtime.refresh(), h.runtime.refresh(), h.runtime.refresh()]);
