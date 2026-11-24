@@ -6,7 +6,7 @@ import {
   type EngineMethodScope,
 } from "../../src/isolation/engine-calls.ts";
 import type { AnyState } from "../../src/primitives/erased-types.ts";
-import { withReadOnlyMethod, type Ambient } from "../../src/primitives/ambient.ts";
+import { withAmbient, withReadOnlyMethod, type Ambient } from "../../src/primitives/ambient.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, memoryPluginStore } from "../../src/testing/index.ts";
 import { makeUnit } from "../primitives/fixtures/support.ts";
@@ -144,4 +144,40 @@ test("a tool's pluginStore write is not refused when the router runs inside a re
   );
   expect(reply).toEqual({ ok: true, value: { ok: true, value: null } });
   expect(await port.get(REGISTRATION, "tool.note")).toEqual({ ok: true, value: '{"n":1}' });
+});
+
+test("a pluginStore write of a method request without an ambient ignores the ambient of the flow that reads engine calls", async () => {
+  const port = memoryPluginStore();
+  const t = await createTestHost({ pluginStore: port });
+  const slot: { g?: RegistrationApi<AnyState> } = {};
+  await t.host.install(
+    makeUnit<AnyState>({ name: REGISTRATION }, (g) => {
+      slot.g = g;
+    }),
+  );
+  const router = createEngineCallRouter({
+    gOf: (registration) => (registration === REGISTRATION ? slot.g : undefined),
+    replayOf: () => false,
+    methodScopeOf: () => ({ readOnly: false, ownData: false }),
+  });
+  // 자식을 처음 띄운 훅 디스패치의 ambient(`invocation` 없음)가 이 흐름에 남아 있다
+  const foreign: Ambient = {
+    threadId: t.newThread(),
+    scopeId: "other-scope",
+    point: null,
+    dispatchKey: "hook:1",
+    counter: 0,
+    drive: null,
+    handler: null,
+  };
+  const reply = await withAmbient(foreign, () =>
+    router({
+      method: "pluginStore",
+      registration: REGISTRATION,
+      requestId: null,
+      params: { op: "put", key: "note.one", value: { n: 1 } },
+    }),
+  );
+  expect(reply).toEqual({ ok: true, value: { ok: true, value: null } });
+  expect(await port.get(REGISTRATION, "note.one")).toEqual({ ok: true, value: '{"n":1}' });
 });

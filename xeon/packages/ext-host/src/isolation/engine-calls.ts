@@ -54,6 +54,7 @@ import {
   type Ambient,
   withAmbient,
   withExtMethod,
+  withoutAmbient,
   withOwnDataMethod,
   withoutMethodMarks,
   withReadOnlyMethod,
@@ -619,9 +620,13 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
     };
     // 요청의 메서드 표지는 요청 자신의 것만 믿는다. 처리 흐름이 물려받은 표지(감독의 읽기 흐름을 연 readOnly 호출 등)는 벗긴다.
     // 벗긴 뒤 요청 자신의 readOnly 표지를 모든 경로에 다시 건다(readOnly 메서드가 capability로 쓰는 길이 열리지 않게)
+    // 메서드 요청에 ambient가 없으면(대화가 없는 호출) ambient 없이 처리한다. 엔진 호출을 읽는 흐름은 자식을 처음 띄운 호출의 흐름을 물려받고 있을 수 있어
+    // (훅, drive의 ambient), 그것을 그대로 두면 메서드의 첫 저장소 쓰기가 `store_outside_method`로 거부된다
     const routeInAmbient = (): ReturnType<typeof route> =>
       amb === undefined
-        ? route(g, params.method, params.params, context)
+        ? context.method === undefined
+          ? route(g, params.method, params.params, context)
+          : withoutAmbient(() => route(g, params.method, params.params, context))
         : withAmbient(amb, () => route(g, params.method, params.params, context));
     const routeNow = (): ReturnType<typeof route> =>
       withoutMethodMarks(() =>
