@@ -245,7 +245,7 @@ function Header(props: {
               <span className="min-w-0 truncate">{entry.extension}</span>{" "}
               <span className="flex-none">{`v${entry.version}`}</span>
             </span>
-            <span className="min-w-0 text-ui text-text-tertiary">
+            <span className="min-w-0 truncate whitespace-nowrap text-ui text-text-tertiary">
               {t(`client.view.confirm.trust.${trust}`)}
             </span>
             {entry.trust === "project" ? (

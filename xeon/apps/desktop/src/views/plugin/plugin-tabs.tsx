@@ -104,7 +104,8 @@ export function PluginPagesTab(): ReactNode {
       <div className="max-h-[calc(var(--app-vh)*0.4)] flex-none overflow-y-auto">
         <ThreadSwitches />
       </div>
-      <EntryList items={items} />
+      {/* 좁은 옆 패널이다. 화면 머리의 메타를 줄이지 않으면 등급 글이 한 글자씩 꺾여 버전과 "대화로" 단추 위에 겹친다 */}
+      <EntryList items={items} compact />
     </div>
   );
 }

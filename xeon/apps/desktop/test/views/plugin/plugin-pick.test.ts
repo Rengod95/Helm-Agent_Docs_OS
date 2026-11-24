@@ -6,7 +6,11 @@ import {
   UI_ORDER_KEY,
 } from "../../../src/plugin-ui/placements.ts";
 import type { PluginUiState } from "../../../src/plugin-ui/runtime.ts";
-import { panelOrderKeysOf, pluginScreenItemsOf } from "../../../src/views/plugin/plugin-pick.ts";
+import {
+  besideAppEntriesOf,
+  panelOrderKeysOf,
+  pluginScreenItemsOf,
+} from "../../../src/views/plugin/plugin-pick.ts";
 import { uiEntryOf } from "../../plugin-ui/support.ts";
 
 function stateOf(
@@ -60,5 +64,21 @@ describe("pluginScreenItemsOf", () => {
       "gone/off",
       "review/queue",
     ]);
+  });
+});
+
+describe("besideAppEntriesOf", () => {
+  test("lists the page screens by extension and id when no order was set", () => {
+    const keys = besideAppEntriesOf(stateOf({})).map((entry) => `${entry.extension}/${entry.id}`);
+    expect(keys).toEqual(["gone/off", "helm/inquiry", "review/queue"]);
+  });
+
+  test("follows the order set in the plugin detail and leaves hidden screens out", () => {
+    const state = stateOf({
+      [UI_HIDDEN_KEY]: ["helm/inquiry"],
+      [UI_ORDER_KEY]: { panel: ["review/queue", "gone/off"] },
+    });
+    const keys = besideAppEntriesOf(state).map((entry) => `${entry.extension}/${entry.id}`);
+    expect(keys).toEqual(["review/queue", "gone/off"]);
   });
 });

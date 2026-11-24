@@ -83,7 +83,10 @@ describe("plugin tabs", () => {
       "pages",
     );
     expect(app).toContain(">대화로<");
-    expect(app.replaceAll("<!-- -->", "")).toContain("자체 코드");
+    // 좁은 옆 패널이라 메타는 버전 하나다. 등급 글("직접 설치")이 한 글자씩 꺾여 버전과 "대화로" 단추 위에 겹치던 것을 막는다
+    const appText = app.replaceAll("<!-- -->", "");
+    expect(appText).toContain("v0.1.0");
+    expect(appText).not.toContain(t("client.view.confirm.trust.user"));
   });
 
   test("the Helm tab says the extension has no views when nothing is placed", async () => {

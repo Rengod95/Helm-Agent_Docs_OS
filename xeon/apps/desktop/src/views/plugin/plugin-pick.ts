@@ -34,6 +34,16 @@ export function pluginScreenItemsOf(state: PluginUiState): readonly PlacedEntry[
   );
 }
 
+/**
+ * 오른쪽 막대 "대화 옆에 둔 앱" 패널이 고르는 앱(`page` 화면, 깨진 것 제외). 순서는 플러그인 상세 "화면과 설정"에서 바꾼
+ * `x.ui.order.panel`을 따른다. 상태 표시줄과 "플러그인 앱과 알림" 패널과 같은 순서다
+ */
+export function besideAppEntriesOf(state: PluginUiState): readonly ExtUiEntry[] {
+  return orderedBy(state.groups.page, (item) => itemKeyOf(item.entry), state.layout.order.panel)
+    .map(({ entry }) => entry)
+    .filter((entry) => entry.state !== "invalid");
+}
+
 /** 오른쪽 플러그인 패널 목록의 지금 순서(숨긴 항목 포함). "위로", "아래로"가 이 목록에서 옮긴다 */
 export function panelOrderKeysOf(state: PluginUiState): readonly string[] {
   const list = sortedEntries(state.entries.filter(isPanelListEntry));
