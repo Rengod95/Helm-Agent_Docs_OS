@@ -23,11 +23,15 @@ import type {
   PluginSubmitResult,
   PluginSubmitError,
 } from "@fresnel/contracts/extensions";
+import { PROVENANCES } from "@fresnel/contracts/wire";
 import type {
   DraftInfo,
+  HistoryEvent,
   PluginDraftFilesResult,
   PluginDraftFromInstructionParams,
   PluginDraftFromInstructionResult,
+  PluginHistoryEntry,
+  PluginHistoryResult,
   PluginReviewFileResult,
   ProfilePlan,
   Provenance,
@@ -38,6 +42,8 @@ import type {
   ReviewItemRemoval,
   ReviewKind,
   ReviewState,
+  RollbackBlock,
+  RollbackUnavailableReason,
   WhatItDoesDiff,
 } from "@fresnel/contracts/wire";
 import type { PluginEditApplied, ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
@@ -73,6 +79,7 @@ import type {
   PluginReviewMeta,
   PluginStore,
   PluginStoreError,
+  ReviewLogEntry,
   ReviewedVersion,
   ReviewOrigin,
 } from "./store.ts";
@@ -186,6 +193,16 @@ export interface PluginReview {
   scanOpened(): Promise<void>;
   requestRemove(name: string): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   revert(name: string): Promise<Result<{ readonly restored: true }, PluginPortFailure>>;
+  /** 플러그인 이력(`pluginReview.history`). 최신 줄이 앞이다. 출처가 막혀 있으면 `blocked`가 그 까닭이다 */
+  history(name: string): Promise<Result<PluginHistoryResult, PluginPortFailure>>;
+  /**
+   * 지난 승인 버전으로 되돌리는 리뷰 항목을 연다(`pluginReview.requestRollback`). 바로 바꾸지 않는다.
+   * 같은 판의 대기 되돌리기 항목이 있으면 그 id를 돌려준다
+   */
+  requestRollback(
+    name: string,
+    contentHash: string,
+  ): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   draftCreate(
     dir: string,
     originThreadId: string | undefined,
@@ -474,6 +491,15 @@ function draftStoreFailure(error: PluginStoreError): PluginPortFailure {
   return storeFailure(error);
 }
 
+/** 플러그인 전용 저장소에 이 이름이 저장한 값이 있는가. 포트가 없거나 읽지 못하면 거짓이다 */
+async function storedStateOf(
+  data: Pick<PluginStorePort, "usage"> | undefined,
+  name: string,
+): Promise<boolean> {
+  const usage = data === undefined ? null : await data.usage(name);
+  return usage !== null && usage.ok && usage.value.keys > 0;
+}
+
 /** 제거 미리 보기: 이름을 든 프로필과 공통 묶음. 전용 저장소에 값이 있으면 `removes.state`가 참이다(제거 승인이 그 이름 공간을 지운다). 기록 수는 알 수 없어 null이다 */
 async function removalOf(
   profiles: ProfileListResult,
@@ -481,8 +507,7 @@ async function removalOf(
   baseCard: PluginCard,
   data: Pick<PluginStorePort, "usage"> | undefined,
 ): Promise<ReviewItemRemoval> {
-  const usage = data === undefined ? null : await data.usage(name);
-  const state = usage !== null && usage.ok && usage.value.keys > 0;
+  const state = await storedStateOf(data, name);
   const affected = profiles.profiles
     .filter((profile) => profile.plugins.some((ref) => ref.name === name))
     .map((profile) => ({ profileId: profile.id, title: profile.title.slice(0, 128) }));
@@ -639,6 +664,62 @@ async function mirrorInto(
     const mode = await attemptAsync(() => chmod(to, file.executable ? 0o755 : 0o644));
     return mode.ok ? ok(undefined) : err({ kind: "store", code: "io" });
   });
+}
+
+/** 되돌리기가 출처 때문에 막히는 까닭. 사용자 출처만 지난 판으로 되돌릴 수 있다 */
+function rollbackBlockOf(kind: PluginOriginKind): RollbackBlock | null {
+  switch (kind) {
+    case "builtin":
+      return "builtin";
+    case "bundled":
+      return "bundled";
+    case "project":
+      return "project";
+    case "managed":
+      return "managed";
+    case "user":
+      return null;
+    default:
+      return assertNever(kind, "rollbackBlockOf");
+  }
+}
+
+/** 기록 칸의 출처가 알려진 값인가. 아니면 호출자가 `unknown`으로 본다 */
+function isProvenance(value: string | null): value is Provenance {
+  return PROVENANCES.some((known) => known === value);
+}
+
+/** 이력에 싣는 결정 줄인가: 승인(제거 제외), 되돌리기, 번들, 옮김 */
+function isHistoryLine(row: ReviewLogEntry): boolean {
+  if (row.decision === "approved") return row.kind !== "remove";
+  return row.decision === "rollback" || row.decision === "bundled" || row.decision === "migrated";
+}
+
+/** 이력 줄이 생긴 까닭(`HistoryEvent`) */
+function historyEventOf(row: ReviewLogEntry): HistoryEvent {
+  if (row.decision === "rollback") return "rollback";
+  if (row.decision === "bundled") return "bundled";
+  if (row.decision === "migrated") return "import";
+  if (row.provenance === "migration") return "import";
+  if (row.provenance === "bundled") return "bundled";
+  if (row.kind === "new") return "create";
+  return "edit";
+}
+
+/** 이력 한 번에 돌려주는 줄 수의 상한(최신이 앞에서 자른다) */
+const HISTORY_LIMIT = 500;
+
+/** 이력에 실을 기록 줄 하나. `contentHash`는 그 줄이 가리키는 판이다(줄이 없으면 고르지 않는다) */
+interface HistoryLine {
+  readonly row: ReviewLogEntry;
+  /** 기록 파일에서의 위치. 시각이 같으면 뒤에 쓰인 줄이 앞이다 */
+  readonly index: number;
+  readonly contentHash: string;
+}
+
+/** 되돌리기를 거절하는 실패 값 */
+function rollbackRefusal(name: string, reason: RollbackUnavailableReason): PluginPortFailure {
+  return { kind: "rollback_unavailable", name, reason };
 }
 
 /** 검토 서비스를 만든다. 쓰기는 이 객체의 한 줄 큐를 지난다 */
@@ -1022,6 +1103,27 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
   }
 
   /**
+   * 사용자 원본 폴더를 지금 검토본 트리로 맞춘다. 직렬 밖에서 부른다(`revert`와 되돌리기 승인이 쓴다).
+   * 목록은 여기서 다시 읽지 않는다. 다시 읽는 일은 부르는 쪽이 맡는다
+   */
+  async function mirrorSourceToReviewed(name: string): Promise<Result<void, PluginPortFailure>> {
+    const sources = await plugins.sources();
+    if (!sources.ok) return err(sources.error);
+    const entry = sources.value.entries.find((item) => item.name === name);
+    // 되돌릴 사용자 원본 폴더가 없으면 이름이 없는 것과 같이 본다
+    if (entry === undefined || entry.origin !== "user")
+      return err({ kind: "unknown_plugin", name });
+    const reviewed = await store.current(name);
+    if (!reviewed.ok) return err(storeFailure(reviewed.error));
+    if (reviewed.value === null) return err({ kind: "no_reviewed_copy", name });
+    const wanted = hashPluginTree(reviewed.value.treePath);
+    if (!wanted.ok) return err(treeFailure(wanted.error));
+    const present = hashPluginTree(entry.dir);
+    if (!present.ok) return err(treeFailure(present.error));
+    return mirrorInto(wanted.value.files, reviewed.value.treePath, entry.dir, present.value.files);
+  }
+
+  /**
    * 승인 한 번을 커밋한다. 순서는 검사, `beforeCommit`(검증만), 승격과 `current` 교체, `afterCommit`(프로필 갱신), 보관 정리,
    * 기록, 항목 상태, 목록 갱신, `reflect`(실행 중인 판 맞추기)다. `afterCommit`이 실패하면 `current`를 옛 검토본으로 되돌린다.
    * 중간에 끊기면 current는 옛 검토본이고, 기록에 없는 검토본은 다음 시작의 `recover`가 치운다(M5c §4.7.11)
@@ -1034,10 +1136,12 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     if (item.state !== "pending") return err({ kind: "not_pending", itemId: item.itemId });
     const removing = item.kind === "remove";
     // 손 수정은 검토된 것을 고친 변경이다(되돌릴 검토본이 있어야 한다). 처음 만드는 플러그인은 사용자가 쓴 것이라 승인할 수 있다 [제안]
+    // 되돌리기 항목은 지난번에 승인된 내용이라 손 수정이 아니다(요청할 때 해시를 보관본과 대조했다)
     if (
       item.kind === "update" &&
       item.provenance === "unknown" &&
-      item.card.origin.kind === "user"
+      item.card.origin.kind === "user" &&
+      item.rollback === undefined
     ) {
       return err({ kind: "hand_edit", itemId: item.itemId });
     }
@@ -1166,7 +1270,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       kind: item.kind,
       candidateHash: item.candidateHash,
       baseHash: item.baseHash,
-      decision: "approved",
+      decision: item.rollback === undefined ? "approved" : "rollback",
       profileIds: [...appliedTo],
       actor: "user",
       provenance: item.provenance,
@@ -1181,6 +1285,16 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
       card: { ...item.card, purpose },
     });
     if (!saved.ok) return err(saved.error);
+    // 되돌리기는 사용자 원본 폴더도 방금 되돌린 판으로 맞춘다. 실패해도 승인은 되돌리지 않는다(로그만 남긴다)
+    if (item.rollback !== undefined) {
+      const mirrored = await mirrorSourceToReviewed(item.name);
+      if (!mirrored.ok) {
+        log.error("plugin.review.rollback_mirror_failed", {
+          name: item.name,
+          kind: mirrored.error.kind,
+        });
+      }
+    }
     // 읽기 쪽 캐시가 새 검토본을 보게 한다. 실패해도 승인은 끝났다(다음 `plugin.scan`이 맞춘다)
     const refreshed = await plugins.scan();
     if (!refreshed.ok) log.error("plugin.review.refresh_failed", { name: item.name });
@@ -1221,6 +1335,205 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     const logged = await logDecision(item, "discarded", []);
     if (!logged.ok) return err(logged.error);
     return ok({ item: saved.value, appliedTo: [], missingPlugins: [] });
+  }
+
+  /**
+   * 플러그인 이력(`pluginReview.history`). 결정 기록에서 이 검토본 키의 승인·되돌리기·번들·옮김 줄을 최신이 앞이게 모은다.
+   * 지어낸 줄은 없다. 줄의 판이 보관소에 남았는지(`kept`)와 지금 판인지(`current`)를 함께 싣는다
+   */
+  async function historyOf(name: string): Promise<Result<PluginHistoryResult, PluginPortFailure>> {
+    const got = await plugins.get(name);
+    if (!got.ok) return err(got.error);
+    const origin = got.value.card.origin;
+    const blocked = rollbackBlockOf(origin.kind);
+    const keyed = keyOfOrigin(origin, name);
+    if (!keyed.ok) return err(keyed.error);
+    const key = keyed.value;
+    // 검토본을 두지 않는 출처(내장, 관리)는 이력이 없다
+    if (key === null) return ok({ entries: [], blocked });
+    const logged = await store.readLog();
+    if (!logged.ok) return err(storeFailure(logged.error));
+    const versions = await store.versions(key);
+    if (!versions.ok) return err(storeFailure(versions.error));
+    const reviewed = await store.current(key);
+    if (!reviewed.ok) return err(storeFailure(reviewed.error));
+    const listed = await allItems();
+    if (!listed.ok) return err(listed.error);
+
+    // 프로젝트 출처는 자기 프로젝트의 줄만 본다. 둘 다 프로젝트가 없으면(사용자·번들) 프로젝트 칸이 없는 줄만 본다
+    const projectId = origin.projectId ?? null;
+    const lines = logged.value.flatMap((row, index): HistoryLine[] =>
+      row.candidateHash !== null &&
+      row.name === name &&
+      (row.projectId ?? null) === projectId &&
+      isHistoryLine(row)
+        ? [{ row, index, contentHash: row.candidateHash }]
+        : [],
+    );
+    // 최신이 앞이다. 시각이 같으면 기록에서 뒤에 쓰인 줄이 앞이다. 상한은 정렬한 뒤 앞에서 자른다
+    const newest = lines
+      .toSorted((a, b) => {
+        if (a.row.at !== b.row.at) return a.row.at < b.row.at ? 1 : -1;
+        return b.index - a.index;
+      })
+      .slice(0, HISTORY_LIMIT);
+    // 지금 판과 같은 줄이 여럿이면 가장 앞의 줄 하나만 `current`다
+    const currentHash = reviewed.value?.contentHash ?? null;
+    const currentPosition = newest.findIndex((line) => line.contentHash === currentHash);
+    const entries: PluginHistoryEntry[] = newest.map((line, position) => {
+      const row = line.row;
+      const item =
+        row.itemId === null
+          ? undefined
+          : listed.value.find((candidate) => candidate.itemId === row.itemId);
+      const kept = versions.value.find((version) => version.contentHash === line.contentHash);
+      const description = item?.card.description;
+      return {
+        at: row.at,
+        event: historyEventOf(row),
+        version: kept?.version ?? item?.card.version ?? null,
+        contentHash: line.contentHash,
+        baseHash: row.baseHash,
+        // 화면이 `pluginReview.get`으로 연다. 큐에 없는 항목의 id는 싣지 않는다
+        itemId: item === undefined ? null : row.itemId,
+        actor: row.actor,
+        summary: description === undefined || description === "" ? null : description,
+        current: position === currentPosition,
+        kept: kept !== undefined,
+      };
+    });
+    return ok({ entries, blocked });
+  }
+
+  /**
+   * 지난 승인 버전으로 되돌리는 리뷰 항목을 연다(`pluginReview.requestRollback`). 직렬로 부른다.
+   * 보관본이 있고, 지금 판이 아니고, 무결하고, 사용자 출처일 때만 연다. 항목은 `update`이고 승인 전에는 아무것도 바꾸지 않는다.
+   * 같은 판의 대기 되돌리기 항목이 있으면 그 id를 돌려준다
+   */
+  async function requestRollbackOf(
+    name: string,
+    contentHash: string,
+  ): Promise<Result<{ readonly itemId: string }, PluginPortFailure>> {
+    const got = await plugins.get(name);
+    if (!got.ok) return err(got.error);
+    const origin = got.value.card.origin;
+    const block = rollbackBlockOf(origin.kind);
+    if (block !== null) return err(rollbackRefusal(name, block));
+    const keyed = keyOfOrigin(origin, name);
+    if (!keyed.ok) return err(keyed.error);
+    const key = keyed.value;
+    if (key === null) return err({ kind: "store", code: "origin_unsupported" });
+    const logged = await store.readLog();
+    if (!logged.ok) return err(storeFailure(logged.error));
+    const versions = await store.versions(key);
+    if (!versions.ok) return err(storeFailure(versions.error));
+    if (!versions.value.some((version) => version.contentHash === contentHash)) {
+      // 기록에는 있는데 보관소에 없으면 지워진 판이다. 기록에도 없으면 이 플러그인의 판이 아니다
+      const kept = logged.value.some((row) => row.candidateHash === contentHash);
+      return err(rollbackRefusal(name, kept ? "not_kept" : "unknown_version"));
+    }
+    const reviewed = await store.current(key);
+    if (!reviewed.ok) return err(storeFailure(reviewed.error));
+    if (reviewed.value?.contentHash === contentHash) return err(rollbackRefusal(name, "current"));
+    const intact = await store.verifyIntegrity(key, contentHash);
+    if (!intact.ok) {
+      return err(
+        intact.error.kind === "pinned_corrupt"
+          ? rollbackRefusal(name, "integrity")
+          : storeFailure(intact.error),
+      );
+    }
+    const listed = await allItems();
+    if (!listed.ok) return err(listed.error);
+    // 같은 판의 대기 되돌리기 항목이 있으면 새로 만들지 않는다
+    const pendingRollback = listed.value.find(
+      (item) =>
+        item.state === "pending" &&
+        item.rollback !== undefined &&
+        item.candidateHash === contentHash &&
+        sameKey(item, key),
+    );
+    if (pendingRollback !== undefined) return ok({ itemId: pendingRollback.itemId });
+
+    // 보관본을 후보 스냅샷으로 복사한다. 이후 실패하면 이 후보를 버린다(다른 항목이 쓰면 남긴다)
+    const abandon = async (
+      failure: PluginPortFailure,
+    ): Promise<Result<{ readonly itemId: string }, PluginPortFailure>> => {
+      await dropCandidate(contentHash, listed.value, "");
+      return err(failure);
+    };
+    const treePath = await store.treePath(key, contentHash);
+    if (!treePath.ok) return err(storeFailure(treePath.error));
+    const copied = await store.snapshotCandidate(treePath.value);
+    if (!copied.ok) return err(storeFailure(copied.error));
+    if (copied.value.contentHash !== contentHash) {
+      await dropCandidate(copied.value.contentHash, listed.value, "");
+      return err(rollbackRefusal(name, "integrity"));
+    }
+    const tree = store.candidateTree(contentHash);
+    if (!tree.ok) return abandon(storeFailure(tree.error));
+    const read = readPluginFolder(tree.value, { origin: "user", name });
+    if (!read.ok) return abandon(rejectionFailure(read.error));
+    const folder = read.value;
+
+    const itemId = deps.ids.next("rvw");
+    const card = candidateCard(
+      folder,
+      "user",
+      null,
+      itemId,
+      reviewed.value,
+      deps.envSandboxed?.() === true,
+      deps.narrowDrafts?.() === true,
+      undefined,
+    );
+    // 출처는 기록에서 그 판을 승인한 가장 최근 줄의 것이다. 알 수 없는 값이면 `unknown`
+    const projectId = origin.projectId ?? null;
+    const approving = logged.value.findLast(
+      (row) =>
+        row.candidateHash === contentHash &&
+        row.name === name &&
+        (row.projectId ?? null) === projectId &&
+        isHistoryLine(row),
+    );
+    const recorded = approving?.provenance ?? null;
+    const provenance: Provenance = isProvenance(recorded) ? recorded : "unknown";
+    const savedState = await storedStateOf(deps.pluginData, name);
+
+    const item: ReviewItem = {
+      ...pendingItemOf(
+        itemId,
+        {
+          kind: "update",
+          name,
+          candidateHash: contentHash,
+          baseHash: reviewed.value?.contentHash ?? null,
+          provenance,
+          originThreadId: null,
+          originProfileId: null,
+          card,
+          diff: diffCards(reviewed.value?.meta.card ?? null, card),
+          evidence: [],
+          files: filesOf(folder),
+          ...baseFilesOf(reviewed.value, "user"),
+          removal: null,
+        },
+        deps.now(),
+      ),
+      rollback: {
+        fromVersion: reviewed.value?.meta.version ?? null,
+        toVersion: folder.manifest.version,
+        savedState,
+      },
+    };
+    const saved = await save(item);
+    if (!saved.ok) return abandon(saved.error);
+    // 같은 검토본 키의 다른 대기 항목은 이 되돌리기로 대체된다. 새 항목도 목록에 넣어 같은 후보를 가진 항목의 후보를 지키게 한다
+    await sequentially(
+      listed.value.filter((other) => other.state === "pending" && sameKey(other, key)),
+      (old) => closeItem(old, "superseded", [...listed.value, item]),
+    );
+    return ok({ itemId });
   }
 
   /**
@@ -1540,25 +1853,7 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
 
     revert: (name) =>
       serial(async () => {
-        const sources = await plugins.sources();
-        if (!sources.ok) return err(sources.error);
-        const entry = sources.value.entries.find((item) => item.name === name);
-        // 되돌릴 사용자 원본 폴더가 없으면 이름이 없는 것과 같이 본다
-        if (entry === undefined || entry.origin !== "user")
-          return err({ kind: "unknown_plugin", name });
-        const reviewed = await store.current(name);
-        if (!reviewed.ok) return err(storeFailure(reviewed.error));
-        if (reviewed.value === null) return err({ kind: "no_reviewed_copy", name });
-        const wanted = hashPluginTree(reviewed.value.treePath);
-        if (!wanted.ok) return err(treeFailure(wanted.error));
-        const present = hashPluginTree(entry.dir);
-        if (!present.ok) return err(treeFailure(present.error));
-        const mirrored = await mirrorInto(
-          wanted.value.files,
-          reviewed.value.treePath,
-          entry.dir,
-          present.value.files,
-        );
+        const mirrored = await mirrorSourceToReviewed(name);
         if (!mirrored.ok) return err(mirrored.error);
         // 원본이 바뀌었으니 목록을 새로 읽고, 검토본과 같아진 대기 항목을 철회한다
         const rebuilt = await plugins.scan();
@@ -1567,6 +1862,10 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
         if (!scanned.ok) return err(scanned.error);
         return ok({ restored: true as const });
       }),
+
+    history: (name) => historyOf(name),
+
+    requestRollback: (name, contentHash) => serial(() => requestRollbackOf(name, contentHash)),
 
     draftCreate: (dir, originThreadId) => serial(() => createDraft(dir, originThreadId ?? null)),
 

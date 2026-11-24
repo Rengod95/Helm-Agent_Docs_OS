@@ -1,5 +1,6 @@
 import type { Result } from "@fresnel/contracts";
 import type {
+  PluginHistoryResult,
   PluginReviewFileResult,
   ProfilePlan,
   ReviewDecision,
@@ -49,6 +50,13 @@ export interface PluginReviewPort {
       PluginPortFailure
     >
   >;
+  /** 플러그인 이력(`pluginReview.history`). 최신 줄이 앞이다 */
+  history(name: string): Promise<Result<PluginHistoryResult, PluginPortFailure>>;
+  /** 지난 승인 버전으로 되돌리는 리뷰 항목을 연다(`pluginReview.requestRollback`). 바로 바꾸지 않는다 */
+  requestRollback(
+    name: string,
+    contentHash: string,
+  ): Promise<Result<{ readonly itemId: string }, PluginPortFailure>>;
   onChanged(listener: (change: PluginChange) => void): () => void;
 }
 
@@ -57,7 +65,9 @@ export type PluginReviewMethods =
   | "pluginReview.get"
   | "pluginReview.file"
   | "pluginReview.submitDraft"
-  | "pluginReview.decide";
+  | "pluginReview.decide"
+  | "pluginReview.history"
+  | "pluginReview.requestRollback";
 
 async function unwrap<T>(call: Promise<Result<T, PluginPortFailure>>): Promise<T> {
   const result = await call;
@@ -90,5 +100,8 @@ export function createPluginReviewHandlers(
       // 없는 플러그인은 있을 때만 싣는다(화면이 "이 기기에 없어요"를 보인다)
       return { item, appliedTo, ...(missingPlugins.length === 0 ? {} : { missingPlugins }) };
     },
+    "pluginReview.history": (params) => unwrap(port.history(params.name)),
+    "pluginReview.requestRollback": (params) =>
+      unwrap(port.requestRollback(params.name, params.contentHash)),
   };
 }

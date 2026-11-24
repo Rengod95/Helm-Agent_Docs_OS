@@ -605,6 +605,13 @@ plugin-store/
 10. 초안은 검토 없이 쓸 수 있는 곳이 둘이다: 테스트 실행(R16, 다른 스펙)과 §4.3 덧씌우기. 그 밖에는 `E(T)`에 들어갈 수 없다(`plugin_not_reviewed`). 검토 항목이 승인돼야 프로필에 들어간다(flow R2).
 11. 재시작: 대기 항목과 검토본, `current`는 파일에서 읽는다. 프로세스를 다시 띄워도 항목은 그대로이고, 시작 때 §4.5.7의 훑기가 원본과 검토본을 다시 비교한다. 승인 도중 중단(스냅샷 승격 후 `current` 교체 전)은 `current`가 바뀌기 전까지 이전 검토본이 쓰이고 승격된 사본은 `candidates/` 취급으로 다음 시작에 정리한다.
 
+12. 이력과 되돌리기 리뷰 [결정: 2026-11-24 사용자, AGE-76 "플러그인의 '버전' 탭은, 깃허브 커밋 이력이나 히스토리 이력과같은 이력들 보여주는거, 커밋 별 변경사항내용들 조회 가능, 특정 지점으로 롤백 가능하도록 하는 UI UX이 필요해."]. 이름은 모두 [제안]이다.
+   - 이력(`pluginReview.history { name }`): 8번 기록에서 그 키의 `approved`(제거 제외), `rollback`, `bundled`, `migrated` 줄만 최신이 앞으로 낸다. 줄을 지어내지 않는다. 줄의 `event`는 결정과 출처로 정한다: `rollback` → 되돌리기, `bundled` 결정이나 출처 → 내장 업데이트, `migrated` 결정이나 출처 `migration` → 가져오기, `new` → 만들기, 그 밖의 `update` → 고치기. 버전은 보관된 검토본의 메타, 없으면 그 줄 항목의 카드 버전이고 요약은 항목 카드의 설명이다. `itemId`는 그 항목이 `queue/`에 남아 있을 때만 싣는다. 화면은 그 항목을 `pluginReview.get`과 `pluginReview.file`(2번)로 열어 그 지점의 변경 내용을 보인다. `kept`는 그 판의 트리가 보관소(5개)에 남았는지다. 지금 판과 같은 줄 가운데 가장 최근 줄 하나만 `current`다. 출처가 사용자가 아니면 `blocked`(내장 `builtin`, 번들 `bundled`, 프로젝트 `project`, 관리 `managed`)다.
+   - 되돌리기는 리뷰를 거친다(설치, 제거, 드래프트와 같다). `pluginReview.requestRollback { name, contentHash }`는 `current`를 바꾸지 않고 리뷰 항목 하나를 연다: 보관된 그 판의 해시를 `verifyIntegrity`로 확인하고 트리를 후보로 다시 스냅샷한 뒤(내용 주소라 해시가 같다) `kind: "update"`, `candidateHash`는 그 판, `baseHash`는 지금 판, "하는 일의 차이"와 `files`·`baseFiles`는 일반 수정 항목과 같게 만들고 `rollback { fromVersion, toVersion, savedState }`을 싣는다. `savedState`는 플러그인 전용 저장소에 키가 있는지이고, 화면은 이때 옛 버전이 새 형식의 데이터를 읽지 못할 수 있다고 경고한다. 출처는 그 판을 승인한 기록 줄의 값이다. 같은 키의 다른 대기 항목은 새 후보가 올 때와 같이 `superseded`다. 막히면 `pluginReview.rollbackUnavailable`(`builtin`, `bundled`, `project`, `managed`, `not_kept`, `current`, `unknown_version`, `integrity`)다.
+   - 되돌리기 항목의 승인은 3번 승인과 같은 순서로 커밋하되 두 가지가 다르다. (1) 지난번에 승인된 내용이라 4번 손 수정 제한을 받지 않는다. (2) 기록 줄의 결정이 `rollback`이고 `itemId`는 그 항목이다. 승인 뒤 사용자 원본 폴더를 새 `current`로 맞춘다(`plugin.revert`와 같은 맞추기). 맞추지 않으면 다음 훑기가 원본의 새 판을 손 수정 항목으로 다시 연다. 맞추기가 실패해도 승인은 되돌리지 않고 로그에 남긴다.
+   - 옛 `ext.rollback`(HS-108)은 리뷰 없이 `current`를 바꾼다. 데스크톱 버전 탭은 더 쓰지 않는다. 그 메서드를 지울지는 사용자 결정이다 [미결].
+   - 구현: `apps/host/src/assembly/plugins/review.ts`(`history`, `requestRollback`, `applyApproval`), 처리기 `handlers/m5/plugin-review.ts`. 시험: `apps/host/test/assembly/plugins/review-history.test.ts`.
+
 ### 4.8 테스트 대화 (엔진 쪽의 유일한 소유자) [M6 요청 반영, 로드맵 M5f]
 
 소유: §4.8·§4.9는 M5f(`m5-plan.md`)가 만들고 M5c-1의 범위가 아니다. 단 §4.8.1의 `testRun.start`가 쓰는 덧씌우기(§4.3)와 `plugin.draft.create`·`PluginSubmitPort`는 M5c-1·M5c-2가 먼저 낸다. 테스트 대화는 플러그인을 만들고 고치는 AI와 하는 Craft 전용 대화다. 창과 흐름은 `docs/xeon/review/m6/craft-flows.md`가 정하고 이 절이 엔진 쪽 전부를 정한다. 다른 스펙은 이 절을 인용만 한다(엔진 설계 §1.4는 빌더의 재구현만 맡는다).

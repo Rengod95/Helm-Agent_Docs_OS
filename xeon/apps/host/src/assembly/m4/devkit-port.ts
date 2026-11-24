@@ -262,6 +262,7 @@ function devkitErrorOfDraft(failure: PluginPortFailure): DevkitError {
     case "description_required":
     case "profile_invalid":
     case "dependency":
+    case "rollback_unavailable":
       return devkitErrorOfPlugin(failure);
     default:
       return assertNever(failure, "PluginPortFailure");

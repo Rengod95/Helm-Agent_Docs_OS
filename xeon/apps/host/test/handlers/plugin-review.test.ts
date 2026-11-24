@@ -245,3 +245,22 @@ test("a dependency refusal answers plugin.dependency (3627) with the reason, the
   expect(error.data.kind).toBe("plugin.dependency");
   expect(error.data.details).toEqual({ reason: "unmet", plugin: "app", items });
 });
+
+// AGE-76 되돌리기: 거절은 `pluginReview.rollbackUnavailable`(3658)이고 details가 이름과 까닭이다
+test("a refused rollback answers pluginReview.rollbackUnavailable (3658) with the name and the reason", async () => {
+  const handlers = createPluginReviewHandlers(
+    partial<PluginReviewPort>({
+      requestRollback: () =>
+        Promise.resolve(err({ kind: "rollback_unavailable", name: "kit", reason: "current" })),
+    }),
+  );
+  const error = await wireErrorOf(
+    handlers["pluginReview.requestRollback"](
+      { name: "kit", contentHash: `sha256:${"a".repeat(64)}` },
+      CONTEXT,
+    ),
+  );
+  expect(error.code).toBe(3658);
+  expect(error.data.kind).toBe("pluginReview.rollbackUnavailable");
+  expect(error.data.details).toEqual({ name: "kit", reason: "current" });
+});

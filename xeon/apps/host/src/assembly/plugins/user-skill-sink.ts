@@ -217,6 +217,8 @@ function failureOfPlugin(error: PluginPortFailure): KnowledgeFailure {
       return failure("invalid_input", "the common profile does not accept the skill plugin");
     case "dependency":
       return failure("invalid_input", `plugin review dependency: ${error.reason}`);
+    case "rollback_unavailable":
+      return failure("denied", `plugin review rollback unavailable: ${error.reason}`);
     default:
       return assertNever(error, "PluginPortFailure");
   }

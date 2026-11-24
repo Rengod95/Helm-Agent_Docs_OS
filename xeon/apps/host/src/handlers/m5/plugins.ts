@@ -14,6 +14,7 @@ import {
   type PluginListResult,
   type PluginReviewFileResult,
   type PluginScanResult,
+  type RollbackUnavailableReason,
   type WireError,
   type WireHandlers,
 } from "@fresnel/contracts/wire";
@@ -79,6 +80,12 @@ export type PluginPortFailure =
       readonly reason: DependencyRefusalReason;
       readonly plugin: string;
       readonly items: readonly DependencyItem[];
+    }
+  /** 지난 승인 버전으로 되돌릴 수 없다(`pluginReview.rollbackUnavailable`, 3658). `reason`은 출처가 막은 것이거나 보관본의 사정이다 */
+  | {
+      readonly kind: "rollback_unavailable";
+      readonly name: string;
+      readonly reason: RollbackUnavailableReason;
     };
 
 /** 처리기가 쓰는 포트. 메서드 하나가 wire 메서드 하나다 */
@@ -203,6 +210,10 @@ export function wireErrorOfPluginFailure(failure: PluginPortFailure): WireError 
             found: item.found,
           })),
         },
+      });
+    case "rollback_unavailable":
+      return wireError("pluginReview.rollbackUnavailable", {
+        details: { name: failure.name, reason: failure.reason },
       });
     default:
       return assertNever(failure, "PluginPortFailure");
