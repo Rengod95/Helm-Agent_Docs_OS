@@ -82,6 +82,12 @@ import type { EngineSwitch } from "./engine-switch.ts";
 /** 새 대화 만들기를 기다리는 시간(ms). 응답이 끝내 없으면 바쁨을 풀고 이유를 말한다 */
 const CREATE_THREAD_TIMEOUT_MS = 30_000;
 
+/**
+ * 엔진 연결이 아직 없을 때(앱을 막 켰거나 복원·재시작 뒤 다시 붙는 중) 새 대화 만들기가 연결을 기다리는 시간(ms).
+ * 그 안에 붙으면 그대로 만들고, 넘기면 예전처럼 `offline`으로 돌려준다(AGE-73 railFix: 붙기 전 누름이 빨간 토스트가 되던 것)
+ */
+export const CONNECT_WAIT_MS = 15_000;
+
 export type CommandDeps = {
   readonly session: Session;
   /** 키 등록(`registerSecret`), 값 보기 채널(`revealOpen`·`revealTake`·`revealClose`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`), 저장 공간 명령(백업·사용량·사본 지우기·데이터 폴더 열기), 이 기기의 서비스 명령과 원격 붙기 명령(연결 화면)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
@@ -191,6 +197,26 @@ export function createCommands(
     if (connection === null) return err({ kind: "offline" });
     const result = await attemptAsync(() => run(connection));
     return result.ok ? ok(result.value) : err(errorOf(result.error.cause));
+  };
+
+  /**
+   * 연결이 없으면 다음 연결이 열릴 때까지(최대 `CONNECT_WAIT_MS`) 기다린다. 이미 있거나 엔진 대상을 바꾸는 중이면 바로 끝난다.
+   * 붙었는지는 돌려주지 않는다: 부르는 쪽은 이어서 `withConnection`이 보는 연결로 판정한다
+   */
+  const untilConnected = (): Promise<void> => {
+    if (session.connection() !== null || deps.engineSwitch.held()) return Promise.resolve();
+    const { promise, resolve } = Promise.withResolvers<void>();
+    const stops: (() => void)[] = [];
+    const finish = (): void => {
+      for (const stop of stops) stop();
+      resolve();
+    };
+    const timer = deps.scheduler.setTimeout(finish, CONNECT_WAIT_MS);
+    stops.push(() => {
+      deps.scheduler.clearTimeout(timer);
+    });
+    stops.push(session.onConnection(finish));
+    return promise;
   };
 
   /** 쓰기 명령 전용. 엔진 대상을 바꾸는 중이면 연결을 건드리지 않고 `switching`으로 거절한다 */
@@ -335,6 +361,7 @@ export function createCommands(
       session.link()?.openThread(threadId);
     },
     async createThread(workspace) {
+      await untilConnected();
       const created = await withWriteConnection((c) =>
         c.request("thread.create", workspace === undefined ? {} : { workspace }, {
           timeoutMs: CREATE_THREAD_TIMEOUT_MS,
