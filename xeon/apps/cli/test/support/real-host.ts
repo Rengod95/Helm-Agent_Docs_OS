@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { JsonRpcMessage } from "@fresnel/contracts/wire";
+import type { HostConnection, JsonRpcMessage } from "@fresnel/contracts/wire";
 import {
   t,
   tape,
@@ -16,6 +16,8 @@ import { createScenarioHome, realTapeClock, type ScenarioHome } from "./scenario
 
 // 실제 호스트 위의 CLI 시험 도구(L4.cli.plan §5.2). 가짜 서버 대신 `connectEngine`이 실제 @fresnel/host를 같은 프로세스에 세우고,
 // 모델은 테이프다. 엔진 홈(FRESNEL_HOME)은 임시 디렉터리 하나이고 작업 폴더는 그 안의 work다. 입출력은 harness의 가짜 CliIo를 그대로 쓴다.
+
+const CLI_ENTRY = join(import.meta.dir, "..", "..", "src", "main.ts");
 
 /** 테이프 한 단계(`tape()`가 받는 모양) */
 export type TapeStep = Omit<ModelTapeTurn, "kind" | "n">;
@@ -39,6 +41,27 @@ export function modelsOf(id: string, steps: readonly TapeStep[]): BuildModels {
   return tapeBuildModels(
     tapeProvider(tapePlayer(tape(id, [...steps]), { clock: realTapeClock() })),
   );
+}
+
+/**
+ * 대화의 실행 방식은 프로필이 정한다(2026-11-23, AGE-71 질문 3). 사용자 파일의 `l1.tools.permissionMode`로는 바뀌지 않으므로,
+ * 승인 카드를 보는 시험이 묻는 경로를 타게 기본 프로필을 `default`(실행마다 묻기)로 저장한다
+ */
+async function askOnDefaultProfile(connection: HostConnection): Promise<void> {
+  const { profile } = await connection.request("profile.get", { id: "default" });
+  await connection.request("profile.put", {
+    profile: {
+      id: profile.id,
+      title: profile.title,
+      plugins: profile.plugins,
+      settings: [
+        ...profile.settings.filter((setting) => setting.key !== "l1.tools.permissionMode"),
+        { key: "l1.tools.permissionMode", value: "default" },
+      ],
+      startDrive: profile.startDrive,
+    },
+    baseRev: profile.rev,
+  });
 }
 
 interface SentRequest {
@@ -107,19 +130,26 @@ export function createRealCli(options: RealCliOptions = {}): RealCli {
     env: { NO_COLOR: "1" },
     ...options.harness,
     cwd: home.work,
-    connect: (connectOptions) =>
-      connectEngine({
+    connect: async (connectOptions) => {
+      const result = await connectEngine({
         ...connectOptions,
         stateFile: home.stateFile,
         assemble: {
           defaultGroups: options.loadExtensions === true,
+          // 확장을 싣는 시험은 격리 자식을 이 CLI의 진입(`plugin-host --stdio`)으로 띄운다. 기본 실행 파일은 시험 파일이라 자식이 바로 죽는다
+          ...(options.loadExtensions === true
+            ? { pluginHost: { self: { execPath: process.execPath, entry: CLI_ENTRY } } }
+            : {}),
           ...(options.models === undefined ? {} : { buildModels: options.models }),
         },
         observe: (message) => {
           messages.push(message);
           connectOptions.observe?.(message);
         },
-      }),
+      });
+      if (result.ok) await askOnDefaultProfile(result.value.connection);
+      return result;
+    },
   });
   return {
     home,

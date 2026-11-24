@@ -32,6 +32,7 @@ import {
   SCENARIO_MAIN,
   TAPES_DIR,
   type ScenarioHome,
+  seedAskProfile,
 } from "./support/scenario.ts";
 
 // M1 걸어 다니는 골격의 스모크(foundation-plan §6, L4.cli.plan §5.2). 저장소에서 유일한 scenario다(eng.testing.guide TS-01).
@@ -49,6 +50,13 @@ afterEach(() => {
   for (const child of children.splice(0)) child.kill();
   for (const home of homes.splice(0)) home.dispose();
 });
+
+/** 승인을 묻는 기본 프로필이 저장된 새 홈. 대화의 실행 방식은 프로필이 정한다 */
+function askingHome(): ScenarioHome {
+  const home = newHome();
+  seedAskProfile(home);
+  return home;
+}
 
 function newHome(): ScenarioHome {
   const home = createScenarioHome();
@@ -410,7 +418,7 @@ const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/u;
 
 test("scenario-4: --set l4.ui.locale=en makes the print turn's messages English, and without it they stay Korean", async () => {
   // 인자 없는 명령은 승인이 필요하고, 글 모드(비대화)라 자동으로 거부된다. 거부 문장이 로케일을 보여 준다
-  const english = await runTextChat(newHome(), "chat-locale", [
+  const english = await runTextChat(askingHome(), "chat-locale", [
     "-p",
     "run it",
     "--set",
@@ -423,7 +431,7 @@ test("scenario-4: --set l4.ui.locale=en makes the print turn's messages English,
   );
   expect(englishText).not.toMatch(HANGUL);
 
-  const korean = await runTextChat(newHome(), "chat-locale", ["-p", "run it"]);
+  const korean = await runTextChat(askingHome(), "chat-locale", ["-p", "run it"]);
   expect(korean.code, korean.stderr).toBe(0);
   const koreanText = `${korean.stdout}${korean.stderr}`;
   expect(koreanText).toContain('승인 요청 "Allow tool "bash"?"에 비대화 모드라 거부로 답했다');

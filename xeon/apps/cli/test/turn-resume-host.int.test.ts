@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { EXIT } from "../src/exit-codes.ts";
 import { eventId } from "./support/ids.ts";
 import { answeringModels, createRealCli, type RealCli } from "./support/real-host.ts";
+import { seedAskProfile } from "./support/scenario.ts";
 import { scriptedInput } from "./support/script.ts";
 import { HELLO, spawnStdioChild, type StdioChild } from "./support/stdio-child.ts";
 
@@ -75,6 +76,7 @@ function second(
 
 test("y at both questions asks the restored approval, then calls turn.resume once, and the turn finishes", async () => {
   const owner = createRealCli();
+  seedAskProfile(owner.home);
   clis.push(owner);
   const killed = await killedWhileAsking(owner, COMMAND);
 
@@ -101,6 +103,7 @@ test("y at both questions asks the restored approval, then calls turn.resume onc
 
 test("n at the resume question never calls turn.resume and leaves the turn resumable", async () => {
   const owner = createRealCli();
+  seedAskProfile(owner.home);
   clis.push(owner);
   const killed = await killedWhileAsking(owner, COMMAND);
 

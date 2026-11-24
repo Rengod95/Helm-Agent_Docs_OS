@@ -53,6 +53,8 @@ export interface EngineAssembleOverrides {
   /** 모델 테이프 provider를 더한 pi-ai 모델 모음 팩토리(AssembleOptions.buildModels) */
   readonly buildModels?: AssembleOptions["buildModels"];
   readonly defaultGroups?: boolean;
+  /** 격리 확장의 자식 실행 파일(AssembleOptions.pluginHost). 소스 시험이 이 CLI의 진입을 넣는다 */
+  readonly pluginHost?: AssembleOptions["pluginHost"];
   readonly clock?: Clock;
   readonly ids?: IdFactory;
 }
@@ -376,6 +378,7 @@ function assembleOptionsOf(options: EngineConnectOptions): Omit<AssembleOptions,
     ...(extra?.extraPlugins === undefined ? {} : { extraPlugins: extra.extraPlugins }),
     ...(extra?.buildModels === undefined ? {} : { buildModels: extra.buildModels }),
     ...(extra?.defaultGroups === undefined ? {} : { defaultGroups: extra.defaultGroups }),
+    ...(extra?.pluginHost === undefined ? {} : { pluginHost: extra.pluginHost }),
     ...(extra?.clock === undefined ? {} : { clock: extra.clock }),
     ...(extra?.ids === undefined ? {} : { ids: extra.ids }),
   };

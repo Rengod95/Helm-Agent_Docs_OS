@@ -118,10 +118,30 @@ test("scaffold, validate, pack, install, ls and remove run end to end without a 
   );
   const made: unknown = JSON.parse(h.stdoutText());
   expect(made).toMatchObject({ name: "demo-ext", kind: "single-plugin", dir });
-  expect(existsSync(join(dir, ".fresnel-plugin", "plugin.json"))).toBe(true);
+  const manifestPath = join(dir, ".fresnel-plugin", "plugin.json");
+  expect(existsSync(manifestPath)).toBe(true);
+
+  // 뼈대는 목적과 설명을 비워 두고 쓰는 사람이 채우게 한다(AU-013, 2026-11-23). 사람이 쓴 것처럼 채운 뒤 검사한다
+  clear();
+  expect(await h.run(["author", "validate", "demo-ext"])).toBe(EXIT.error);
+  expect(h.stderrText()).toContain("AU-013 /purpose");
+  expect(h.stderrText()).toContain("AU-013 /description");
+  const scaffolded: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+  if (typeof scaffolded !== "object" || scaffolded === null)
+    throw new Error("manifest is not an object");
+  writeFileSync(
+    manifestPath,
+    JSON.stringify({
+      ...scaffolded,
+      purpose: "Show a demo hook that runs after each turn settles.",
+      description:
+        "A demo plugin that runs a hook when a turn settles, used to try the authoring flow.",
+    }),
+  );
 
   clear();
-  expect(await h.run(["author", "validate", "demo-ext"])).toBe(EXIT.ok);
+  const code = await h.run(["author", "validate", "demo-ext"]);
+  expect(code).toBe(EXIT.ok);
   expect(h.stdoutText()).toContain(`${dir}: 검사를 통과했다`);
 
   clear();
