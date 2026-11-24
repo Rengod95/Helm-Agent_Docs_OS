@@ -244,3 +244,52 @@ describe("plugin ui runtime: user layout (AGE-73)", () => {
     expect([...h.runtime.getState().layout.hidden]).toEqual([]);
   });
 });
+
+const testRecord = (state: "running" | "failed") => ({
+  testId: "tst_1",
+  kind: "testRun" as const,
+  target: "",
+  state,
+  startedAt: "2026-11-24T00:00:00.000Z",
+  durationMs: null,
+  threadId: "thr_test",
+  replay: null,
+});
+
+describe("a draft test conversation", () => {
+  const draftApp = appEntryOf({ extension: "dabc123-helm", draft: true });
+  const draftTable = (state: "running" | "failed"): Table => ({
+    "ext.ui.list": (params) =>
+      Promise.resolve({
+        items: "threadId" in params ? [draftApp, app] : [app],
+      }),
+    "ext.list": () => Promise.resolve({ extensions: [extListEntryOf("helm")] }),
+    "settings.get": () => Promise.resolve({ settings: [setting("x.ui.apps", true)] }),
+    "ext.test.list": () => Promise.resolve({ tests: [testRecord(state)] }),
+  });
+
+  test("while the test runs the draft screen is listed and its app root is sent as the draft tier", async () => {
+    const h = harness(draftTable("running"));
+    await h.runtime.refresh("thr_test");
+    expect(h.runtime.getState().entries.map((entry) => entry.extension)).toEqual([
+      "dabc123-helm",
+      "helm",
+    ]);
+    expect(h.roots).toEqual([
+      {
+        entries: [
+          expect.objectContaining({ extension: "dabc123-helm", trust: "draft" }),
+          expect.objectContaining({ extension: "helm", trust: "user" }),
+        ],
+      },
+    ]);
+  });
+
+  test("once the open test conversation has ended, a refresh drops the draft entry and its app root", async () => {
+    const h = harness(draftTable("failed"));
+    await h.runtime.refresh("thr_test");
+    expect(h.runtime.getState().entries.map((entry) => entry.extension)).toEqual(["helm"]);
+    expect(h.roots).toEqual([{ entries: [expect.objectContaining({ extension: "helm" })] }]);
+    expect(h.calls.find((call) => call.method === "ext.ui.list")?.params).toEqual({});
+  });
+});

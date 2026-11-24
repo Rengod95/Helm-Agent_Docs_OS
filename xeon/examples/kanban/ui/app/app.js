@@ -18,7 +18,8 @@
   let dragging = null;
 
   function reasonOf(error) {
-    return (error && error.kind) || "failed";
+    const kind = (error && error.kind) || "failed";
+    return error && error.detail ? kind + " " + error.detail : kind;
   }
 
   function textOf(reason) {
