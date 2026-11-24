@@ -851,6 +851,8 @@ sequenceDiagram
 | `jsonrpc.invalidParams`, `internal`, 그 밖 | `internal` | "저장하지 못했어요. 추적 번호: {traceId}" | 초안 유지 |
 
 - `details.issues`의 `message`(서버 검사기 문자열)는 화면에 그대로 쓰지 않고 `path`만 쓴다 [제안].
+- 설정 화면을 떠날 때(구역이 아니라 다른 화면으로 갈 때) 저장하지 않은 초안은 사라집니다. 구역을 옮길 때와 달리 묻지 않으므로, 초안이 남아 있었으면 경고 토스트 "저장하지 않은 값 {count}개를 버렸어요"를 한 번 보입니다(`useLeaveDiscardNotice`). 외부 훅 표의 편집도 같은 초안이라 같은 길을 탑니다.
+- 설정을 읽지 못한 실패(`settings.list`, `settings.get`)는 쓰기 표를 쓰지 않고 읽기 문장을 쓴다(`toLoadError`): 엔진이 거절하면 "불러오지 못했어요"(추적 번호가 있으면 ". 추적 번호: {traceId}"), 연결 종료처럼 WireError가 아니면 "엔진과 연결이 끊겼어요. 다시 연결되면 다시 시도해 주세요". 읽기 실패에 "저장하지 못했어요"를 쓰지 않는다.
 
 #### 4.4.5 재시작 안내
 

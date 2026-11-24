@@ -27,6 +27,7 @@ import {
   planReset,
   planWrite,
   toFieldError,
+  toLoadError,
   type FollowUp,
 } from "./write-flow.ts";
 import type {
@@ -191,7 +192,7 @@ export function createSettingsController(port: SettingsHostPort): SettingsContro
   }
 
   function failLoad(cause: unknown): void {
-    dispatch({ type: "loadFailed", error: toFieldError(undefined, cause).error });
+    dispatch({ type: "loadFailed", error: toLoadError(cause) });
   }
 
   /** 엔진 연결이 살아 있으면 그것을, 없거나 끊겼으면 null이다. 엔진 호출은 이것으로만 한다 */

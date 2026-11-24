@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { placeBeside, useBesideApp } from "./app-beside.ts";
 import { useAppMoves } from "./app-moves.ts";
 import { usePluginUiState } from "./plugin-context.tsx";
+import { besideAppEntriesOf } from "./plugin-pick.ts";
 import { PluginView, screenKeyOf } from "./plugin-view.tsx";
 
 // 대화 옆 "앱" 탭(AGE-78, L4.desktop-ux §6.25 "앱"). 앱 작업 공간의 "대화 옆에"가 둔 화면 하나를 대화 오른쪽 패널에 그린다.
@@ -18,8 +19,21 @@ function titleOf(entry: ExtUiEntry): string {
   return extMessageOf(entry.messages, activeLocale(), entry.title);
 }
 
+/** 이름이 같은 화면이 둘 이상이면 어느 플러그인 것인지 보이게, 그 화면들에 플러그인 이름을 보조 글로 붙인다 */
+function duplicateTitlesOf(entries: readonly ExtUiEntry[]): ReadonlySet<string> {
+  const seen = new Set<string>();
+  const duplicated = new Set<string>();
+  for (const entry of entries) {
+    const title = titleOf(entry);
+    if (seen.has(title)) duplicated.add(title);
+    seen.add(title);
+  }
+  return duplicated;
+}
+
 /** 둔 앱이 없을 때: 열 수 있는 앱(페이지 화면) 목록. 누르면 그 앱을 둔다 */
 function PickApp(props: { readonly entries: readonly ExtUiEntry[] }): ReactNode {
+  const duplicated = duplicateTitlesOf(props.entries);
   return (
     <div className="grid content-start gap-3 p-3">
       <EmptyState
@@ -42,6 +56,11 @@ function PickApp(props: { readonly entries: readonly ExtUiEntry[] }): ReactNode 
                 <span className="min-w-0 flex-1 truncate text-ui text-text-primary">
                   {titleOf(entry)}
                 </span>
+                {duplicated.has(titleOf(entry)) ? (
+                  <span className="min-w-0 max-w-1/2 flex-none truncate text-ui text-text-tertiary">
+                    {entry.extension}
+                  </span>
+                ) : null}
                 <ChevronRight aria-hidden className="size-icon-sm flex-none text-text-tertiary" />
               </button>
             </li>
@@ -56,9 +75,7 @@ export function AppBesideTab(): ReactNode {
   const key = useBesideApp();
   const state = usePluginUiState();
   const moves = useAppMoves();
-  const pages = state.groups.page
-    .map(({ entry }) => entry)
-    .filter((entry) => entry.state !== "invalid");
+  const pages = besideAppEntriesOf(state);
   const entry = key === undefined ? undefined : pages.find((item) => screenKeyOf(item) === key);
   if (entry === undefined) return <PickApp entries={pages} />;
   const name = titleOf(entry);

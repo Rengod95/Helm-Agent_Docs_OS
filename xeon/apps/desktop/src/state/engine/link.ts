@@ -34,7 +34,11 @@ export type TranscriptSnapshot = {
   readonly truncated?: true;
 };
 
-export type SnapshotError = { readonly kind: "unavailable" | "failed" | "timeout" };
+export type SnapshotError = {
+  readonly kind: "unavailable" | "failed" | "timeout";
+  /** 엔진이 이 대화는 없다고 답했다(`thread.notFound`). 데이터 복원이 대화를 되돌려 지운 경우처럼 다시 읽어도 소용없다 */
+  readonly gone?: true;
+};
 
 /** 열린 thread를 읽는 포트. 메서드는 F가 정한다(L4.desktop.design 14절 1번, F 요청 thread.read) */
 export interface TranscriptPort {
@@ -48,6 +52,11 @@ export type LinkDeps = {
   readonly logger: Logger;
   /** UI 스토어의 선택 thread. 재설정 뒤 다시 열 thread를 알려 준다 */
   readonly openThreadId: () => ThreadId | null;
+  /**
+   * 열려 있던 대화를 엔진이 모른다고 답했을 때 부른다(데이터 복원이 그 대화를 되돌려 지운 경우).
+   * 화면이 선택을 풀어야 대화 범위로 읽는 설정과 플러그인 화면이 없는 대화를 가리키지 않는다
+   */
+  readonly onOpenThreadGone?: (threadId: ThreadId) => void;
 };
 
 /**
@@ -288,6 +297,12 @@ export function startLink(deps: LinkDeps): EngineLink {
       round += 1;
       const loaded = await deps.transcripts.load(threadId);
       if (mine !== transcriptRun) return { value: undefined };
+      if (!loaded.ok && loaded.error.gone === true) {
+        deps.logger.warn("desktop.link.open_thread_gone", { thread: threadId });
+        deps.store.ingest({ type: "transcript_closed" });
+        deps.onOpenThreadGone?.(threadId);
+        return { value: undefined };
+      }
       if (!loaded.ok) {
         failures.push(loaded.error.kind);
         deps.logger.warn("desktop.link.snapshot_failed", { reason: loaded.error.kind, round });

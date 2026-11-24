@@ -334,3 +334,22 @@ export function toFieldError(
     followUp: "none",
   };
 }
+
+/**
+ * 설정을 읽지 못했을 때의 오류. 쓰기 실패 문장("저장하지 못했어요")을 읽기에 쓰지 않는다.
+ * 엔진이 거절한 것은 `internal`(추적 번호가 있으면 함께), 연결이 끊긴 것처럼 WireError가 아닌 실패는 `transient`다.
+ */
+export function toLoadError(cause: unknown): FieldError {
+  if (!(cause instanceof WireError)) {
+    return { kind: "transient", message: t("client.settings.load.transient") };
+  }
+  const traceId = cause.data.traceId ?? null;
+  return {
+    kind: "internal",
+    message:
+      traceId === null
+        ? t("client.settings.load.failed")
+        : t("client.settings.load.failedTrace", { traceId }),
+    traceId,
+  };
+}

@@ -9,6 +9,7 @@ import {
   planReset,
   planWrite,
   toFieldError,
+  toLoadError,
   type WidgetVM,
 } from "../../src/settings/index.ts";
 import { effectiveOf, wireDef } from "./fixtures.ts";
@@ -163,6 +164,24 @@ describe("planReset", () => {
 
   test("a reset of the launch scope with no open thread is blocked", () => {
     expect(planReset(budgetDef, undefined, "launch", null).kind).toBe("blocked");
+  });
+});
+
+describe("toLoadError", () => {
+  test("a refused read says it could not load, never that it could not save", () => {
+    const error = wireError("thread.notFound", { details: { threadId: THREAD } });
+    expect(toLoadError(error)).toEqual({
+      kind: "internal",
+      message: "불러오지 못했어요",
+      traceId: null,
+    });
+  });
+
+  test("a failure that is not a wire error reads as a lost connection", () => {
+    expect(toLoadError(new Error("closed"))).toEqual({
+      kind: "transient",
+      message: "엔진과 연결이 끊겼어요. 다시 연결되면 다시 시도해 주세요",
+    });
   });
 });
 

@@ -143,6 +143,11 @@ export function startSession(deps: SessionDeps): Session {
       }),
       logger: deps.logger,
       openThreadId: () => deps.ui.read.getState().selectedThreadId,
+      // 복원이 지운 대화가 선택으로 남으면 대화 범위로 읽는 설정과 플러그인 화면이 `thread.notFound`로 모두 실패한다
+      onOpenThreadGone: (threadId) => {
+        if (deps.ui.read.getState().selectedThreadId === threadId)
+          deps.ui.actions.selectThread(null);
+      },
     });
     current.connection = connection;
     current.link = link;

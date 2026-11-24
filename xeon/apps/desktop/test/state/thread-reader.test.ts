@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { WireError } from "@fresnel/contracts/wire";
 import {
   createThreadReaderPort,
   MAX_SNAPSHOT_ITEMS,
@@ -87,5 +88,29 @@ describe("thread.read snapshot port", () => {
       storeId: () => STORE,
     }).load(thr(1));
     expect(!b.ok && b.error.kind).toBe("failed");
+  });
+
+  test("an engine that does not know the thread answers `gone`, other failures do not", async () => {
+    const missing = fakeConnection({
+      "thread.read": () =>
+        Promise.reject(
+          new WireError(3001, "thread.notFound", {
+            kind: "thread.notFound",
+            retryable: false,
+            details: { threadId: thr(1) },
+          }),
+        ),
+    });
+    const gone = await createThreadReaderPort({
+      connection: missing.connection,
+      storeId: () => STORE,
+    }).load(thr(1));
+    expect(gone).toEqual({ ok: false, error: { kind: "failed", gone: true } });
+    const broken = fakeConnection({ "thread.read": () => Promise.reject(new Error("x")) });
+    const other = await createThreadReaderPort({
+      connection: broken.connection,
+      storeId: () => STORE,
+    }).load(thr(1));
+    expect(other).toEqual({ ok: false, error: { kind: "failed" } });
   });
 });

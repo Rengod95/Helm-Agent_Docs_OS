@@ -748,3 +748,29 @@ describe("loading, failure and restoration after a reset", () => {
     expect(h.store.read.getState().transcript).toBeNull();
   });
 });
+
+describe("an open thread the engine no longer has (after a database restore)", () => {
+  test("the link closes the transcript and tells the app so it can drop the selection", async () => {
+    const h = harness();
+    const gone: unknown[] = [];
+    const fake = fakeConnection({
+      ...subscribeLive(),
+      "thread.list": () => Promise.resolve({ threads: [], nextCursor: null }),
+    });
+    startLink({
+      connection: fake.connection,
+      store: h.store,
+      transcripts: {
+        load: () => Promise.resolve({ ok: false, error: { kind: "failed", gone: true } }),
+      },
+      logger: silent,
+      openThreadId: () => thr(1),
+      onOpenThreadGone: (threadId) => {
+        gone.push(threadId);
+      },
+    });
+    await pump(h);
+    expect(gone).toEqual([thr(1)]);
+    expect(h.store.read.getState().transcript).toBeNull();
+  });
+});
