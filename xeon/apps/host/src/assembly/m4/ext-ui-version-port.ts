@@ -362,7 +362,7 @@ function uiListOf(
     .filter((report) => !drafts.has(report.extension) || tested.has(report.extension))
     .toSorted((a, b) => compareText(a.extension, b.extension) || compareText(a.id, b.id))
     .slice(0, UI_LIST_LIMIT)
-    .map((report) => entryOf(report, off.has(report.extension)));
+    .map((report) => entryOf(report, off.has(report.extension), drafts.has(report.extension)));
   return { items };
 }
 
@@ -389,7 +389,7 @@ function offExtensions(
 }
 
 /** 항목 하나를 와이어 모양으로 옮긴다. 확장이 꺼졌으면 항목 상태와 무관하게 `disabled`다 */
-function entryOf(report: UiEntryReport, off: boolean): ExtUiEntry {
+function entryOf(report: UiEntryReport, off: boolean, draft: boolean): ExtUiEntry {
   return {
     extension: report.extension,
     id: report.id,
@@ -402,6 +402,7 @@ function entryOf(report: UiEntryReport, off: boolean): ExtUiEntry {
     trust: report.trust,
     ...(report.appRoot === undefined ? {} : { appRoot: report.appRoot }),
     ...(report.forKind === undefined ? {} : { forKind: report.forKind }),
+    ...(draft ? { draft: true } : {}),
     ...(report.tree === undefined ? {} : { tree: report.tree }),
     ...(report.app === undefined ? {} : { app: report.app }),
     ...(report.messages === undefined ? {} : { messages: report.messages }),

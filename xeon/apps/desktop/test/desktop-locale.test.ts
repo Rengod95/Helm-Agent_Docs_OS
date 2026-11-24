@@ -142,6 +142,9 @@ describe("desktop sentences in English", () => {
       "Another window is using this conversation, so this one can only watch it.",
     );
     expect(composerDisabledReason({ ...ready, setupNeeded: true })).toBe(setupRequiredText());
+    expect(composerDisabledReason({ ...ready, trialEnded: true })).toBe(
+      "This test has ended, so you cannot send.",
+    );
     expect(setupRequiredText()).toBe(
       "Set a model key and a default model before starting a conversation.",
     );

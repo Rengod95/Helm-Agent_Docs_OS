@@ -840,8 +840,8 @@ export function PluginView(props: {
   else if (loaded === "offline") body = <Note text={t("desktop.plugin.state.offline")} />;
   // 꺼졌거나 안전 모드가 된 확장은 열린 프레임과 폴링을 거두고 알림만 보인다(본문을 그리지 않으면 거둬진다)
   else if (loaded.context.safeMode) body = stop(t("desktop.plugin.state.disabled"), "warning");
-  else if ((inactive && entry.mode !== "app") || !loaded.context.enabled) {
-    // 꺼졌거나 이 대화의 프로필에 없다. 앱 자리(작업 공간, 대화 옆)에서는 프로필 글과 관리 단추를 둔다
+  else if ((inactive && entry.draft !== true && entry.mode !== "app") || !loaded.context.enabled) {
+    // 꺼졌거나 이 대화의 프로필에 없다. 드래프트는 전역으로는 꺼져 있고 시험 중인 대화에서만 켜지므로 전역 꺼짐으로 막지 않는다(AGE-77 Y-04). 앱 자리(작업 공간, 대화 옆)에서는 프로필 글과 관리 단추를 둔다
     body =
       onManage === undefined
         ? stop(t("desktop.plugin.state.disabled"), "warning")

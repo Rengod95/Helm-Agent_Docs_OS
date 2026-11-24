@@ -561,6 +561,7 @@ WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 
 - 실패 문장은 host가 준 `turn.completed.error`를 그대로 보인다. 모델을 해석하지 못했으면 `model_unavailable: model_not_found: model <ref> is not in the catalog`처럼 종류와 모델이 보이고(`L1.loop.spec` §4.3), 시크릿을 열지 못했으면 `secret_unresolved: ... could not be leased (denied: <사유>)`로 사유가 보인다(`L1.models.spec` §3.9).
 - 입력창 Enter [결정: M2 Mac 실기]: 한글 조합 중의 Enter는 보내지 않는다. WebKit(Safari, WKWebView)은 `compositionend`를 Enter keydown보다 먼저 내고 그 keydown의 `isComposing`이 거짓이라, `isComposing`, `keyCode === 229`, `compositionend` 직후 50ms 안의 Enter를 모두 조합 확정으로 본다(`src/views/composer-model.ts`). 전송은 동기 잠금(ref)으로 한 번에 하나만 나가고, 보내는 즉시 입력을 비우며 실패하면 입력을 돌려준다.
 - 입력창 잠금 [결정: M2 Mac 실기]: 모델 키와 기본 모델이 끝나지 않았으면(시작 안내 띠와 같은 판단) 입력창을 잠그고 안내 문장을 보인다.
+- 끝난 테스트 대화의 입력 [결정: 2026-11-24 scnFix9 Y-01]: 테스트 대화(`ThreadSummary.testRun`)의 `ext.test.list` 기록이 `running`이 아니면(앱을 다시 켜면 돌던 시험 기록은 `failed`가 된다) 입력창을 잠그고, 입력창 위에 "이 테스트는 끝났어요" 띠와 "새 테스트 열기"(작업대 영역의 테스트 화면으로 간다)를 둔다. 새 상태 값은 만들지 않고 기존 기록 상태를 쓴다.
 - turn 실패 표시 [결정: M2 Mac 실기]: `turn.completed`가 `status: "failed"`이면 `error`를 해당 대화의 트랜스크립트 아래에 `role="alert"`로 보이고(거울의 `turnFailures`), 다음 `turn.started`에 지운다. `error`가 없으면 카탈로그 기본 문장(`desktop.engine.turnFailureUnknown`, §10 18번)을 씁니다.
 
 ### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]

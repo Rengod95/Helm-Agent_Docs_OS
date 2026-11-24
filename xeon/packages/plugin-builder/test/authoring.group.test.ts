@@ -444,7 +444,7 @@ test("authoring.submit: after a Test run, the turn of that run is the evidence a
   const needsTurn = await rig.call("authoring_submit", { sessionId: "auth-demo" });
   expect(needsTurn).toMatchObject({
     ok: false,
-    error: { kind: "no_evidence", message: expect.stringContaining("try the plugin") },
+    error: { kind: "no_evidence", message: expect.stringContaining("no usage record yet") },
   });
   const sent = await rig.call("authoring_submit", {
     sessionId: "auth-demo",

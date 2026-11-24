@@ -337,7 +337,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const start = tool(
     "authoring_start",
-    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it on the \"크래프트의 플러그인 화면\" screen; tell the user that screen name exactly as quoted). Open a build session (the returned sessionId is only for later tool calls: never say it or the folder path to the user). With name only, it opens the source folder of an existing plugin (fix it). With kind and name, it opens a new plugin in a folder named after it inside this conversation's working folder (dir is optional: never ask the user for a path), and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
+    "Plugin builder for this app: use for any request to make, build or create a plugin, even without the app's name (not a generic program or package; never delete a folder, the user removes it on the \"크래프트의 플러그인 화면\" screen; tell the user that screen name exactly as quoted). Open a build session (the returned sessionId, the kind value single-plugin and the field names such as purpose are only for later tool calls: never say them or the folder path to the user; say what they mean in plain words). With name only, it opens the source folder of an existing plugin (fix it). With kind and name, it opens a new plugin in a folder named after it inside this conversation's working folder (dir is optional: never ask the user for a path), and the user confirms the kind and the name before the next steps. purpose is one sentence on what the plugin does (do not copy the request sentence). In a craft chat the builder always stays resident after a submit, waiting for the next user message; elsewhere resident: true does the same.",
     Type.Object(
       {
         name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -502,7 +502,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
 
   const validate = tool(
     "authoring_validate",
-    "Check the extension (manifest, composition, drive replay rules, authoring rules, and the screens: an app's app.root folder and entry HTML must exist, and the declared methods must match the entry's registrations). Issue codes such as AU-007 and tool names are for you only: fix them yourself and tell the user the problem in plain words without codes or tool names.",
+    "Check the extension (manifest, composition, drive replay rules, authoring rules, and the screens: an app's app.root folder and entry HTML must exist, and the declared methods must match the entry's registrations). Issue codes such as AU-007, tool names and field or value names such as purpose and single-plugin are for you only: fix them yourself and tell the user the problem in plain words without codes or tool names.",
     Type.Object(sessionShape, { additionalProperties: false }),
     "read",
     async (input) => {
@@ -537,7 +537,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
           ...(state.trial === null
             ? {}
             : {
-                note: "the Test run that was open uses the copy of the folder from when it started, not this version: call authoring_trial to test this version in a new Test run (the user confirms it again)",
+                note: "the Test run that was open uses the copy of the folder from when it started, not this version: call authoring_trial to open a new Test run for this version, which is a new version the user has not tried yet, so the user must try it again before authoring_submit (the user confirms the new Test run)",
               }),
         };
       }
@@ -662,7 +662,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       if (state.trial === null)
         return refusal(
           "no_evidence",
-          "the review needs evidence from a Test run: call authoring_trial first, then ask the user to try the plugin in that Test run, then submit",
+          "the review needs evidence from a Test run of this version, and the folder was changed after the last Test run so this version has no usage record yet: call authoring_trial, tell the user in plain words that they need to try the changed plugin once more before it can be submitted, then call authoring_submit",
         );
       // 증거 turn은 모델이 넘긴 값이 우선이고, 없으면 시험 대화의 마지막 turn이다(사람이 turn id를 알려 줄 수 없다, F-46)
       let turnId = optStr(input, "turnId");
@@ -674,7 +674,7 @@ export function authoringTools(env: ToolsEnv): readonly ToolResourceDef[] {
       if (turnId === undefined)
         return refusal(
           "no_evidence",
-          "the Test run has no turn yet: ask the user to try the plugin in the Test run thread (the Test screen opens it), then call authoring_submit again. Do not ask the user for a turn id",
+          "the new Test run has no usage record yet because nobody has tried this version: tell the user in plain words to try the plugin once more in the Test run (the Test screen opens it), then call authoring_submit again. Do not ask the user for a turn id",
         );
       // 목적은 도구 입력이 우선이고, 없으면 맡기기나 시작에서 받은 목적을 쓴다(M5c §4.9.6)
       const purpose = optStr(input, "purpose") ?? state.purpose ?? undefined;

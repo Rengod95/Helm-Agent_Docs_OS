@@ -904,4 +904,9 @@ test("a draft screen is listed only for the thread that is testing that draft", 
   expect(names({})).toEqual(["helm"]);
   expect(names({ threadId: "thr_01HYYYYYYYYYYYYYYYYYYYYYYY" })).toEqual(["helm"]);
   expect(names({ threadId: testing })).toEqual([DRAFT_NAME, "helm"]);
+  // 드래프트 화면에만 draft 표시가 붙는다(데스크톱이 "테스트 중"을 단다)
+  expect(port.uiList({ threadId: testing }).items.map((item) => item.draft)).toEqual([
+    true,
+    undefined,
+  ]);
 });

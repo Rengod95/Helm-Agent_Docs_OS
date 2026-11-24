@@ -198,7 +198,11 @@ export function authoringDrive(g: DriveApi, devkit: DevkitService): DriveStep<Au
         pending: null,
         trial: { threadId: started.value.threadId },
       };
-      await resume(state, "trial", "the Test run started");
+      await resume(
+        state,
+        "trial",
+        "the Test run started with this version of the folder, which the user has not tried yet: ask the user in plain words to try the plugin in it before authoring_submit",
+      );
       return commitThen(next);
     }
     await tell(

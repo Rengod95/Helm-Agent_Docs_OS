@@ -113,12 +113,15 @@ export function composerDisabledReason(input: {
   readonly phase: Link["phase"];
   readonly observing: boolean;
   readonly setupNeeded: boolean;
+  /** 이 대화는 시험 대화이고 그 시험이 끝났다(멈췄다) */
+  readonly trialEnded?: boolean;
 }): string | null {
   if (!input.engineRunning) return t("desktop.composer.disabled.engineOff");
   if (input.phase !== "live" && input.phase !== "syncing")
     return t("desktop.composer.disabled.syncing");
   if (input.observing) return t("desktop.composer.disabled.observing");
   if (input.setupNeeded) return setupRequiredText();
+  if (input.trialEnded === true) return t("desktop.composer.disabled.trialEnded");
   return null;
 }
 

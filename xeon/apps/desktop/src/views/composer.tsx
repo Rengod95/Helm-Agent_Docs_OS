@@ -73,6 +73,8 @@ import {
   withdrawStateOf,
   type WithdrawState,
 } from "./composer-model.ts";
+import { useTrialEnded } from "./trial-ended.ts";
+import { useShellActions } from "../state/shell/index.ts";
 import { retryLineOf } from "./retry-status-model.ts";
 import {
   type ModeChangeError,
@@ -1187,12 +1189,15 @@ export function Composer(): ReactNode {
   const phase = useLinkPhase();
   const setupNeeded = useSetupNeeded();
   const observing = useObserving(threadId);
+  const trialEnded = useTrialEnded(threadId ?? "");
+  const shell = useShellActions();
   if (threadId === null) return null;
   const disabledReason = composerDisabledReason({
     engineRunning: engine?.kind === "running",
     phase,
     observing,
     setupNeeded,
+    trialEnded,
   });
   // thread가 바뀌면 입력 중이던 글자를 버린다(key). 관찰 띠는 입력창 자리에 같은 모서리로 놓인다(p02-opus ObserveBand)
   return (
@@ -1213,6 +1218,26 @@ export function Composer(): ReactNode {
             }}
           >
             {t("desktop.composer.retryWrite.button")}
+          </Button>
+        </div>
+      ) : null}
+      {trialEnded ? (
+        <div
+          role="status"
+          className="flex min-h-14 items-center gap-3 rounded-2xl bg-neutral-well px-4 py-3"
+        >
+          <p className="m-0 min-w-0 flex-1 text-ui-strong text-text-primary">
+            {t("desktop.composer.trialEnded.notice")}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              shell.switchArea("workbench");
+              shell.updatePlace({ screen: "tests", scroll: 0 });
+            }}
+          >
+            {t("desktop.composer.trialEnded.open")}
           </Button>
         </div>
       ) : null}
