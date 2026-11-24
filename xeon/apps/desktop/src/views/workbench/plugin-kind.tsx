@@ -33,6 +33,11 @@ export function kindWord(kind: Kind): string {
   return t(KIND_WORD[kind]);
 }
 
+/** 종류의 선명한 면 색(구성 탭 캔버스의 선과 문 표시, plugHead). 옅게 하지 않은 토큰 그대로다 */
+export function kindSolid(kind: Kind): string {
+  return `var(--fr-vivid-${HUE[kind]}-solid)`;
+}
+
 /** 채운 면과 그 위 글 색 */
 export function kindFaceStyle(kind: Kind): CSSProperties {
   const hue = HUE[kind];

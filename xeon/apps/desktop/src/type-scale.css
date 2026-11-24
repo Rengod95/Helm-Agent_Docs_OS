@@ -199,6 +199,28 @@ html:root {
   --text-body--line-height: 22.4px;
 }
 
+/* 한 단계 위 글자(plugHead) [결정: 2026-11-24 사용자, AGE-76 "플러그인 상세페이지 내부에 전반적인 타이포 사이즈들이 너무 작아서 살짝만 키워줘"].
+   `[data-type-step="up"]`(플러그인 상세) 안에서만 본문과 보조 글의 단계를 이웃 단계로 한 칸씩 올린다: 본문 13/18 → 14/20(ui-lg 값),
+   굵은 이름표 13 → 14, 보조 글 12 → 13(ui 값), mono 12 → 13, 목적 글 14/20 → 15/22, 설명 문단 13/19 → 14/21, 구역 제목 15/21 → 16/22(md-h2 값).
+   화면 파일마다 className을 바꾸지 않고 이 덮개 하나로 상세 안의 모든 부품(버전 탭 포함)이 따라온다. segmented control의 글(ui-dense)과
+   이름(제목 1)은 그대로다 */
+html:root [data-type-step="up"] {
+  --text-ui: 14px;
+  --text-ui--line-height: 20px;
+  --text-ui-strong: 14px;
+  --text-ui-strong--line-height: 20px;
+  --text-ui-sm: 13px;
+  --text-ui-sm--line-height: 18px;
+  --text-mono: 13px;
+  --text-mono--line-height: 18px;
+  --text-ui-lg: 15px;
+  --text-ui-lg--line-height: 22px;
+  --text-ui-dense-relaxed: 14px;
+  --text-ui-dense-relaxed--line-height: 21px;
+  --text-title-2: 16px;
+  --text-title-2--line-height: 22px;
+}
+
 @layer base {
   /* 제목 요소는 잉크. data-slot이 있는 caustic 부품 제목은 뺀다(FormLayout의 톤 제목 danger·accent 등이 그대로 남게). */
   html:root :is(h1, h2, h3, h4, h5, h6):not([data-slot]) {

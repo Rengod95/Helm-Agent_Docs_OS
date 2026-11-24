@@ -1,5 +1,6 @@
 // 플러그인 목록(`extensions`, P-13): 같은 `ext.list` 데이터의 목록 모양. 세 묶음(내가 넣은 것, 기본 제공, 앱 핵심), 찾기, 줄마다 쓰는 곳과 "프로필에 넣기".
 // 전역 켜기 스위치는 없다(켜고 끔은 프로필에서만, AGE-74). 줄을 누르면 목록 대신 P-17 상세(화면과 설정, 버전 탭 포함)를 그린다.
+// 머리는 목록과 상세가 같은 시스템 머리줄이다(plugHead, AGE-76). 상세의 행동 단추는 머리 오른쪽에 있다.
 import { PuzzleArt } from "../illustrations/index.tsx";
 import { t } from "@fresnel/client/i18n";
 import { pluginGroups, selectedEntry } from "@fresnel/client/workbench";
@@ -12,7 +13,7 @@ import { firstNoticeOf, ListStatusBand, noticeTotalOf, SearchField } from "./cra
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { BuilderEntry } from "./builder-entry.tsx";
 import { ExtDetail } from "./ext-detail.tsx";
-import { DETAIL_RAIL_INSET } from "./detail-rail.ts";
+import { DetailActions, DetailBack } from "./detail-actions.tsx";
 import { InstallDialog } from "./install-dialog.tsx";
 import { PluginList } from "./plugin-list.tsx";
 import { DEFAULT_LIST_VIEW, listViewOf, type ListView } from "./list-view.ts";
@@ -24,6 +25,7 @@ import { MergeDialog } from "../craft/members/split-dialogs.tsx";
 import { useSplitActions } from "../craft/members/split-source.ts";
 import { LayoutGrid, Rows3, SquareStack } from "@caustic/react/icons";
 import { useSafeMode } from "../safe-mode-context.ts";
+import { SEGMENTED_ON_APP } from "../segmented.ts";
 import {
   HEADER_CONTROL_SIZE,
   HEADER_PRIMARY_VARIANT,
@@ -58,7 +60,7 @@ export function ExtensionsScreen(): ReactNode {
   // 자세히 보기가 열렸을 때만 그 확장이 상세가 된다
   const entry = selectedEntry(state);
   const detailEntry = state.detail === null ? null : entry;
-  const headerHidden = ready && detailEntry !== null;
+  const detailOpen = ready && detailEntry !== null;
   // 목록 위 경고 줄: 알림이 있는 확장과 훅 알림. 안전 모드면 훅은 세지 않는다
   const safe = useSafeMode()?.active === true;
   const noticeTotal = noticeTotalOf(state.entries, state.hookNotices, safe);
@@ -69,40 +71,57 @@ export function ExtensionsScreen(): ReactNode {
   );
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      {/* 상세가 그려질 때만 머리를 감춘다. 상세의 머리(ext-detail.tsx)가 펼치기 단추를 가진다 */}
+      {/* 시스템 머리줄(plugHead): 목록과 상세가 같은 머리를 쓴다. 상세면 왼쪽에 "목록으로" 꺾쇠 단추, 오른쪽에 상세 행동(프로필에 넣기, 테스트 챗,
+          내보내기, "…")이고, 목록이면 오른쪽에 합치기와 플러그인 가져오기다. 플레이그라운드 고정 탭과 제목은 다른 화면 머리와 같은 자리다 */}
       <ScreenHeader
-        hidden={headerHidden}
         title={t("desktop.workbench.list.title")}
+        lead={
+          detailOpen ? (
+            <DetailBack
+              onBack={() => {
+                actions.closeDetail();
+              }}
+            />
+          ) : undefined
+        }
         action={
-          <span className="inline-flex items-center gap-2">
-            {/* 합치기(AGE-33): 원본 폴더가 있는 멤버 없는 플러그인 둘 이상을 새 플러그인 하나로 묶어 리뷰에 낸다 */}
-            <Button
-              size={HEADER_CONTROL_SIZE}
-              variant="ghost"
-              onClick={() => {
-                setMerging(true);
+          detailOpen ? (
+            <DetailActions
+              entry={detailEntry}
+              profiles={profiles}
+              onRemove={() => {
+                setRemoving(detailEntry.name);
               }}
-            >
-              <SquareStack aria-hidden />
-              {t("desktop.craft.split.merge.open")}
-            </Button>
-            <Button
-              size={HEADER_CONTROL_SIZE}
-              variant={HEADER_PRIMARY_VARIANT}
-              onClick={() => {
-                setInstalling(true);
-              }}
-            >
-              {t("desktop.install.open")}
-            </Button>
-          </span>
+            />
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              {/* 합치기(AGE-33): 원본 폴더가 있는 멤버 없는 플러그인 둘 이상을 새 플러그인 하나로 묶어 리뷰에 낸다 */}
+              <Button
+                size={HEADER_CONTROL_SIZE}
+                variant="ghost"
+                onClick={() => {
+                  setMerging(true);
+                }}
+              >
+                <SquareStack aria-hidden />
+                {t("desktop.craft.split.merge.open")}
+              </Button>
+              <Button
+                size={HEADER_CONTROL_SIZE}
+                variant={HEADER_PRIMARY_VARIANT}
+                onClick={() => {
+                  setInstalling(true);
+                }}
+              >
+                {t("desktop.install.open")}
+              </Button>
+            </span>
+          )
         }
       />
-      {/* 머리가 가려진 상세에서는 위 간격을 이 칸이 맡고, 머리가 보이면 공용 간격이 준다.
-          목록과 상세 모두 최대 폭 없이 좌우 여백 32(`px-8`, 막대가 있으면 셸 규칙이 오른쪽에 막대 자리를 더한다)으로 넓게 쓴다(plugSize) */}
-      <div
-        className={`flex min-h-0 w-full flex-1 flex-col gap-3 px-8 pb-4${headerHidden ? " pt-6" : ""}`}
-      >
+      {/* 머리 뒤 위 간격과 막대 자리는 셸 규칙이 준다. 목록과 상세 모두 최대 폭 없이 좌우 여백 32(`px-8`)로 넓게 쓴다(plugSize).
+          상세는 아래 여백을 자기 칸이 갖는다(구성 탭의 캔버스가 아래 끝까지 찬다) */}
+      <div className={`flex min-h-0 w-full flex-1 flex-col gap-3 px-8${detailOpen ? "" : " pb-4"}`}>
         <MergeDialog
           open={merging}
           entries={state.entries}
@@ -136,7 +155,7 @@ export function ExtensionsScreen(): ReactNode {
                 setView(next);
                 detachVoid(commands.savePluginListView(next).then(() => undefined));
               }}
-              className="ms-auto"
+              className={`ms-auto ${SEGMENTED_ON_APP}`}
             >
               <SegmentedControlItem value="table" icon={<Rows3 />}>
                 {t("desktop.workbench.view.table")}
@@ -172,33 +191,24 @@ export function ExtensionsScreen(): ReactNode {
           </Alert>
         )}
         {ready && detailEntry !== null && (
-          // 머리가 감춰진 상세는 셸의 머리 뒤 여백을 받지 못하므로 이 칸이 막대 자리를 비운다(`detail-rail.ts`)
-          <div className={`min-h-0 flex-1 overflow-auto ${DETAIL_RAIL_INSET}`}>
-            <ExtDetail
-              key={detailEntry.name}
-              entry={detailEntry}
-              card={cards.cardOf(detailEntry.name)}
-              readiness={cards.readinessOf(detailEntry.name)}
-              onRecheck={cards.recheck}
-              tab={state.detailTab}
-              profiles={profiles}
-              onTab={(tab) => {
-                actions.selectDetailTab(tab);
-              }}
-              onBack={() => {
-                actions.closeDetail();
-              }}
-              onRetry={() => {
-                detachVoid(controller.retry(detailEntry.name));
-              }}
-              onStop={() => {
-                detachVoid(controller.stop(detailEntry.name));
-              }}
-              onRemove={() => {
-                setRemoving(detailEntry.name);
-              }}
-            />
-          </div>
+          <ExtDetail
+            key={detailEntry.name}
+            entry={detailEntry}
+            card={cards.cardOf(detailEntry.name)}
+            readiness={cards.readinessOf(detailEntry.name)}
+            onRecheck={cards.recheck}
+            tab={state.detailTab}
+            profiles={profiles}
+            onTab={(tab) => {
+              actions.selectDetailTab(tab);
+            }}
+            onRetry={() => {
+              detachVoid(controller.retry(detailEntry.name));
+            }}
+            onStop={() => {
+              detachVoid(controller.stop(detailEntry.name));
+            }}
+          />
         )}
         {ready && detailEntry === null && empty && (
           <EmptyState
