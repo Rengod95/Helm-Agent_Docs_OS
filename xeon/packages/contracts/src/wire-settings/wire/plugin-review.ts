@@ -13,7 +13,7 @@ import { closed, m4, request, type Io, type M4Spec, type Req } from "./schema-ki
 
 // M5c-1 검토 wire(docs/xeon/review/m5/profile-project-loader.md §3.1, §3.4, §3.6, §4.7). 이 파일은 레지스트리(methods.ts)에 등록하지 않는다.
 // 이름 공간은 `pluginReview.*`다. 기존 `review.get`(dialog-area.ts)과 겹치지 않으려고 접두를 따로 뒀다.
-// 오류 이름은 3650~3669 구간이다(pluginReview.notFound, notPending, pathInvalid, handEditNotAllowed, purposeRequired, profileInvalid, descriptionRequired).
+// 오류 이름은 3650~3669 구간이다(pluginReview.notFound, notPending, pathInvalid, handEditNotAllowed, purposeRequired, profileInvalid, descriptionRequired, rollbackUnavailable).
 
 const Name = Type.String({ minLength: 1, maxLength: 96 });
 const Id = Type.String({ minLength: 1, maxLength: 128 });
@@ -139,6 +139,28 @@ export const ReviewItemRemovalSchema: TUnsafe<ReviewItemRemoval> = Type.Unsafe<R
   ReviewItemRemovalShape satisfies SchemaProof<ReviewItemRemoval, typeof ReviewItemRemovalShape>,
 );
 
+/**
+ * 되돌리기 항목의 미리 보기(`ReviewItem.rollback`). `fromVersion`은 지금 쓰는 승인 버전의 매니페스트 버전(없으면 null),
+ * `toVersion`은 되돌릴 버전이다. `savedState`가 참이면 이 플러그인이 저장한 데이터가 있어, 옛 버전이 새 버전이 쓴 형식을 읽지 못할 수 있다(화면이 경고한다)
+ */
+export interface ReviewItemRollback {
+  readonly fromVersion: string | null;
+  readonly toVersion: string;
+  readonly savedState: boolean;
+}
+const ReviewItemRollbackShape = closed({
+  fromVersion: Type.Union([Type.String({ minLength: 1, maxLength: 64 }), Type.Null()]),
+  toVersion: Type.String({ minLength: 1, maxLength: 64 }),
+  savedState: Type.Boolean(),
+});
+export const ReviewItemRollbackSchema: TUnsafe<ReviewItemRollback> =
+  Type.Unsafe<ReviewItemRollback>(
+    ReviewItemRollbackShape satisfies SchemaProof<
+      ReviewItemRollback,
+      typeof ReviewItemRollbackShape
+    >,
+  );
+
 /** 검토 항목 파일 하나의 요약. 해시는 내용 해시(`sha256:<hex>`)가 아니라 파일 내용의 sha256 16진이다 */
 const ReviewFileShape = closed({ path: Path, bytes: Count, sha256: Sha256Hex });
 
@@ -206,6 +228,11 @@ export interface ReviewItem {
   readonly reason: string | null;
   /** `kind`가 `remove`일 때만 있다. 그 밖에는 null */
   readonly removal: ReviewItemRemoval | null;
+  /**
+   * 되돌리기 요청이면 있다(`pluginReview.requestRollback`). 항목은 `kind: "update"`이고 `candidateHash`는 되돌릴 지난 승인 버전이다.
+   * 승인하면 그 버전이 쓰이고 기록에 `rollback` 한 줄이 남는다 [제안] 이름 `rollback` [결정: 2026-11-24 사용자, AGE-76]
+   */
+  readonly rollback?: ReviewItemRollback;
 }
 const ReviewItemShape = closed({
   itemId: Id,
@@ -227,6 +254,7 @@ const ReviewItemShape = closed({
   decidedAt: Type.Union([Iso, Type.Null()]),
   reason: Type.Union([Type.String({ minLength: 1, maxLength: 2000 }), Type.Null()]),
   removal: Type.Union([ReviewItemRemovalSchema, Type.Null()]),
+  rollback: Type.Optional(ReviewItemRollbackShape),
 });
 export const ReviewItemSchema: TUnsafe<ReviewItem> = Type.Unsafe<ReviewItem>(
   ReviewItemShape satisfies SchemaProof<ReviewItem, typeof ReviewItemShape>,
@@ -436,6 +464,126 @@ export const PluginReviewDecideResultSchema: TUnsafe<PluginReviewDecideResult> =
     >,
   );
 
+export const HISTORY_EVENTS = ["create", "edit", "import", "bundled", "rollback"] as const;
+/**
+ * 이력 한 줄이 생긴 까닭. `create` 처음 승인(새 플러그인), `edit` 고친 판 승인, `import` 다른 하네스에서 가져옴(마이그레이션),
+ * `bundled` 앱에 든 판(내장 업데이트), `rollback` 지난 버전으로 되돌림 [제안]
+ */
+export type HistoryEvent = (typeof HISTORY_EVENTS)[number];
+const HistoryEventShape = Type.Union(HISTORY_EVENTS.map((name) => Type.Literal(name)));
+
+export const HISTORY_ACTORS = ["user", "migration", "release"] as const;
+/** 그 판을 승인한 쪽. `user` 사용자가 리뷰에서, `migration` 가져오기, `release` 앱 업데이트 */
+export type HistoryActor = (typeof HISTORY_ACTORS)[number];
+const HistoryActorShape = Type.Union(HISTORY_ACTORS.map((name) => Type.Literal(name)));
+
+/**
+ * 플러그인 이력 한 줄(`pluginReview.history`). 결정 기록(`review-log.jsonl`)의 승인·되돌리기·번들·옮김 줄 하나다. 지어낸 줄은 없다.
+ * `itemId`가 있으면 `pluginReview.get`과 `pluginReview.file`로 그 지점의 변경 내용(하는 일의 차이, 파일, 줄 차이)을 읽는다.
+ * 리뷰 없이 바뀐 옛 되돌리기 줄과 번들 줄은 `itemId`가 null이다. `kept`가 참이면 그 판의 내용이 보관소에 남아 있다(되돌릴 수 있는 조건의 하나)
+ */
+export interface PluginHistoryEntry {
+  readonly at: string;
+  readonly event: HistoryEvent;
+  /** 그 판의 매니페스트 버전. 내용이 남지 않았고 항목에도 없으면 null */
+  readonly version: string | null;
+  readonly contentHash: string;
+  /** 그 판 직전에 쓰던 판. 처음이면 null */
+  readonly baseHash: string | null;
+  readonly itemId: string | null;
+  readonly actor: HistoryActor;
+  /** 그 판의 설명(카드 `description`). 없으면 null */
+  readonly summary: string | null;
+  /** 지금 쓰는 판이다. 같은 판이 여러 줄이면 가장 최근 줄만 참이다 */
+  readonly current: boolean;
+  readonly kept: boolean;
+}
+const PluginHistoryEntryShape = closed({
+  at: Iso,
+  event: HistoryEventShape,
+  version: Type.Union([Type.String({ minLength: 1, maxLength: 64 }), Type.Null()]),
+  contentHash: ContentHash,
+  baseHash: Type.Union([ContentHash, Type.Null()]),
+  itemId: Type.Union([Id, Type.Null()]),
+  actor: HistoryActorShape,
+  summary: Type.Union([Type.String({ maxLength: 2000 }), Type.Null()]),
+  current: Type.Boolean(),
+  kept: Type.Boolean(),
+});
+export const PluginHistoryEntrySchema: TUnsafe<PluginHistoryEntry> =
+  Type.Unsafe<PluginHistoryEntry>(
+    PluginHistoryEntryShape satisfies SchemaProof<
+      PluginHistoryEntry,
+      typeof PluginHistoryEntryShape
+    >,
+  );
+
+export const ROLLBACK_BLOCKS = ["builtin", "bundled", "project", "managed"] as const;
+/**
+ * 이 플러그인을 되돌릴 수 없는 까닭. `builtin` 앱 핵심이라 승인 버전이 없다, `bundled` 앱에 든 판은 앱 업데이트를 따른다,
+ * `project` 프로젝트 폴더가 원본이다, `managed` 관리자가 정한다 [제안]
+ */
+export type RollbackBlock = (typeof ROLLBACK_BLOCKS)[number];
+const RollbackBlockShape = Type.Union(ROLLBACK_BLOCKS.map((name) => Type.Literal(name)));
+
+export interface PluginHistoryParams {
+  readonly name: string;
+}
+const PluginHistoryParamsShape = request({ name: Name });
+export const PluginHistoryParamsSchema: TUnsafe<Req<PluginHistoryParams>> = Type.Unsafe<
+  Req<PluginHistoryParams>
+>(
+  PluginHistoryParamsShape satisfies SchemaProof<
+    Req<PluginHistoryParams>,
+    typeof PluginHistoryParamsShape
+  >,
+);
+/** 최신 줄이 앞이다. `blocked`가 null이 아니면 이 플러그인은 어느 줄로도 되돌릴 수 없다 */
+export interface PluginHistoryResult {
+  readonly entries: readonly PluginHistoryEntry[];
+  readonly blocked: RollbackBlock | null;
+}
+const PluginHistoryResultShape = closed({
+  entries: Type.Array(PluginHistoryEntryShape, { maxItems: 500 }),
+  blocked: Type.Union([RollbackBlockShape, Type.Null()]),
+});
+export const PluginHistoryResultSchema: TUnsafe<PluginHistoryResult> =
+  Type.Unsafe<PluginHistoryResult>(
+    PluginHistoryResultShape satisfies SchemaProof<
+      PluginHistoryResult,
+      typeof PluginHistoryResultShape
+    >,
+  );
+
+/**
+ * 지난 승인 버전으로 되돌리는 리뷰 항목을 연다(바로 바꾸지 않는다). 그 판이 보관소에 있고 지금 판이 아니어야 한다.
+ * 같은 판의 대기 중인 되돌리기 항목이 있으면 그 id를 돌려준다. 거절은 `pluginReview.rollbackUnavailable`(3658)
+ */
+export interface PluginReviewRequestRollbackParams {
+  readonly name: string;
+  readonly contentHash: string;
+}
+const PluginReviewRequestRollbackParamsShape = request({ name: Name, contentHash: ContentHash });
+export const PluginReviewRequestRollbackParamsSchema: TUnsafe<
+  Req<PluginReviewRequestRollbackParams>
+> = Type.Unsafe<Req<PluginReviewRequestRollbackParams>>(
+  PluginReviewRequestRollbackParamsShape satisfies SchemaProof<
+    Req<PluginReviewRequestRollbackParams>,
+    typeof PluginReviewRequestRollbackParamsShape
+  >,
+);
+export interface PluginReviewRequestRollbackResult {
+  readonly itemId: string;
+}
+const PluginReviewRequestRollbackResultShape = closed({ itemId: Id });
+export const PluginReviewRequestRollbackResultSchema: TUnsafe<PluginReviewRequestRollbackResult> =
+  Type.Unsafe<PluginReviewRequestRollbackResult>(
+    PluginReviewRequestRollbackResultShape satisfies SchemaProof<
+      PluginReviewRequestRollbackResult,
+      typeof PluginReviewRequestRollbackResultShape
+    >,
+  );
+
 /** 알림 `pluginReview.changed`: 항목의 상태가 바뀌었다. 항목을 다시 읽는다 */
 export interface PluginReviewChangedParams {
   readonly itemId: string;
@@ -460,6 +608,11 @@ export interface PluginReviewWireSchemas {
     U<PluginReviewSubmitDraftResult>
   >;
   "pluginReview.decide": Io<U<Req<PluginReviewDecideParams>>, U<PluginReviewDecideResult>>;
+  "pluginReview.history": Io<U<Req<PluginHistoryParams>>, U<PluginHistoryResult>>;
+  "pluginReview.requestRollback": Io<
+    U<Req<PluginReviewRequestRollbackParams>>,
+    U<PluginReviewRequestRollbackResult>
+  >;
 }
 type Table = {
   readonly [M in keyof PluginReviewWireSchemas]: M4Spec<
@@ -476,4 +629,9 @@ export const PLUGIN_REVIEW_WIRE_METHODS: Table = {
     PluginReviewSubmitDraftResultSchema,
   ),
   "pluginReview.decide": m4(PluginReviewDecideParamsSchema, PluginReviewDecideResultSchema),
+  "pluginReview.history": m4(PluginHistoryParamsSchema, PluginHistoryResultSchema),
+  "pluginReview.requestRollback": m4(
+    PluginReviewRequestRollbackParamsSchema,
+    PluginReviewRequestRollbackResultSchema,
+  ),
 };

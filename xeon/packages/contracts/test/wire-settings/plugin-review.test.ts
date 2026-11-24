@@ -6,6 +6,8 @@ import {
   PluginReviewChangedParamsSchema,
   PluginReviewDecideParamsSchema,
   PluginReviewListParamsSchema,
+  PluginHistoryResultSchema,
+  PluginReviewRequestRollbackParamsSchema,
   PluginReviewSubmitDraftParamsSchema,
   ProfilePlanSchema,
   ReviewDecisionSchema,
@@ -252,13 +254,15 @@ describe("review decision (M5c-1, §3.6)", () => {
 });
 
 describe("pluginReview methods and notification (M5c-1)", () => {
-  test("the registry table names exactly the five pluginReview methods", () => {
+  test("the registry table names exactly the seven pluginReview methods", () => {
     expect(Object.keys(PLUGIN_REVIEW_WIRE_METHODS).toSorted()).toEqual(
       [
         "pluginReview.decide",
         "pluginReview.file",
         "pluginReview.get",
+        "pluginReview.history",
         "pluginReview.list",
+        "pluginReview.requestRollback",
         "pluginReview.submitDraft",
       ].toSorted(),
     );
@@ -319,5 +323,52 @@ describe("pluginReview methods and notification (M5c-1)", () => {
     expect(parse(PluginReviewChangedParamsSchema, { itemId: "rvw_1", state: "done" }).ok).toBe(
       false,
     );
+  });
+});
+
+describe("plugin history and rollback review (AGE-76)", () => {
+  const ENTRY = {
+    at: AT,
+    event: "rollback",
+    version: "0.1.0",
+    contentHash: HASH,
+    baseHash: null,
+    itemId: "rvw_2",
+    actor: "user",
+    summary: "Keeps notes",
+    current: true,
+    kept: true,
+  };
+
+  test("a history result keeps every entry field and the block reason", () => {
+    roundTrip(PluginHistoryResultSchema, { entries: [ENTRY], blocked: null });
+    roundTrip(PluginHistoryResultSchema, { entries: [], blocked: "builtin" });
+  });
+
+  test("a history entry refuses an event or block outside the lists", () => {
+    expect(
+      parse(PluginHistoryResultSchema, { entries: [{ ...ENTRY, event: "install" }], blocked: null })
+        .ok,
+    ).toBe(false);
+    expect(parse(PluginHistoryResultSchema, { entries: [], blocked: "locked" }).ok).toBe(false);
+  });
+
+  test("a rollback request names a content hash, not a version text", () => {
+    const params = PluginReviewRequestRollbackParamsSchema;
+    roundTrip(params, { name: "acme-notes", contentHash: HASH });
+    expect(parse(params, { name: "acme-notes", contentHash: "0.1.0" }).ok).toBe(false);
+  });
+
+  test("a review item may carry the rollback preview", () => {
+    const item = {
+      ...NEW_ITEM,
+      kind: "update",
+      baseHash: HASH,
+      rollback: { fromVersion: "0.2.0", toVersion: "0.1.0", savedState: true },
+    };
+    roundTrip(ReviewItemSchema, item);
+    expect(
+      parse(ReviewItemSchema, { ...item, rollback: { toVersion: "0.1.0", savedState: true } }).ok,
+    ).toBe(false);
   });
 });
