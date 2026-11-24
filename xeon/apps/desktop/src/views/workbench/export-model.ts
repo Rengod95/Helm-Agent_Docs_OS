@@ -1,7 +1,10 @@
 // 확장 내보내기(`ext.package`)의 순수 판단: 묶음을 어디에 만들까, 실패를 어떤 줄로 알릴까.
-// 설치본 폴더 안에 쓰지 않는다: 묶음은 사용자 설정 폴더의 `exports/<이름>-<버전>-<시각>`에 만든다(없거나 비어 있어야 하므로 시각을 붙인다).
+// 설치본 폴더 안에 쓰지 않는다: 묶음은 사용자 설정(또는 데이터) 폴더의 `exports/<이름>-<버전>-<시각>`에 만든다(없거나 비어 있어야 하므로 시각을 붙인다).
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
+
+/** 검토본 저장소 폴더 이름(`apps/host`의 `plugin-store`) */
+const STORE_FOLDER = "plugin-store";
 
 /** 경로 구분자. 설치 위치가 Windows 경로면 `\`이고 아니면 `/`다 */
 function separatorOf(location: string): "/" | "\\" {
@@ -26,7 +29,12 @@ export function exportOutOf(
   const parts = entry.location.split(separator).filter((part) => part !== "");
   if (parts.length < 3) return null;
   const root = entry.location.startsWith(separator) ? separator : "";
-  const configDir = `${root}${parts.slice(0, -2).join(separator)}`;
+  // 설치본은 검토본 저장소(`<데이터 폴더>/plugin-store/reviewed/<이름>/<해시>/tree`)에 있다. 저장소 안에 쓰면 저장소를 어지럽히므로
+  // 저장소 폴더의 바깥(데이터 폴더)에 만든다. 저장소가 아니면 옛 위치(`<설정 폴더>/extensions/<이름>`)의 두 단계 위다
+  const storeAt = parts.indexOf(STORE_FOLDER);
+  const base = storeAt > 0 ? parts.slice(0, storeAt) : parts.slice(0, -2);
+  if (base.length === 0) return null;
+  const configDir = `${root}${base.join(separator)}`;
   return [configDir, "exports", `${entry.name}-${entry.version}-${stampOf(at)}`].join(separator);
 }
 
