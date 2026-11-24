@@ -179,7 +179,9 @@ export function createM4Ports(
       { ...deps, defaultPlugins: () => pluginSet.defaultView().plugins },
       sources,
     ),
-    extUi: createExtUiVersionPort(deps),
+    extUi: createExtUiVersionPort(deps, (threadId) =>
+      (pluginSet.testRunDraftsOf(threadId) ?? []).map((mark) => mark.plugin),
+    ),
     extMethod: createExtMethodPort(
       (request) =>
         host.methods.call({

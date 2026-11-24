@@ -875,3 +875,33 @@ test("a method call on a deferred plugin loads it first, then calls", async () =
   expect(outcome).toEqual({ kind: "ok", value: { items: [] } });
   expect(order).toEqual(["load helm", "call helm.list"]);
 });
+
+// X-04: 승인 전 드래프트의 화면은 목록에 올리지 않고, 그 드래프트를 시험 중인 대화에서만 보인다
+test("a draft screen is listed only for the thread that is testing that draft", () => {
+  const DRAFT_NAME = "dabc123-todo";
+  const draftInfo: LoadedExtensionInfo = {
+    ...loaded(DRAFT_NAME, "active", "user", "0.1.0"),
+    draft: { plugin: "todo", draftId: "drf_01HZZZZZZZZZZZZZZZZZZZZZZZ" },
+  };
+  const entries = [
+    entryOfUi(DRAFT_NAME, "tab", "ok", [], "Todo", "page"),
+    entryOfUi("helm", "tab", "ok", [], "Helm", "page"),
+  ];
+  const source = partial<ExtUiVersionSource>({
+    host: partial<ExtUiVersionSource["host"]>({ registrations: () => [] }),
+    loader: () =>
+      partial<ReturnType<ExtUiVersionSource["loader"]>>({
+        list: () => [draftInfo, loaded("helm", "active", "user", "0.2.0")],
+        uiEntries: () => entries,
+      }),
+  });
+  const testing = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
+  const port = createExtUiVersionPort({ extUi: source }, (threadId) =>
+    threadId === testing ? [DRAFT_NAME] : [],
+  );
+  const names = (params: { readonly threadId?: string }): string[] =>
+    port.uiList(params).items.map((item) => item.extension);
+  expect(names({})).toEqual(["helm"]);
+  expect(names({ threadId: "thr_01HYYYYYYYYYYYYYYYYYYYYYYY" })).toEqual(["helm"]);
+  expect(names({ threadId: testing })).toEqual([DRAFT_NAME, "helm"]);
+});

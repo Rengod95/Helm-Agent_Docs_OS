@@ -42,13 +42,22 @@ const CODE_LIMIT = 64;
 const HASH_PREFIX = "sha256:";
 const SHORT_HASH = 8;
 
-export function createExtUiVersionPort(deps: Pick<M4PortDeps, "extUi">): ExtUiVersionPort {
+export function createExtUiVersionPort(
+  deps: Pick<M4PortDeps, "extUi">,
+  /** 그 대화가 시험 중인 초안의 내부 이름들. 대화가 시험 실행이 아니면 빈 목록이다 */
+  testedDraftsOf: (threadId: ThreadId) => readonly string[] = () => [],
+): ExtUiVersionPort {
   const source = deps.extUi;
   return {
     versions: (name) => versionsOf(source, name),
     rollback: (params) => rollbackOf(source, params),
     // 화면 목록은 대화별 켜짐을 쓰지 않는다. ExtHost가 thread별 켜짐을 내주지 않아 전역 상태로 본다(HS-108 [미결])
-    uiList: () => uiListOf(source),
+    uiList: (params) =>
+      uiListOf(
+        source,
+        params.threadId === undefined ? undefined : threadOf(params.threadId),
+        testedDraftsOf,
+      ),
     uiPost: (params) => uiPostOf(source, params),
     uiRequestApproval: (params) => uiApprovalOf(source, params),
   };
@@ -335,13 +344,22 @@ function installedOf(
     .find((info) => info.name === name);
 }
 
-function uiListOf(source: ExtUiVersionSource | undefined): ExtUiListResult {
+function uiListOf(
+  source: ExtUiVersionSource | undefined,
+  threadId: ThreadId | undefined,
+  testedDraftsOf: (threadId: ThreadId) => readonly string[],
+): ExtUiListResult {
   const loader = source?.loader();
   if (source === undefined || loader === undefined) return { items: [] };
-  const off = offExtensions(source.host, loader.list());
+  const infos = loader.list();
+  const off = offExtensions(source.host, infos);
+  // 승인 전 드래프트는 켤 수 없으므로 머리줄 탭과 앱 목록에 올리지 않는다. 그 드래프트를 시험 중인 대화에서만 보인다(AGE-77 X-04)
+  const tested = new Set(threadId === undefined ? [] : testedDraftsOf(threadId));
+  const drafts = new Set(infos.filter((info) => info.draft !== undefined).map((info) => info.name));
   // 확장 이름, 항목 id 순이다. 상한은 정렬한 뒤에 자르므로 같은 입력이면 같은 목록이다
   const items = loader
     .uiEntries()
+    .filter((report) => !drafts.has(report.extension) || tested.has(report.extension))
     .toSorted((a, b) => compareText(a.extension, b.extension) || compareText(a.id, b.id))
     .slice(0, UI_LIST_LIMIT)
     .map((report) => entryOf(report, off.has(report.extension)));
