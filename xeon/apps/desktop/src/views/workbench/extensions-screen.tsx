@@ -99,9 +99,9 @@ export function ExtensionsScreen(): ReactNode {
         }
       />
       {/* 머리가 가려진 상세에서는 위 간격을 이 칸이 맡고, 머리가 보이면 공용 간격이 준다.
-          목록과 상세 모두 최대 폭 없이 화면 머리와 같은 좌우 여백(`px-3`, 막대가 있으면 셸 규칙이 오른쪽에 막대 자리를 더한다)으로 넓게 쓴다(plugSize) */}
+          목록과 상세 모두 최대 폭 없이 좌우 여백 32(`px-8`, 막대가 있으면 셸 규칙이 오른쪽에 막대 자리를 더한다)으로 넓게 쓴다(plugSize) */}
       <div
-        className={`flex min-h-0 w-full flex-1 flex-col gap-3 px-3 pb-4${headerHidden ? " pt-6" : ""}`}
+        className={`flex min-h-0 w-full flex-1 flex-col gap-3 px-8 pb-4${headerHidden ? " pt-6" : ""}`}
       >
         <MergeDialog
           open={merging}
