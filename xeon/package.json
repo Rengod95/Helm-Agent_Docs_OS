@@ -19,7 +19,7 @@
     "fmt-check": "turbo run fmt-check",
     "lint:fast": "oxlint --deny-warnings -c .oxlintrc.fast.json packages apps plugins scripts",
     "lint:root": "oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts",
-    "typecheck:root": "tsc -b scripts",
+    "typecheck:root": "tsc -b apps/desktop/tsconfig.caustic.json && tsc -b scripts",
     "fmt-check:root": "oxfmt --check -c .oxfmtrc.json scripts package.json tsconfig.json tsconfig.base.json turbo.json knip.json .oxlintrc.json .oxlintrc.fast.json .oxfmtrc.json .dependency-cruiser.cjs lefthook.yml",
     "fmt": "oxfmt -c .oxfmtrc.json .",
     "check-layers": "bun scripts/check-layers.ts",
