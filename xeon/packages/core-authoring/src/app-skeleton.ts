@@ -355,8 +355,18 @@ const APP_JS = `// 앱 화면 한 장. 목록을 읽어 그리고, 입력을 받
   const input = document.getElementById("title-input");
   const status = document.getElementById("status");
 
+  // 내부 코드(not_declared 같은 것)는 사람에게 보이지 않는다. 사람 말로 바꾼다
+  const REASONS = {
+    not_declared: "이 플러그인이 아직 준비되지 않았어요",
+    extension_off: "플러그인이 꺼져 있어요",
+    safe_mode: "안전 모드라 쓸 수 없어요",
+    denied: "허용되지 않았어요",
+    too_large: "내용이 너무 커요",
+    offline: "연결이 끊겼어요",
+  };
   function reasonOf(error) {
-    return (error && error.kind) || "failed";
+    const kind = (error && error.kind) || "failed";
+    return REASONS[kind] || "잠시 뒤 다시 해 주세요";
   }
 
   function render(items) {

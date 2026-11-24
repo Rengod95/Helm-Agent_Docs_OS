@@ -15,7 +15,10 @@ import {
   type VersionHistoryFs,
 } from "@fresnel/ext-host";
 import type { BundledPluginVersion } from "../../src/assembly/default-plugins.ts";
-import { createExtUiVersionPort } from "../../src/assembly/m4/ext-ui-version-port.ts";
+import {
+  createExtMethodPort,
+  createExtUiVersionPort,
+} from "../../src/assembly/m4/ext-ui-version-port.ts";
 import type {
   ExtUiVersionSource,
   ReviewedVersions,
@@ -843,4 +846,32 @@ describe("ext-ui-version port: reviewed copies", () => {
     expect(rig.reloads).toEqual([]);
     expect(rig.state.logs.map((entry) => entry.decision)).toEqual(["rollback"]);
   });
+});
+
+// X-01: 재시작 직후 앱 화면의 첫 메서드 호출은 미뤄 둔 확장을 올린 뒤에 처리된다
+test("a method call on a deferred plugin loads it first, then calls", async () => {
+  const order: string[] = [];
+  const source = partial<ExtUiVersionSource>({
+    loader: () =>
+      partial<ReturnType<ExtUiVersionSource["loader"]>>({
+        list: () => [DEFERRED],
+        ensureLoaded: (name: string) => {
+          order.push(`load ${name}`);
+          return Promise.resolve(loaded(name, "active", "user", "0.2.0"));
+        },
+      }),
+  });
+  const port = createExtMethodPort((request) => {
+    order.push(`call ${request.extension}.${request.verb}`);
+    return Promise.resolve({ kind: "ok", value: { items: [] } });
+  }, source);
+  const outcome = await port.call({
+    extension: "helm",
+    verb: "list",
+    params: {},
+    threadId: null,
+    signal: new AbortController().signal,
+  });
+  expect(outcome).toEqual({ kind: "ok", value: { items: [] } });
+  expect(order).toEqual(["load helm", "call helm.list"]);
 });

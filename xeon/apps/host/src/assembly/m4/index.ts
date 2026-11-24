@@ -21,7 +21,7 @@ import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtensionRecord, type ExtReadSources } from "./ext-read-port.ts";
 import { withEnabledSources } from "./enabled-source.ts";
-import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
+import { createExtMethodPort, createExtUiVersionPort } from "./ext-ui-version-port.ts";
 import { REQUIRED_BY_CORE } from "./profile-defaults.ts";
 import { createPluginSet, type PluginSetHandle } from "./plugin-set.ts";
 import { pluginFactOf } from "./plugin-fact.ts";
@@ -180,18 +180,18 @@ export function createM4Ports(
       sources,
     ),
     extUi: createExtUiVersionPort(deps),
-    extMethod: {
-      async call(request) {
-        return await host.methods.call({
+    extMethod: createExtMethodPort(
+      (request) =>
+        host.methods.call({
           extension: request.extension,
           verb: request.verb,
           params: request.params,
           threadId: request.threadId,
           signal: request.signal,
           caller: "wire",
-        });
-      },
-    },
+        }),
+      extUi,
+    ),
     profileTestRun,
     project: engine.projects,
     dialogArea: createDialogAreaPort(deps),

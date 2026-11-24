@@ -20,6 +20,7 @@ import type {
   UiEntryReport,
   UiIssue,
 } from "@fresnel/ext-host";
+import type { ExtMethodPort } from "../../handlers/m4/ext-method.ts";
 import type { ExtUiVersionFailure, ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { M4PortDeps } from "./deps.ts";
 import type { PluginStoreError, PluginVersionInfo } from "../plugins/store.ts";
@@ -50,6 +51,22 @@ export function createExtUiVersionPort(deps: Pick<M4PortDeps, "extUi">): ExtUiVe
     uiList: () => uiListOf(source),
     uiPost: (params) => uiPostOf(source, params),
     uiRequestApproval: (params) => uiApprovalOf(source, params),
+  };
+}
+
+/**
+ * 확장 메서드 `ext.<확장>.<동사>`의 포트. 재시작 직후 미뤄 둔 확장은 먼저 올린 뒤에 부른다.
+ * 올리기 전에는 메서드 표가 비어 화면의 첫 호출이 `not_found`로 거절된다(AGE-77 X-01)
+ */
+export function createExtMethodPort(
+  call: ExtMethodPort["call"],
+  source: ExtUiVersionSource | undefined,
+): ExtMethodPort {
+  return {
+    async call(request) {
+      if (source !== undefined) await loadDeferred(source, request.extension);
+      return await call(request);
+    },
   };
 }
 
@@ -103,7 +120,7 @@ function isDeferred(info: LoadedExtensionInfo): boolean {
  * 앱 화면이 확장에 말을 걸 때 미뤄 둔 확장을 먼저 싣는다(W-05). 재시작 직후에는 대화가 쓰기 전까지 싣지 않으므로
  * 화면이 먼저 열리면 확장이 없다. 싣지 못해도 여기서는 던지지 않고 뒤 호출이 거절한다
  */
-async function loadDeferred(source: ExtUiVersionSource, name: string): Promise<void> {
+export async function loadDeferred(source: ExtUiVersionSource, name: string): Promise<void> {
   const loader = source.loader();
   const info = loader?.list().find((candidate) => candidate.name === name);
   if (loader === undefined || info === undefined || !isDeferred(info)) return;
