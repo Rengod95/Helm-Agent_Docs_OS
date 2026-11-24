@@ -54,17 +54,17 @@ export function DependencyLines(props: { readonly lines: readonly DependencyLine
   const entries = useEntries();
   if (props.lines.length === 0) return null;
   return (
-    <ul className="m-0 grid list-none gap-1 p-0 ps-6 text-ui-sm">
+    <ul className="m-0 grid list-none gap-1 p-0 ps-6 text-ui">
       {props.lines.map((line) => (
         <li
           key={line.key}
-          className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5"
+          className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
           data-dependency-item={line.code}
         >
           <PartyLabel name={partyNameOf(line.from, entries)} />
           <ArrowRight
             aria-label={t("desktop.craft.deps.arrow")}
-            className="size-icon-sm shrink-0 text-text-tertiary"
+            className="size-icon-md shrink-0 text-text-tertiary"
           />
           <PartyLabel name={partyNameOf(line.target, entries)} />
           <span className="shrink-0 text-text-tertiary">{t(KIND_WORD[line.kind])}</span>

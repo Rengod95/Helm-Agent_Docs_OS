@@ -224,7 +224,7 @@ function doesWordsOf(row: MemberRow): readonly string[] {
 
 function Does(props: { readonly row: MemberRow }): ReactNode {
   return (
-    <span className="flex min-w-0 items-center gap-3 overflow-hidden text-ui-sm text-text-tertiary">
+    <span className="flex min-w-0 items-center gap-3 overflow-hidden text-ui text-text-tertiary">
       {doesWordsOf(props.row).map((word) => (
         <span key={word} className="shrink-0 whitespace-nowrap">
           {word}
@@ -272,7 +272,7 @@ function MemberName(props: { readonly row: MemberRow; readonly strong?: boolean 
         {row.name}
       </span>
       {row.hasTitle && (
-        <span className="shrink-0 font-mono text-mono-sm text-text-tertiary">{row.id}</span>
+        <span className="shrink-0 font-mono text-mono text-text-tertiary">{row.id}</span>
       )}
     </span>
   );
@@ -432,7 +432,7 @@ function Handle(props: {
   const held = lift !== null && lift.id === row.id && lift.by === "key";
   return (
     <IconButton
-      size="xs"
+      size="sm"
       variant="ghost"
       data-member-handle={row.id}
       label={t("desktop.craft.members.handle", { name: row.name })}
@@ -504,7 +504,7 @@ function AddForm(props: {
       }}
     >
       <div className="grid gap-1.5">
-        <span className="flex items-center gap-1 text-ui-sm text-text-secondary">
+        <span className="flex items-center gap-1 text-ui text-text-secondary">
           {t("desktop.craft.members.mode")}
           {!props.driveAllowed && <InfoTip text={t("desktop.craft.members.mode.driveLocked")} />}
         </span>
@@ -536,7 +536,7 @@ function AddForm(props: {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label htmlFor={idField} className="grid content-start gap-1.5">
-          <span className="text-ui-sm text-text-secondary">{t("desktop.craft.members.id")}</span>
+          <span className="text-ui text-text-secondary">{t("desktop.craft.members.id")}</span>
           <Input
             id={idField}
             size="sm"
@@ -553,13 +553,13 @@ function AddForm(props: {
             }}
           />
           {problem !== null && (
-            <span id={`${idField}-problem`} role="alert" className="text-ui-sm text-danger-text">
+            <span id={`${idField}-problem`} role="alert" className="text-ui text-danger-text">
               {t(problem)}
             </span>
           )}
         </label>
         <label htmlFor={titleField} className="grid content-start gap-1.5">
-          <span className="flex items-center gap-1 text-ui-sm text-text-secondary">
+          <span className="flex items-center gap-1 text-ui text-text-secondary">
             {t("desktop.craft.members.title")}
             <InfoTip text={t("desktop.craft.members.title.help")} />
           </span>
@@ -600,7 +600,7 @@ function RenameField(props: {
       }}
     >
       <Input
-        size="xs"
+        size="sm"
         autoFocus
         value={to}
         invalid={problem !== null}
@@ -621,15 +621,15 @@ function RenameField(props: {
         }}
       />
       {problem !== null && (
-        <span id={fieldId} role="alert" className="min-w-0 truncate text-ui-sm text-danger-text">
+        <span id={fieldId} role="alert" className="min-w-0 truncate text-ui text-danger-text">
           {t(problem)}
         </span>
       )}
       <span aria-hidden className="flex-1" />
-      <Button type="button" size="xs" variant="ghost" onClick={props.onCancel}>
+      <Button type="button" size="sm" variant="ghost" onClick={props.onCancel}>
         {t("desktop.craft.members.cancel")}
       </Button>
-      <Button type="submit" size="xs" variant="solid" disabled={!ready}>
+      <Button type="submit" size="sm" variant="solid" disabled={!ready}>
         {t("desktop.craft.members.rename.save")}
       </Button>
     </form>
@@ -661,7 +661,7 @@ function RetitleField(props: {
       }}
     >
       <Input
-        size="xs"
+        size="sm"
         autoFocus
         value={title}
         maxLength={64}
@@ -677,15 +677,15 @@ function RetitleField(props: {
           }
         }}
       />
-      <span className="flex min-w-0 items-center gap-1 text-ui-sm text-text-tertiary">
-        <span className="shrink-0 font-mono text-mono-sm">{props.row.id}</span>
+      <span className="flex min-w-0 items-center gap-1 text-ui text-text-tertiary">
+        <span className="shrink-0 font-mono text-mono">{props.row.id}</span>
         <InfoTip text={t("desktop.craft.members.title.help")} />
       </span>
       <span aria-hidden className="flex-1" />
-      <Button type="button" size="xs" variant="ghost" onClick={props.onCancel}>
+      <Button type="button" size="sm" variant="ghost" onClick={props.onCancel}>
         {t("desktop.craft.members.cancel")}
       </Button>
-      <Button type="submit" size="xs" variant="solid" disabled={!ready}>
+      <Button type="submit" size="sm" variant="solid" disabled={!ready}>
         {t("desktop.craft.members.rename.save")}
       </Button>
     </form>
@@ -815,14 +815,12 @@ function Header(props: {
   // 오른쪽 안 여백은 줄의 px-1.5와 같다: 더하기 단추와 줄 메뉴의 오른쪽 끝이 한 세로줄에 선다
   return (
     <div className="flex h-control-sm items-center gap-1 pr-1.5">
-      <h3 className="m-0 text-title-3 font-semibold text-text-primary">
-        {t("desktop.craft.members.heading")}
-      </h3>
+      <h3 className="m-0 text-title-2 text-text-primary">{t("desktop.craft.members.heading")}</h3>
       <InfoTip text={t("desktop.craft.members.order.help")} />
       <span aria-hidden className="flex-1" />
       {props.lockText !== null && (
-        <span className="inline-flex items-center gap-1 text-ui-sm text-text-tertiary">
-          <Lock aria-hidden className="size-icon-sm" />
+        <span className="inline-flex items-center gap-1 text-ui text-text-tertiary">
+          <Lock aria-hidden className="size-icon-md" />
           {t("desktop.craft.members.readOnly")}
           <InfoTip text={t(props.lockText)} />
         </span>
@@ -833,7 +831,7 @@ function Header(props: {
             <InfoTip text={t("desktop.craft.members.add.limit", { count: MEMBER_LIMIT })} />
           )}
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={editor.busy || editor.adding || props.full}
             onClick={() => {
@@ -946,7 +944,7 @@ function ListLayout(props: LayoutProps): ReactNode {
             >
               <span
                 aria-hidden="true"
-                className="w-5 shrink-0 text-end text-ui-sm tabular-nums text-text-tertiary"
+                className="w-5 shrink-0 text-end text-ui tabular-nums text-text-tertiary"
               >
                 {index + 1}
               </span>
@@ -1036,7 +1034,7 @@ function SplitDetail(props: {
   const { editor, editable } = layout;
   const blocked = row.blocks.length > 0;
   return (
-    <section aria-label={row.name} data-member-detail={row.id} className="grid content-start gap-6">
+    <section aria-label={row.name} data-member-detail={row.id} className="grid content-start gap-8">
       <div className="grid gap-1">
         <div className="flex min-w-0 items-center gap-2">
           <KindTiles row={row} />
@@ -1069,25 +1067,23 @@ function SplitDetail(props: {
             </h4>
           )}
         </div>
-        {row.hasTitle && (
-          <span className="font-mono text-mono-sm text-text-tertiary">{row.id}</span>
-        )}
+        {row.hasTitle && <span className="font-mono text-mono text-text-tertiary">{row.id}</span>}
       </div>
       <dl className="m-0 grid grid-cols-[6rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2">
-        <dt className="text-ui-sm text-text-tertiary">{t("desktop.craft.members.fact.does")}</dt>
+        <dt className="text-ui text-text-tertiary">{t("desktop.craft.members.fact.does")}</dt>
         <dd className="m-0 flex flex-wrap gap-x-3 gap-y-1 text-ui text-text-primary">
           {doesWordsOf(row).map((word) => (
             <span key={word}>{word}</span>
           ))}
         </dd>
-        <dt className="text-ui-sm text-text-tertiary">{t("desktop.craft.members.fact.order")}</dt>
+        <dt className="text-ui text-text-tertiary">{t("desktop.craft.members.fact.order")}</dt>
         <dd className="m-0 text-ui tabular-nums text-text-primary">
           {t("desktop.craft.members.fact.orderValue", {
             index: props.index + 1,
             count: props.count,
           })}
         </dd>
-        <dt className="text-ui-sm text-text-tertiary">{t("desktop.craft.members.fact.blocks")}</dt>
+        <dt className="text-ui text-text-tertiary">{t("desktop.craft.members.fact.blocks")}</dt>
         <dd className="m-0 flex flex-wrap gap-1 text-ui text-text-primary">
           {row.blocks.length === 0 ? (
             <span className="text-text-tertiary">{t("desktop.craft.members.fact.noBlocks")}</span>
@@ -1099,7 +1095,7 @@ function SplitDetail(props: {
       {editable && (
         <div className="flex flex-wrap items-center gap-1">
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={editor.busy}
             onClick={() => {
@@ -1110,7 +1106,7 @@ function SplitDetail(props: {
             {t("desktop.craft.members.rename")}
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={editor.busy}
             onClick={() => {
@@ -1121,7 +1117,7 @@ function SplitDetail(props: {
             {t("desktop.craft.members.retitle")}
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={editor.busy || props.index === 0}
             onClick={() => {
@@ -1132,7 +1128,7 @@ function SplitDetail(props: {
             {t("desktop.craft.members.moveUp")}
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={editor.busy || props.index === props.count - 1}
             onClick={() => {
@@ -1143,7 +1139,7 @@ function SplitDetail(props: {
             {t("desktop.craft.members.moveDown")}
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             disabled={editor.busy}
             onClick={() => {
@@ -1155,7 +1151,7 @@ function SplitDetail(props: {
           </Button>
           <span className="inline-flex items-center gap-1">
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               disabled={editor.busy || blocked}
               onClick={() => {
@@ -1350,7 +1346,7 @@ export function MembersView(props: {
   return (
     <div className="rv-root grid max-w-200 content-start gap-4" data-members="">
       <SendNotice state={state} editable={editable} editor={editor} onOpen={data.openReview} />
-      <section className="grid gap-3" aria-label={t("desktop.craft.members.heading")}>
+      <section className="grid gap-4" aria-label={t("desktop.craft.members.heading")}>
         <Header
           editable={editable}
           lockText={lockText}

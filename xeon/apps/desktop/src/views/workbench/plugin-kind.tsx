@@ -39,14 +39,14 @@ export function kindFaceStyle(kind: Kind): CSSProperties {
   return { background: `var(--fr-vivid-${hue}-solid)`, color: `var(--fr-vivid-${hue}-on)` };
 }
 
-/** 종류 꼬리표: 채운 면 위 종류 그림 + 종류 이름. 표의 종류 칸과 상세 개요가 쓴다 */
+/** 종류 꼬리표: 채운 면 위 종류 그림 + 종류 이름. 표의 종류 칸과 상세 개요가 쓴다. 높이 24, 글 12(500), 그림 14(plugSize) */
 export function KindTag(props: { readonly kind: Kind }): ReactElement {
   return (
     <span
-      className="inline-flex h-5 shrink-0 items-center gap-1 rounded-sm px-1.5 text-ui-xs font-medium"
+      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-sm px-2 text-ui-sm font-medium"
       style={kindFaceStyle(props.kind)}
     >
-      <KindGlyph kind={props.kind} size={12} />
+      <KindGlyph kind={props.kind} size={14} />
       <span>{kindWord(props.kind)}</span>
     </span>
   );

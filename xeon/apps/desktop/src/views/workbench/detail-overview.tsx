@@ -38,7 +38,7 @@ import {
 } from "./overview-model.ts";
 import { needsAttentionOf, type ToolNeedVM, type ToolReadinessVM } from "./tool-ready.ts";
 
-/** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이(`ext-detail.tsx`의 옛 자리와 같다) */
+/** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이(`ext-detail.tsx`의 옛 자리와 같다). 크기는 sm(줄 36 이상, 글 13, plugSize) */
 /** 긴 문단의 줄 길이(plugSize): 내용 칸은 넓게 쓰고, 문단만 720px(`max-w-180`, 설정 표 구역과 같은 눈금)에서 줄을 바꾼다 */
 const PROSE = "max-w-180";
 
@@ -54,7 +54,7 @@ export function DetailOverview(props: {
 }): ReactNode {
   const { entry, card } = props;
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       {entry.diagnostics.length === 0 ? null : (
         <section aria-label={t("desktop.workbench.detail.diagnostics")} className="grid gap-1">
           {entry.diagnostics.map((d) => (
@@ -98,7 +98,7 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
   const head = <ColumnHead title={t("desktop.workbench.detail.overview.does")} />;
   if (card === null) {
     return (
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         {head}
         <p className={MUTED}>{t("desktop.workbench.detail.overview.noCard")}</p>
       </div>
@@ -112,21 +112,21 @@ function DoesColumn(props: { readonly card: PluginCard | null }): ReactNode {
   const hooks = hookCountOf(card);
   const tools = toolCountOf(card);
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       {head}
       {lead === null ? (
         <p className={MUTED}>{t("desktop.workbench.detail.overview.noPurpose")}</p>
       ) : (
-        <p className={`m-0 text-ui-strong text-text-primary ${PROSE}`}>{lead.text}</p>
+        <p className={`m-0 text-ui-lg text-text-primary ${PROSE}`}>{lead.text}</p>
       )}
       {description === null ||
       lead?.fromDescription === true ||
       description === lead?.text ? null : (
-        <p className={`m-0 text-ui text-text-secondary ${PROSE}`}>{description}</p>
+        <p className={`m-0 text-ui-dense-relaxed text-text-secondary ${PROSE}`}>{description}</p>
       )}
       <ListDescription
         variant="ghost"
-        size="xs"
+        size="sm"
         aria-label={t("desktop.workbench.detail.overview.does")}
         className={LD}
       >
@@ -178,11 +178,11 @@ function TrustColumn(props: {
   const cost = card === null ? null : card.cost.always;
   const readiness = props.readiness;
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <ColumnHead title={t("desktop.workbench.detail.overview.trust")} />
       <ListDescription
         variant="ghost"
-        size="xs"
+        size="sm"
         aria-label={t("desktop.workbench.detail.overview.trust")}
         className={LD}
       >
@@ -262,7 +262,7 @@ function LocationValue(props: { readonly origin: string; readonly location: stri
   return (
     <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
       <span>{props.origin}</span>
-      <span className="min-w-0 font-mono text-mono-sm text-text-tertiary" title={props.location}>
+      <span className="min-w-0 font-mono text-mono text-text-tertiary" title={props.location}>
         {middleEllipsisOf(shown, LOCATION_LIMIT)}
       </span>
       {shell === null || path === null ? null : <RevealButton shell={shell} path={path} />}
@@ -277,7 +277,7 @@ function RevealButton(props: {
 }): ReactNode {
   return (
     <Button
-      size="xs"
+      size="sm"
       variant="ghost"
       className="flex-none"
       onClick={() => {
@@ -313,11 +313,11 @@ function ReadinessSection(props: {
   readonly onRecheck: () => void;
 }): ReactNode {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <ColumnHead
         title={t("desktop.workbench.detail.ready.title")}
         end={
-          <Button size="xs" variant="ghost" onClick={props.onRecheck}>
+          <Button size="sm" variant="ghost" onClick={props.onRecheck}>
             {t("desktop.workbench.detail.ready.recheck")}
           </Button>
         }
@@ -353,20 +353,20 @@ function NeedLine(props: { readonly need: ToolNeedVM }): ReactNode {
     <li
       data-need={need.state}
       data-warn={warn ? "" : undefined}
-      className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 rounded-lg px-3 py-2 text-ui-sm${warn ? " bg-warning-tint" : ""}`}
+      className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 rounded-lg px-3 py-2 text-ui${warn ? " bg-warning-tint" : ""}`}
     >
       <span aria-hidden className="flex h-lh items-center">
         {warn ? (
-          <TriangleAlert className="size-icon-sm text-warning-text" />
+          <TriangleAlert className="size-icon-md text-warning-text" />
         ) : need.state === "unchecked" ? (
-          <Clock className="size-icon-sm text-text-tertiary" />
+          <Clock className="size-icon-md text-text-tertiary" />
         ) : (
-          <CircleCheck className="size-icon-sm text-success-text" />
+          <CircleCheck className="size-icon-md text-success-text" />
         )}
       </span>
       <div className="grid min-w-0 gap-1">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <span className="font-mono text-mono-sm text-text-primary">{need.tool}</span>
+          <span className="font-mono text-mono text-text-primary">{need.tool}</span>
           <span className={warn ? "text-warning-text" : "text-text-secondary"}>
             {t(readinessWordOf(need.state))}
           </span>
@@ -384,14 +384,14 @@ function NeedLine(props: { readonly need: ToolNeedVM }): ReactNode {
           </div>
         ) : null}
         {install === null ? null : (
-          <code className="font-mono text-mono-sm text-text-primary">{install}</code>
+          <code className="font-mono text-mono text-text-primary">{install}</code>
         )}
       </div>
       {install === null ? (
         <span />
       ) : (
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           onClick={() => {
             detach(commands.copyText(install), rethrow);

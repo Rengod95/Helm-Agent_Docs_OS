@@ -17,7 +17,7 @@ import {
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ExtTimingsResult, PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtGetResult, ExtListEntry } from "@fresnel/contracts/wire";
-import { PanelExpandButton } from "../shell/screen-header.tsx";
+import { HEADER_CONTROL_SIZE, PanelExpandButton } from "../shell/screen-header.tsx";
 import {
   Alert,
   Button,
@@ -60,6 +60,9 @@ import { kindWord, pluginKindOf } from "./plugin-kind.tsx";
 import { readinessBlocked, type ToolReadinessVM } from "./tool-ready.ts";
 import { VersionsTab } from "./versions-tab.tsx";
 
+/** 탭 이름표의 글(plugSize): 탭 크기 sm(28)의 글은 12라 본문(13)보다 작다. 이름표는 한 단계 위인 `text-ui-strong`(13, 500)이다 */
+const TAB_TEXT = "text-ui-strong";
+
 /** 칸에 값이 없을 때의 자리 글 */
 const DASH = "—";
 
@@ -77,10 +80,10 @@ type TimingsLoad =
 function DetailName(props: { readonly row: ExtRowVM }): ReactNode {
   const { row } = props;
   return (
-    <h2 className="m-0 inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 text-ui-strong text-text-primary">
+    <h2 className="m-0 inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 text-title-overlay text-text-primary">
       <span className="min-w-0 truncate">{row.displayName ?? row.name}</span>
       {row.displayName !== null && (
-        <span className="font-mono text-mono-sm font-normal text-text-tertiary">{row.name}</span>
+        <span className="font-mono text-mono font-normal text-text-tertiary">{row.name}</span>
       )}
     </h2>
   );
@@ -117,12 +120,12 @@ function budgetUseCell(row: InspectHookVM): ReactNode {
     <span className="flex items-center gap-2">
       <Progress
         value={Math.max(2, Math.round(ratio * 100))}
-        size="xs"
+        size="sm"
         tone={BAR_TONE[row.level]}
         label={t("desktop.workbench.detail.hooks.col.use")}
         className="w-14"
       />
-      <span className="text-ui-xs tabular-nums text-text-tertiary">
+      <span className="text-ui-sm tabular-nums text-text-tertiary">
         {ratio < 0.01 ? "<1%" : `${Math.round(ratio * 100)}%`}
       </span>
     </span>
@@ -190,7 +193,7 @@ function HookTable(props: {
       {props.traceOff && <p className={MUTED}>{t("desktop.inspect.hook.traceOff")}</p>}
       <Table
         variant="ghost"
-        size="xs"
+        size="sm"
         aria-label={t("desktop.workbench.detail.tab.hooks")}
         className={PLAIN_TABLE}
         columns={columns}
@@ -280,7 +283,7 @@ export function FailureRecords(props: {
   return (
     <Table
       variant="ghost"
-      size="xs"
+      size="sm"
       aria-label={t("desktop.workbench.detail.tab.record")}
       className={PLAIN_TABLE}
       columns={columns}
@@ -302,10 +305,10 @@ function RecordTab(props: { readonly name: string }): ReactNode {
   return <FailureRecords rows={failureRowsOf(records, props.name)} failed={failed} />;
 }
 
-/** 단 안의 구역: 머리 글과 그 내용. 머리와 내용 사이는 `gap-3`이다 */
+/** 단 안의 구역: 머리 글과 그 내용. 머리와 내용 사이는 `gap-4`다 */
 function Part(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <ColumnHead title={props.title} />
       {props.children}
     </div>
@@ -357,8 +360,8 @@ function BuildTab(props: {
 /** 앱 핵심 플러그인의 자물쇠 문장. 끄기, 지우기, 프로필에 넣기 대신 늘 보인다(정보 아이콘 뒤에 숨기지 않는다) */
 function CoreLockLine(): ReactNode {
   return (
-    <span className="inline-flex items-center gap-1.5 text-ui-sm text-text-secondary">
-      <Lock aria-hidden className="size-icon-sm" />
+    <span className="inline-flex items-center gap-1.5 text-ui text-text-secondary">
+      <Lock aria-hidden className="size-icon-md" />
       <span>{t("desktop.workbench.core.locked")}</span>
     </span>
   );
@@ -415,15 +418,15 @@ export function ExtDetail(props: {
   const kindLine = cardKind === null ? kindText(row.kind) : kindWord(cardKind);
   const blocked = readinessBlocked(props.readiness);
   return (
-    <article className="@container/detail grid min-h-0 content-start gap-3 py-4">
+    <article className="@container/detail grid min-h-0 content-start gap-4 py-4">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <PanelExpandButton />
-        <Button size="xs" variant="ghost" onClick={props.onBack}>
+        <Button size={HEADER_CONTROL_SIZE} variant="ghost" onClick={props.onBack}>
           {t("desktop.workbench.detail.back")}
         </Button>
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
           <DetailName row={row} />
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui-sm text-text-tertiary">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui text-text-tertiary">
             <span>{kindLine}</span>
             {entry.origin === undefined ? null : <span>{originText(entry.origin)}</span>}
             <span>{row.version}</span>
@@ -442,7 +445,12 @@ export function ExtDetail(props: {
             <CoreLockLine />
           ) : (
             <>
-              <ProfilePutMenu name={entry.name} title={title} load={props.profiles} />
+              <ProfilePutMenu
+                name={entry.name}
+                title={title}
+                load={props.profiles}
+                size={HEADER_CONTROL_SIZE}
+              />
               <TestChatButton plugin={entry.name} />
               {removableOf(entry) && <ExportExtension entry={entry} />}
               {removableOf(entry) && (
@@ -452,7 +460,7 @@ export function ExtDetail(props: {
                   aria-label={t("desktop.workbench.detail.menu")}
                   trigger={
                     <IconButton
-                      size="sm"
+                      size={HEADER_CONTROL_SIZE}
                       variant="ghost"
                       label={t("desktop.workbench.detail.menu")}
                     >
@@ -477,16 +485,28 @@ export function ExtDetail(props: {
           if (next !== null) props.onTab(next);
         }}
         variant="soft"
-        size="xs"
-        className="gap-4"
+        size="sm"
+        className="gap-6"
       >
         <TabsList>
-          <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
-          <TabsTrigger value="build">{t("desktop.workbench.detail.tab.build")}</TabsTrigger>
-          <TabsTrigger value="dependencies">{t("desktop.craft.deps.tab")}</TabsTrigger>
-          <TabsTrigger value="surfaces">{t("desktop.workbench.detail.tab.surfaces")}</TabsTrigger>
-          <TabsTrigger value="health">{t("desktop.workbench.detail.tab.health")}</TabsTrigger>
-          <TabsTrigger value="versions">{t("desktop.workbench.detail.tab.versions")}</TabsTrigger>
+          <TabsTrigger value="overview" className={TAB_TEXT}>
+            {t("desktop.workbench.detail.tab.overview")}
+          </TabsTrigger>
+          <TabsTrigger value="build" className={TAB_TEXT}>
+            {t("desktop.workbench.detail.tab.build")}
+          </TabsTrigger>
+          <TabsTrigger value="dependencies" className={TAB_TEXT}>
+            {t("desktop.craft.deps.tab")}
+          </TabsTrigger>
+          <TabsTrigger value="surfaces" className={TAB_TEXT}>
+            {t("desktop.workbench.detail.tab.surfaces")}
+          </TabsTrigger>
+          <TabsTrigger value="health" className={TAB_TEXT}>
+            {t("desktop.workbench.detail.tab.health")}
+          </TabsTrigger>
+          <TabsTrigger value="versions" className={TAB_TEXT}>
+            {t("desktop.workbench.detail.tab.versions")}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
           <DetailOverview

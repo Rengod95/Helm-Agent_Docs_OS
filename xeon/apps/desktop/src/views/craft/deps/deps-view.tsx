@@ -96,20 +96,18 @@ function ProblemMark(): ReactNode {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex size-icon-sm shrink-0 items-center justify-center"
+      className="inline-flex size-icon-md shrink-0 items-center justify-center"
     >
-      <DotOrb state="listening" tone="warm" size={12} kind="mark" live={false} />
+      <DotOrb state="listening" tone="warm" size={14} kind="mark" live={false} />
     </span>
   );
 }
 
 function RangeText(props: { readonly range: string | null }): ReactNode {
   return props.range === null ? (
-    <span className="shrink-0 text-ui-sm text-text-tertiary">
-      {t("desktop.craft.deps.range.any")}
-    </span>
+    <span className="shrink-0 text-ui text-text-tertiary">{t("desktop.craft.deps.range.any")}</span>
   ) : (
-    <span className="shrink-0 font-mono text-mono-sm text-text-tertiary">{props.range}</span>
+    <span className="shrink-0 font-mono text-mono text-text-tertiary">{props.range}</span>
   );
 }
 
@@ -143,11 +141,11 @@ function DependencyRowView(props: {
           <PartyLabel name={party} />
         </span>
         {note !== null && (
-          <span className="shrink-0 whitespace-nowrap text-ui-sm text-text-tertiary">{note}</span>
+          <span className="shrink-0 whitespace-nowrap text-ui text-text-tertiary">{note}</span>
         )}
         <RangeText range={row.range} />
         {row.problem !== null && (
-          <span className="flex min-w-0 items-center gap-1.5 text-ui-sm text-text-secondary">
+          <span className="flex min-w-0 items-center gap-1.5 text-ui text-text-secondary">
             <ProblemMark />
             <span className="min-w-0 truncate">{t(row.problem)}</span>
           </span>
@@ -247,7 +245,7 @@ function AddForm(props: {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="grid content-start gap-1.5">
-          <span className="flex items-center gap-1 text-ui-sm text-text-secondary">
+          <span className="flex items-center gap-1 text-ui text-text-secondary">
             {t("desktop.craft.deps.add.kind")}
             <InfoTip
               text={[
@@ -274,7 +272,7 @@ function AddForm(props: {
           </SegmentedControl>
         </div>
         <label htmlFor={rangeField} className="grid content-start gap-1.5">
-          <span className="flex items-center gap-1 text-ui-sm text-text-secondary">
+          <span className="flex items-center gap-1 text-ui text-text-secondary">
             {t("desktop.craft.deps.add.range")}
             <InfoTip text={t("desktop.craft.deps.add.range.help")} />
           </span>
@@ -292,7 +290,7 @@ function AddForm(props: {
             onValueChange={setRange}
           />
           {problem !== null && (
-            <span id={`${rangeField}-problem`} role="alert" className="text-ui-sm text-danger-text">
+            <span id={`${rangeField}-problem`} role="alert" className="text-ui text-danger-text">
               {t(problem)}
             </span>
           )}
@@ -368,7 +366,7 @@ function SectionHead(props: {
 }): ReactNode {
   return (
     <div className="flex h-control-sm items-center gap-1 pr-1.5">
-      <h3 id={props.id} className="m-0 text-title-3 font-semibold text-text-primary">
+      <h3 id={props.id} className="m-0 text-title-2 text-text-primary">
         {t(props.title)}
       </h3>
       <InfoTip text={t(props.info)} />
@@ -424,14 +422,14 @@ export function DepsView(props: { readonly data: DepsData }): ReactNode {
   };
   const end =
     lockText !== null ? (
-      <span className="inline-flex items-center gap-1 text-ui-sm text-text-tertiary">
-        <Lock aria-hidden className="size-icon-sm" />
+      <span className="inline-flex items-center gap-1 text-ui text-text-tertiary">
+        <Lock aria-hidden className="size-icon-md" />
         {t("desktop.craft.members.readOnly")}
         <InfoTip text={t(lockText)} />
       </span>
     ) : editable ? (
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         disabled={editor.busy || editor.adding}
         onClick={() => {
@@ -443,11 +441,11 @@ export function DepsView(props: { readonly data: DepsData }): ReactNode {
       </Button>
     ) : null;
   return (
-    <div className="rv-root grid content-start gap-6 pt-4" data-deps="">
+    <div className="rv-root grid content-start gap-8 pt-4" data-deps="">
       <SendNotice state={state} editable={editable} editor={editor} onOpen={data.openReview} />
       <TwoColumns
         start={
-          <section className="grid gap-3" aria-labelledby={headA} data-deps-section="dependsOn">
+          <section className="grid gap-4" aria-labelledby={headA} data-deps-section="dependsOn">
             <SectionHead
               id={headA}
               title="desktop.craft.deps.dependsOn"
@@ -500,7 +498,7 @@ export function DepsView(props: { readonly data: DepsData }): ReactNode {
           </section>
         }
         end={
-          <section className="grid gap-3" aria-labelledby={headB} data-deps-section="dependents">
+          <section className="grid gap-4" aria-labelledby={headB} data-deps-section="dependents">
             <SectionHead
               id={headB}
               title="desktop.craft.deps.dependents"

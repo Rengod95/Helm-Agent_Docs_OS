@@ -59,14 +59,14 @@ function TrustLine(props: {
   return (
     <ListDescription
       variant="ghost"
-      size="xs"
+      size="sm"
       aria-label={t("desktop.workbench.grade.title")}
       className="rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0"
     >
       <ListDescriptionRow term={t("desktop.workbench.grade.title")}>
         <span className="text-text-primary">{gradeText(effectiveGrade)}</span>
         {requestedGrade !== effectiveGrade && requestedGrade !== "" ? (
-          <span className="block text-ui-sm text-text-tertiary">
+          <span className="block text-ui text-text-tertiary">
             {t("desktop.workbench.grade.lowered", { requested: gradeText(requestedGrade) })}
           </span>
         ) : null}
@@ -266,7 +266,7 @@ function VersionsTable(props: {
   return (
     <Table
       variant="ghost"
-      size="xs"
+      size="sm"
       aria-label={t("desktop.workbench.detail.tab.versions")}
       className={PLAIN_TABLE}
       columns={columns}
@@ -281,7 +281,7 @@ function VersionsTable(props: {
               <span className="inline-flex items-center gap-1.5">
                 <span className="text-text-primary">{row.version}</span>
                 {row.current && (
-                  <Badge size="xs" variant="soft">
+                  <Badge size="md" variant="soft">
                     {t("desktop.workbench.versions.current")}
                   </Badge>
                 )}
@@ -300,7 +300,7 @@ function VersionsTable(props: {
           case "act":
             return row.canRollback ? (
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 iconStart={<RotateCcw />}
                 disabled={props.locked}
@@ -334,7 +334,7 @@ function FallbackVersions(props: {
     <div className="grid gap-3">
       <ListDescription
         variant="ghost"
-        size="xs"
+        size="sm"
         aria-label={t("desktop.workbench.detail.tab.versions")}
         className="rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0"
       >
@@ -348,7 +348,7 @@ function FallbackVersions(props: {
         )}
       </ListDescription>
       <p className="m-0 inline-flex items-center gap-1.5 text-ui text-text-secondary">
-        <History aria-hidden emphasis="muted" className="size-icon-sm" />
+        <History aria-hidden emphasis="muted" className="size-icon-md" />
         {t("desktop.workbench.versions.noHistory")}
       </p>
       {props.onRollback !== null ? (
