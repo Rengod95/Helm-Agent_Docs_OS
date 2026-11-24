@@ -376,8 +376,14 @@ export function addonRowsOf(
   meta: AddonMetaMap,
   locale: string,
 ): readonly AddonRow[] {
-  const groups = byExtension(source.entries);
-  return namesOf(source, meta)
+  // 승인 전 드래프트의 화면은 머리줄 탭, 앱 목록, 플레이그라운드에 올리지 않는다. 시험 대화의 오른쪽 탭에서만 열린다(AGE-77 X-04, Y-04)
+  const draftNames = new Set(
+    source.entries.filter((entry) => entry.draft === true).map((entry) => entry.extension),
+  );
+  const shown = { ...source, entries: source.entries.filter((entry) => entry.draft !== true) };
+  const groups = byExtension(shown.entries);
+  return namesOf(shown, meta)
+    .filter((name) => !draftNames.has(name))
     .map((name) => rowOf(name, groups.get(name) ?? [], source, meta.get(name), locale))
     .toSorted(
       (left, right) => compareText(left.title, right.title) || compareText(left.name, right.name),
