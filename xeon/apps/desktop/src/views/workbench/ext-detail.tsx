@@ -1,8 +1,8 @@
 // P-17 플러그인 상세("자세히 보기"). 여섯 탭(plugTab, AGE-76), 탭 하나는 질문 하나에 답하고 이어진 구역은 두 단으로 둔다(`TwoColumns`, 좁으면 한 단):
 // 개요(`detail-overview.tsx`: 하는 일 / 쓰임과 믿음, 준비 상태), 구성(멤버와 Drive 단계 / 훅 표), 의존(기대는 것 / 기대어 오는 것, 아래 기능 연결 표),
 // 화면과 설정(화면과 대화 기능 / 설정 폼과 설정 화면), 상태(메트릭 / 실패 기록), 버전(§6.24.1, 신뢰 수준 포함). 옛 탭 값은 `detailTabOf`가 옮긴다.
-// 머리 줄: 이름(표시 이름 + 회색 mono id), 종류, 출처, 버전, 쓰는 곳, 문제가 있으면 상태. 층 id와 등급 같은 내부 말은 머리에 두지 않는다.
-// 머리 행동: 프로필에 넣기(체크 메뉴), 테스트 챗, 내보내기, "…" 메뉴의 지우기. 앱 핵심 플러그인은 행동 대신 자물쇠 문장을 늘 보인다.
+// 이름 줄(plugHead): 이름(표시 이름 + 괄호 안 회색 mono id), 종류 꼬리표, 버전 셋만. 층 id와 등급 같은 내부 말은 두지 않는다.
+// 목록으로, 프로필에 넣기, 테스트 챗, 내보내기, "…" 메뉴는 화면의 시스템 머리줄에 있다(`detail-actions.tsx`, `extensions-screen.tsx`).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   failureRowsOf,
@@ -17,13 +17,8 @@ import {
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ExtTimingsResult, PluginCard } from "@fresnel/contracts/extensions";
 import type { ExtGetResult, ExtListEntry } from "@fresnel/contracts/wire";
-import { HEADER_CONTROL_SIZE, PanelExpandButton } from "../shell/screen-header.tsx";
 import {
   Alert,
-  Button,
-  IconButton,
-  Menu,
-  MenuItem,
   Progress,
   Skeleton,
   Table,
@@ -33,12 +28,10 @@ import {
   TabsTrigger,
   type TableColumn,
 } from "@caustic/react";
-import { Ellipsis, Lock } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkThreadId } from "../craft/test-chat/borrow-state.ts";
-import { TestChatButton } from "../craft/test-chat/test-chat-button.tsx";
 import { hasMembers } from "../craft/members/members-model.ts";
 import { MembersTab } from "../craft/members/members-tab.tsx";
 import { DepsTab } from "../craft/deps/deps-tab.tsx";
@@ -46,18 +39,13 @@ import { CompositionTab } from "../craft/composition/composition-tab.tsx";
 import { BindingsPanel } from "./bindings-panel.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { kindText } from "./ext-row.tsx";
-import { ExportExtension } from "./export-extension.tsx";
 import { DetailOverview } from "./detail-overview.tsx";
-import { HealthCell, rowHealthOf } from "./plugin-list.tsx";
-import { ProfilePutMenu, type ProfileSetLoad } from "./profile-put-menu.tsx";
-import { profileUseOf, profileUseText } from "./profile-use.ts";
-import { removableOf } from "./remove-model.ts";
+import type { ProfileSetLoad } from "./profile-put-menu.tsx";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { SurfacesTab } from "./surfaces-tab.tsx";
 import { ColumnHead, MUTED, PLAIN_TABLE, TwoColumns } from "./tab-body.tsx";
-import { originText } from "./origin-text.ts";
-import { kindWord, pluginKindOf } from "./plugin-kind.tsx";
-import { readinessBlocked, type ToolReadinessVM } from "./tool-ready.ts";
+import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
+import type { ToolReadinessVM } from "./tool-ready.ts";
 import { VersionsTab } from "./versions-tab.tsx";
 
 /** 탭 이름표의 글(plugSize): 탭 크기 sm(28)의 글은 12라 본문(13)보다 작다. 이름표는 한 단계 위인 `text-ui-strong`(13, 500)이다 */
@@ -76,14 +64,17 @@ type TimingsLoad =
   | { readonly kind: "error" }
   | { readonly kind: "ready"; readonly result: ExtTimingsResult };
 
-/** 머리의 이름: 표시 이름, 옆에 회색 mono id(DP-39). 표시 이름이 없으면 id만 */
+/**
+ * 이름 줄의 이름(plugHead): 표시 이름 뒤에 괄호 안 회색 mono id("Helm (helm)"). 표시 이름이 없으면 id만이다.
+ * 이름은 제목 1(22/30, 600)로 화면 머리 제목(15)과 구역 제목(제목 2)보다 확실히 크다. id는 이름보다 두 단계 작은 mono다
+ */
 function DetailName(props: { readonly row: ExtRowVM }): ReactNode {
   const { row } = props;
   return (
-    <h2 className="m-0 inline-flex min-w-0 max-w-full flex-wrap items-baseline gap-x-2 text-title-overlay text-text-primary">
+    <h2 className="m-0 inline-flex min-w-0 max-w-full items-baseline gap-x-2 text-title-1 text-text-primary">
       <span className="min-w-0 truncate">{row.displayName ?? row.name}</span>
       {row.displayName !== null && (
-        <span className="font-mono text-mono font-normal text-text-tertiary">{row.name}</span>
+        <span className="flex-none font-mono text-ui-lg font-normal text-text-tertiary">{`(${row.name})`}</span>
       )}
     </h2>
   );
@@ -357,16 +348,6 @@ function BuildTab(props: {
   );
 }
 
-/** 앱 핵심 플러그인의 자물쇠 문장. 끄기, 지우기, 프로필에 넣기 대신 늘 보인다(정보 아이콘 뒤에 숨기지 않는다) */
-function CoreLockLine(): ReactNode {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-ui text-text-secondary">
-      <Lock aria-hidden className="size-icon-md" />
-      <span>{t("desktop.workbench.core.locked")}</span>
-    </span>
-  );
-}
-
 export function ExtDetail(props: {
   readonly entry: ExtListEntry;
   /** 지금 고른 탭(스토어 값). 기록 보기처럼 밖에서 연 때 그 탭이다. 옛 이름이면 `detailTabOf`로 옮긴다 */
@@ -377,10 +358,8 @@ export function ExtDetail(props: {
   readonly readiness: ToolReadinessVM | null;
   readonly profiles: ProfileSetLoad;
   readonly onTab: (tab: DetailTab) => void;
-  readonly onBack: () => void;
   readonly onRetry: () => void;
   readonly onStop: () => void;
-  readonly onRemove: () => void;
   /** 준비 상태의 "다시 확인": 엔진에 도구 점검을 다시 시키고 카드를 다시 읽는다 */
   readonly onRecheck: () => void;
 }): ReactNode {
@@ -389,8 +368,6 @@ export function ExtDetail(props: {
   const threadId = useWorkThreadId();
   const { entry } = props;
   const row = rowOf(entry);
-  const title = row.displayName ?? row.name;
-  const profileSet = props.profiles.set;
   // 스토어에 옛 탭 이름이 남아 있어도 지금의 탭으로 옮겨 연다(모르는 값은 개요)
   const tab = detailTabOf(props.tab) ?? "overview";
   const [get, setGet] = useState<Load>({ kind: "loading" });
@@ -415,67 +392,17 @@ export function ExtDetail(props: {
   }, [commands, entry.name, threadId]);
   // 머리의 종류는 목록의 종류 칸과 같은 규칙(카드의 종류)이다. 카드를 못 읽었으면 묶음 종류(옛 글)로 둔다
   const cardKind = pluginKindOf(props.card);
-  const kindLine = cardKind === null ? kindText(row.kind) : kindWord(cardKind);
-  const blocked = readinessBlocked(props.readiness);
   return (
-    <article className="@container/detail grid min-h-0 content-start gap-4 py-4">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <PanelExpandButton />
-        <Button size={HEADER_CONTROL_SIZE} variant="ghost" onClick={props.onBack}>
-          {t("desktop.workbench.detail.back")}
-        </Button>
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
-          <DetailName row={row} />
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-ui text-text-tertiary">
-            <span>{kindLine}</span>
-            {entry.origin === undefined ? null : <span>{originText(entry.origin)}</span>}
-            <span>{row.version}</span>
-            {profileSet === null ? null : (
-              <span className="text-text-secondary">
-                {profileUseText(profileUseOf(entry.name, row.appCore, profileSet))}
-              </span>
-            )}
-            {rowHealthOf(row, blocked) === "ready" ? null : (
-              <HealthCell row={row} blocked={blocked} />
-            )}
-          </div>
-        </div>
-        <div className="flex flex-none items-center gap-2">
-          {row.appCore ? (
-            <CoreLockLine />
-          ) : (
-            <>
-              <ProfilePutMenu
-                name={entry.name}
-                title={title}
-                load={props.profiles}
-                size={HEADER_CONTROL_SIZE}
-              />
-              <TestChatButton plugin={entry.name} />
-              {removableOf(entry) && <ExportExtension entry={entry} />}
-              {removableOf(entry) && (
-                <Menu
-                  size="sm"
-                  align="end"
-                  aria-label={t("desktop.workbench.detail.menu")}
-                  trigger={
-                    <IconButton
-                      size={HEADER_CONTROL_SIZE}
-                      variant="ghost"
-                      label={t("desktop.workbench.detail.menu")}
-                    >
-                      <Ellipsis aria-hidden />
-                    </IconButton>
-                  }
-                >
-                  <MenuItem onSelect={props.onRemove}>
-                    {t("desktop.workbench.remove.open")}
-                  </MenuItem>
-                </Menu>
-              )}
-            </>
-          )}
-        </div>
+    <article className="@container/detail grid min-h-0 content-start gap-4 pb-4">
+      {/* 이름 줄(plugHead): 이름(id), 종류, 버전 셋만. 출처는 개요의 "쓰임과 믿음", 프로필 수는 머리줄의 "프로필에 넣기" 단추, 문제 상태는 개요에 있다 */}
+      <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+        <DetailName row={row} />
+        {cardKind === null ? (
+          <span className="text-ui text-text-tertiary">{kindText(row.kind)}</span>
+        ) : (
+          <KindTag kind={cardKind} />
+        )}
+        <span className="text-ui tabular-nums text-text-tertiary">{row.version}</span>
       </header>
       <AutoOffNotice entry={entry} onRetry={props.onRetry} onStop={props.onStop} />
       <Tabs

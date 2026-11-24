@@ -10,6 +10,7 @@ import {
 } from "@fresnel/client/workbench";
 import { renderToString } from "react-dom/server";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
+import { DetailActions } from "../../../src/views/workbench/detail-actions.tsx";
 import { ExtDetail } from "../../../src/views/workbench/ext-detail.tsx";
 import { MetricsPanel, type MetricsBody } from "../../../src/views/workbench/metrics-tab.tsx";
 import { tabLinkOf } from "../../../src/views/workbench/tab-read.ts";
@@ -165,8 +166,8 @@ describe("측정 탭 그림", () => {
   });
 });
 
-/** 머리에 배지를 두려고 확장 목록을 읽은 상태로 상세를 그린다 */
-function headerOf(over: Parameters<typeof entry>[1]): string {
+/** 확장 목록을 읽은 상태로 상세를 그린다 */
+function detailHtml(over: Parameters<typeof entry>[1]): string {
   const row = entry("web", over);
   const state = listLoaded(INITIAL_WORKBENCH, [row]);
   return renderToString(
@@ -178,10 +179,8 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
         readiness={null}
         profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
-        onBack={() => undefined}
         onRetry={() => undefined}
         onStop={() => undefined}
-        onRemove={() => undefined}
         onRecheck={() => undefined}
       />,
       createWorkbenchStore(() => state),
@@ -189,26 +188,45 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
   );
 }
 
-describe("상세 머리", () => {
-  // 머리 줄은 배지 대신 글로 잇는다: 종류, 설치 위치, 버전. 층 이름이나 켜짐 범위 같은 안쪽 말은 쓰지 않는다
-  test("사용자가 넣은 플러그인은 '직접 설치'로 보이고 배지와 층 이름, 켜기 스위치가 없다", () => {
-    const html = headerOf({ origin: "user", enabledSource: "profile" });
-    expect(textOf(html)).toContain(t("desktop.workbench.origin.user"));
-    expect(t("desktop.workbench.origin.user")).toBe("직접 설치");
-    expect(textOf(html)).not.toContain("L2");
+/** 이름 줄(상세 맨 위 `<header>`)의 글 */
+function nameLineOf(html: string): string {
+  return textOf(/<header\b[^>]*>([\s\S]*?)<\/header>/.exec(html)?.[1] ?? "");
+}
+
+/** 시스템 머리줄 오른쪽의 상세 행동 */
+function actionsOf(over: Parameters<typeof entry>[1]): string {
+  const row = entry("web", over);
+  const state = listLoaded(INITIAL_WORKBENCH, [row]);
+  return renderToString(
+    inContexts(
+      <DetailActions
+        entry={row}
+        profiles={{ set: null, reload: () => undefined }}
+        onRemove={() => undefined}
+      />,
+      createWorkbenchStore(() => state),
+    ),
+  );
+}
+
+describe("상세 이름 줄과 머리 행동(plugHead)", () => {
+  test("이름 줄은 이름, 괄호 안 id, 종류, 버전 셋만이고 출처와 쓰는 곳은 없다", () => {
+    const html = detailHtml({ origin: "user", enabledSource: "profile", displayName: "웹" });
+    expect(nameLineOf(html)).toBe(`웹(web)${t("desktop.workbench.kind.plugin")}1.0.0`);
+    expect(nameLineOf(html)).not.toContain(t("desktop.workbench.origin.user"));
     expect(badgesOf(html)).toEqual([]);
     expect(html).not.toContain('role="switch"');
   });
 
   test("앱 핵심이 아닌 플러그인은 '프로필에 넣기' 메뉴와 지우기가 든 메뉴를 둔다", () => {
-    const html = headerOf({ origin: "user", enabledSource: "profile" });
+    const html = actionsOf({ origin: "user", enabledSource: "profile" });
     expect(textOf(html)).toContain(t("desktop.workbench.use.put"));
     expect(html).toContain(`aria-label="${t("desktop.workbench.detail.menu")}"`);
     expect(textOf(html)).not.toContain(t("desktop.workbench.core.locked"));
   });
 
   test("앱 핵심(코어 출처)은 자물쇠 문장만 두고 넣기, 끄기, 지우기가 없다", () => {
-    const html = headerOf({ origin: "builtin", enabledSource: "core" });
+    const html = actionsOf({ origin: "builtin", enabledSource: "core" });
     expect(textOf(html)).toContain(t("desktop.workbench.core.locked"));
     expect(textOf(html)).not.toContain(t("desktop.workbench.use.put"));
     expect(html).not.toContain(`aria-label="${t("desktop.workbench.detail.menu")}"`);

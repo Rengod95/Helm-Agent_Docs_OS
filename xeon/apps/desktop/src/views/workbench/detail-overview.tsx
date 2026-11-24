@@ -1,6 +1,6 @@
 // 플러그인 상세 "개요" 탭(plugTab, AGE-76). 한 질문에 답한다: 이것은 무엇이고 믿을 만한가.
 // 맨 위는 진단 경고(전체 폭, 숨기지 않는다). 왼쪽 단 "하는 일": 목적, 설명, 종류와 셈(Hook, 도구, Drive).
-// 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 비용(늘 드는 토큰), 권한, 준비 상태(도구 플러그인이거나 도구에 기댈 때, `tool-ready.ts`).
+// 오른쪽 단 "쓰임과 믿음": 쓰는 프로필, 설치 위치, 문제가 있으면 상태(plugHead), 비용(늘 드는 토큰), 권한, 준비 상태(도구 플러그인이거나 도구에 기댈 때, `tool-ready.ts`).
 import { t } from "@fresnel/client/i18n";
 import { rowOf } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -36,7 +36,13 @@ import {
   readinessWordOf,
   toolCountOf,
 } from "./overview-model.ts";
-import { needsAttentionOf, type ToolNeedVM, type ToolReadinessVM } from "./tool-ready.ts";
+import {
+  needsAttentionOf,
+  readinessBlocked,
+  type ToolNeedVM,
+  type ToolReadinessVM,
+} from "./tool-ready.ts";
+import { HealthCell, rowHealthOf } from "./plugin-cells.tsx";
 
 /** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이(`ext-detail.tsx`의 옛 자리와 같다). 크기는 sm(줄 36 이상, 글 13, plugSize) */
 /** 긴 문단의 줄 길이(plugSize): 내용 칸은 넓게 쓰고, 문단만 720px(`max-w-180`, 설정 표 구역과 같은 눈금)에서 줄을 바꾼다 */
@@ -177,6 +183,7 @@ function TrustColumn(props: {
   const use: ProfileUse | null = set === null ? null : profileUseOf(entry.name, row.appCore, set);
   const cost = card === null ? null : card.cost.always;
   const readiness = props.readiness;
+  const blocked = readinessBlocked(readiness);
   return (
     <div className="grid gap-4">
       <ColumnHead title={t("desktop.workbench.detail.overview.trust")} />
@@ -202,6 +209,12 @@ function TrustColumn(props: {
         <ListDescriptionRow term={t("desktop.workbench.detail.origin")}>
           <LocationValue origin={originText(entry.origin)} location={entry.location} />
         </ListDescriptionRow>
+        {/* 문제 상태(plugHead): 이름 줄에서 뺀 상태 구슬과 글은 문제가 있을 때만 여기 선다(목록 상태 칸과 같은 부품) */}
+        {rowHealthOf(row, blocked) === "ready" ? null : (
+          <ListDescriptionRow term={t("desktop.workbench.detail.tab.health")}>
+            <HealthCell row={row} blocked={blocked} />
+          </ListDescriptionRow>
+        )}
         {cost === null ? null : (
           <ListDescriptionRow term={t("desktop.craft.canvas.cv3.sec.cost")}>
             {`${t("desktop.craft.canvas.cv3.cost.always")} ${tokens(cost)}`}

@@ -26,7 +26,7 @@ import {
   REMOVE_REQUESTED_TEXT,
   removableOf,
 } from "../../../src/views/workbench/remove-model.ts";
-import { ExtDetail } from "../../../src/views/workbench/ext-detail.tsx";
+import { DetailActions } from "../../../src/views/workbench/detail-actions.tsx";
 import { harness } from "../../state/helpers.ts";
 import { fakeCommands } from "../fake-commands.ts";
 import { entry, inContexts, screenStore } from "./support.tsx";
@@ -193,24 +193,12 @@ describe("지우기 확인의 보내기", () => {
   });
 });
 
-/** 상세 머리를 그린다. 지우기는 머리의 "…" 메뉴 안에 있다 */
+/** 상세의 머리 행동을 그린다(plugHead: 시스템 머리줄 오른쪽). 지우기는 "…" 메뉴 안에 있다 */
 function headerHtml(target: ExtListEntry): string {
   const store = screenStore();
   return renderToString(
     inContexts(
-      <ExtDetail
-        entry={target}
-        tab="overview"
-        card={null}
-        readiness={null}
-        profiles={{ set: null, reload: noop }}
-        onTab={noop}
-        onBack={noop}
-        onRetry={noop}
-        onStop={noop}
-        onRemove={noop}
-        onRecheck={noop}
-      />,
+      <DetailActions entry={target} profiles={{ set: null, reload: noop }} onRemove={noop} />,
       store,
     ),
   );

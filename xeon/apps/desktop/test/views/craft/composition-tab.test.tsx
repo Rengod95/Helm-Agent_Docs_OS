@@ -237,10 +237,8 @@ function detailOf(row: ExtListEntry, tab: DetailTab): string {
         readiness={null}
         profiles={{ set: null, reload: () => undefined }}
         onTab={() => undefined}
-        onBack={() => undefined}
         onRetry={() => undefined}
         onStop={() => undefined}
-        onRemove={() => undefined}
         onRecheck={() => undefined}
       />,
       createWorkbenchStore(() => state),
