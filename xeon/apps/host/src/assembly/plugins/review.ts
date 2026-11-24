@@ -1149,11 +1149,14 @@ export function createPluginReview(deps: PluginReviewDeps): PluginReview {
     // (화면이 도구 설명으로 만든 기본 문장을 항상 실어도 사람이 쓴 목적을 덮지 않는다, rerun5 U-01)
     const ownPurpose = (item.card.purpose ?? "").trim() === "" ? null : item.card.purpose;
     const purpose = ownPurpose ?? decision.purpose ?? item.card.purpose;
-    if (!removing && (purpose === null || purpose.trim() === "")) {
+    // 되돌리기는 이미 승인되어 보관된 판으로 돌아가는 것이라 새 제출에만 맞는 목적·설명 필수 검사를 하지 않는다.
+    // 무결성은 요청 때 해시로 대조했고, 권한 변화는 리뷰 카드가 그대로 보인다
+    const reverting = item.rollback !== undefined;
+    if (!removing && !reverting && (purpose === null || purpose.trim() === "")) {
       return err({ kind: "purpose_required", itemId: item.itemId });
     }
     // 설명은 승인 때 채우는 입력이 없다(목적과 달리). 카드의 설명이 비면 플러그인 빌더에서 고친다 [결정: 2026-11-23 사용자, AGE-31]
-    if (!removing && (item.card.description ?? "").trim() === "") {
+    if (!removing && !reverting && (item.card.description ?? "").trim() === "") {
       return err({ kind: "description_required", itemId: item.itemId });
     }
     const approvedAt = deps.now();

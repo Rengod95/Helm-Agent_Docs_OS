@@ -468,7 +468,10 @@ function DecidePanel(props: {
   const purposeId = useId();
   const purposeHintId = useId();
   const block = approveBlockOf(item);
-  const needsPurpose = item.kind !== "remove" && (item.card.purpose ?? "").trim() === "";
+  const needsPurpose =
+    item.kind !== "remove" &&
+    item.rollback === undefined &&
+    (item.card.purpose ?? "").trim() === "";
   const sending = phase.kind === "sending";
   const rejecting =
     phase.kind === "rejecting" || (phase.kind === "sending" && phase.what === "reject");
