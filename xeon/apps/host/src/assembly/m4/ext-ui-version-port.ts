@@ -129,7 +129,7 @@ function isDeferred(info: LoadedExtensionInfo): boolean {
  * 앱 화면이 확장에 말을 걸 때 미뤄 둔 확장을 먼저 싣는다(W-05). 재시작 직후에는 대화가 쓰기 전까지 싣지 않으므로
  * 화면이 먼저 열리면 확장이 없다. 싣지 못해도 여기서는 던지지 않고 뒤 호출이 거절한다
  */
-export async function loadDeferred(source: ExtUiVersionSource, name: string): Promise<void> {
+async function loadDeferred(source: ExtUiVersionSource, name: string): Promise<void> {
   const loader = source.loader();
   const info = loader?.list().find((candidate) => candidate.name === name);
   if (loader === undefined || info === undefined || !isDeferred(info)) return;

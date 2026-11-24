@@ -17,7 +17,7 @@ const DRAIN_S = 0.25;
 /** 그림 갱신 간격(ms). 약 30Hz */
 const RENDER_MS = 32;
 /** 끝난 뒤 프레임이 이만큼(ms) 돌지 않으면 남은 글을 한 번에 드러낸다 */
-export const STALL_MS = 800;
+const STALL_MS = 800;
 /** 흐르는 중에 처음 그려질 때 이보다 긴 글은 다시 흘리지 않고 바로 보인다(첫 조각만 흘린다) */
 const REPLAY_LIMIT = 160;
 
