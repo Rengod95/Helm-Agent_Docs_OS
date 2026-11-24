@@ -116,9 +116,9 @@ test("the crashed band's sentence names the service for a remote target and the 
 
 test("held counts only visible input that can start a turn on its own (DP-156)", () => {
   const idle = summary({});
-  expect(heldCountOf(idle, chipInputs([hidden(1), hidden(2)]))).toBe(0);
+  expect(heldCountOf(idle, chipInputs([hidden(1), hidden(2)]), true)).toBe(0);
   const mixed = [hidden(1), input({ inputId: evt(2), mode: "followUp" }), hidden(3)];
-  expect(heldCountOf(idle, chipInputs(mixed))).toBe(1);
+  expect(heldCountOf(idle, chipInputs(mixed), true)).toBe(1);
   // Helm 안내처럼 확장이 next로 넣은 입력은 turn.resume이 시작하지 않는다: 보내기를 내면 눌러도 아무 일이 없다
   const helm = input({
     inputId: evt(4),
@@ -128,21 +128,28 @@ test("held counts only visible input that can start a turn on its own (DP-156)",
   });
   // 칩에도 오르지 않고(F-42) 보내기를 기다리는 수에도 들지 않는다
   expect(chipInputs([helm]).length).toBe(0);
-  expect(heldCountOf(idle, [helm])).toBe(0);
-  expect(heldCountOf(idle, [input({ mode: "aside" })])).toBe(0);
-  expect(heldCountOf(idle, [input({ mode: "steer" }), input({ mode: "followUp" })])).toBe(2);
+  expect(heldCountOf(idle, [helm], true)).toBe(0);
+  expect(heldCountOf(idle, [input({ mode: "aside" })], true)).toBe(0);
+  expect(heldCountOf(idle, [input({ mode: "steer" }), input({ mode: "followUp" })], true)).toBe(2);
 });
 
 test("held is zero while the thread runs, carries a recovery marker, or is gone", () => {
   const queue = [input({ mode: "followUp" })];
-  expect(heldCountOf(summary({ status: "running" }), queue)).toBe(0);
+  expect(heldCountOf(summary({ status: "running" }), queue, true)).toBe(0);
   expect(
     heldCountOf(
       summary({
         resumable: { turnId: trn(1), runningSince: "2026-11-07T00:00:00.000Z", resumeAttempts: 0 },
       }),
       queue,
+      true,
     ),
   ).toBe(0);
-  expect(heldCountOf(undefined, queue)).toBe(0);
+  expect(heldCountOf(undefined, queue, true)).toBe(0);
+});
+
+test("held is zero when the last turn did not end by interruption: the input starts by itself (AGE-77)", () => {
+  const queue = [input({ mode: "followUp" }), input({ inputId: evt(2), mode: "steer" })];
+  expect(heldCountOf(summary({}), queue, false)).toBe(0);
+  expect(heldCountOf(summary({}), queue, true)).toBe(2);
 });

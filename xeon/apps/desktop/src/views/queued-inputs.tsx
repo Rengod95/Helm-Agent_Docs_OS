@@ -4,7 +4,12 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useState, type ReactNode } from "react";
-import { useOpenThread, useQueuedInputs, type QueuedInput } from "../state/engine/index.ts";
+import {
+  useLastTurnInterrupted,
+  useOpenThread,
+  useQueuedInputs,
+  type QueuedInput,
+} from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import { Presence, PresenceItem, PresenceList } from "../lib/motion-presets.tsx";
 import {
@@ -212,7 +217,8 @@ export function QueuedInputs(props: {
 /** 열린 대화가 이 대화일 때, 멈춘 뒤 보내기를 기다리는 대기 입력 수(DP-156, `heldCountOf`) */
 export function useHeldCount(threadId: ThreadId, chips: readonly QueuedInput[]): number {
   const thread = useOpenThread();
-  return heldCountOf(thread?.threadId === threadId ? thread : undefined, chips);
+  const interrupted = useLastTurnInterrupted(threadId);
+  return heldCountOf(thread?.threadId === threadId ? thread : undefined, chips, interrupted);
 }
 
 /**

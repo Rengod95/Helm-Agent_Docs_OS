@@ -177,13 +177,16 @@ export function startableQueuedMode(mode: QueuedInput["mode"]): boolean {
 
 /**
  * 멈춘 뒤 보내기를 기다리는 대기 입력 수(DP-156). 대화가 쉬고 있고(복구 표식 없음) 스스로 턴을 열 수 있는 칩만 센다.
- * 엔진은 사용자가 중단한 대화의 큐를 자동으로 시작하지 않으므로, 쉬는 대화에 남은 시작 가능 입력은 보내기(`turn.resume`)를 기다린다.
+ * 엔진은 사용자가 중단한 대화(마지막 턴이 중단으로 끝남)의 큐를 자동으로 시작하지 않으므로, 그런 쉬는 대화에 남은 시작 가능 입력은 보내기(`turn.resume`)를 기다린다.
  * next·aside는 세지 않는다: `turn.resume`이 그것으로 턴을 열지 않아 보내기가 아무 일도 하지 않는다
  */
 export function heldCountOf(
   thread: Pick<ThreadSummary, "status" | "resumable"> | undefined,
   chips: readonly QueuedInput[],
+  lastTurnInterrupted: boolean,
 ): number {
+  // 쉬는 대화에 남은 입력이라도 마지막 턴이 중단으로 끝나지 않았다면 멈춘 것이 아니라 곧 시작할 입력이다(첫 메시지, 정상 종료 뒤 이어 보내기)
+  if (!lastTurnInterrupted) return 0;
   if (thread === undefined || thread.status !== "idle" || thread.resumable !== null) return 0;
   return chips.filter((input) => startableQueuedMode(input.mode)).length;
 }
