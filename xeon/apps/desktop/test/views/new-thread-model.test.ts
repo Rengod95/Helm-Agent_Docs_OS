@@ -128,6 +128,20 @@ test("a new thread started from a no-project thread does not inherit its default
   expect(planNewThread([used, blank], thr(1))).toEqual({ kind: "open", threadId: thr(2) });
 });
 
+test("a blank no-project thread in its own default folder is reused, not created again (AGE-73)", () => {
+  // 엔진은 폴더 없이 만든 대화에 그 대화만의 기본 폴더를 채운다. 전에는 폴더 없음(null)과 맞지 않아 누를 때마다 빈 대화가 생겼다
+  const blank = summary({
+    threadId: thr(2),
+    workspace: `/home/u/.fresnel/default-project/${thr(2)}`,
+  });
+  expect(blankThreadIn([blank], null)).toBe(thr(2));
+  expect(planNewThread([blank], thr(2))).toEqual({ kind: "open", threadId: thr(2) });
+  // 다른 대화 id 이름의 폴더나 보통 폴더의 빈 대화는 폴더 없음이 아니다
+  const other = summary({ threadId: thr(3), workspace: `/w/${thr(3)}x` });
+  expect(blankThreadIn([other], null)).toBeNull();
+  expect(blankThreadIn([summary({ threadId: thr(4), workspace: "/w/a" })], null)).toBeNull();
+});
+
 test("middleEllipsisOf keeps the start and the folder name", () => {
   expect(middleEllipsisOf("/a/b", 40)).toBe("/a/b");
   expect(middleEllipsisOf("/Users/me/Library/Application Support/x/default-project/abc", 20)).toBe(
