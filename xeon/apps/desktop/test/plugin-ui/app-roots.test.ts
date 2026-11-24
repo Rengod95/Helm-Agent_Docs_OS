@@ -57,6 +57,15 @@ describe("appRootInputs", () => {
     expect(roots.map((root) => root.trust)).toEqual(["user", "project", "managed"]);
   });
 
+  test("a draft screen is sent in the draft tier whatever its trust says, and builtin stays out", () => {
+    const roots = appRootInputs([
+      appEntryOf({ id: "d1", trust: "user", draft: true }),
+      appEntryOf({ id: "d2", trust: "project", draft: true }),
+      appEntryOf({ id: "d3", trust: "user" }),
+    ]);
+    expect(roots.map((root) => root.trust)).toEqual(["draft", "draft", "user"]);
+  });
+
   test("the root and entry come from the entry's appRoot and app declaration, in input order", () => {
     const roots = appRootInputs([
       appEntryOf({ id: "z", extension: "zeta", trust: "project", appRoot: "/r/zeta" }),

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { err, ok, type Logger } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import { err, ok, parse, type Logger } from "@fresnel/contracts";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   createVersionHistory,
   type ExtensionLoader,
@@ -909,4 +909,66 @@ test("a draft screen is listed only for the thread that is testing that draft", 
     true,
     undefined,
   ]);
+});
+
+// Y-04: 승인 전 드래프트의 화면은 그 드래프트를 테스트하는 대화에서만 말을 건다
+describe("a draft screen talks only from the thread that tests that draft", () => {
+  const DRAFT_NAME = "dabc123-todo";
+  const testing = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
+  const other = "thr_01HYYYYYYYYYYYYYYYYYYYYYYY";
+  const draftInfo: LoadedExtensionInfo = {
+    ...loaded(DRAFT_NAME, "active", "user", "0.1.0"),
+    draft: { plugin: "todo", draftId: "drf_01HZZZZZZZZZZZZZZZZZZZZZZZ" },
+  };
+  const source = partial<ExtUiVersionSource>({
+    host: partial<ExtUiVersionSource["host"]>({
+      registrations: () => [],
+      ui: partial<ExtUiVersionSource["host"]["ui"]>({
+        post: () => Promise.resolve(ok({ duplicate: false })),
+      }),
+    }),
+    loader: () =>
+      partial<ReturnType<ExtUiVersionSource["loader"]>>({
+        list: () => [draftInfo, loaded("helm", "active", "user", "0.2.0")],
+      }),
+  });
+  const testedOf = (threadId: ThreadId): readonly string[] =>
+    threadId === testing ? [DRAFT_NAME] : [];
+
+  async function callFrom(extension: string, raw: string | null): Promise<string> {
+    const parsed = raw === null ? undefined : parse(ThreadIdSchema, raw);
+    expect(parsed === undefined || parsed.ok).toBe(true);
+    const threadId = parsed?.ok === true ? parsed.value : null;
+    const port = createExtMethodPort(
+      () => Promise.resolve({ kind: "ok", value: { items: [] } }),
+      source,
+      testedOf,
+    );
+    const outcome = await port.call({
+      extension,
+      verb: "list",
+      params: {},
+      threadId,
+      signal: new AbortController().signal,
+    });
+    return outcome.kind;
+  }
+
+  test("methods are refused outside the testing thread and run inside it", async () => {
+    expect(await callFrom(DRAFT_NAME, testing)).toBe("ok");
+    expect(await callFrom(DRAFT_NAME, other)).toBe("not_found");
+    expect(await callFrom(DRAFT_NAME, null)).toBe("not_found");
+    // 승인된 확장은 대화와 상관없이 그대로다
+    expect(await callFrom("helm", other)).toBe("ok");
+  });
+
+  test("ui.post follows the same rule", async () => {
+    const port = createExtUiVersionPort({ extUi: source }, testedOf);
+    const post = (threadId: string): Promise<boolean> =>
+      port
+        .uiPost({ extension: DRAFT_NAME, ui: "page", threadId, name: "x" })
+        .then((result) => result.ok);
+    expect(await post(testing)).toBe(true);
+    expect(await post(other)).toBe(false);
+  });
 });

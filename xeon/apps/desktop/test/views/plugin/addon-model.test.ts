@@ -79,6 +79,20 @@ function attentionOf(
 }
 
 describe("addonRowsOf", () => {
+  test("a draft screen is not a row, so no header tab, app list entry or playground card shows it", () => {
+    const draft = uiEntryOf({
+      extension: "dabc123-todo",
+      id: "board",
+      mode: "app",
+      title: "Todo",
+      draft: true,
+    });
+    const rows = addonRowsOf(sourceOf([...VIEWDEMO, draft]), NO_META, "ko");
+    expect(rows.map((row) => row.name)).toEqual(["viewdemo"]);
+    const listed: AddonMetaMap = new Map([["dabc123-todo", { listed: true }]]);
+    expect(addonRowsOf(sourceOf([draft]), listed, "ko")).toEqual([]);
+  });
+
   test("one row per extension with any entry, sorted by shown name, counting screens and other features", () => {
     const rows = addonRowsOf(sourceOf([...VIEWDEMO, ...HELM]), NO_META, "ko");
     expect(

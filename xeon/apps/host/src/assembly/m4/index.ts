@@ -193,6 +193,7 @@ export function createM4Ports(
           caller: "wire",
         }),
       extUi,
+      (threadId) => (pluginSet.testRunDraftsOf(threadId) ?? []).map((mark) => mark.plugin),
     ),
     profileTestRun,
     project: engine.projects,

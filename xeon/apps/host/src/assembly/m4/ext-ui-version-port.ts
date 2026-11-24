@@ -58,9 +58,24 @@ export function createExtUiVersionPort(
         params.threadId === undefined ? undefined : threadOf(params.threadId),
         testedDraftsOf,
       ),
-    uiPost: (params) => uiPostOf(source, params),
-    uiRequestApproval: (params) => uiApprovalOf(source, params),
+    uiPost: (params) => uiPostOf(source, params, testedDraftsOf),
+    uiRequestApproval: (params) => uiApprovalOf(source, params, testedDraftsOf),
   };
+}
+
+/**
+ * 승인 전 드래프트의 화면은 그 드래프트를 테스트하는 대화에서만 말을 건다(AGE-77 Y-04). 드래프트가 아니면 이 검사는 지나간다.
+ * 드래프트인데 그 대화가 테스트하는 것이 아니면 거절한다(다른 대화, 다른 플러그인의 대화로 새지 않는다)
+ */
+function draftBarred(
+  source: ExtUiVersionSource | undefined,
+  extension: string,
+  threadId: ThreadId | null,
+  testedDraftsOf: (threadId: ThreadId) => readonly string[],
+): boolean {
+  const info = installedOf(source, extension);
+  if (info?.draft === undefined) return false;
+  return threadId === null || !testedDraftsOf(threadId).includes(extension);
 }
 
 /**
@@ -70,9 +85,13 @@ export function createExtUiVersionPort(
 export function createExtMethodPort(
   call: ExtMethodPort["call"],
   source: ExtUiVersionSource | undefined,
+  testedDraftsOf: (threadId: ThreadId) => readonly string[] = () => [],
 ): ExtMethodPort {
   return {
     async call(request) {
+      if (draftBarred(source, request.extension, request.threadId, testedDraftsOf)) {
+        return { kind: "not_found" };
+      }
       if (source !== undefined) await loadDeferred(source, request.extension);
       return await call(request);
     },
@@ -83,10 +102,14 @@ export function createExtMethodPort(
 async function uiPostOf(
   source: ExtUiVersionSource | undefined,
   params: ExtUiPostParams,
+  testedDraftsOf: (threadId: ThreadId) => readonly string[],
 ): Promise<Result<ExtUiPostResult, ExtUiRefusal>> {
   if (source === undefined) return err({ kind: "unknown_extension", extension: params.extension });
   const threadId = threadOf(params.threadId);
   if (threadId === undefined) return err({ kind: "unknown_thread", threadId: params.threadId });
+  if (draftBarred(source, params.extension, threadId, testedDraftsOf)) {
+    return err({ kind: "unknown_extension", extension: params.extension });
+  }
   await loadDeferred(source, params.extension);
   const posted = await source.host.ui.post({
     extension: params.extension,
@@ -103,10 +126,14 @@ async function uiPostOf(
 async function uiApprovalOf(
   source: ExtUiVersionSource | undefined,
   params: ExtUiApprovalParams,
+  testedDraftsOf: (threadId: ThreadId) => readonly string[],
 ): Promise<Result<ExtUiApprovalResult, ExtUiRefusal>> {
   if (source === undefined) return err({ kind: "unknown_extension", extension: params.extension });
   const threadId = threadOf(params.threadId);
   if (threadId === undefined) return err({ kind: "unknown_thread", threadId: params.threadId });
+  if (draftBarred(source, params.extension, threadId, testedDraftsOf)) {
+    return err({ kind: "unknown_extension", extension: params.extension });
+  }
   await loadDeferred(source, params.extension);
   return source.host.ui.requestApproval({
     extension: params.extension,
