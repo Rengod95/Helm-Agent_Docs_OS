@@ -31,12 +31,19 @@ export function isBlankThread(thread: ThreadSummary): boolean {
   );
 }
 
-/** 그 작업 폴더(null은 폴더 없음)의 빈 새 대화. 없으면 null */
+/**
+ * 그 작업 폴더(null은 폴더 없음)의 빈 새 대화. 없으면 null.
+ * 엔진은 폴더 없이 만든 대화에도 그 대화만의 기본 폴더를 채워 주므로, 폴더 없음은 자기 기본 폴더에 있는 대화도 든다
+ */
 export function blankThreadIn(
   threads: readonly ThreadSummary[],
   workspace: string | null,
 ): ThreadSummary["threadId"] | null {
-  const blank = threads.find((thread) => thread.workspace === workspace && isBlankThread(thread));
+  const inFolder = (thread: ThreadSummary): boolean =>
+    workspace === null
+      ? thread.workspace === null || isDefaultFolderPath(thread.workspace, thread.threadId)
+      : thread.workspace === workspace;
+  const blank = threads.find((thread) => inFolder(thread) && isBlankThread(thread));
   return blank === undefined ? null : blank.threadId;
 }
 

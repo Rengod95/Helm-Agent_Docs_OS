@@ -2819,6 +2819,8 @@
   "desktop.plugin.frame.disabled": "이 앱이 꺼졌어요. 다시 켜면 처음부터 다시 불러와요.",
   "desktop.plugin.frame.loading": "불러오는 중…",
   "desktop.plugin.header.backToChat": "대화로",
+  "desktop.plugin.panel.screens": "화면",
+  "desktop.plugin.panel.more": "다른 화면 {count}개",
   "desktop.plugin.frame.reenable": "다시 켜기",
   "desktop.plugin.frame.reason.queryFailed": "화면이 한 조회가 연속으로 실패해서 닫혔어요",
   "desktop.plugin.frame.reason.queryFailedInfo": "조회(query) 요청이 이어서 실패했어요. 플러그인이 보낸 조회 이름과 인자가 맞는지 확인하세요.",
