@@ -20,6 +20,10 @@ import path from "node:path";
 import { assertNever, attempt, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import { ShellError } from "./commands.ts";
 import type { ShellContext, ShellModule } from "./context.ts";
+import { pipedLauncher } from "./engine/launcher.ts";
+import { appLogOf } from "./lib/applog.ts";
+import { createPluginStoreDirSource } from "./lib/plugin-store-dir.ts";
+import { nodeScheduler } from "./lib/scheduler.ts";
 
 export const SCHEME = "fresnel-view";
 /** 파일 하나의 크기 상한. 넘으면 413이다 */
@@ -349,9 +353,21 @@ function isDraftTreeOf(dir: string, extension: string): boolean {
 }
 
 /** root가 확장의 설치 폴더 안인가. 설치 폴더(또는 현재 리뷰본 폴더)가 root의 조상이거나 root 자신이어야 한다 */
-function insideInstallDir(real: string, extension: string, tier: Tier): boolean {
-  // 드래프트 등급은 드래프트 트리 모양만 받고, 다른 등급은 드래프트 트리를 받지 않는다(모양이 달라서 거절된다)
-  if (tier === "draft") return ancestorsOf(real).some((dir) => isDraftTreeOf(dir, extension));
+function insideInstallDir(
+  real: string,
+  extension: string,
+  tier: Tier,
+  draftsDir: string | undefined,
+): boolean {
+  // 드래프트 등급은 드래프트 트리 모양에 더해, 셸이 아는 이 앱의 데이터 폴더(`<data>/plugin-store/drafts`)의 실제 경로 아래일 때만 받는다.
+  // 다른 등급은 드래프트 트리를 받지 않는다(모양이 달라서 거절된다)
+  if (tier === "draft") {
+    return (
+      draftsDir !== undefined &&
+      isWithin(real, draftsDir) &&
+      ancestorsOf(real).some((dir) => isDraftTreeOf(dir, extension))
+    );
+  }
   return ancestorsOf(real).some(
     (dir) => isInstallDirOf(dir, extension, tier) || isReviewedTreeOf(dir, extension),
   );
@@ -378,6 +394,7 @@ interface CheckedRoot {
 function checkEntry(
   input: AppRootInput,
   home: string | undefined,
+  draftsDir: string | undefined,
 ): Result<CheckedRoot, { readonly kind: SkipKind }> {
   if (!validExtensionName(input.extension)) return err({ kind: "bad_name" });
   if (!validVersion(input.version)) return err({ kind: "bad_version" });
@@ -386,7 +403,7 @@ function checkEntry(
   const real = realpathOrUndefined(input.root);
   if (real === undefined || !isDirectory(real)) return err({ kind: "not_a_directory" });
   if (tooBroad(real, home)) return err({ kind: "too_broad" });
-  if (!insideInstallDir(real, input.extension, input.trust)) {
+  if (!insideInstallDir(real, input.extension, input.trust, draftsDir)) {
     return err({ kind: "outside_install" });
   }
   return ok({
@@ -395,16 +412,23 @@ function checkEntry(
   });
 }
 
-/** 빈 `AppRoots`를 만든다. 등록은 통째로 바뀌므로 지난 목록에 남는 항목은 없다 */
-export function createAppRoots(): AppRoots {
+/**
+ * 빈 `AppRoots`를 만든다. 등록은 통째로 바뀌므로 지난 목록에 남는 항목은 없다.
+ * `pluginStoreDir`는 이 앱의 플러그인 저장소 폴더(`<데이터 폴더>/plugin-store`)를 돌려준다. 드래프트 등급은 그 아래 `drafts/`의 실제 경로 안일 때만
+ * 받는다. 폴더를 모르거나 아직 없으면 드래프트 항목은 모두 거절된다
+ */
+export function createAppRoots(pluginStoreDir?: () => string | undefined): AppRoots {
   let current = new Map<string, RootEntry>();
   return {
     replace(inputs, home) {
       if (inputs.length > MAX_ROOTS) return err({ kind: "too_many" });
+      const store = pluginStoreDir?.();
+      const realStore = store === undefined ? undefined : realpathOrUndefined(store);
+      const draftsDir = realStore === undefined ? undefined : path.join(realStore, "drafts");
       const next = new Map<string, RootEntry>();
       const skipped: SkippedRoot[] = [];
       for (const [index, input] of inputs.entries()) {
-        const checked = checkEntry(input, home);
+        const checked = checkEntry(input, home, draftsDir);
         if (!checked.ok) {
           skipped.push({ index, kind: checked.error.kind });
           continue;
@@ -602,7 +626,19 @@ export const viewSchemeModule: ShellModule = {
     },
   ],
   register(ctx) {
-    const roots = createAppRoots();
+    // 데이터 폴더는 사이드카 CLI가 알려 준다(`open_data_dir`과 같은 길). 알기 전의 드래프트 항목은 거절되고 다음 목록 읽기에서 받는다
+    const store = createPluginStoreDirSource(
+      pipedLauncher({
+        env: ctx.env,
+        platform: ctx.platform,
+        arch: process.arch,
+        resources: ctx.paths.resources,
+        home: homedir(),
+        log: appLogOf(ctx),
+        scheduler: nodeScheduler(),
+      }),
+    );
+    const roots = createAppRoots(store.current);
     registerAppRootsCommand(ctx, roots);
     // 프레임 주소의 `#n=<nonce>` 조각은 요청 대상이 아니다. Electron은 request.url에 조각을 남기므로 떼고 넘긴다
     ctx.handleScheme(SCHEME, (request) =>

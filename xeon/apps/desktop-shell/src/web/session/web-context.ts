@@ -30,6 +30,7 @@ import {
   registerSecretEntry,
 } from "../../main/secret-entry.ts";
 import { createServiceModule } from "../../main/service-mode.ts";
+import { createPluginStoreDirSource } from "../../main/lib/plugin-store-dir.ts";
 import { createAppRoots, registerAppRootsCommand } from "../../main/view-scheme.ts";
 import { CHANNEL_KEY } from "../../shared/channels.ts";
 import { dispositionOf, isServedByGateway } from "./commands-table.ts";
@@ -199,7 +200,7 @@ export function createWebContext(options: WebContextOptions): WebContext {
   }).register(ctx);
   createServiceModule({ launcherOf: () => launcher }).register(ctx);
   // 프레임 root 목록은 탭마다 따로다. 웹에는 스킴이 없어 `view_root`가 주는 권한 토큰이 이 목록을 가리킨다(spec §6.3)
-  const appRoots = createAppRoots();
+  const appRoots = createAppRoots(createPluginStoreDirSource(launcher).current);
   registerAppRootsCommand(ctx, appRoots);
   ctx.onQuit(() => {
     options.views.revokeTab(options.tabId);

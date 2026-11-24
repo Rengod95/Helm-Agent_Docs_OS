@@ -2,6 +2,7 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { createScreenLedger, type ScreenLedger } from "@fresnel/client/views/ledger";
 import type { BridgePolicyContext } from "@fresnel/client/views/app";
+import { trialEndedOf } from "./trial-end.ts";
 import { syncAppRoots, type AppRootsInvoke, type SkippedAppRoot } from "./app-roots.ts";
 import {
   groupPlacements,
@@ -124,9 +125,15 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
 
   async function readOnce(threadId: string | undefined): Promise<void> {
     const read = await deps.withConnection(async (connection) => {
+      // 시험이 끝난 대화로는 드래프트 화면을 읽지 않는다. 그 대화를 연 채 시험이 끝나면 이 읽기가 드래프트 항목을 빼서 앱 root가 거둬진다
+      let listThread = threadId;
+      if (threadId !== undefined) {
+        const tests = await connection.request("ext.test.list", {});
+        if (trialEndedOf(tests.tests, threadId)) listThread = undefined;
+      }
       const list = await connection.request(
         "ext.ui.list",
-        threadId === undefined ? {} : { threadId },
+        listThread === undefined ? {} : { threadId: listThread },
       );
       const extensions = await connection.request("ext.list", {});
       const got = await connection.request("settings.get", {

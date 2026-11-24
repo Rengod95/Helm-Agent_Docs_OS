@@ -9,6 +9,7 @@ import {
 import { Type } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { hostOf, PrimitiveError } from "../../src/primitives/index.ts";
+import { withAmbient } from "../../src/primitives/ambient.ts";
 import { createTestHost, memoryPluginStore } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
 
@@ -426,4 +427,28 @@ test("a store put and delete announce a data change of the extension, a failed p
   };
   await callVerb(t, "ps-signal", "save", null);
   expect(seen).toEqual(["ps-signal:null", "ps-signal:null"]);
+});
+
+test("a method called without a conversation from inside another dispatch still writes its store", async () => {
+  const port = memoryPluginStore();
+  const t = await createTestHost({ pluginStore: port });
+  const probe: Probe = { out: undefined, job: async () => null };
+  await t.host.install(storeUnit("ps-inherit", [{ verb: "save" }], probe));
+  probe.job = async (g) => g.pluginStore.put("note.one", { n: 1 });
+  // 부른 쪽의 흐름이 훅 디스패치의 ambient(`invocation` 없음)를 싣고 있다
+  const caller = withAmbient(
+    {
+      threadId: t.newThread(),
+      scopeId: "other-scope",
+      point: null,
+      dispatchKey: "hook:1",
+      counter: 0,
+      drive: null,
+      handler: null,
+    },
+    () => callVerb(t, "ps-inherit", "save", null),
+  );
+  expect((await caller).kind).toBe("ok");
+  expect(probe.out).toEqual({ ok: true, value: undefined });
+  expect(await port.get("ps-inherit", "note.one")).toEqual({ ok: true, value: '{"n":1}' });
 });

@@ -168,7 +168,18 @@ function bridgeErrorOf(cause: unknown): BridgeError {
   if (kind === "extension.safeModeActive") return { kind: "safe_mode" };
   if (kind === "jsonrpc.invalidParams") return { kind: "args_invalid", detail: "params" };
   if (isExtensionOff(kind)) return { kind: "extension_off" };
+  const outcome = methodOutcomeOf(cause);
+  if (kind.startsWith("ext.") && kind.endsWith(".failed") && outcome !== undefined) {
+    return { kind: "failed", detail: `method_${outcome}` };
+  }
   return { kind: "failed", detail: "wire_failed" };
+}
+
+/** 확장 메서드가 실패한 까닭의 고정 코드. 호스트가 `details.outcome`에 싣는 값 가운데 이 셋만 옮기고, 원문 메시지는 여전히 버린다 */
+function methodOutcomeOf(cause: WireError): "threw" | "timeout" | "result_invalid" | undefined {
+  const outcome = cause.data.details?.outcome;
+  if (outcome === "threw" || outcome === "timeout" || outcome === "result_invalid") return outcome;
+  return undefined;
 }
 
 async function wire<T>(run: () => Promise<T>): Promise<BackendResult<T>> {

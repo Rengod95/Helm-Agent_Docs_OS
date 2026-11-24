@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtTestRecord } from "@fresnel/contracts/wire";
-import { trialEndedOf } from "../../src/views/trial-ended.ts";
+import { trialEndedOf } from "../../src/plugin-ui/trial-end.ts";
 
 function record(over: Partial<ExtTestRecord>): ExtTestRecord {
   return {

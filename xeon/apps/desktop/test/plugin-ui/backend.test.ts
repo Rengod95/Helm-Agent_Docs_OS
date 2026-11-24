@@ -90,6 +90,16 @@ function rejecting(kind: string, message: string) {
     Promise.reject(new WireError(-32000, message, { kind, retryable: false }));
 }
 
+/** 확장 메서드 실패. 원문 메시지에 새면 안 되는 글을 싣는다 */
+const outcomeError = (outcome: string) => (): Promise<never> =>
+  Promise.reject(
+    new WireError(10001, "the plugin store of x-draft can be written only inside secret-leak", {
+      kind: "ext.helm.failed",
+      retryable: false,
+      details: { verb: "add", outcome },
+    }),
+  );
+
 function setting(key: string, value: unknown) {
   return {
     key,
@@ -549,6 +559,21 @@ describe("wire errors become bridge error names", () => {
       ok: false,
       error: { kind: "args_invalid", detail: "params" },
     });
+  });
+
+  test("a method that threw, timed out or answered wrongly names that outcome as a fixed code, and the wire message is dropped", async () => {
+    const results = await Promise.all(
+      ["threw", "timeout", "result_invalid"].map(async (outcome) => {
+        const h = harness({}, {}, { "ext.helm.save": outcomeError(outcome) });
+        return { outcome, result: await h.backend.call("save", {}) };
+      }),
+    );
+    for (const { outcome, result } of results) {
+      expect(result).toEqual({ ok: false, error: { kind: "failed", detail: `method_${outcome}` } });
+      expect(JSON.stringify(result)).not.toContain("secret-leak");
+    }
+    const unknown = harness({}, {}, { "ext.helm.save": outcomeError("something_else") });
+    expect(await unknown.backend.call("save", {})).toEqual(refused("wire_failed"));
   });
 
   test("any other kind is failed with a fixed detail and the wire message is dropped", async () => {

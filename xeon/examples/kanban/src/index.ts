@@ -117,7 +117,10 @@ function storeBoard(g: BoardApi): BoardSource {
 let storeLine: Promise<unknown> = Promise.resolve();
 function inStoreLine<T>(work: () => Promise<T>): Promise<T> {
   const run = storeLine.then(work);
-  storeLine = run.then(() => undefined);
+  storeLine = run.then(
+    () => undefined,
+    () => undefined,
+  );
   return run;
 }
 
