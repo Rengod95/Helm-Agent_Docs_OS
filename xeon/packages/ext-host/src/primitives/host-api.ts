@@ -59,6 +59,7 @@ import {
   inReadOnlyMethod,
   withAmbient,
   withExtMethod,
+  withoutAmbient,
   withOwnDataMethod,
   withReadOnlyMethod,
   type Ambient,
@@ -752,7 +753,9 @@ export function createRegistrationApi(
       ): Promise<unknown> =>
         withExtMethod(() =>
           ctx.threadId === null
-            ? def.handler(params, ctx)
+            ? // 대화가 없는 호출은 부른 쪽의 흐름에서 다른 디스패치의 ambient(훅, drive)를 물려받을 수 있다. 그 ambient는 `invocation`이 없어
+              // 저장소 쓰기가 `store_outside_method`로 거부되므로, 이 처리기의 흐름은 ambient 없이 돈다
+              withoutAmbient(() => def.handler(params, ctx))
             : withAmbient(
                 {
                   ...directAmbient(record.id, ctx.threadId, "method", ctx.callId),
