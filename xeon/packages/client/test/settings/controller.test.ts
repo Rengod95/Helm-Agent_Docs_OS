@@ -156,7 +156,7 @@ describe("load", () => {
     expect(state.status).toBe("failed");
     expect(state.loadError).toEqual({
       kind: "transient",
-      message: "엔진과 연결이 끊겼어요. 다시 연결되면 저장해 주세요",
+      message: "엔진과 연결이 끊겼어요. 다시 연결되면 다시 시도해 주세요",
     });
   });
 

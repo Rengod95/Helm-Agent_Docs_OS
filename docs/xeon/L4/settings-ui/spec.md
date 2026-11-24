@@ -851,6 +851,7 @@ sequenceDiagram
 | `jsonrpc.invalidParams`, `internal`, 그 밖 | `internal` | "저장하지 못했어요. 추적 번호: {traceId}" | 초안 유지 |
 
 - `details.issues`의 `message`(서버 검사기 문자열)는 화면에 그대로 쓰지 않고 `path`만 쓴다 [제안].
+- 설정을 읽지 못한 실패(`settings.list`, `settings.get`)는 쓰기 표를 쓰지 않고 읽기 문장을 쓴다(`toLoadError`): 엔진이 거절하면 "불러오지 못했어요"(추적 번호가 있으면 ". 추적 번호: {traceId}"), 연결 종료처럼 WireError가 아니면 "엔진과 연결이 끊겼어요. 다시 연결되면 다시 시도해 주세요". 읽기 실패에 "저장하지 못했어요"를 쓰지 않는다.
 
 #### 4.4.5 재시작 안내
 
