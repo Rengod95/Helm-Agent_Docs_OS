@@ -30,6 +30,27 @@ describe("new thread before the engine connection is open", () => {
     await app.stop();
   });
 
+  test("clicks made while waiting share one new thread instead of making one each", async () => {
+    const { fake, methods } = engineFake([summary(thr(1))], () => STARTING, { results: CREATED });
+    const app = makeApp(fake);
+    await tick(20);
+    const pending = [
+      app.commands.createThread(),
+      app.commands.createThread(),
+      app.commands.createThread(),
+    ];
+    await tick(20);
+    fake.emitState(RUNNING);
+    expect(await Promise.all(pending)).toEqual([
+      { ok: true, value: null },
+      { ok: true, value: null },
+      { ok: true, value: null },
+    ]);
+    expect(methods.filter((m) => m === "thread.create")).toEqual(["thread.create"]);
+    expect(app.ui.read.getState().selectedThreadId).toBe(thr(2));
+    await app.stop();
+  });
+
   test("if no connection opens before the deadline it is still reported as offline", async () => {
     const { fake, methods } = engineFake([summary(thr(1))], () => STARTING, { results: CREATED });
     const waits: number[] = [];

@@ -245,6 +245,27 @@ export function createCommands(
     );
   };
 
+  /** `thread.create`를 보내고 만든 대화를 고른다(`createThread`) */
+  const create = async (workspace: string | undefined): Promise<Result<null, CommandError>> => {
+    const created = await withWriteConnection((c) =>
+      c.request("thread.create", workspace === undefined ? {} : { workspace }, {
+        timeoutMs: CREATE_THREAD_TIMEOUT_MS,
+      }),
+    );
+    if (!created.ok) return created;
+    // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
+    leaveSelected(created.value.threadId);
+    engine.flush();
+    ui.actions.selectThread(created.value.threadId);
+    session.link()?.openThread(created.value.threadId);
+    return ok(null);
+  };
+  /** 연결을 기다리는 새 대화 만들기(하나만). 기다림이 끝나면 비운다 */
+  let waitingCreate: {
+    readonly workspace: string | undefined;
+    readonly result: Promise<Result<null, CommandError>>;
+  } | null = null;
+
   /** 갈라낸 새 대화를 연다. 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다 */
   const openForked = (threadId: ThreadId): void => {
     ui.actions.dismissLocked();
@@ -360,20 +381,18 @@ export function createCommands(
       ui.actions.selectThread(threadId);
       session.link()?.openThread(threadId);
     },
-    async createThread(workspace) {
-      await untilConnected();
-      const created = await withWriteConnection((c) =>
-        c.request("thread.create", workspace === undefined ? {} : { workspace }, {
-          timeoutMs: CREATE_THREAD_TIMEOUT_MS,
-        }),
-      );
-      if (!created.ok) return created;
-      // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
-      leaveSelected(created.value.threadId);
-      engine.flush();
-      ui.actions.selectThread(created.value.threadId);
-      session.link()?.openThread(created.value.threadId);
-      return ok(null);
+    createThread(workspace) {
+      // 연결을 기다리는 동안 같은 폴더로 또 누르면 새로 만들지 않고 기다리는 그 만들기의 결과를 같이 받는다(붙자마자 빈 대화가 누른 수만큼 생기지 않게)
+      if (waitingCreate !== null && waitingCreate.workspace === workspace)
+        return waitingCreate.result;
+      if (session.connection() !== null || deps.engineSwitch.held()) return create(workspace);
+      const result = (async (): Promise<Result<null, CommandError>> => {
+        await untilConnected();
+        waitingCreate = null;
+        return create(workspace);
+      })();
+      waitingCreate = { workspace, result };
+      return result;
     },
     async sendTurn(threadId, text, requestId, attachments, whenBusy = "followUp", overlay = []) {
       // 덧씌우기가 있으면 호출자가 이름을 이미 풀었다. 줄을 슬래시 명령으로 다시 풀지 않고 대화 입력으로 보낸다
