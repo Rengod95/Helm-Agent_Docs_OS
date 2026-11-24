@@ -21,6 +21,7 @@ import { appViewIssues } from "./app-check.ts";
 import { au004, au008, au010, au011, au013, type SourceText } from "./au-rules.ts";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 import { nativeViewIssues } from "./native-check.ts";
+import { isSafeRelative } from "./shared.ts";
 
 // L3.authoring.spec §3.3 `validate`, §3.5 제작 검사. F 검사 함수(validateManifest, validateComposition)와
 // orchestration-sdk 재생 규율 검사(검사기를 넘기면 scanDriveSource)를 차례로 돌리고 AU 규칙을 더한다. 규칙을 복사하지 않는다.
@@ -87,6 +88,27 @@ async function sourceFiles(root: string, prefix = ""): Promise<Result<string[], 
   });
   if (!nested.ok) return nested;
   return ok(nested.value.flat().toSorted());
+}
+
+const BUILT_ENTRY = /\.(m?js|cjs)$/;
+const BUILT_ENTRY_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * 설치된 플러그인의 엔트리는 빌드한 `.js`라서 소스 검색(`.ts`)에 걸리지 않는다. 그대로 두면 선언한 메서드가 모두 "등록 안 됨"으로 보여
+ * 내보내기(`ext.package`)가 실패한다. 앱 등록 검사에만 그 파일을 더한다(비밀, AU 규칙은 소스만 본다).
+ */
+async function builtEntryText(dir: string, entry: string | undefined): Promise<SourceText[]> {
+  if (
+    entry === undefined ||
+    !BUILT_ENTRY.test(entry) ||
+    !isSafeRelative(entry.replace(/^\.\//, ""))
+  )
+    return [];
+  const path = join(dir, entry);
+  const info = await io(entry, () => stat(path));
+  if (!info.ok || !info.value.isFile() || info.value.size > BUILT_ENTRY_MAX_BYTES) return [];
+  const read = await io(entry, () => readFile(path, "utf8"));
+  return read.ok ? [{ file: entry, text: read.value }] : [];
 }
 
 function lineOf(text: string, index: number): number {
@@ -284,7 +306,12 @@ export async function validateExtensionDir(
   issues.push(...au004(issues, manifest, options.providers));
   if (manifest !== undefined) {
     if (drives) issues.push(...au010(manifest, texts), ...au011(texts));
-    issues.push(...(await appViewIssues(dir, manifest, texts)));
+    issues.push(
+      ...(await appViewIssues(dir, manifest, [
+        ...texts,
+        ...(await builtEntryText(dir, manifest.entry)),
+      ])),
+    );
     issues.push(...(await nativeViewIssues(dir, manifest)));
   }
   issues.push(...au008(arrayOf(recordOf(recordOf(parsed.value.raw)?.["ui"])?.["items"])));
