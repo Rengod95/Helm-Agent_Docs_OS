@@ -36,8 +36,8 @@ async function setModes(dir: string, dirMode: number, fileMode: number): Promise
 }
 
 async function makeWritable(dir: string): Promise<void> {
-  await chmod(dir, 0o755).catch(() => undefined);
-  await setModes(dir, 0o755, 0o644).catch(() => undefined);
+  await chmod(dir, 0o755);
+  await setModes(dir, 0o755, 0o644);
 }
 
 test("a read-only installed folder packs into a writable folder whose manifest points at the bundle", async () => {

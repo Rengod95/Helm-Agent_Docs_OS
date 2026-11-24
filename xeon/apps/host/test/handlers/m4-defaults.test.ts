@@ -4,7 +4,7 @@ import { isNotImplemented } from "../../src/handlers/not-implemented.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// spec-deltas/t-f.md §5 5번. M4 wire 메서드 129개(AGE-33 ext.members.merge를 더해 128개에서 늘었다). 아래는 그 전 기록이다. M4 wire 메서드 121개(파일 되감기 메서드 다섯 개(thread.rewindPreview·rewind·rewindOverwrite·rewindUndo·turnFiles)가 2026-11-18 계약으로 더해졌다, 116개에서 늘었다. 그 전에는 가져오기 `migration.*` 여섯 개가 M5g 계약으로 더해졌다, blocks.applied가 더해졌다, 110개에서 늘었다. 그 전에는 blocks.describe가 더해졌다, M5c 계약이 프로젝트·플러그인·검토 메서드와 프로필 확장을 더했다, 옛 85개에서 늘었다. 이전 기록: work.plans.versions는 2026-11-15 정리로 지웠다, 옛 86개에서 하나 줄었다. hooks.order.* 4개, mcp.servers·mcp.serverAction 2개 포함, trust.list·trust.remove·sandbox.lastSelfTest·sandbox.selfTest·workspace.status 포함, host.remote.* 9개 포함, provider.checkAuth 포함)는 처리기가 있고, 소유 트랙이 채우기 전에는 notImplemented이며
+// spec-deltas/t-f.md §5 5번. M4 wire 메서드 131개(AGE-76 pluginReview.history와 pluginReview.requestRollback을 더해 129개에서 늘었다). 그 전에는 129개(AGE-33 ext.members.merge를 더해 128개에서 늘었다). 아래는 그 전 기록이다. M4 wire 메서드 121개(파일 되감기 메서드 다섯 개(thread.rewindPreview·rewind·rewindOverwrite·rewindUndo·turnFiles)가 2026-11-18 계약으로 더해졌다, 116개에서 늘었다. 그 전에는 가져오기 `migration.*` 여섯 개가 M5g 계약으로 더해졌다, blocks.applied가 더해졌다, 110개에서 늘었다. 그 전에는 blocks.describe가 더해졌다, M5c 계약이 프로젝트·플러그인·검토 메서드와 프로필 확장을 더했다, 옛 85개에서 늘었다. 이전 기록: work.plans.versions는 2026-11-15 정리로 지웠다, 옛 86개에서 하나 줄었다. hooks.order.* 4개, mcp.servers·mcp.serverAction 2개 포함, trust.list·trust.remove·sandbox.lastSelfTest·sandbox.selfTest·workspace.status 포함, host.remote.* 9개 포함, provider.checkAuth 포함)는 처리기가 있고, 소유 트랙이 채우기 전에는 notImplemented이며
 // host.hello의 features에 없다. 이 시험은 어느 메서드가 기본인지 목록을 갖지 않는다: 소유 트랙이 처리기를 채우면
 // features에 오르므로 두 쪽이 계속 일치하고, 시험은 고치지 않는다.
 
@@ -19,7 +19,7 @@ function m4Methods(): WireMethodName[] {
     .filter(isMethodName);
 }
 
-test("m4-defaults: the 129 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
+test("m4-defaults: the 131 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
   const slot: { table: WireHandlers | undefined } = { table: undefined };
   const host = createFakeHost({
     override: (table) => {
@@ -34,7 +34,7 @@ test("m4-defaults: the 129 M4 methods all have a handler and notImplemented matc
   if (table === undefined) throw new Error("the handler table was not captured");
 
   const names = m4Methods();
-  expect(names).toHaveLength(129);
+  expect(names).toHaveLength(131);
   const actual = names.map((name) => ({
     name,
     hasHandler: typeof table[name] === "function",
