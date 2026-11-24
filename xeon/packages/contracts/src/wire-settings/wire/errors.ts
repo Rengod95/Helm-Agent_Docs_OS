@@ -178,6 +178,7 @@ export type WireErrorKind =
   | "pluginReview.handEditNotAllowed"
   | "pluginReview.purposeRequired"
   | "pluginReview.descriptionRequired"
+  | "pluginReview.rollbackUnavailable"
   | "pluginReview.profileInvalid"
   | "migration.scanLimit"
   | "migration.rootInvalid"
@@ -262,6 +263,28 @@ const DraftUnavailableDetails = Type.Object(
   {
     name: Type.String({ maxLength: 128 }),
     reason: Type.Union(DRAFT_UNAVAILABLE_REASONS.map((reason) => Type.Literal(reason))),
+  },
+  { additionalProperties: false },
+);
+/**
+ * `pluginReview.rollbackUnavailable`의 까닭 [제안, 2026-11-24 AGE-76]. `builtin`·`bundled`·`project`·`managed`는 출처 때문에 막힌 것(`ROLLBACK_BLOCKS`와 같다),
+ * `not_kept` 그 판이 보관소에 없다, `current` 이미 지금 판이다, `unknown_version` 이력에 없는 판이다, `integrity` 보관된 판의 해시가 맞지 않는다
+ */
+export const ROLLBACK_UNAVAILABLE_REASONS = [
+  "builtin",
+  "bundled",
+  "project",
+  "managed",
+  "not_kept",
+  "current",
+  "unknown_version",
+  "integrity",
+] as const;
+export type RollbackUnavailableReason = (typeof ROLLBACK_UNAVAILABLE_REASONS)[number];
+const RollbackUnavailableDetails = Type.Object(
+  {
+    name: Type.String({ maxLength: 128 }),
+    reason: Type.Union(ROLLBACK_UNAVAILABLE_REASONS.map((reason) => Type.Literal(reason))),
   },
   { additionalProperties: false },
 );
@@ -959,6 +982,13 @@ export const WIRE_ERRORS: {
     kind: "pluginReview.descriptionRequired",
     retryable: false,
     details: IdDetails,
+  },
+  /** 지난 승인 버전으로 되돌리는 리뷰를 열 수 없다(`pluginReview.requestRollback`). 까닭은 `details.reason` [제안, AGE-76] */
+  "pluginReview.rollbackUnavailable": {
+    code: 3658,
+    kind: "pluginReview.rollbackUnavailable",
+    retryable: false,
+    details: RollbackUnavailableDetails,
   },
   // 3670~3679: 가져오기(`migration.*`, migration.md §7.7 [제안]). 3676~3679는 예비다
   /** 훑기가 파일 수, 바이트, 깊이 상한을 넘었다(`migration.scan`). 일부만 훑은 결과는 내지 않는다 */

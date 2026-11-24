@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import { err } from "@fresnel/contracts";
 import type { InjectInventory } from "@fresnel/contracts/extensions";
 import type { ReviewItem } from "@fresnel/contracts/wire";
@@ -489,5 +490,39 @@ describe("own-code reason (rerun3 T-06)", () => {
 
   test("the reason sentence is shown once, in the own-code screen list, not again in the app line", () => {
     expect(render(ready(OWN_CODE)).split(REASON).length - 1).toBe(1);
+  });
+});
+
+describe("rollback review (AGE-76)", () => {
+  const fetch = ITEMS.find((item) => item.itemId === "rvw_sample_fetch");
+  if (fetch === undefined) throw new Error("sample rvw_sample_fetch missing");
+  const ROLLBACK: ReviewItem = {
+    ...fetch,
+    rollback: { fromVersion: "1.5.0", toVersion: "1.4.0", savedState: false },
+  };
+  const SAVED: ReviewItem = {
+    ...fetch,
+    rollback: { fromVersion: "1.5.0", toVersion: "1.4.0", savedState: true },
+  };
+  const SAVED_NOTE = t("desktop.craft.review.rollback.savedState");
+
+  test("a rollback item's head has the rollback chip and the step from the version it leaves to the one it returns to", () => {
+    const html = render(ready([ROLLBACK]));
+    expect(html).toContain(t("desktop.craft.review.rollback.chip"));
+    expect(html).toMatch(/data-slot="review-version"[^>]*>1\.5\.0 → 1\.4\.0</);
+    expect(html).toContain(t("desktop.craft.review.action.rollback"));
+    expect(html).toContain(t("desktop.craft.review.source.rollback"));
+    expect(html).not.toContain(t("desktop.craft.review.action.update"));
+  });
+
+  test("a rollback that keeps saved state warns above the body, in the reading column", () => {
+    const html = render(ready([SAVED]));
+    expect(html).toContain(SAVED_NOTE);
+    expect(html.indexOf(SAVED_NOTE)).toBeGreaterThan(html.indexOf('data-slot="review-read"'));
+  });
+
+  test("a rollback without saved state has no warning, and an ordinary item has no rollback chip", () => {
+    expect(render(ready([ROLLBACK]))).not.toContain(SAVED_NOTE);
+    expect(render(ready([fetch]))).not.toContain(t("desktop.craft.review.rollback.chip"));
   });
 });

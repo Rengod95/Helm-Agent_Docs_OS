@@ -4,7 +4,7 @@
 //   오른쪽 좁은 열 = 판단하는 것(`review-judge.tsx`): 코드 실행 경고, 권한과 위험, 출처, 넣을 곳, 거절·승인. 열이 따로 스크롤해
 //   긴 차이를 읽는 동안에도 경고와 결정 단추가 남는다.
 // 섹션 문법은 캔버스 상세 패널(cv4)과 같다(제목 15/600, 아이콘 없음, 섹션 사이 가는 선).
-import { Chip as CausticChip } from "@caustic/react";
+import { Alert, Chip as CausticChip } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import {
@@ -17,7 +17,12 @@ import {
   type PluginCard,
   type ScriptUse,
 } from "@fresnel/contracts/extensions";
-import type { DiffRow as CardDiffRow, Profile, ReviewItem } from "@fresnel/contracts/wire";
+import type {
+  DiffRow as CardDiffRow,
+  Profile,
+  ReviewItem,
+  WhatItDoesDiff,
+} from "@fresnel/contracts/wire";
 import { useId, type ReactNode, type Ref } from "react";
 import { useInstalledEntries } from "../installed-entries.ts";
 import { PartyLabel } from "../deps/dependency-refusal.tsx";
@@ -40,7 +45,7 @@ import {
   type WhenFact,
 } from "./review-facts.ts";
 import { FilesSection, type FileHandle } from "./review-files.tsx";
-import { KindTile } from "./review-glyphs.tsx";
+import { KindTile, ToneGlyph } from "./review-glyphs.tsx";
 import { JudgeColumn, type Decided, type DecisionHandle } from "./review-judge.tsx";
 import {
   entryKindOf,
@@ -76,7 +81,21 @@ import {
 import type { ReviewData } from "./review-source.ts";
 import { profileTitleOf } from "../../convo/profile-chip-model.ts";
 
-/** 요약 띠: 종류 타일 28, 이름(19/600)과 버전, "무엇을 하려는지 · 어디서 · 언제", 칩 줄은 타일 왼끝에서 시작한다 */
+/** 머리의 버전 글: 바뀐 판이면 "이전 → 지금", 같은 판이면 지금 판만. 판이 없으면 null */
+function versionLineOf(versions: Versions): string | null {
+  if (versions.now === null) return null;
+  return versions.before === null
+    ? versions.now
+    : t("desktop.craft.review.source.versionChange", {
+        from: versions.before,
+        to: versions.now,
+      });
+}
+
+/**
+ * 요약 띠: 종류 타일 28, 이름(19/600)과 버전, "무엇을 하려는지 · 어디서 · 언제", 칩 줄은 타일 왼끝에서 시작한다.
+ * 되돌리기 항목(`rollback`)이면 버전 글은 "지금 판 → 되돌릴 판"이고 칩 줄 첫머리에 "되돌리기" 꼬리표가 붙는다
+ */
 function ReviewHead(props: {
   readonly item: ReviewItem;
   readonly versions: Versions;
@@ -87,6 +106,14 @@ function ReviewHead(props: {
   const { item, versions } = props;
   const entry = entryKindOf(item);
   const keeper = keeperOf(item.card);
+  const rollback = item.rollback;
+  const version =
+    rollback === undefined
+      ? versionLineOf(versions)
+      : t("desktop.craft.review.source.versionChange", {
+          from: rollback.fromVersion ?? "-",
+          to: rollback.toVersion,
+        });
   return (
     <header className="rv-head grid gap-3">
       <div className="flex min-w-0 items-start gap-3">
@@ -100,25 +127,31 @@ function ReviewHead(props: {
             >
               {item.card.displayName}
             </h2>
-            {versions.now === null ? null : (
+            {version === null ? null : (
               <span data-slot="review-version" className="shrink-0 text-ui text-text-tertiary">
-                {versions.before === null
-                  ? versions.now
-                  : t("desktop.craft.review.source.versionChange", {
-                      from: versions.before,
-                      to: versions.now,
-                    })}
+                {version}
               </span>
             )}
           </div>
           <p className="m-0 flex min-w-0 items-baseline gap-2 text-ui text-text-tertiary">
-            <span className="shrink-0">{t(ACTION_WORD[entry])}</span>{" "}
-            <span className="min-w-0 truncate">{originText(item, props.threadTitle)}</span>{" "}
+            <span className="shrink-0">
+              {t(
+                rollback === undefined
+                  ? ACTION_WORD[entry]
+                  : "desktop.craft.review.action.rollback",
+              )}
+            </span>{" "}
+            <span className="min-w-0 truncate">
+              {rollback === undefined
+                ? originText(item, props.threadTitle)
+                : t("desktop.craft.review.source.rollback")}
+            </span>{" "}
             <span className="shrink-0">{agoText(item.createdAt, props.now)}</span>
           </p>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
+        {rollback === undefined ? null : <Chip>{t("desktop.craft.review.rollback.chip")}</Chip>}
         <Chip>{t(ENTRY_WORD[entry])}</Chip>
         {kindsOf(item.card).map((kind) => (
           <KindChip key={kind} kind={kind} />
@@ -618,15 +651,51 @@ function ScreensBlock(props: { readonly screens: readonly ScreenFact[] }): React
   );
 }
 
-function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCard }): ReactNode {
-  const { item } = props;
-  const facts = workFactsOf(props.card);
-  const diff = item.diff;
+/**
+ * "하는 일의 차이" 목록: 더한 것, 바뀐 것, 뺀 것. 한 줄도 없으면 아무것도 그리지 않는다.
+ * 리뷰 화면의 "작동 방식"과 버전 탭의 지점 변경 내용이 같이 쓴다(같은 그림).
+ */
+export function DoesChanges(props: { readonly diff: WhatItDoesDiff }): ReactNode {
+  const { diff } = props;
   const changes = [
     ...diff.added.map((entry) => ({ mark: "added" as const, entry })),
     ...diff.changed.map((entry) => ({ mark: "changed" as const, entry })),
     ...diff.removed.map((entry) => ({ mark: "removed" as const, entry })),
   ];
+  if (changes.length === 0) return null;
+  return (
+    <div className="grid gap-1.5 pt-1">
+      <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.craft.review.does.changes")}</p>
+      <ul className="m-0 grid gap-1 p-0">
+        {changes.map(({ mark, entry }) => (
+          <li
+            key={`${mark}:${entry.row}:${entry.what}`}
+            className="flex min-w-0 items-baseline gap-2 text-ui"
+          >
+            <span className={`rv-change-${mark} w-10 shrink-0 text-ui-sm`}>
+              {t(
+                mark === "added"
+                  ? "desktop.craft.review.does.added"
+                  : mark === "removed"
+                    ? "desktop.craft.review.does.removed"
+                    : "desktop.craft.review.does.changed",
+              )}
+            </span>
+            <ChangeLine
+              row={entry.row}
+              what={entry.what}
+              {...(entry.detail === undefined ? {} : { detail: entry.detail })}
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCard }): ReactNode {
+  const { item } = props;
+  const facts = workFactsOf(props.card);
   const entries = useInstalledEntries();
   // 의존 줄: 대상 이름과 종류, 범위. 엔진이 문제를 찾았으면 경고 색이다(설치되지 않음, 멤버 없음, 범위 어긋남)
   const dependChips: readonly FactChip[] = (props.card.dependencies?.dependsOn ?? []).map(
@@ -666,36 +735,7 @@ function HowSection(props: { readonly item: ReviewItem; readonly card: PluginCar
         </dl>
       )}
       <ScreensBlock screens={facts.screens} />
-      {item.kind === "update" && changes.length > 0 ? (
-        <div className="grid gap-1.5 pt-1">
-          <p className="m-0 text-ui-sm text-text-tertiary">
-            {t("desktop.craft.review.does.changes")}
-          </p>
-          <ul className="m-0 grid gap-1 p-0">
-            {changes.map(({ mark, entry }) => (
-              <li
-                key={`${mark}:${entry.row}:${entry.what}`}
-                className="flex min-w-0 items-baseline gap-2 text-ui"
-              >
-                <span className={`rv-change-${mark} w-10 shrink-0 text-ui-sm`}>
-                  {t(
-                    mark === "added"
-                      ? "desktop.craft.review.does.added"
-                      : mark === "removed"
-                        ? "desktop.craft.review.does.removed"
-                        : "desktop.craft.review.does.changed",
-                  )}
-                </span>
-                <ChangeLine
-                  row={entry.row}
-                  what={entry.what}
-                  {...(entry.detail === undefined ? {} : { detail: entry.detail })}
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      {item.kind === "update" ? <DoesChanges diff={item.diff} /> : null}
     </Section>
   );
 }
@@ -980,6 +1020,11 @@ export function ReviewDetail(props: {
           headingId={headingId}
         />
         <div className="rv-read" data-slot="review-read">
+          {item.rollback?.savedState === true ? (
+            <Alert tone="warning" size="sm" icon={<ToneGlyph tone="warning" />}>
+              {t("desktop.craft.review.rollback.savedState")}
+            </Alert>
+          ) : null}
           <AboutSection card={card} />
           <HowSection item={item} card={card} />
           {item.kind === "remove" ? (

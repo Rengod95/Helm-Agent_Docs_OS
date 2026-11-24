@@ -426,6 +426,18 @@ export interface PluginReviewCommands {
   ): Promise<Result<WireResult<"pluginReview.decide">, CommandError>>;
   /** `profile.list`. 승인할 때 넣을 프로필을 고른다 */
   profiles(): Promise<Result<WireResult<"profile.list">, CommandError>>;
+  /** `pluginReview.history { name }`. 플러그인의 판 이력(최신이 앞)과 되돌릴 수 없는 까닭. 버전 탭이 읽는다 */
+  history(name: string): Promise<Result<WireResult<"pluginReview.history">, CommandError>>;
+  /** `pluginReview.get { itemId }`. 항목 하나. 이력 줄의 변경 내용을 읽는다 */
+  get(itemId: string): Promise<Result<WireResult<"pluginReview.get">, CommandError>>;
+  /**
+   * `pluginReview.requestRollback`. 지난 승인 판으로 되돌리는 리뷰 항목을 연다(바로 바꾸지 않는다). 쓰기라 전환 중이면 `switching`이다.
+   * 되돌릴 수 없으면 `pluginReview.rollbackUnavailable`(3658)로 거절한다
+   */
+  requestRollback(
+    name: string,
+    contentHash: string,
+  ): Promise<Result<WireResult<"pluginReview.requestRollback">, CommandError>>;
   /** `pluginReview.changed`와 `plugin.changed`를 듣는다. 반환값은 구독 해제 */
   onChanged(listener: () => void): () => void;
 }
