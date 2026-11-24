@@ -610,6 +610,7 @@ export function createBoundary(
         // 끈 scope는 기본 켜짐이어도 다시 열 때 꺼진 채로 둔다. 기록이 같으므로 scope.changed를 다시 쓰지 않는다
         want: new Map(snapshot.disabled.map((id) => [id, { enabled: false, reason: undefined }])),
         refused: new Set(),
+        driveFailed: new Set(),
         flips: new Map(Object.entries(snapshot.scopeTransitions)),
         enabledAtSeq: new Map(Object.entries(snapshot.enabledAtSeq)),
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),

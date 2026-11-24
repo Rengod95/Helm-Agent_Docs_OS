@@ -55,6 +55,7 @@ import {
   withAmbient,
   withExtMethod,
   withOwnDataMethod,
+  withoutMethodMarks,
   withReadOnlyMethod,
 } from "../primitives/ambient.ts";
 import { PrimitiveError } from "../primitives/errors.ts";
@@ -616,10 +617,13 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
       scripts: deps.scripts,
       method: deps.methodScopeOf?.(params.requestId),
     };
+    // 요청의 메서드 표지는 요청 자신의 것만 믿는다. 처리 흐름이 물려받은 표지(감독의 읽기 흐름을 연 readOnly 호출 등)는 벗긴다
     const routeNow = (): ReturnType<typeof route> =>
-      amb === undefined
-        ? route(g, params.method, params.params, context)
-        : withAmbient(amb, () => route(g, params.method, params.params, context));
+      withoutMethodMarks(() =>
+        amb === undefined
+          ? route(g, params.method, params.params, context)
+          : withAmbient(amb, () => route(g, params.method, params.params, context)),
+      );
     const routed = await attemptAsync(() =>
       deps.ownDataOf?.(params.requestId) === true ? withOwnDataMethod(routeNow) : routeNow(),
     );

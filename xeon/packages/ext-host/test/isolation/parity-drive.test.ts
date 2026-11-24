@@ -511,10 +511,10 @@ test("B's process dying mid-step gives A an aborted handoff, the same as B's ste
   }
 
   // 알려진 차이(문서화): 프로세스 죽음은 주도 등록을 error로 표시하지 않고 진단 코드는 process_exit다.
-  // 단계 안의 던짐은 등록을 error로 표시하고 진단 코드는 handler_failed다. 이 차이는 drive-isolation.md 3.3의 정정이다.
-  expect(baseline.registration).toBe("error");
+  // 단계 안의 던짐도 등록을 error로 표시하지 않고(그 대화의 그 실행만 멈춘다, scnEng8 W-09) 진단 코드는 handler_failed다.
+  expect(baseline.registration).toBe("registered");
   expect(baseline.errorCodes).toContain("handler_failed");
-  expect(throwIsolated.registration).toBe("error");
+  expect(throwIsolated.registration).toBe("registered");
   expect(throwIsolated.errorCodes).toContain("handler_failed");
   expect(deathFromEngine.registration).toBe("registered");
   expect(deathFromIsolated.registration).toBe("registered");

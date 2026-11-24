@@ -6,6 +6,8 @@ import {
   type EngineMethodScope,
 } from "../../src/isolation/engine-calls.ts";
 import type { AnyState } from "../../src/primitives/erased-types.ts";
+import { withReadOnlyMethod, type Ambient } from "../../src/primitives/ambient.ts";
+import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, memoryPluginStore } from "../../src/testing/index.ts";
 import { makeUnit } from "../primitives/fixtures/support.ts";
 
@@ -100,4 +102,46 @@ test("a pluginStore call with a malformed shape is refused as invalid_params", a
       params: { op: "clear" },
     }),
   ).toMatchObject({ ok: false, error: { kind: "invalid_params" } });
+});
+
+test("a tool's pluginStore write is not refused when the router runs inside a readOnly method flow it did not start from", async () => {
+  const port = memoryPluginStore();
+  const t = await createTestHost({ pluginStore: port });
+  const slot: { g?: RegistrationApi<AnyState> } = {};
+  await t.host.install(
+    makeUnit<AnyState>({ name: REGISTRATION }, (g) => {
+      slot.g = g;
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  if (slot.g === undefined) throw new Error("the unit was not set up");
+  const toolAmbient: Ambient = {
+    threadId: thread,
+    scopeId: hostOf(slot.g).scopeId,
+    point: null,
+    dispatchKey: null,
+    counter: 0,
+    drive: null,
+    handler: null,
+    invocation: "tool",
+    callId: "call-1",
+  };
+  const router = createEngineCallRouter({
+    gOf: (registration) => (registration === REGISTRATION ? slot.g : undefined),
+    replayOf: () => false,
+    ambientOf: () => toolAmbient,
+    methodScopeOf: () => undefined,
+  });
+  // 감독의 읽기 흐름이 readOnly 메서드 호출 안에서 시작되었다면, 그 표지가 도구 요청에 새면 안 된다
+  const reply = await withReadOnlyMethod(() =>
+    router({
+      method: "pluginStore",
+      registration: REGISTRATION,
+      requestId: 7,
+      params: { op: "put", key: "tool.note", value: { n: 1 } },
+    }),
+  );
+  expect(reply).toEqual({ ok: true, value: { ok: true, value: null } });
+  expect(await port.get(REGISTRATION, "tool.note")).toEqual({ ok: true, value: '{"n":1}' });
 });

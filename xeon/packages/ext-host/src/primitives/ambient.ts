@@ -126,3 +126,11 @@ export function withExtMethod<T>(fn: () => T): T {
 export function inExtMethod(): boolean {
   return extMethodStorage.getStore() === true;
 }
+
+/**
+ * 메서드 표지(readOnly, 확장 메서드)를 모두 벗기고 실행한다. 격리 자식이 보낸 요청의 처리는 엔진이 읽기 흐름을 시작한 호출의 흐름 표지를 물려받을 수 있다.
+ * 요청 자체의 표지만 믿으려면 메서드 표지가 없는 요청(도구, 훅)은 이 함수로 감싼다
+ */
+export function withoutMethodMarks<T>(fn: () => T): T {
+  return readOnlyStorage.exit(() => extMethodStorage.exit(fn));
+}

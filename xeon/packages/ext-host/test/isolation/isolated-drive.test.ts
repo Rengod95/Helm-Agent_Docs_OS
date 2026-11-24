@@ -258,7 +258,7 @@ test("a step that does not end is stopped at its time limit: the process is kill
   expect(t.loop.turns).toEqual([]);
 });
 
-test("a command that does not match its schema fails the step: the frame goes down, the drive is marked error, the child stays alive, and a new start is refused", async () => {
+test("a command that does not match its schema fails the step: the frame goes down, the registration is not marked broken, the child stays alive, and a new user start is accepted", async () => {
   const { t, port, thread } = await isolatedHost();
   // 질문 카드가 질문을 하나도 갖지 않는다. 타입은 맞고 스키마는 맞지 않는다
   expect(await startOf(t, thread, "shape")).toBe("started");
@@ -266,15 +266,13 @@ test("a command that does not match its schema fails the step: the frame goes do
 
   expect(releasedOf(t, thread).map((released) => released.reason)).toEqual(["error"]);
   expect(t.diagnostics.map((diagnostic) => diagnostic.code)).toContain("handler_failed");
-  expect(t.host.registrations()[0]?.drive).toBe("error");
+  expect(t.host.registrations()[0]?.drive).toBe("registered");
   expect(port.children).toHaveLength(1);
   expect(port.children[0]?.isAlive()).toBe(true);
   expect(t.loop.turns).toEqual([]);
 
-  // 오류로 표시된 주도 등록은 새 시작을 받지 않는다(엔진 안과 같은 값)
-  expect(await startOf(t, thread, "basic")).toBe("refused drive_error");
-  await t.settled();
-  expect(stepsSent(port)).toBe(1);
+  // 고장 표시는 그 실행에만 걸리므로 사용자의 새 시작은 받는다
+  expect(await startOf(t, thread, "basic")).toBe("started");
 });
 
 test("a host restart while the isolated step waits after a recorded turn restores the lease, replays that turn and records nothing twice", async () => {

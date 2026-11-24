@@ -271,7 +271,7 @@ test("wrap.commit-command-is-checked-like-g-commit", async () => {
   expect(t.diagnostics).toMatchObject([
     { level: "error", code: "state_schema", scopeId: "checked" },
   ]);
-  expect(t.host.registrations().find((info) => info.id === "checked")?.drive).toBe("error");
+  expect(t.host.registrations().find((info) => info.id === "checked")?.drive).not.toBe("error");
   expect(t.records.events(thread).map((event) => event.kind)).not.toContain(
     "grp.checked.state.committed",
   );
