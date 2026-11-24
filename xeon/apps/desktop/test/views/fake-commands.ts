@@ -207,7 +207,6 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       validateDir: () => Promise.resolve(err({ kind: "unsupported" })),
       packDir: () => Promise.resolve(err({ kind: "unsupported" })),
       versions: () => Promise.resolve(ok({ versions: [] })),
-      rollback: () => Promise.resolve(ok("nextStepBoundary")),
       health: () => Promise.resolve(ok([])),
       hooks: () => Promise.resolve(ok([])),
       hookKeepOff: () => Promise.resolve(ok(null)),

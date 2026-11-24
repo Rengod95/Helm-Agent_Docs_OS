@@ -1,4 +1,4 @@
-import { assertNever, type Result } from "@fresnel/contracts";
+import { assertNever, err, type Result } from "@fresnel/contracts";
 import {
   wireError,
   type ExtRollbackParams,
@@ -35,6 +35,8 @@ export type ExtUiVersionFailure =
     }
   /** 되돌리기가 중간에 멈췄다. `reason`은 멈춘 단계와 복구 결과다 */
   | { readonly kind: "rollback_failed"; readonly reason: string }
+  /** 되돌리기는 리뷰를 거쳐야 한다. 와이어 `ext.rollback`은 리뷰 없이 바꾸지 않고 `pluginReview.requestRollback`으로 안내한다 */
+  | { readonly kind: "review_required"; readonly name: string; readonly version: string }
   /** 이 확장은 버전 기록을 두지 않는다(번들·프로젝트 위치) */
   | { readonly kind: "history_unavailable"; readonly reason: string }
   /** 저장 매체 입출력 실패. `code`는 OS가 준 값이다 */
@@ -65,7 +67,14 @@ export function createExtUiVersionHandlers(
 ): Pick<WireHandlers, ExtUiVersionMethods> {
   return {
     "ext.versions": async (params) => unwrap(await port.versions(params.name)),
-    "ext.rollback": async (params) => unwrap(await port.rollback(params)),
+    // 되돌리기는 리뷰를 거친다(설치, 제거, 드래프트와 같다) [결정: 2026-11-24 AGE-76]. 리뷰 없이 바로 바꾸는 이 길은 사람이 시키는 일에 쓰지 않는다.
+    // 포트의 `rollback`은 엔진 안쪽 쓰임을 위해 남겨 두고 와이어에서는 `pluginReview.requestRollback`으로 안내하며 거절한다
+    "ext.rollback": async (params) =>
+      unwrap<ExtRollbackResult>(
+        await Promise.resolve(
+          err({ kind: "review_required", name: params.name, version: params.version }),
+        ),
+      ),
     "ext.ui.list": (params) => Promise.resolve(port.uiList(params)),
     "ext.ui.post": async (params) => unwrapUi(await port.uiPost(params)),
     "ext.ui.requestApproval": async (params) => unwrapUi(await port.uiRequestApproval(params)),
@@ -134,6 +143,11 @@ function wireErrorOfFailure(failure: ExtUiVersionFailure): WireError {
       return invalidParams(
         "/clearState",
         `state_schema_mismatch: target ${failure.targetSchemaVersion}, current ${failure.currentSchemaVersion}`,
+      );
+    case "review_required":
+      return invalidParams(
+        "/name",
+        `review_required: rolling back ${failure.name} to ${failure.version} goes through review; call pluginReview.requestRollback`,
       );
     case "history_unavailable":
       return invalidParams("/name", `history_unavailable: ${failure.reason}`);

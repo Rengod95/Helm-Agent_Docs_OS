@@ -64,27 +64,6 @@ test("ext.versions returns the port's list as the wire result", async () => {
   }
 });
 
-test("ext.rollback returns the port's result as the wire result", async () => {
-  const host = createFakeHost({
-    extUi: portWith({
-      rollback: () => Promise.resolve(ok({ appliesAt: "restart", stateCleared: true })),
-    }),
-  });
-  const { connection } = host.connect();
-  try {
-    await connection.request("host.hello", HELLO_PARAMS);
-    expect(
-      await connection.request("ext.rollback", {
-        name: "helm",
-        version: "0.1.0",
-        clearState: true,
-      }),
-    ).toEqual({ appliesAt: "restart", stateCleared: true });
-  } finally {
-    await connection.close();
-  }
-});
-
 test("ext.ui.list returns the port's items as the wire result", async () => {
   const host = createFakeHost({ extUi: portWith({ uiList: () => ({ items: [UI_ITEM] }) }) });
   const { connection } = host.connect();
@@ -120,82 +99,21 @@ test("an unknown extension is -32602 at /name with the stable kind prefix", asyn
   }
 });
 
-test("an unknown version is -32602 at /version", async () => {
+test("ext.rollback is refused with review_required and never reaches the port: a rollback goes through review", async () => {
+  const calls: string[] = [];
   const host = createFakeHost({
     extUi: portWith({
-      rollback: () => Promise.resolve(err({ kind: "unknown_version", version: "0.9.0" })),
-    }),
-  });
-  const { connection } = host.connect();
-  try {
-    await connection.request("host.hello", HELLO_PARAMS);
-    const caught = await rejectionOf(
-      connection.request("ext.rollback", { name: "helm", version: "0.9.0" }),
-    );
-    expect(wireOf(caught)).toEqual({
-      code: -32602,
-      message: "jsonrpc.invalidParams",
-      data: {
-        kind: "jsonrpc.invalidParams",
-        retryable: false,
-        details: { issues: [{ path: "/version", message: "unknown_version: 0.9.0" }] },
+      rollback: () => {
+        calls.push("rollback");
+        return Promise.resolve(ok({ appliesAt: "restart", stateCleared: true }));
       },
-    });
-  } finally {
-    await connection.close();
-  }
-});
-
-test("a state schema mismatch is -32602 at /clearState and names both schema numbers", async () => {
-  const host = createFakeHost({
-    extUi: portWith({
-      rollback: () =>
-        Promise.resolve(
-          err({ kind: "state_schema_mismatch", targetSchemaVersion: 1, currentSchemaVersion: 2 }),
-        ),
     }),
   });
   const { connection } = host.connect();
   try {
     await connection.request("host.hello", HELLO_PARAMS);
     const caught = await rejectionOf(
-      connection.request("ext.rollback", { name: "helm", version: "0.1.0" }),
-    );
-    expect(wireOf(caught)).toEqual({
-      code: -32602,
-      message: "jsonrpc.invalidParams",
-      data: {
-        kind: "jsonrpc.invalidParams",
-        retryable: false,
-        details: {
-          issues: [
-            {
-              path: "/clearState",
-              message: "state_schema_mismatch: target 1, current 2",
-            },
-          ],
-        },
-      },
-    });
-  } finally {
-    await connection.close();
-  }
-});
-
-test("a history that is not kept for the extension is -32602 at /name with the reason", async () => {
-  const host = createFakeHost({
-    extUi: portWith({
-      rollback: () =>
-        Promise.resolve(
-          err({ kind: "history_unavailable", reason: "builtin extension has no version history" }),
-        ),
-    }),
-  });
-  const { connection } = host.connect();
-  try {
-    await connection.request("host.hello", HELLO_PARAMS);
-    const caught = await rejectionOf(
-      connection.request("ext.rollback", { name: "core-tools", version: "0.1.0" }),
+      connection.request("ext.rollback", { name: "helm", version: "0.1.0", clearState: true }),
     );
     expect(wireOf(caught)).toEqual({
       code: -32602,
@@ -207,35 +125,14 @@ test("a history that is not kept for the extension is -32602 at /name with the r
           issues: [
             {
               path: "/name",
-              message: "history_unavailable: builtin extension has no version history",
+              message:
+                "review_required: rolling back helm to 0.1.0 goes through review; call pluginReview.requestRollback",
             },
           ],
         },
       },
     });
-  } finally {
-    await connection.close();
-  }
-});
-
-test("a rollback that stopped midway is an internal error that carries the reason", async () => {
-  const reason = "swap_failed at place (restored true, reenabled false)";
-  const host = createFakeHost({
-    extUi: portWith({
-      rollback: () => Promise.resolve(err({ kind: "rollback_failed", reason })),
-    }),
-  });
-  const { connection } = host.connect();
-  try {
-    await connection.request("host.hello", HELLO_PARAMS);
-    const caught = await rejectionOf(
-      connection.request("ext.rollback", { name: "helm", version: "0.1.0" }),
-    );
-    expect(wireOf(caught)).toEqual({
-      code: -32603,
-      message: `rollback_failed: ${reason}`,
-      data: { kind: "internal", retryable: true },
-    });
+    expect(calls).toEqual([]);
   } finally {
     await connection.close();
   }

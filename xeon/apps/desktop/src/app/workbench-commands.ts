@@ -262,12 +262,6 @@ export function createWorkbenchCommands(
     packDir: (dir, out) =>
       withConnection((c) => c.request("ext.package", out === undefined ? { dir } : { dir, out })),
     versions: (name) => withConnection((c) => c.request("ext.versions", { name })),
-    async rollback(name, version, clearState) {
-      const done = await withConnection((c) =>
-        c.request("ext.rollback", { name, version, ...(clearState ? { clearState } : {}) }),
-      );
-      return done.ok ? ok(done.value.appliesAt) : err(done.error);
-    },
     async health() {
       const got = await withConnection((c) => c.request("ext.health", {}));
       return got.ok ? ok(got.value.health) : err(got.error);

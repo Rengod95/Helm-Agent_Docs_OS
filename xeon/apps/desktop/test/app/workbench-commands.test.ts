@@ -8,7 +8,6 @@ import {
   WIRE_ERRORS,
   type EventWire,
   type ExtHealthEntry,
-  type ExtRollbackResult,
   type ExtVersionsResult,
   type HookEntry,
   type HooksOrderGetResult,
@@ -636,24 +635,6 @@ describe("크래프트 명령의 wire 호출", () => {
       error: { kind: "rejected", code: 3403 },
     });
     await refused.app.stop();
-  });
-
-  test("rollback은 번들 판을 version으로 보내고 clearState는 참일 때만 싣는다", async () => {
-    const result: ExtRollbackResult = { appliesAt: "restart", stateCleared: false };
-    const { app, params } = await liveApp({ results: { "ext.rollback": result } });
-    expect(await app.commands.workbench.rollback("helm", "0.1.0", false)).toEqual({
-      ok: true,
-      value: "restart",
-    });
-    expect(await app.commands.workbench.rollback("helm", "0.1.0", true)).toEqual({
-      ok: true,
-      value: "restart",
-    });
-    expect(paramsOf(params, "ext.rollback")).toEqual([
-      { name: "helm", version: "0.1.0" },
-      { name: "helm", version: "0.1.0", clearState: true },
-    ]);
-    await app.stop();
   });
 });
 
