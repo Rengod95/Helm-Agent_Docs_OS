@@ -1,5 +1,6 @@
 import { t } from "@fresnel/client/i18n";
 import { parseJson } from "@fresnel/contracts";
+import type { ExtTestRecord } from "@fresnel/contracts/wire";
 
 // 제작 대화의 `authoring_*` 도구 행을 사람 말로 줄이는 순수 값(L3.authoring.spec §3.2). 이름은 단계 이름이고, 요약은 결과에서 읽은 숫자와 상태다.
 // 내부 도구 이름과 인자 JSON을 그대로 보이지 않는다. 결과가 아직 없으면(실행 중) 단계 이름만 말한다.
@@ -121,4 +122,33 @@ export function trialThreadOf(toolName: string, output: string | undefined): str
   if (result === null || result["ok"] !== true || result["status"] !== "done") return null;
   const threadId = recordOf(result["result"])?.["threadId"];
   return typeof threadId === "string" && threadId !== "" ? threadId : null;
+}
+
+/**
+ * 시험 실행(`authoring_trial`)이 확인 카드를 띄운 채 끝난 호출인가. 모델이 승인 뒤에 도구를 다시 부르지 않아도
+ * 카드를 승인하면 시험 대화가 열리므로, 이 줄은 테스트 목록에서 그 대화를 찾아 단추를 보인다(AGE-77 W-02)
+ */
+export function trialAskedOf(toolName: string, output: string | undefined): boolean {
+  if (toolName !== "authoring_trial" || output === undefined) return false;
+  const parsed = parseJson(output);
+  const result = parsed.ok ? recordOf(parsed.value) : null;
+  return result !== null && result["ok"] === true && result["status"] === "awaiting_confirmation";
+}
+
+/**
+ * 이 호출이 시작된 때(`sinceMs`) 이후 처음 열린 시험 대화의 id. 테스트 목록의 시험 실행(`testRun`) 줄만 본다.
+ * 아직 열리지 않았거나(승인 전) 대화가 없는 줄이면 null이다
+ */
+export function trialThreadFromTests(
+  records: readonly ExtTestRecord[],
+  sinceMs: number,
+): string | null {
+  let best: { readonly at: number; readonly threadId: string } | null = null;
+  for (const record of records) {
+    if (record.kind !== "testRun" || record.threadId === null) continue;
+    const at = Date.parse(record.startedAt);
+    if (Number.isNaN(at) || at < sinceMs) continue;
+    if (best === null || at < best.at) best = { at, threadId: record.threadId };
+  }
+  return best === null ? null : best.threadId;
 }

@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { authoringRowOf, trialThreadOf } from "../../src/views/authoring-row-model.ts";
+import type { ExtTestRecord } from "@fresnel/contracts/wire";
+import {
+  authoringRowOf,
+  trialAskedOf,
+  trialThreadFromTests,
+  trialThreadOf,
+} from "../../src/views/authoring-row-model.ts";
 
 // 제작 대화 도구 행: 내부 이름과 JSON 대신 단계 이름과 결과에서 읽은 숫자·상태를 보인다.
 
@@ -72,5 +78,61 @@ describe("trialThreadOf", () => {
     expect(trialThreadOf("authoring_package", done)).toBeNull();
     expect(trialThreadOf("authoring_trial", "not json")).toBeNull();
     expect(trialThreadOf("authoring_trial", undefined)).toBeNull();
+  });
+});
+
+const rec = (
+  testId: string,
+  kind: "replay" | "testRun",
+  startedAt: string,
+  threadId: string | null,
+): ExtTestRecord => ({
+  testId,
+  kind,
+  target: "todo",
+  state: "running",
+  startedAt,
+  durationMs: null,
+  threadId,
+  replay: null,
+});
+
+describe("trialThreadFromTests", () => {
+  const since = Date.parse("2026-11-24T10:00:00.000Z");
+  test("picks the first Test run thread opened after the call", () => {
+    expect(
+      trialThreadFromTests(
+        [
+          rec("t1", "testRun", "2026-11-24T09:00:00.000Z", "thr_01HAAAAAAAAAAAAAAAAAAAAAAA"),
+          rec("t2", "testRun", "2026-11-24T10:05:00.000Z", "thr_01HBBBBBBBBBBBBBBBBBBBBBBB"),
+          rec("t3", "testRun", "2026-11-24T10:09:00.000Z", "thr_01HCCCCCCCCCCCCCCCCCCCCCCC"),
+        ],
+        since,
+      ),
+    ).toBe("thr_01HBBBBBBBBBBBBBBBBBBBBBBB");
+  });
+  test("is null before approval, for replays and for runs without a thread", () => {
+    expect(trialThreadFromTests([], since)).toBeNull();
+    expect(
+      trialThreadFromTests(
+        [
+          rec("t1", "replay", "2026-11-24T10:05:00.000Z", null),
+          rec("t2", "testRun", "2026-11-24T10:06:00.000Z", null),
+        ],
+        since,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("trialAskedOf", () => {
+  test("is true only for the trial tool waiting on its card", () => {
+    const asked = JSON.stringify({ ok: true, status: "awaiting_confirmation", action: "trial" });
+    expect(trialAskedOf("authoring_trial", asked)).toBe(true);
+    expect(trialAskedOf("authoring_package", asked)).toBe(false);
+    expect(trialAskedOf("authoring_trial", JSON.stringify({ ok: true, status: "done" }))).toBe(
+      false,
+    );
+    expect(trialAskedOf("authoring_trial", "nope")).toBe(false);
   });
 });
