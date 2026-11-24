@@ -222,6 +222,21 @@ test("ext.list: a store count that cannot be read leaves hasData out of that row
   await bare.close();
 });
 
+test("ext.list: a plugin deferred at startup carries deferred true and others carry no field", async () => {
+  const { sources } = createRecordedSources({
+    extensions: () => [record(ALPHA, { loaded: false, deferred: true }), record(TEAM)],
+  });
+  const connection = connect(sources);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const list = await connection.request("ext.list", {});
+  expect(list.extensions.map((row) => [row.name, row.deferred])).toEqual([
+    ["alpha", true],
+    ["team", undefined],
+  ]);
+  expect(list.extensions.map((row) => "deferred" in row)).toEqual([true, false]);
+  await connection.close();
+});
+
 test("ext.list: an extension left out of safe mode carries the same cause as host.status", async () => {
   const { sources } = createRecordedSources({
     safeMode: () => ({ active: true, cause: "startupFailures" }),

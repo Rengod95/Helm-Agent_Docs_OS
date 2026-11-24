@@ -144,7 +144,10 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
     const settings = deps.framesSupported ? values : { ...values, [UI_APPS_KEY]: false };
     const inactive = new Set(
       read.value.extensions
-        .filter((item) => item.status !== "enabled" || item.safeModeExcluded !== null)
+        .filter(
+          (item) =>
+            (item.status !== "enabled" && item.deferred !== true) || item.safeModeExcluded !== null,
+        )
         .map((item) => item.name),
     );
     safeOff = new Set(

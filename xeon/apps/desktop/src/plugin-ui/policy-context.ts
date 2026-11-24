@@ -79,7 +79,10 @@ export function policyContextOf(
   return ok({
     extension,
     // 앱 화면은 어느 프로필에도 없어 닫혀 있어도 열린다(AGE-78 질문 3). 꺼짐은 엔진이 화면 항목 상태(`disabled`)로 알려 준다
-    enabled: entry.mode === "app" ? entry.state !== "disabled" : get.entry.status === "enabled",
+    enabled:
+      entry.mode === "app"
+        ? entry.state !== "disabled"
+        : get.entry.status === "enabled" || get.entry.deferred === true,
     safeMode: get.entry.safeModeExcluded !== null,
     trust,
     methods,

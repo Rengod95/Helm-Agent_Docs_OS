@@ -27,6 +27,7 @@ export function extGetOf(
   options: {
     readonly status?: RegistrationStatus;
     readonly safeModeExcluded?: string | null;
+    readonly deferred?: true;
   } = {},
 ): ExtGetResult {
   const status = options.status ?? "enabled";
@@ -46,6 +47,7 @@ export function extGetOf(
       diagnostics: [],
       autoDisabled: false,
       safeModeExcluded: options.safeModeExcluded ?? null,
+      ...(options.deferred === true ? { deferred: true as const } : {}),
       hookCount: 0,
     },
     manifest,
@@ -95,6 +97,7 @@ export function extListEntryOf(
   options: {
     readonly status?: RegistrationStatus;
     readonly safeModeExcluded?: string | null;
+    readonly deferred?: true;
   } = {},
 ): ExtListResult["extensions"][number] {
   return {
@@ -102,5 +105,6 @@ export function extListEntryOf(
     name,
     status: options.status ?? "enabled",
     safeModeExcluded: options.safeModeExcluded ?? null,
+    ...(options.deferred === true ? { deferred: true as const } : {}),
   };
 }

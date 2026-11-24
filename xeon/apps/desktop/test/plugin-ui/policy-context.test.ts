@@ -45,6 +45,10 @@ describe("policyContextOf", () => {
     expect(enabledOf(uiEntryOf({ mode: "app", state: "disabled" }), closed)).toBe(false);
     expect(enabledOf(uiEntryOf({ mode: "native" }), closed)).toBe(false);
     expect(enabledOf(uiEntryOf({ mode: "native" }), extGetOf())).toBe(true);
+    // 시작 때 미뤄 둔 확장은 꺼진 것이 아니다(X-01). 사용자가 끈 확장은 그대로 꺼짐이다
+    const deferred = extGetOf(HELM_MANIFEST, { status: "disabled", deferred: true });
+    expect(enabledOf(uiEntryOf({ mode: "native" }), deferred)).toBe(true);
+    expect(enabledOf(uiEntryOf({ mode: "native" }), closed)).toBe(false);
   });
 
   test("a manifest label reaches the method grant", () => {

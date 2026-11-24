@@ -641,7 +641,9 @@ export function addonMetaOf(
     effectiveGrade: entry?.effectiveGrade,
     isOrchestration: entry?.isOrchestration,
     enabled:
-      entry === undefined ? undefined : entry.status === "enabled" || entry.status === "enabling",
+      entry === undefined
+        ? undefined
+        : entry.status === "enabled" || entry.status === "enabling" || entry.deferred === true,
     safeMode: entry === undefined ? undefined : entry.safeModeExcluded !== null,
     errors: entry?.diagnostics.filter((item) => item.severity === "error").length,
     diagnostics: entry?.diagnostics,
