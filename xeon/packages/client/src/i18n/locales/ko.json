@@ -3725,6 +3725,7 @@
   "desktop.workbench.selection.detail": "자세히 보기",
   "desktop.workbench.detail.menu": "플러그인 메뉴",
   "desktop.workbench.detail.back": "목록으로",
+  "desktop.workbench.detail.tabs": "상세 탭",
   "desktop.workbench.detail.tab.overview": "개요",
   "desktop.workbench.detail.tab.build": "구성",
   "desktop.workbench.detail.tab.health": "상태",

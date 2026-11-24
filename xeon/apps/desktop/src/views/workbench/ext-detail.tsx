@@ -5,6 +5,7 @@
 // 목록으로, 프로필에 넣기, 테스트 챗, 내보내기, "…" 메뉴는 화면의 시스템 머리줄에 있다(`detail-actions.tsx`, `extensions-screen.tsx`).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
+  DETAIL_TABS,
   failureRowsOf,
   inspectHookRowsOf,
   detailTabOf,
@@ -22,10 +23,8 @@ import {
   Progress,
   Skeleton,
   Table,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
+  SegmentedControl,
+  SegmentedControlItem,
   type TableColumn,
 } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -47,9 +46,18 @@ import { ColumnHead, MUTED, PLAIN_TABLE, TwoColumns } from "./tab-body.tsx";
 import { KindTag, pluginKindOf } from "./plugin-kind.tsx";
 import type { ToolReadinessVM } from "./tool-ready.ts";
 import { VersionsTab } from "./versions-tab.tsx";
+import { SEGMENTED_ON_APP } from "../segmented.ts";
+import { HEADER_SEGMENTED_SIZE } from "../shell/screen-header.tsx";
 
-/** 탭 이름표의 글(plugSize): 탭 크기 sm(28)의 글은 12라 본문(13)보다 작다. 이름표는 한 단계 위인 `text-ui-strong`(13, 500)이다 */
-const TAB_TEXT = "text-ui-strong";
+/** 탭 이름(plugHead). 값 순서는 `DETAIL_TABS`다 */
+const TAB_LABEL: Readonly<Record<DetailTab, MessageId>> = {
+  overview: "desktop.workbench.detail.tab.overview",
+  build: "desktop.workbench.detail.tab.build",
+  dependencies: "desktop.craft.deps.tab",
+  surfaces: "desktop.workbench.detail.tab.surfaces",
+  health: "desktop.workbench.detail.tab.health",
+  versions: "desktop.workbench.detail.tab.versions",
+};
 
 /** 칸에 값이 없을 때의 자리 글 */
 const DASH = "—";
@@ -74,7 +82,7 @@ function DetailName(props: { readonly row: ExtRowVM }): ReactNode {
     <h2 className="m-0 inline-flex min-w-0 max-w-full items-baseline gap-x-2 text-title-1 text-text-primary">
       <span className="min-w-0 truncate">{row.displayName ?? row.name}</span>
       {row.displayName !== null && (
-        <span className="flex-none font-mono text-ui-lg font-normal text-text-tertiary">{`(${row.name})`}</span>
+        <span className="flex-none font-mono text-ui font-normal text-text-tertiary">{`(${row.name})`}</span>
       )}
     </h2>
   );
@@ -348,7 +356,62 @@ function BuildTab(props: {
   );
 }
 
-export function ExtDetail(props: {
+/** 고른 탭 하나의 내용 */
+function TabPanel(props: {
+  readonly tab: DetailTab;
+  readonly entry: ExtListEntry;
+  readonly props: ExtDetailProps;
+  readonly get: Load;
+  readonly timings: TimingsLoad;
+}): ReactNode {
+  const { tab, entry } = props;
+  const outer = props.props;
+  switch (tab) {
+    case "overview":
+      return (
+        <DetailOverview
+          entry={entry}
+          card={outer.card}
+          readiness={outer.readiness}
+          profiles={outer.profiles}
+          onRecheck={outer.onRecheck}
+        />
+      );
+    case "build":
+      return <BuildTab entry={entry} get={props.get} timings={props.timings} />;
+    case "dependencies":
+      return (
+        <div className="grid gap-6">
+          <DepsTab entry={entry} />
+          {/* 목록 맨 위에 있던 기능 연결 표(B-05)는 여기로 옮겼다(AGE-76 plugMin). 두 단 아래 전체 폭이다 */}
+          <BindingsPanel />
+        </div>
+      );
+    case "surfaces":
+      return <SurfacesTab entry={entry} />;
+    case "health":
+      return (
+        <TwoColumns
+          start={
+            <Part title={t("desktop.workbench.detail.tab.metrics")}>
+              <MetricsTab entry={entry} />
+            </Part>
+          }
+          end={
+            <Part title={t("desktop.workbench.detail.tab.record")}>
+              <RecordTab name={entry.name} />
+            </Part>
+          }
+        />
+      );
+    case "versions":
+      return <VersionsTab key={entry.name} entry={entry} locked={rowOf(entry).lock !== null} />;
+    default:
+      return assertNever(tab, "TabPanel");
+  }
+}
+
+export interface ExtDetailProps {
   readonly entry: ExtListEntry;
   /** 지금 고른 탭(스토어 값). 기록 보기처럼 밖에서 연 때 그 탭이다. 옛 이름이면 `detailTabOf`로 옮긴다 */
   readonly tab: DetailTab;
@@ -362,7 +425,9 @@ export function ExtDetail(props: {
   readonly onStop: () => void;
   /** 준비 상태의 "다시 확인": 엔진에 도구 점검을 다시 시키고 카드를 다시 읽는다 */
   readonly onRecheck: () => void;
-}): ReactNode {
+}
+
+export function ExtDetail(props: ExtDetailProps): ReactNode {
   const commands = useCommands();
   // 훅 시간은 테스트 챗 창이 빌린 대화가 아니라 빌리기 전의 대화로 읽는다(C7)
   const threadId = useWorkThreadId();
@@ -393,7 +458,7 @@ export function ExtDetail(props: {
   // 머리의 종류는 목록의 종류 칸과 같은 규칙(카드의 종류)이다. 카드를 못 읽었으면 묶음 종류(옛 글)로 둔다
   const cardKind = pluginKindOf(props.card);
   return (
-    <article className="@container/detail grid min-h-0 content-start gap-4 pb-4">
+    <article data-type-step="up" className="@container/detail flex min-h-0 flex-1 flex-col gap-4">
       {/* 이름 줄(plugHead): 이름(id), 종류, 버전 셋만. 출처는 개요의 "쓰임과 믿음", 프로필 수는 머리줄의 "프로필에 넣기" 단추, 문제 상태는 개요에 있다 */}
       <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
         <DetailName row={row} />
@@ -405,76 +470,31 @@ export function ExtDetail(props: {
         <span className="text-ui tabular-nums text-text-tertiary">{row.version}</span>
       </header>
       <AutoOffNotice entry={entry} onRetry={props.onRetry} onStop={props.onStop} />
-      <Tabs
+      {/* 탭 고르기(plugHead): 앱의 다른 segmented control(왼쪽 위 "대화 / 크래프트", 목록의 "표 / 카드")과 같은 caustic SegmentedControl sm이다.
+          앱 바탕 위라 홈을 `SEGMENTED_ON_APP`으로 채운다. 고른 탭의 내용은 아래 칸 하나에 그린다 */}
+      <SegmentedControl
+        size={HEADER_SEGMENTED_SIZE}
+        aria-label={t("desktop.workbench.detail.tabs")}
         value={tab}
         onValueChange={(value) => {
           const next = detailTabOf(value);
           if (next !== null) props.onTab(next);
         }}
-        variant="soft"
-        size="sm"
-        className="gap-6"
+        className={`${SEGMENTED_ON_APP} self-start`}
       >
-        <TabsList>
-          <TabsTrigger value="overview" className={TAB_TEXT}>
-            {t("desktop.workbench.detail.tab.overview")}
-          </TabsTrigger>
-          <TabsTrigger value="build" className={TAB_TEXT}>
-            {t("desktop.workbench.detail.tab.build")}
-          </TabsTrigger>
-          <TabsTrigger value="dependencies" className={TAB_TEXT}>
-            {t("desktop.craft.deps.tab")}
-          </TabsTrigger>
-          <TabsTrigger value="surfaces" className={TAB_TEXT}>
-            {t("desktop.workbench.detail.tab.surfaces")}
-          </TabsTrigger>
-          <TabsTrigger value="health" className={TAB_TEXT}>
-            {t("desktop.workbench.detail.tab.health")}
-          </TabsTrigger>
-          <TabsTrigger value="versions" className={TAB_TEXT}>
-            {t("desktop.workbench.detail.tab.versions")}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview">
-          <DetailOverview
-            entry={entry}
-            card={props.card}
-            readiness={props.readiness}
-            profiles={props.profiles}
-            onRecheck={props.onRecheck}
-          />
-        </TabsContent>
-        <TabsContent value="build">
-          <BuildTab entry={entry} get={get} timings={timings} />
-        </TabsContent>
-        <TabsContent value="dependencies">
-          <div className="grid gap-6">
-            <DepsTab entry={entry} />
-            {/* 목록 맨 위에 있던 기능 연결 표(B-05)는 여기로 옮겼다(AGE-76 plugMin). 두 단 아래 전체 폭이다 */}
-            <BindingsPanel />
-          </div>
-        </TabsContent>
-        <TabsContent value="surfaces">
-          <SurfacesTab entry={entry} />
-        </TabsContent>
-        <TabsContent value="health">
-          <TwoColumns
-            start={
-              <Part title={t("desktop.workbench.detail.tab.metrics")}>
-                <MetricsTab entry={entry} />
-              </Part>
-            }
-            end={
-              <Part title={t("desktop.workbench.detail.tab.record")}>
-                <RecordTab name={entry.name} />
-              </Part>
-            }
-          />
-        </TabsContent>
-        <TabsContent value="versions">
-          <VersionsTab key={entry.name} entry={entry} locked={row.lock !== null} />
-        </TabsContent>
-      </Tabs>
+        {DETAIL_TABS.map((value) => (
+          <SegmentedControlItem key={value} value={value}>
+            {t(TAB_LABEL[value])}
+          </SegmentedControlItem>
+        ))}
+      </SegmentedControl>
+      {/* 고른 탭의 내용: 이 칸만 스크롤한다(이름 줄과 탭 고르기는 늘 보인다) */}
+      <section
+        aria-label={t(TAB_LABEL[tab])}
+        className="-mx-1 min-h-0 flex-1 overflow-auto px-1 pb-4"
+      >
+        <TabPanel tab={tab} entry={entry} props={props} get={get} timings={timings} />
+      </section>
     </article>
   );
 }

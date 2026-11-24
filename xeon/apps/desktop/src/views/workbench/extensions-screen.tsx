@@ -25,6 +25,7 @@ import { MergeDialog } from "../craft/members/split-dialogs.tsx";
 import { useSplitActions } from "../craft/members/split-source.ts";
 import { LayoutGrid, Rows3, SquareStack } from "@caustic/react/icons";
 import { useSafeMode } from "../safe-mode-context.ts";
+import { SEGMENTED_ON_APP } from "../segmented.ts";
 import {
   HEADER_CONTROL_SIZE,
   HEADER_PRIMARY_VARIANT,
@@ -118,8 +119,9 @@ export function ExtensionsScreen(): ReactNode {
           )
         }
       />
-      {/* 머리 뒤 위 간격과 막대 자리는 셸 규칙이 준다. 목록과 상세 모두 최대 폭 없이 좌우 여백 32(`px-8`)로 넓게 쓴다(plugSize) */}
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-3 px-8 pb-4">
+      {/* 머리 뒤 위 간격과 막대 자리는 셸 규칙이 준다. 목록과 상세 모두 최대 폭 없이 좌우 여백 32(`px-8`)로 넓게 쓴다(plugSize).
+          상세는 아래 여백을 자기 칸이 갖는다(구성 탭의 캔버스가 아래 끝까지 찬다) */}
+      <div className={`flex min-h-0 w-full flex-1 flex-col gap-3 px-8${detailOpen ? "" : " pb-4"}`}>
         <MergeDialog
           open={merging}
           entries={state.entries}
@@ -153,7 +155,7 @@ export function ExtensionsScreen(): ReactNode {
                 setView(next);
                 detachVoid(commands.savePluginListView(next).then(() => undefined));
               }}
-              className="ms-auto"
+              className={`ms-auto ${SEGMENTED_ON_APP}`}
             >
               <SegmentedControlItem value="table" icon={<Rows3 />}>
                 {t("desktop.workbench.view.table")}
@@ -189,26 +191,24 @@ export function ExtensionsScreen(): ReactNode {
           </Alert>
         )}
         {ready && detailEntry !== null && (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <ExtDetail
-              key={detailEntry.name}
-              entry={detailEntry}
-              card={cards.cardOf(detailEntry.name)}
-              readiness={cards.readinessOf(detailEntry.name)}
-              onRecheck={cards.recheck}
-              tab={state.detailTab}
-              profiles={profiles}
-              onTab={(tab) => {
-                actions.selectDetailTab(tab);
-              }}
-              onRetry={() => {
-                detachVoid(controller.retry(detailEntry.name));
-              }}
-              onStop={() => {
-                detachVoid(controller.stop(detailEntry.name));
-              }}
-            />
-          </div>
+          <ExtDetail
+            key={detailEntry.name}
+            entry={detailEntry}
+            card={cards.cardOf(detailEntry.name)}
+            readiness={cards.readinessOf(detailEntry.name)}
+            onRecheck={cards.recheck}
+            tab={state.detailTab}
+            profiles={profiles}
+            onTab={(tab) => {
+              actions.selectDetailTab(tab);
+            }}
+            onRetry={() => {
+              detachVoid(controller.retry(detailEntry.name));
+            }}
+            onStop={() => {
+              detachVoid(controller.stop(detailEntry.name));
+            }}
+          />
         )}
         {ready && detailEntry === null && empty && (
           <EmptyState

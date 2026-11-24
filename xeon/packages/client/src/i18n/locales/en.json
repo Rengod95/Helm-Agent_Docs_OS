@@ -3725,6 +3725,7 @@
   "desktop.workbench.selection.detail": "Details",
   "desktop.workbench.detail.menu": "Plugin menu",
   "desktop.workbench.detail.back": "Back to list",
+  "desktop.workbench.detail.tabs": "Detail tabs",
   "desktop.workbench.detail.tab.overview": "Overview",
   "desktop.workbench.detail.tab.build": "Build",
   "desktop.workbench.detail.tab.health": "Health",

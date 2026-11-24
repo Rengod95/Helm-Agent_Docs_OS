@@ -246,11 +246,11 @@ function detailOf(row: ExtListEntry, tab: DetailTab): string {
   );
 }
 
-/** 탭 단추의 글과 고른 상태, 그린 순서대로 */
+/** 탭 고르기(segmented control, plugHead)의 칸 글과 고른 상태, 그린 순서대로 */
 function triggersOf(html: string): { text: string; selected: boolean }[] {
-  return [...html.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)].map((m) => ({
+  return [...html.matchAll(/<button[^>]*role="radio"[^>]*>([\s\S]*?)<\/button>/g)].map((m) => ({
     text: textOf(m[1] ?? ""),
-    selected: m[0].includes('aria-selected="true"'),
+    selected: m[0].includes('aria-checked="true"'),
   }));
 }
 
