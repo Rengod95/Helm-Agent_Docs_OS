@@ -5,7 +5,7 @@ import {
   type ItemMaskEntry,
   type ItemRecord,
 } from "@fresnel/contracts/conversation";
-import type { HostConnection, StoreId } from "@fresnel/contracts/wire";
+import { WireError, type HostConnection, type StoreId } from "@fresnel/contracts/wire";
 import type { TranscriptPort } from "./link.ts";
 
 /**
@@ -43,7 +43,11 @@ export function createThreadReaderPort(deps: ThreadReaderDeps): TranscriptPort {
       const first = await attemptAsync(() =>
         deps.connection.request("thread.read", { threadId, limit: PAGE }),
       );
-      if (!first.ok) return err({ kind: "failed" });
+      if (!first.ok) {
+        const cause = first.error.cause;
+        const gone = cause instanceof WireError && cause.data.kind === "thread.notFound";
+        return err(gone ? { kind: "failed", gone: true } : { kind: "failed" });
+      }
       const olderHasMore = { value: false };
       const storeId = deps.storeId();
       if (storeId === null || first.value.position.storeId !== storeId)

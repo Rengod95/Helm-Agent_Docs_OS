@@ -1547,6 +1547,8 @@ export type LinkDeps = {
   readonly logger: Logger;
   /** UI 스토어의 선택 thread. 재설정 뒤 다시 열 thread를 알려 준다 */
   readonly openThreadId: () => ThreadId | null;
+  /** 열려 있던 대화를 엔진이 모른다고 답했을 때(`thread.notFound`, 데이터 복원이 되돌려 지운 경우) 부른다. 앱이 선택을 푼다 */
+  readonly onOpenThreadGone?: (threadId: ThreadId) => void;
 };
 
 export interface EngineLink {
