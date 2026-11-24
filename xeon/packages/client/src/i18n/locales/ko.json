@@ -3139,6 +3139,7 @@
   "desktop.settings.tools.status.unavailable": "사용 불가",
   "desktop.settings.tools.unavailable": "이 연결에서는 점검 결과를 받을 수 없어요.",
   "desktop.settings.draft.body": "저장하지 않은 값이 {count}개 있어요. 이 탭을 떠나기 전에 어떻게 할까요?",
+  "desktop.settings.draft.discardedOnLeave": "저장하지 않은 값 {count}개를 버렸어요",
   "desktop.settings.draft.discard": "버리고 이동",
   "desktop.settings.draft.save": "저장하고 이동",
   "desktop.settings.draft.stay": "이 탭에 머물기",

@@ -4,6 +4,7 @@ import {
   type SettingsController,
   type SettingsState,
 } from "@fresnel/client/settings";
+import { toast } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
@@ -77,6 +78,7 @@ import { SandboxPanel } from "./settings-sandbox-panel.tsx";
 import { McpPolicyPanel } from "./settings-mcp-policy.tsx";
 import { AboutPanel, SettingsBanners, SettingsFilesPanel } from "./settings-overview.tsx";
 import { SettingSection } from "./settings-section.tsx";
+import { useLeaveDiscardNotice } from "./settings-leave-notice.ts";
 import { DataColumns } from "./settings-data-card.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
@@ -101,6 +103,11 @@ interface Binding {
 
 /** 이 화면의 전용 편집기 전부(P-09 §6.13). 모델과 계정 구역은 전용 패널이 그린다(DP-83) */
 const EDITORS: DedicatedEditors = SETTINGS_EDITORS;
+
+/** 떠나며 버려진 초안을 토스트로 알린다 */
+function notifyDiscarded(count: number): void {
+  toast({ tone: "warning", title: t("desktop.settings.draft.discardedOnLeave", { count }) });
+}
 
 function withKey(set: ReadonlySet<SettingKey>, key: SettingKey): ReadonlySet<SettingKey> {
   return new Set([...set, key]);
@@ -201,6 +208,7 @@ export function SettingsPage(props: {
   const memory = useMemoryPanel(section === "sessions");
   const jump = useSettingsJump();
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
+  useLeaveDiscardNotice(dirtyKeys.length, notifyDiscarded);
 
   const markSaved = (key: SettingKey): void => {
     setSaved((prev) => withKey(prev, key));

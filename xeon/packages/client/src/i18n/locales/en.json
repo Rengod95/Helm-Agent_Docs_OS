@@ -3139,6 +3139,7 @@
   "desktop.settings.tools.status.unavailable": "Unavailable",
   "desktop.settings.tools.unavailable": "This connection cannot get the check results.",
   "desktop.settings.draft.body": "{count} values are unsaved. What should happen before you leave this tab?",
+  "desktop.settings.draft.discardedOnLeave": "Discarded {count} unsaved values",
   "desktop.settings.draft.discard": "Discard and move",
   "desktop.settings.draft.save": "Save and move",
   "desktop.settings.draft.stay": "Stay on this tab",
