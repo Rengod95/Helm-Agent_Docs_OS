@@ -514,3 +514,47 @@ test("an isolated plugin's engine.call capability call goes to the pipeline as t
   });
   expect(fake.requests[0]?.inheritApproval).toBeUndefined();
 });
+
+test("an isolated plugin's readOnly method request cannot reach a writing capability, whatever flow the router runs in", async () => {
+  const fake = fakeTools(() => okView({ saved: "a" }));
+  const t = await createTestHost({ capabilityDefs: writerDefs });
+  await provideToolsPort(t, fake.port);
+  await t.host.install(providerUnit(NO_PROVIDER_EFFECT));
+  let reply: unknown;
+  await t.host.install(
+    makeUnit(
+      {
+        name: "pc-isolated-ro",
+        builtin: false,
+        loadIndex: 1,
+        hooks: [POINT],
+        requires: [{ id: "demo.writer", range: "^1.0.0" }],
+      },
+      (g) => {
+        // 요청 자신의 표지가 readOnly다. 라우터가 도는 흐름(훅)에는 readOnly 표지가 없다
+        const router = createEngineCallRouter({
+          gOf: () => g,
+          replayOf: () => false,
+          methodScopeOf: () => ({ readOnly: true, ownData: false }),
+        });
+        g.on(POINT, async () => {
+          reply = await router({
+            method: "capability",
+            registration: "pc-isolated-ro",
+            requestId: 3,
+            params: {
+              key: { capability: "demo.writer", version: "1.0.0" },
+              member: "save",
+              input: { text: "a" },
+            },
+          });
+        });
+      },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await fire(t, thread, "engine-call-ro");
+  expect(reply).toMatchObject({ ok: false });
+  expect(fake.requests).toHaveLength(0);
+});

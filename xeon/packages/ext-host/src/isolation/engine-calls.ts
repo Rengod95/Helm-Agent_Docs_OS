@@ -617,12 +617,15 @@ export function createEngineCallRouter(deps: EngineCallRouterDeps): EngineCallRo
       scripts: deps.scripts,
       method: deps.methodScopeOf?.(params.requestId),
     };
-    // 요청의 메서드 표지는 요청 자신의 것만 믿는다. 처리 흐름이 물려받은 표지(감독의 읽기 흐름을 연 readOnly 호출 등)는 벗긴다
+    // 요청의 메서드 표지는 요청 자신의 것만 믿는다. 처리 흐름이 물려받은 표지(감독의 읽기 흐름을 연 readOnly 호출 등)는 벗긴다.
+    // 벗긴 뒤 요청 자신의 readOnly 표지를 모든 경로에 다시 건다(readOnly 메서드가 capability로 쓰는 길이 열리지 않게)
+    const routeInAmbient = (): ReturnType<typeof route> =>
+      amb === undefined
+        ? route(g, params.method, params.params, context)
+        : withAmbient(amb, () => route(g, params.method, params.params, context));
     const routeNow = (): ReturnType<typeof route> =>
       withoutMethodMarks(() =>
-        amb === undefined
-          ? route(g, params.method, params.params, context)
-          : withAmbient(amb, () => route(g, params.method, params.params, context)),
+        context.method?.readOnly === true ? withReadOnlyMethod(routeInAmbient) : routeInAmbient(),
       );
     const routed = await attemptAsync(() =>
       deps.ownDataOf?.(params.requestId) === true ? withOwnDataMethod(routeNow) : routeNow(),
